@@ -1,0 +1,650 @@
+{
+  "كيانات_رئيسية": {
+    "العملاء": {
+      "table": "customers",
+      "count": 0
+    },
+    "العقود": {
+      "table": "contracts",
+      "count": 0
+    },
+    "مقاولو الباطن": {
+      "table": "subcontractors",
+      "count": 0
+    },
+    "عقود الباطن": {
+      "table": "sub_contracts",
+      "count": 0
+    },
+    "السندات": {
+      "table": "vouchers",
+      "count": 0
+    },
+    "الفواتير": {
+      "table": "invoices",
+      "count": 0
+    },
+    "عروض الأسعار": {
+      "table": "quotations",
+      "count": 0
+    },
+    "المشاريع": {
+      "table": "projects",
+      "count": 0
+    },
+    "المطالبات المالية": {
+      "table": "claims",
+      "count": 0
+    },
+    "الملحقات": {
+      "table": "addendums",
+      "count": 0
+    },
+    "بنود الكميات": {
+      "table": "boq_items",
+      "count": 0
+    },
+    "خطة السداد": {
+      "table": "payment_plan",
+      "count": 0
+    },
+    "خطة سداد الباطن": {
+      "table": "sub_payment_plan",
+      "count": 0
+    },
+    "مراحل العقد": {
+      "table": "contract_stages",
+      "count": 0
+    },
+    "المهام": {
+      "table": "tasks",
+      "count": 0
+    },
+    "الزيارات": {
+      "table": "visits",
+      "count": 0
+    },
+    "تعليقات العملاء": {
+      "table": "customer_comments",
+      "count": 0
+    }
+  },
+  "بيانات_مرجعية": {
+    "أنواع العقود": {
+      "table": "contract_types",
+      "count": 1
+    },
+    "مراحل العمل": {
+      "table": "workflow_stages",
+      "count": 21
+    },
+    "حسابات المصروفات": {
+      "table": "expense_accounts",
+      "count": 29
+    },
+    "طرق الدفع": {
+      "table": "payment_methods",
+      "count": 5
+    },
+    "الموظفون": {
+      "table": "employees",
+      "count": 0
+    },
+    "طاقم الزيارات": {
+      "table": "visit_staff",
+      "count": 0
+    },
+    "قوالب العقود": {
+      "table": "contract_templates",
+      "count": 0
+    },
+    "مجموعات العقود": {
+      "table": "contract_groups",
+      "count": 0
+    }
+  },
+  "سندات_حسب_النوع": {
+    "قبض": 0,
+    "صرف": 0,
+    "تحويل": 0
+  },
+  "أنواع_العقود": [
+    {
+      "id": 1,
+      "name": "غير محدد",
+      "manual_track": 0,
+      "pricing_mode": "lump",
+      "is_supervision": 0,
+      "unit_label": ""
+    }
+  ],
+  "مراحل_العمل": [
+    {
+      "id": 1,
+      "type": "contract",
+      "name": "أعمال ما قبل التنفيذ",
+      "order": 1,
+      "contract_type": "غير محدد",
+      "is_supervision": 0
+    },
+    {
+      "id": 2,
+      "type": "contract",
+      "name": "فحص التربة",
+      "order": 2,
+      "contract_type": "غير محدد",
+      "is_supervision": 0
+    },
+    {
+      "id": 3,
+      "type": "contract",
+      "name": "التصميم المعماري",
+      "order": 3,
+      "contract_type": "غير محدد",
+      "is_supervision": 0
+    },
+    {
+      "id": 4,
+      "type": "contract",
+      "name": "استخراج رخصة البناء",
+      "order": 4,
+      "contract_type": "غير محدد",
+      "is_supervision": 0
+    },
+    {
+      "id": 5,
+      "type": "contract",
+      "name": "أعمال التنفيذ",
+      "order": 5,
+      "contract_type": "غير محدد",
+      "is_supervision": 0
+    },
+    {
+      "id": 6,
+      "type": "contract",
+      "name": "أعمال الأساسات",
+      "order": 6,
+      "contract_type": "غير محدد",
+      "is_supervision": 0
+    },
+    {
+      "id": 7,
+      "type": "contract",
+      "name": "الهيكل والأعمدة",
+      "order": 7,
+      "contract_type": "غير محدد",
+      "is_supervision": 0
+    },
+    {
+      "id": 8,
+      "type": "contract",
+      "name": "المباني والتشطيبات",
+      "order": 8,
+      "contract_type": "غير محدد",
+      "is_supervision": 0
+    },
+    {
+      "id": 9,
+      "type": "contract",
+      "name": "التسليم",
+      "order": 9,
+      "contract_type": "غير محدد",
+      "is_supervision": 0
+    },
+    {
+      "id": 10,
+      "type": "contract",
+      "name": "التسليم الابتدائي",
+      "order": 10,
+      "contract_type": "غير محدد",
+      "is_supervision": 0
+    },
+    {
+      "id": 11,
+      "type": "contract",
+      "name": "التسليم النهائي",
+      "order": 11,
+      "contract_type": "غير محدد",
+      "is_supervision": 0
+    },
+    {
+      "id": 21,
+      "type": "customer",
+      "name": "غير متعاقد",
+      "order": 1,
+      "contract_type": "",
+      "is_supervision": 0
+    },
+    {
+      "id": 12,
+      "type": "payment",
+      "name": "مطلوب",
+      "order": 1,
+      "contract_type": "",
+      "is_supervision": 0
+    },
+    {
+      "id": 13,
+      "type": "payment",
+      "name": "بانتظار اعتماد المدير",
+      "order": 2,
+      "contract_type": "",
+      "is_supervision": 0
+    },
+    {
+      "id": 14,
+      "type": "payment",
+      "name": "معتمد للصرف",
+      "order": 3,
+      "contract_type": "",
+      "is_supervision": 0
+    },
+    {
+      "id": 15,
+      "type": "payment",
+      "name": "تم الصرف",
+      "order": 4,
+      "contract_type": "",
+      "is_supervision": 0
+    },
+    {
+      "id": 16,
+      "type": "subcontract",
+      "name": "جديد",
+      "order": 1,
+      "contract_type": "",
+      "is_supervision": 0
+    },
+    {
+      "id": 17,
+      "type": "subcontract",
+      "name": "بانتظار عرض السعر",
+      "order": 2,
+      "contract_type": "",
+      "is_supervision": 0
+    },
+    {
+      "id": 18,
+      "type": "subcontract",
+      "name": "تم التعاقد",
+      "order": 3,
+      "contract_type": "",
+      "is_supervision": 0
+    },
+    {
+      "id": 19,
+      "type": "subcontract",
+      "name": "جارٍ التنفيذ",
+      "order": 4,
+      "contract_type": "",
+      "is_supervision": 0
+    },
+    {
+      "id": 20,
+      "type": "subcontract",
+      "name": "مكتمل",
+      "order": 5,
+      "contract_type": "",
+      "is_supervision": 0
+    }
+  ],
+  "حسابات_المصروفات": [
+    {
+      "id": 1,
+      "parent_id": null,
+      "name": "مصروفات تشغيلية",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 2,
+      "parent_id": 1,
+      "name": "بنزين / وقود",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 3,
+      "parent_id": 1,
+      "name": "صيانة سيارات",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 4,
+      "parent_id": 1,
+      "name": "كهرباء وماء",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 5,
+      "parent_id": 1,
+      "name": "اتصالات وإنترنت",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 6,
+      "parent_id": null,
+      "name": "مصروفات إدارية",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 7,
+      "parent_id": 6,
+      "name": "رواتب",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 8,
+      "parent_id": 6,
+      "name": "سلف موظفين / قرض راتب",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 9,
+      "parent_id": 6,
+      "name": "إيجارات",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 10,
+      "parent_id": 6,
+      "name": "قرطاسية",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 11,
+      "parent_id": null,
+      "name": "مصروفات مشاريع",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 12,
+      "parent_id": 11,
+      "name": "عمالة موقع",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 13,
+      "parent_id": 11,
+      "name": "مواد بناء",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 14,
+      "parent_id": 11,
+      "name": "رسوم بلدية",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 15,
+      "parent_id": 11,
+      "name": "مخططات واعتمادات",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 16,
+      "parent_id": null,
+      "name": "مصروفات تسويق ومبيعات",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 17,
+      "parent_id": 16,
+      "name": "إعلانات",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 18,
+      "parent_id": 16,
+      "name": "عمولات",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 19,
+      "parent_id": 16,
+      "name": "ضيافة عملاء",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 20,
+      "parent_id": null,
+      "name": "مصروفات حكومية ورسوم",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 21,
+      "parent_id": 20,
+      "name": "رسوم حكومية",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 22,
+      "parent_id": 20,
+      "name": "طوابع ومعاملات",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 23,
+      "parent_id": null,
+      "name": "مصروفات بنكية",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 24,
+      "parent_id": 23,
+      "name": "عمولات بنكية",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 28,
+      "parent_id": null,
+      "name": "العُهد",
+      "path": "",
+      "kind": "advance",
+      "active": 1
+    },
+    {
+      "id": 29,
+      "parent_id": 28,
+      "name": "عهدة عامة",
+      "path": "",
+      "kind": "advance",
+      "active": 1
+    },
+    {
+      "id": 25,
+      "parent_id": null,
+      "name": "حسابات مستوردة / غير مصنفة",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 26,
+      "parent_id": 25,
+      "name": "مصروفات صيانة",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    },
+    {
+      "id": 27,
+      "parent_id": 25,
+      "name": "مصروف / تكلفة المشروع",
+      "path": "",
+      "kind": "expense",
+      "active": 1
+    }
+  ],
+  "طرق_الدفع": [
+    {
+      "id": 1,
+      "name": "نقدًا",
+      "fee_type": "amount",
+      "fee_value": 0.0,
+      "active": 1
+    },
+    {
+      "id": 2,
+      "name": "تحويل بنكي",
+      "fee_type": "amount",
+      "fee_value": 0.15,
+      "active": 1
+    },
+    {
+      "id": 3,
+      "name": "KNET",
+      "fee_type": "percent",
+      "fee_value": 1.5,
+      "active": 1
+    },
+    {
+      "id": 4,
+      "name": "شيك",
+      "fee_type": "amount",
+      "fee_value": 0.0,
+      "active": 1
+    },
+    {
+      "id": 5,
+      "name": "أخرى",
+      "fee_type": "amount",
+      "fee_value": 0.0,
+      "active": 1
+    }
+  ],
+  "بيانات_مربوطة": {
+    "نطاق العقود المختار": {
+      "table": "contract_scope",
+      "count": 0
+    },
+    "مكونات العقود": {
+      "table": "contract_components",
+      "count": 0
+    },
+    "أحداث العقود": {
+      "table": "contract_events",
+      "count": 0
+    },
+    "مرفقات العقود": {
+      "table": "contract_attachments",
+      "count": 0
+    },
+    "عناصر مجموعات العقود": {
+      "table": "contract_group_items",
+      "count": 0
+    },
+    "بنود عقود الباطن": {
+      "table": "sub_contract_items",
+      "count": 0
+    },
+    "مصادر دفعات الباطن": {
+      "table": "sub_payment_sources",
+      "count": 0
+    },
+    "بنود الملحقات": {
+      "table": "addendum_items",
+      "count": 0
+    },
+    "ملاحظات المراحل": {
+      "table": "stage_notes",
+      "count": 0
+    },
+    "ربط سندات الدفع": {
+      "table": "voucher_payment_links",
+      "count": 0
+    },
+    "قيود محاسبية": {
+      "table": "journal_entries",
+      "count": 0
+    },
+    "إشعارات": {
+      "table": "notifications",
+      "count": 0
+    },
+    "رسائل المعاملات": {
+      "table": "transaction_messages",
+      "count": 0
+    },
+    "سجل مراحل المعاملات": {
+      "table": "transaction_stage_log",
+      "count": 0
+    },
+    "ظهور المعاملات": {
+      "table": "transaction_visibility",
+      "count": 0
+    },
+    "مستندات النماذج": {
+      "table": "form_documents",
+      "count": 0
+    },
+    "قوالب النماذج": {
+      "table": "form_templates",
+      "count": 0
+    },
+    "حقول النماذج": {
+      "table": "form_fields",
+      "count": 0
+    },
+    "فئات النماذج": {
+      "table": "form_categories",
+      "count": 0
+    },
+    "تسلسل الأرقام": {
+      "table": "number_sequences",
+      "count": 0
+    }
+  },
+  "الإعدادات": {
+    "company": "اسم الشركة",
+    "currency": "د.ك",
+    "theme": "light"
+  },
+  "المستخدمون": []
+}

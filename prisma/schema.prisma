@@ -1,0 +1,990 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ==================== الحوكمة ====================
+
+model User {
+  id           Int              @id @default(autoincrement())
+  username     String           @unique
+  passwordHash String           @map("password_hash")
+  salt         String
+  role         String           @default("secretary") // admin | secretary | developer
+  fullName     String           @default("") @map("full_name")
+  jobTitle     String           @default("") @map("job_title")
+  active       Boolean          @default(true)
+  permissions  UserPermission[]
+  createdAt    DateTime         @default(now())
+
+  @@map("users")
+}
+
+model UserPermission {
+  userId  Int     @map("user_id")
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permKey String  @map("perm_key")
+  allowed Boolean @default(true)
+
+  @@id([userId, permKey])
+  @@map("user_permissions")
+}
+
+model FeatureFlag {
+  key     String  @id
+  enabled Boolean @default(true)
+
+  @@map("feature_flags")
+}
+
+model NumberSequence {
+  name   String @id
+  lastNo Int    @default(0) @map("last_no")
+
+  @@map("number_sequences")
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  ts         DateTime @default(now())
+  username   String   @default("")
+  action     String
+  entityType String   @default("") @map("entity_type")
+  entityId   Int      @default(0) @map("entity_id")
+  entityName String   @default("") @map("entity_name")
+  oldStatus  String   @default("") @map("old_status")
+  newStatus  String   @default("") @map("new_status")
+  reason     String   @default("")
+
+  @@map("audit_log")
+}
+
+model PurgeAudit {
+  id       Int      @id @default(autoincrement())
+  purgedAt DateTime @default(now()) @map("purged_at")
+  purgedBy String   @default("") @map("purged_by")
+  entity   String
+  entityId Int      @default(0) @map("entity_id")
+  label    String   @default("")
+  reason   String   @default("")
+  snapshot String   @default("[]")
+
+  @@map("purge_audit")
+}
+
+// ==================== العملاء والعقود ====================
+
+model Customer {
+  id             Int             @id @default(autoincrement())
+  customerCode   String          @unique @map("customer_code")
+  name           String
+  phone          String          @default("")
+  email          String          @default("")
+  governorate    String          @default("")
+  area           String          @default("")
+  block          String          @default("")
+  plot           String          @default("")
+  address        String          @default("")
+  notes          String          @default("")
+  folderPath     String          @default("") @map("folder_path")
+  contracts      Contract[]
+  tasks          Task[]
+  visits         Visit[]
+  comments       Comment[]
+  invoices       Invoice[]
+  createdAt      DateTime        @default(now())
+  contractGroups ContractGroup[]
+
+  @@map("customers")
+}
+
+model Contract {
+  id                Int                  @id @default(autoincrement())
+  contractNumber    String               @unique @map("contract_number")
+  contractName      String               @default("") @map("contract_name")
+  customerId        Int                  @map("customer_id")
+  customer          Customer             @relation(fields: [customerId], references: [id])
+  contractDate      String               @default("") @map("contract_date")
+  description       String               @default("")
+  amount            Decimal
+  notes             String               @default("")
+  contractType      String               @default("غير محدد") @map("contract_type")
+  manualPath        Boolean              @default(false) @map("manual_path")
+  signDate          String               @default("") @map("sign_date")
+  startDate         String               @default("") @map("start_date")
+  endDate           String               @default("") @map("end_date")
+  status            String               @default("نشط")
+  currency          String               @default("د.ك")
+  statusReason      String               @default("") @map("status_reason")
+  cancelledAt       String               @default("") @map("cancelled_at")
+  cancelCloseAmount Decimal              @default(0) @map("cancel_close_amount")
+  qty               Decimal              @default(1)
+  unitPrice         Decimal              @default(0) @map("unit_price")
+  // الإشراف الهندسي
+  supStartDate      String               @default("") @map("sup_start_date")
+  supMonths         Int                  @default(0) @map("sup_months")
+  supMonthly        Decimal              @default(0) @map("sup_monthly")
+  supDiscount       Decimal              @default(0) @map("sup_discount")
+  supWaivedMonths   Decimal              @default(0) @map("sup_waived_months")
+  supWaiveReason    String               @default("") @map("sup_waive_reason")
+  stages            ContractStage[]
+  plan              PaymentPlanItem[]
+  vouchers          Voucher[]
+  addendums         Addendum[]
+  boqItems          BoqItem[]
+  events            ContractEvent[]
+  attachments       ContractAttachment[]
+  invoices          Invoice[]
+  claims            Claim[]
+  subContracts      SubContract[]
+  tasks             Task[]
+  comments          Comment[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  contractScopes    ContractScope[]
+
+  @@index([customerId, status])
+  @@map("contracts")
+}
+
+model ContractStage {
+  id                Int                  @id @default(autoincrement())
+  contractId        Int                  @map("contract_id")
+  contract          Contract             @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  name              String
+  level             Int                  @default(1)
+  parentName        String               @default("") @map("parent_name")
+  expectedDays      Int                  @default(0) @map("expected_days")
+  payPct            Decimal              @default(0) @map("pay_pct")
+  payKind           String               @default("") @map("pay_kind") // ""|achieve|advance|final|days
+  sortOrder         Int                  @default(0) @map("sort_order")
+  startDate         String               @default("") @map("start_date")
+  endDate           String               @default("") @map("end_date")
+  isSkipped         Boolean              @default(false) @map("is_skipped")
+  closedBy          String               @default("") @map("closed_by")
+  isSupervision     Boolean              @default(false) @map("is_supervision")
+  supStart          String               @default("") @map("sup_start")
+  supEnd            String               @default("") @map("sup_end")
+  supActualEnd      String               @default("") @map("sup_actual_end")
+  supMonthly        Decimal              @default(0) @map("sup_monthly")
+  supWaivedMonths   Decimal              @default(0) @map("sup_waived_months")
+  supWaiveReason    String               @default("") @map("sup_waive_reason")
+  deletedAddendumId Int                  @default(0) @map("deleted_addendum_id")
+  payments          PaymentPlanItem[]
+  boqItems          BoqItem[]
+  subPlanLines      SubPaymentPlanItem[]
+
+  @@index([contractId])
+  @@map("contract_stages")
+}
+
+model BoqItem {
+  id                Int               @id @default(autoincrement())
+  contractId        Int               @map("contract_id")
+  contract          Contract          @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  stageId           Int?              @map("stage_id")
+  stage             ContractStage?    @relation(fields: [stageId], references: [id])
+  description       String
+  qty               Decimal           @default(1)
+  unit              String            @default("")
+  unitPrice         Decimal           @default(0) @map("unit_price")
+  amount            Decimal           @default(0)
+  sortOrder         Int               @default(0) @map("sort_order")
+  deleted           Boolean           @default(false)
+  deletedAddendumId Int               @default(0) @map("deleted_addendum_id")
+  subItems          SubContractItem[]
+  addendumItems     AddendumItem[]
+  vouchers          Voucher[]
+
+  @@index([contractId])
+  @@map("boq_items")
+}
+
+model PaymentPlanItem {
+  id                Int                @id @default(autoincrement())
+  contractId        Int                @map("contract_id")
+  contract          Contract           @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  title             String
+  dueDate           String             @map("due_date")
+  amount            Decimal
+  sortOrder         Int                @default(0) @map("sort_order")
+  stageId           Int?               @map("stage_id")
+  stage             ContractStage?     @relation(fields: [stageId], references: [id])
+  notes             String             @default("")
+  triggeredAt       String             @default("") @map("triggered_at") // غير فارغ = استحقاق فعلي
+  manualAmount      Boolean            @default(false) @map("manual_amount")
+  deletedAddendumId Int                @default(0) @map("deleted_addendum_id")
+  subSources        SubPaymentSource[]
+  claims            Claim[]
+  createdAt         DateTime           @default(now())
+
+  @@index([contractId, dueDate, sortOrder])
+  @@map("payment_plan")
+}
+
+model Voucher {
+  id                     Int                  @id @default(autoincrement())
+  voucherNumber          String               @unique @map("voucher_number")
+  vtype                  String // payment|receipt|transfer|custody_return|salary_deduction
+  vdate                  String
+  party                  String               @default("")
+  partyType              String               @default("") @map("party_type") // customer|subcontractor|partner|transfer|""
+  partyId                Int?                 @map("party_id")
+  method                 String               @default("")
+  account                String               @default("")
+  expenseAccountId       Int?                 @map("expense_account_id")
+  expenseAccount         ExpenseAccount?      @relation("expenseAccount", fields: [expenseAccountId], references: [id])
+  expenseAccountSnapshot String               @default("") @map("expense_account_snapshot")
+  expenseGroupRef        String               @default("") @map("expense_group_ref")
+  expenseGroupLine       Int?                 @map("expense_group_line")
+  custodyAccountId       Int?                 @map("custody_account_id")
+  custodyAccount         ExpenseAccount?      @relation("custodyAccount", fields: [custodyAccountId], references: [id])
+  custodyAccountSnapshot String               @default("") @map("custody_account_snapshot")
+  advanceEmployeeId      Int?                 @map("advance_employee_id")
+  employee               Employee?            @relation(fields: [advanceEmployeeId], references: [id])
+  amount                 Decimal
+  advanceAmount          Decimal              @default(0) @map("advance_amount")
+  description            String               @default("")
+  projectId              Int?                 @map("project_id")
+  expenseCustomerId      Int?                 @map("expense_customer_id")
+  contractId             Int?                 @map("contract_id")
+  contract               Contract?            @relation(fields: [contractId], references: [id])
+  boqItemId              Int?                 @map("boq_item_id")
+  boqItem                BoqItem?             @relation(fields: [boqItemId], references: [id])
+  subContractId          Int?                 @map("sub_contract_id")
+  subContract            SubContract?         @relation(fields: [subContractId], references: [id])
+  costCenter             String               @default("") @map("cost_center")
+  attachment             String               @default("")
+  notes                  String               @default("")
+  parentVoucherId        Int?                 @map("parent_voucher_id")
+  parentVoucher          Voucher?             @relation("feeChildren", fields: [parentVoucherId], references: [id])
+  feeChildren            Voucher[]            @relation("feeChildren")
+  chequeDueDate          String               @default("") @map("cheque_due_date")
+  allocation             String               @default("") // تخصيص لأمر تغييري ADD-xxx
+  receiptGroupRef        String               @default("") @map("receipt_group_ref")
+  receiptGroupLine       Int?                 @map("receipt_group_line")
+  cancelled              Boolean              @default(false)
+  cancelReason           String               @default("") @map("cancel_reason")
+  cancelledAt            String               @default("") @map("cancelled_at")
+  links                  VoucherPaymentLink[]
+  createdAt              DateTime             @default(now())
+
+  @@index([vtype, cancelled, vdate])
+  @@index([contractId])
+  @@index([partyType, partyId, vtype, cancelled])
+  @@index([custodyAccountId, expenseGroupRef])
+  @@index([advanceEmployeeId])
+  @@map("vouchers")
+}
+
+model VoucherPaymentLink {
+  id        Int      @id @default(autoincrement())
+  voucherId Int      @map("voucher_id")
+  voucher   Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  kind      String // receipt | payment
+  lineId    Int      @map("line_id") // payment_plan.id أو sub_payment_plan.id
+  amount    Decimal
+  createdAt DateTime @default(now())
+
+  @@unique([voucherId, lineId])
+  @@index([lineId])
+  @@map("voucher_payment_links")
+}
+
+model Addendum {
+  id             Int            @id @default(autoincrement())
+  addendumNumber String         @map("addendum_number")
+  contractId     Int            @map("contract_id")
+  contract       Contract       @relation(fields: [contractId], references: [id])
+  addendumType   String         @default("أمر تغييري") @map("addendum_type") // عقد إضافي|أمر تغييري
+  adate          String         @default("")
+  reason         String         @default("")
+  description    String         @default("")
+  amountAdd      Decimal        @default(0) @map("amount_add")
+  amountDeduct   Decimal        @default(0) @map("amount_deduct")
+  startDate      String         @default("") @map("start_date")
+  endDate        String         @default("") @map("end_date")
+  status         String         @default("مسودة") // مسودة|تحت المراجعة|معتمد|ملغى
+  approvedDate   String         @default("") @map("approved_date")
+  side           String         @default("client") // client|sub
+  subContractId  Int?           @map("sub_contract_id")
+  subContract    SubContract?   @relation(fields: [subContractId], references: [id])
+  itemsCount     Int            @default(0) @map("items_count")
+  appliedAt      String         @default("") @map("applied_at")
+  cancelReason   String         @default("") @map("cancel_reason")
+  cancelledAt    String         @default("") @map("cancelled_at")
+  items          AddendumItem[]
+
+  @@index([contractId, status])
+  @@map("addendums")
+}
+
+model AddendumItem {
+  id               Int      @id @default(autoincrement())
+  addendumId       Int      @map("addendum_id")
+  addendum         Addendum @relation(fields: [addendumId], references: [id], onDelete: Cascade)
+  side             String   @default("client")
+  action           String   @default("add") // add|delete|unlink
+  parentPartId     Int      @default(0) @map("parent_part_id")
+  createdItemId    Int      @default(0) @map("created_item_id")
+  restoreDeletedBy Int      @default(0) @map("restore_deleted_by")
+  applied          Boolean  @default(false)
+  boqItemId        Int?     @map("boq_item_id")
+  boqItem          BoqItem? @relation(fields: [boqItemId], references: [id])
+  subContractId    Int?     @map("sub_contract_id")
+  description      String   @default("")
+  qty              Decimal  @default(0)
+  unit             String   @default("")
+  unitPrice        Decimal  @default(0) @map("unit_price")
+  amount           Decimal  @default(0)
+  refKind          String   @default("") @map("ref_kind") // boq|plan|stage
+  refId            Int      @default(0) @map("ref_id")
+
+  @@index([addendumId])
+  @@map("addendum_items")
+}
+
+model Claim {
+  id             Int              @id @default(autoincrement())
+  claimNumber    String           @unique @map("claim_number")
+  direction      String // out|in
+  contractId     Int              @map("contract_id")
+  contract       Contract         @relation(fields: [contractId], references: [id])
+  subContractId  Int?             @map("sub_contract_id")
+  subContract    SubContract?     @relation(fields: [subContractId], references: [id])
+  custLineId     Int?             @map("cust_line_id")
+  custLine       PaymentPlanItem? @relation(fields: [custLineId], references: [id])
+  subLineId      Int?             @map("sub_line_id")
+  title          String
+  amount         Decimal
+  dueDate        String           @default("") @map("due_date")
+  voucherRef     String           @default("") @map("voucher_ref") // سند القبض المرتبط (سقف المطالبة out)
+  status         String           @default("registered")
+  postponedUntil String           @default("") @map("postponed_until")
+  notes          String           @default("")
+  createdAt      DateTime         @default(now())
+
+  @@index([contractId])
+  @@index([direction, status])
+  @@map("claims")
+}
+
+// ==================== الباطن ====================
+
+model Subcontractor {
+  id               Int           @id @default(autoincrement())
+  subCode          String        @unique @map("sub_code")
+  name             String
+  phone            String        @default("")
+  email            String        @default("")
+  activity         String        @default("")
+  notes            String        @default("")
+  showAllContracts Boolean       @default(false) @map("show_all_contracts")
+  subContracts     SubContract[]
+  createdAt        DateTime      @default(now())
+
+  @@map("subcontractors")
+}
+
+model SubContract {
+  id                Int                  @id @default(autoincrement())
+  subcontractorId   Int                  @map("subcontractor_id")
+  subcontractor     Subcontractor        @relation(fields: [subcontractorId], references: [id])
+  contractId        Int                  @map("contract_id")
+  contract          Contract             @relation(fields: [contractId], references: [id])
+  amount            Decimal              @default(0)
+  startDate         String               @default("") @map("start_date")
+  endDate           String               @default("") @map("end_date")
+  status            String               @default("نشط")
+  description       String               @default("")
+  cancelReason      String               @default("") @map("cancel_reason")
+  cancelledAt       String               @default("") @map("cancelled_at")
+  cancelCloseAmount Decimal              @default(0) @map("cancel_close_amount")
+  items             SubContractItem[]
+  planLines         SubPaymentPlanItem[]
+  vouchers          Voucher[]
+  claims            Claim[]
+  addendums         Addendum[]
+  createdAt         DateTime             @default(now())
+
+  @@index([contractId])
+  @@map("sub_contracts")
+}
+
+model SubContractItem {
+  id            Int         @id @default(autoincrement())
+  subContractId Int         @map("sub_contract_id")
+  subContract   SubContract @relation(fields: [subContractId], references: [id], onDelete: Cascade)
+  boqItemId     Int?        @map("boq_item_id")
+  boqItem       BoqItem?    @relation(fields: [boqItemId], references: [id])
+  qty           Decimal     @default(0)
+  unitPrice     Decimal     @default(0) @map("unit_price")
+  amount        Decimal     @default(0)
+  sourceKind    String      @default("") @map("source_kind") // boq|plan للبنود المنزّلة
+  sourceId      Int         @default(0) @map("source_id")
+
+  @@index([subContractId])
+  @@map("sub_contract_items")
+}
+
+model SubPaymentPlanItem {
+  id            Int                @id @default(autoincrement())
+  subContractId Int                @map("sub_contract_id")
+  subContract   SubContract        @relation(fields: [subContractId], references: [id], onDelete: Cascade)
+  title         String
+  dueDate       String             @map("due_date")
+  amount        Decimal
+  sortOrder     Int                @default(0) @map("sort_order")
+  stageId       Int?               @map("stage_id") // مرحلة من عقد العميل الأب
+  stage         ContractStage?     @relation(fields: [stageId], references: [id])
+  notes         String             @default("")
+  triggeredAt   String             @default("") @map("triggered_at")
+  sources       SubPaymentSource[]
+  createdAt     DateTime           @default(now())
+
+  @@index([subContractId])
+  @@map("sub_payment_plan")
+}
+
+model SubPaymentSource {
+  id         Int                @id @default(autoincrement())
+  subLineId  Int                @map("sub_line_id")
+  subLine    SubPaymentPlanItem @relation(fields: [subLineId], references: [id], onDelete: Cascade)
+  custLineId Int                @map("cust_line_id")
+  custLine   PaymentPlanItem    @relation(fields: [custLineId], references: [id], onDelete: Cascade)
+
+  @@unique([subLineId, custLineId])
+  @@map("sub_payment_sources")
+}
+
+// ==================== أنواع العقود وقوالبها ====================
+
+model ContractType {
+  id               Int                   @id @default(autoincrement())
+  name             String                @unique
+  defaultAmount    Decimal               @default(0) @map("default_amount")
+  notes            String                @default("")
+  active           Boolean               @default(true)
+  manualTrack      Boolean               @default(false) @map("manual_track")
+  unitLabel        String                @default("") @map("unit_label")
+  unitPrice        Decimal               @default(0) @map("unit_price")
+  pricingMode      String                @default("lump") @map("pricing_mode") // lump|unit|items|bundle
+  isSupervision    Boolean               @default(false) @map("is_supervision")
+  paymentTemplates TypePaymentTemplate[]
+  bundleParents    TypeBundleComponent[] @relation("bundleParent")
+  bundleComponents TypeBundleComponent[] @relation("bundleComponent")
+
+  @@map("contract_types")
+}
+
+model TypePaymentTemplate {
+  id             Int                @id @default(autoincrement())
+  contractTypeId Int                @map("contract_type_id")
+  contractType   ContractType       @relation(fields: [contractTypeId], references: [id], onDelete: Cascade)
+  payNo          Int                @map("pay_no")
+  title          String             @default("")
+  pct            Decimal            @default(0)
+  amountFixed    Decimal            @default(0) @map("amount_fixed")
+  triggerStageId Int?               @map("trigger_stage_id")
+  daysOffset     Int                @default(0) @map("days_offset")
+  linkKeyword    String             @default("") @map("link_keyword")
+  stageLinks     TypePaymentStage[]
+
+  @@unique([contractTypeId, payNo])
+  @@map("type_payment_tpl")
+}
+
+model TypePaymentStage {
+  id        Int                 @id @default(autoincrement())
+  paymentId Int                 @map("payment_id")
+  payment   TypePaymentTemplate @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  stageId   Int                 @map("stage_id")
+  stage     WorkflowStage       @relation(fields: [stageId], references: [id])
+
+  @@unique([stageId])
+  @@map("type_payment_stages")
+}
+
+model TypeBundleComponent {
+  id              Int          @id @default(autoincrement())
+  parentTypeId    Int          @map("parent_type_id")
+  parentType      ContractType @relation("bundleParent", fields: [parentTypeId], references: [id], onDelete: Cascade)
+  componentTypeId Int          @map("component_type_id")
+  componentType   ContractType @relation("bundleComponent", fields: [componentTypeId], references: [id])
+  qty             Decimal      @default(1)
+
+  @@index([parentTypeId])
+  @@map("type_bundle_components")
+}
+
+model WorkflowStage {
+  id              Int                @id @default(autoincrement())
+  transactionType String             @map("transaction_type") // contract|payment|subcontract|customer
+  stageName       String             @map("stage_name")
+  stageOrder      Int                @default(0) @map("stage_order")
+  color           String             @default("#3B82F6")
+  parentId        Int?               @map("parent_id")
+  parent          WorkflowStage?     @relation("tree", fields: [parentId], references: [id])
+  children        WorkflowStage[]    @relation("tree")
+  expectedDays    Int                @default(0) @map("expected_days")
+  isPreContract   Boolean            @default(false) @map("is_pre_contract")
+  contractType    String             @default("") @map("contract_type") // '' = القالب العام
+  paymentPct      Decimal            @default(0) @map("payment_pct")
+  payKind         String             @default("") @map("pay_kind")
+  isSupervision   Boolean            @default(false) @map("is_supervision")
+  supMonthly      Decimal            @default(0) @map("sup_monthly")
+  componentKey    String             @default("") @map("component_key")
+  templateLinks   TypePaymentStage[]
+  scopes          ContractScope[]
+
+  @@unique([transactionType, contractType, stageName])
+  @@map("workflow_stages")
+}
+
+model ContractScope {
+  contractId      Int           @map("contract_id")
+  contract        Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  templateStageId Int           @map("template_stage_id")
+  templateStage   WorkflowStage @relation(fields: [templateStageId], references: [id])
+
+  @@id([contractId, templateStageId])
+  @@map("contract_scope")
+}
+
+// ==================== الإعدادات والمراجع ====================
+
+model Setting {
+  id                    Int      @id @default(1)
+  companyName           String   @default("") @map("company_name")
+  companyAddress        String   @default("") @map("company_address")
+  companyPhone          String   @default("") @map("company_phone")
+  companyEmail          String   @default("") @map("company_email")
+  headerTitle           String   @default("نظام إدارة العقود والمحاسبة") @map("header_title")
+  currency              String   @default("د.ك")
+  bankFeeAmount         Decimal  @default(0.150) @map("bank_fee_amount")
+  bankFeeMethod         String   @default("تحويل بنكي") @map("bank_fee_method")
+  bankFeeEnabled        Boolean  @default(true) @map("bank_fee_enabled")
+  cashflowEnabled       Boolean  @default(true) @map("cashflow_enabled")
+  openingBalanceBank    Decimal  @default(0) @map("opening_balance_bank")
+  openingBalanceCash    Decimal  @default(0) @map("opening_balance_cash")
+  openingBalanceDate    String   @default("") @map("opening_balance_date")
+  cashStartDate         String   @default("") @map("cash_start_date")
+  subPayClientGate      Boolean  @default(true) @map("sub_pay_client_gate")
+  collectionAlertDays   Int      @default(30) @map("collection_alert_days")
+  expiryAlerts          String   @default("90,60,30,7") @map("expiry_alerts")
+  descPrefixReceipt     String   @default("") @map("desc_prefix_receipt")
+  descPrefixSupervision String   @default("") @map("desc_prefix_supervision")
+  descPrefixTransfer    String   @default("") @map("desc_prefix_transfer")
+  descPrefixCustody     String   @default("") @map("desc_prefix_custody")
+  descPrefixStageNote   String   @default("") @map("desc_prefix_stage_note")
+  autoBackupEnabled     Boolean  @default(true) @map("auto_backup_enabled")
+  autoBackupInterval    Int      @default(24) @map("auto_backup_interval")
+  uiTheme               String   @default("light") @map("ui_theme")
+  updatedAt             DateTime @updatedAt
+
+  @@map("settings")
+}
+
+model PaymentMethod {
+  id       Int     @id @default(autoincrement())
+  name     String  @unique
+  feeType  String  @default("amount") @map("fee_type") // amount|percent
+  feeValue Decimal @default(0) @map("fee_value")
+  isActive Boolean @default(true) @map("is_active")
+
+  @@map("payment_methods")
+}
+
+model ExpenseAccount {
+  id                     Int              @id @default(autoincrement())
+  parentId               Int?             @map("parent_id")
+  parent                 ExpenseAccount?  @relation("tree", fields: [parentId], references: [id])
+  children               ExpenseAccount[] @relation("tree")
+  name                   String
+  fullPath               String           @default("") @map("full_path")
+  isActive               Boolean          @default(true) @map("is_active")
+  allowPosting           Boolean          @default(true) @map("allow_posting")
+  includeInProfitability Boolean          @default(true) @map("include_in_profitability")
+  accountKind            String           @default("expense") @map("account_kind") // expense|advance
+  sortOrder              Int              @default(0) @map("sort_order")
+  vouchersAsExpense      Voucher[]        @relation("expenseAccount")
+  vouchersAsCustody      Voucher[]        @relation("custodyAccount")
+
+  @@map("expense_accounts")
+}
+
+model ContractGroup {
+  id          Int                 @id @default(autoincrement())
+  groupNumber String              @unique @map("group_number")
+  customerId  Int                 @map("customer_id")
+  customer    Customer            @relation(fields: [customerId], references: [id])
+  groupName   String              @map("group_name")
+  notes       String              @default("")
+  status      String              @default("نشط")
+  createdBy   String              @default("") @map("created_by")
+  items       ContractGroupItem[]
+  createdAt   DateTime            @default(now())
+
+  @@map("contract_groups")
+}
+
+model ContractGroupItem {
+  id         Int           @id @default(autoincrement())
+  groupId    Int           @map("group_id")
+  group      ContractGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  contractId Int           @map("contract_id")
+
+  @@unique([groupId, contractId])
+  @@map("contract_group_items")
+}
+
+// ==================== الفواتير والعهد والموظفون ====================
+
+model Invoice {
+  id            Int      @id @default(autoincrement())
+  invoiceNumber String   @unique @map("invoice_number")
+  customerId    Int      @map("customer_id")
+  customer      Customer @relation(fields: [customerId], references: [id])
+  contractId    Int      @map("contract_id")
+  contract      Contract @relation(fields: [contractId], references: [id])
+  invoiceDate   String   @map("invoice_date")
+  description   String   @default("")
+  amount        Decimal
+  notes         String   @default("")
+  createdAt     DateTime @default(now())
+
+  @@map("invoices")
+}
+
+model Employee {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  phone    String    @default("")
+  notes    String    @default("")
+  active   Boolean   @default(true)
+  vouchers Voucher[]
+
+  @@map("employees")
+}
+
+// ==================== الإنتاجية ====================
+
+model Task {
+  id             Int       @id @default(autoincrement())
+  title          String
+  details        String    @default("")
+  dueAt          String    @map("due_at") // YYYY-MM-DD HH:mm
+  remindMinutes  Int       @default(30) @map("remind_minutes")
+  source         String    @default("يدوية")
+  taskType       String    @default("تذكير") @map("task_type") // تذكير|موعد
+  status         String    @default("مفتوحة") // مفتوحة|منجزة
+  notifiedBefore Boolean   @default(false) @map("notified_before")
+  notifiedAfter  Boolean   @default(false) @map("notified_after")
+  doneAt         String    @default("") @map("done_at")
+  customerId     Int?      @map("customer_id")
+  customer       Customer? @relation(fields: [customerId], references: [id])
+  contractId     Int?      @map("contract_id")
+  contract       Contract? @relation(fields: [contractId], references: [id])
+  visits         Visit[]
+  createdAt      DateTime  @default(now())
+
+  @@index([status, dueAt])
+  @@map("tasks")
+}
+
+model VisitStaff {
+  id     Int     @id @default(autoincrement())
+  name   String
+  phone  String  @default("")
+  active Boolean @default(true)
+  sort   Int     @default(0)
+  visits Visit[]
+
+  @@map("visit_staff")
+}
+
+model Visit {
+  id         Int        @id @default(autoincrement())
+  visitDate  String     @map("visit_date") // YYYY-MM-DD
+  hourSlot   String     @map("hour_slot") // "08:00"
+  staffId    Int        @map("staff_id")
+  staff      VisitStaff @relation(fields: [staffId], references: [id])
+  customerId Int?       @map("customer_id")
+  customer   Customer?  @relation(fields: [customerId], references: [id])
+  note       String     @default("")
+  taskId     Int?       @map("task_id")
+  task       Task?      @relation(fields: [taskId], references: [id])
+  createdBy  String     @default("") @map("created_by")
+  createdAt  DateTime   @default(now())
+
+  @@unique([visitDate, hourSlot, staffId])
+  @@map("visits")
+}
+
+model Comment {
+  id           Int       @id @default(autoincrement())
+  customerId   Int       @map("customer_id")
+  customer     Customer  @relation(fields: [customerId], references: [id])
+  contractId   Int?      @map("contract_id")
+  contract     Contract? @relation(fields: [contractId], references: [id])
+  body         String
+  createdBy    String    @default("") @map("created_by")
+  author       String    @default("")
+  pinned       Boolean   @default(false)
+  editedAt     String    @default("") @map("edited_at")
+  editor       String    @default("")
+  kind         String    @default("عام") // عام|مالية|بلدية|قانونية|تنفيذ|مستندات|اتصال
+  priority     String    @default("عادي") // عادي|مهم|عاجل
+  status       String    @default("مفتوح") // مفتوح|تم|مؤجل|ملغى
+  tags         String    @default("")
+  followupDate String    @default("") @map("followup_date")
+  isDeleted    Boolean   @default(false) @map("is_deleted")
+  deletedAt    String    @default("") @map("deleted_at")
+  deleteReason String    @default("") @map("delete_reason")
+  source       String    @default("")
+  createdAt    DateTime  @default(now())
+
+  @@index([customerId, isDeleted, pinned])
+  @@map("customer_comments")
+}
+
+model ContractAttachment {
+  id         Int      @id @default(autoincrement())
+  contractId Int      @map("contract_id")
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  fileName   String   @map("file_name")
+  storedPath String   @map("stored_path")
+  addedAt    String   @default("") @map("added_at")
+
+  @@map("contract_attachments")
+}
+
+// ==================== البوابة المالية ====================
+
+model GatewayProfile {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  bankAccount String  @default("") @map("bank_account")
+  methods     String  @default("KNET")
+  lagDays     Int     @default(1) @map("lag_days")
+  feeFixed    Decimal @default(0) @map("fee_fixed")
+  tolerance   Decimal @default(0.005)
+  lateDays    Int     @default(3) @map("late_days")
+  isActive    Boolean @default(true) @map("is_active")
+
+  @@map("gateway_profiles")
+}
+
+model GatewayOp {
+  id               Int                 @id @default(autoincrement())
+  gateway          String              @default("")
+  opDate           String              @default("") @map("op_date")
+  phone            String              @default("")
+  amount           Decimal             @default(0)
+  ref              String              @default("")
+  status           String              @default("") // mine|other|unmarked
+  receiptNo        String              @default("") @map("receipt_no")
+  customer         String              @default("")
+  batch            String              @default("")
+  paidTransferId   Int?                @map("paid_transfer_id")
+  classifiedManual Boolean             @default(false) @map("classified_manual")
+  distributed      Boolean             @default(false)
+  distributedAt    String              @default("") @map("distributed_at")
+  gwPaid           Int?                @map("gw_paid") // 1 محوّلة 0 معلقة 2 ملغاة -1 فاشلة
+  gwPaidDate       String              @default("") @map("gw_paid_date")
+  gwToken          String              @default("") @map("gw_token")
+  effectiveDate    String              @default("") @map("effective_date")
+  allocs           TransferOpAlloc[]
+  feeLinks         GatewayFeeVoucher[]
+  createdAt        DateTime            @default(now())
+
+  @@unique([gateway, opDate, phone, amount, ref])
+  @@index([gateway, distributed, status])
+  @@map("gateway_ops")
+}
+
+model BankLine {
+  id          Int      @id @default(autoincrement())
+  bankAccount String   @default("") @map("bank_account")
+  cdate       String
+  amount      Decimal  @default(0)
+  descr       String   @default("")
+  batch       String   @default("")
+  createdAt   DateTime @default(now())
+
+  @@unique([bankAccount, cdate, amount, descr])
+  @@map("bank_lines")
+}
+
+model OtherCompanyTransfer {
+  id            Int               @id @default(autoincrement())
+  tdate         String
+  amount        Decimal           @default(0)
+  ref           String            @default("")
+  notes         String            @default("")
+  method        String            @default("")
+  voucherId     Int               @default(0) @map("voucher_id") // legacy — لا يُنشأ سند
+  voucherNumber String            @default("") @map("voucher_number")
+  allocs        TransferOpAlloc[]
+  createdAt     DateTime          @default(now())
+
+  @@map("other_company_transfers")
+}
+
+model TransferOpAlloc {
+  id         Int                   @id @default(autoincrement())
+  transferId Int                   @default(0) @map("transfer_id")
+  transfer   OtherCompanyTransfer? @relation(fields: [transferId], references: [id])
+  opId       Int                   @default(0) @map("op_id")
+  op         GatewayOp?            @relation(fields: [opId], references: [id])
+  amount     Decimal               @default(0)
+
+  @@index([opId])
+  @@index([transferId])
+  @@map("transfer_op_allocs")
+}
+
+model OtherCompanyOpening {
+  id        Int      @id @default(1)
+  amount    Decimal  @default(0)
+  note      String   @default("")
+  updatedAt DateTime @updatedAt
+
+  @@map("other_company_opening")
+}
+
+model GatewayFeeVoucher {
+  opId       Int       @id @map("op_id")
+  op         GatewayOp @relation(fields: [opId], references: [id])
+  voucherId  Int       @map("voucher_id")
+  transferId Int       @default(0) @map("transfer_id")
+  fee        Decimal
+
+  @@map("gateway_fee_vouchers")
+}
+
+model MatchAlias {
+  id         Int      @id @default(autoincrement())
+  filePhone  String   @default("") @map("file_phone")
+  fileName   String   @default("") @map("file_name")
+  customerId Int      @default(0) @map("customer_id")
+  createdAt  DateTime @default(now())
+
+  @@unique([filePhone, fileName])
+  @@map("match_aliases")
+}
+
+// ==================== القيود والأحداث والقوالب ====================
+
+model JournalEntry {
+  id            Int      @id @default(autoincrement())
+  entryDate     String   @map("entry_date")
+  description   String   @default("")
+  debitAccount  String   @default("") @map("debit_account")
+  creditAccount String   @default("") @map("credit_account")
+  amount        Decimal
+  projectId     Int?     @map("project_id")
+  contractId    Int?     @map("contract_id")
+  boqItemId     Int?     @map("boq_item_id")
+  subContractId Int?     @map("sub_contract_id")
+  costCenter    String   @default("") @map("cost_center")
+  sourceType    String   @default("") @map("source_type")
+  sourceId      Int?     @map("source_id")
+  createdAt     DateTime @default(now())
+
+  @@index([entryDate])
+  @@map("journal_entries")
+}
+
+model ContractEvent {
+  id          Int      @id @default(autoincrement())
+  contractId  Int      @map("contract_id")
+  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  eventTime   DateTime @default(now()) @map("event_time")
+  eventType   String   @map("event_type")
+  description String   @default("")
+  username    String   @default("")
+
+  @@index([contractId])
+  @@map("contract_events")
+}
+
+model FormCategory {
+  id        Int            @id @default(autoincrement())
+  name      String         @unique
+  sort      Int            @default(0)
+  templates FormTemplate[]
+
+  @@map("form_categories")
+}
+
+model FormTemplate {
+  id            Int            @id @default(autoincrement())
+  baseName      String         @map("base_name")
+  version       Int            @default(1)
+  description   String         @default("")
+  categoryId    Int?           @map("category_id")
+  category      FormCategory?  @relation(fields: [categoryId], references: [id])
+  status        String         @default("مسودة") // مسودة|معتمد|معطل|مؤرشف
+  pdfPath       String         @default("") @map("pdf_path")
+  pagesCount    Int            @default(1) @map("pages_count")
+  printIdentity String         @default("none") @map("print_identity") // none|logo|full
+  sourceType    String         @default("word") @map("source_type")
+  wordPath      String         @default("") @map("word_path")
+  createdBy     String         @default("") @map("created_by")
+  updatedBy     String         @default("") @map("updated_by")
+  fields        FormField[]
+  documents     FormDocument[]
+  createdAt     DateTime       @default(now())
+
+  @@map("form_templates")
+}
+
+model FormField {
+  id               Int          @id @default(autoincrement())
+  templateId       Int          @map("template_id")
+  template         FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  name             String
+  fieldType        String       @default("text") @map("field_type")
+  page             Int          @default(1)
+  x                Float        @default(0)
+  y                Float        @default(0)
+  w                Float        @default(120)
+  h                Float        @default(18)
+  sourceType       String       @default("manual") @map("source_type") // manual|system|auto|calc
+  sourceEntity     String       @default("") @map("source_entity")
+  sourceKey        String       @default("") @map("source_key")
+  context          String       @default("")
+  defaultValue     String       @default("") @map("default_value")
+  options          String       @default("")
+  required         Boolean      @default(false)
+  align            String       @default("right")
+  sort             Int          @default(0)
+  continuesFieldId Int?         @map("continues_field_id")
+  placeholder      String       @default("")
+
+  @@index([templateId])
+  @@map("form_fields")
+}
+
+model FormDocument {
+  id              Int          @id @default(autoincrement())
+  templateId      Int          @map("template_id")
+  template        FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  templateVersion Int          @default(1) @map("template_version")
+  title           String       @default("")
+  valuesJson      String       @default("{}") @map("values_json")
+  pdfPath         String       @default("") @map("pdf_path")
+  wordPath        String       @default("") @map("word_path")
+  customerId      Int?         @map("customer_id")
+  contractId      Int?         @map("contract_id")
+  createdBy       String       @default("") @map("created_by")
+  createdAt       DateTime     @default(now())
+
+  @@map("form_documents")
+}

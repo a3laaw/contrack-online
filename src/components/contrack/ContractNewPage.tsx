@@ -1,0 +1,465 @@
+"use client";
+
+/**
+ * «عقد جديد» — صفحة كاملة (بدل نافذة المعالج ثلاثية الخطوات السابقة في ContractsView):
+ * نفس الحقول كلها ونفس الخطوات الثلاث والتحقق والـpayload والـinvalidations والـtoasts حرفيًا.
+ * الخطوات بقيت خطوات داخل الصفحة (مؤشر + تنقل السابق/التالي) بلا نوافذ،
+ * والشريط السفلي sticky: زر أساسي واحد (التالي / إنشاء العقد) + إلغاء outline.
+ * بلا مسار جديد — تُعرض مكان شاشة العقود (استبدال في نفس المستوى).
+ */
+
+import * as React from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Banknote, ChevronLeft, ChevronRight, Layers, Trash2 } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { ApiError, apiGet, apiPost } from "./api";
+import type { ContractTypesResponse, CustomersResponse } from "./contrack-types";
+import { errMessage } from "./contrack-types";
+
+interface ContractNewPageProps {
+  onAuthError: () => void;
+  /** عميل محدد مسبقًا عند القدوم من شاشة العملاء (نفس presetCustomerId السابق) */
+  presetCustomerId?: number | null;
+  /** بعد نجاح الإنشاء — تُغلق الصفحة من الشاشة المستدعية */
+  onSaved?: () => void;
+  /** العودة لقائمة العقود */
+  onCancel: () => void;
+  /** فتح شاشة العقد المنشأ (كما كان بعد إنشاء النافذة) */
+  onOpenContract: (id: number) => void;
+}
+
+interface StageDraft {
+  name: string;
+  expectedDays: string;
+  payPct: string;
+}
+
+interface PaymentDraft {
+  title: string;
+  amount: string;
+  dueDate: string;
+}
+
+export function ContractNewPage({
+  onAuthError,
+  presetCustomerId,
+  onSaved,
+  onCancel,
+  onOpenContract,
+}: ContractNewPageProps) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [step, setStep] = React.useState(1);
+
+  const typesQuery = useQuery<ContractTypesResponse>({
+    queryKey: ["contract-types"],
+    queryFn: () => apiGet<ContractTypesResponse>("/api/contract-types"),
+  });
+  const customersQuery = useQuery<CustomersResponse>({
+    queryKey: ["customers", ""],
+    queryFn: () => apiGet<CustomersResponse>("/api/customers"),
+  });
+
+  // الصفحة تُركَّب عند الفتح فقط — التهيئة مباشرة (العميل المحدد مسبقًا يُملأ هنا)
+  const [fCustomerId, setFCustomerId] = React.useState(
+    presetCustomerId ? String(presetCustomerId) : ""
+  );
+  const [fName, setFName] = React.useState("");
+  const [fTypeId, setFTypeId] = React.useState("");
+  const [fAmount, setFAmount] = React.useState("");
+  const [fDate, setFDate] = React.useState(() => new Date().toISOString().slice(0, 10));
+  const [fDescription, setFDescription] = React.useState("");
+  const [stages, setStages] = React.useState<StageDraft[]>([]);
+  const [payments, setPayments] = React.useState<PaymentDraft[]>([]);
+
+  // ===== نفس إنشاء النافذة السابقة حرفيًا (نفس الـpayload والـinvalidations والـtoasts) =====
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const typeName = fTypeId
+        ? typesQuery.data?.types.find((t) => String(t.id) === fTypeId)?.name
+        : undefined;
+      const body: Record<string, unknown> = {
+        customerId: Number(fCustomerId),
+        contractName: fName.trim(),
+        contractType: typeName || "غير محدد",
+        amount: Number(fAmount || 0),
+        contractDate: fDate,
+        description: fDescription.trim(),
+        stages: stages
+          .filter((s) => s.name.trim())
+          .map((s, i) => ({
+            name: s.name.trim(),
+            expectedDays: Number(s.expectedDays || 0),
+            payPct: Number(s.payPct || 0),
+            sortOrder: i,
+          })),
+        plan: payments
+          .filter((p) => p.title.trim() && Number(p.amount) > 0)
+          .map((p, i) => ({
+            title: p.title.trim(),
+            amount: Number(p.amount),
+            dueDate: p.dueDate,
+            sortOrder: i,
+          })),
+      };
+      return apiPost<{ contract: { id: number; contractNumber: string } }>("/api/contracts", body);
+    },
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["contracts"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["customers"] });
+      toast({
+        title: "تم إنشاء العقد",
+        description: `رقم العقد ${res.contract.contractNumber}`,
+      });
+      onSaved?.();
+      onOpenContract(res.contract.id);
+    },
+    onError: (e) => {
+      if (e instanceof ApiError && e.status === 401) onAuthError();
+      toast({ variant: "destructive", title: "تعذر إنشاء العقد", description: errMessage(e) });
+    },
+  });
+
+  const submitCreate = () => {
+    if (!fCustomerId) {
+      toast({ variant: "destructive", title: "بيانات ناقصة", description: "اختر العميل أولًا" });
+      setStep(1);
+      return;
+    }
+    if (!(Number(fAmount) > 0)) {
+      toast({ variant: "destructive", title: "بيانات ناقصة", description: "أدخل مبلغ العقد" });
+      setStep(1);
+      return;
+    }
+    createMutation.mutate();
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* ===== رأس الصفحة ===== */}
+      <div>
+        <p className="text-xs text-muted-foreground">العملاء والعقود ← العقود</p>
+        <h1 className="text-xl font-bold">عقد جديد</h1>
+        <p className="text-sm text-muted-foreground">
+          الخطوة {step} من 3 —{" "}
+          {step === 1 ? "بيانات العقد الأساسية" : step === 2 ? "المراحل (اختياري)" : "الدفعات (اختياري)"}
+        </p>
+      </div>
+
+      {/* مؤشر الخطوات */}
+      <div className="flex items-center gap-1.5">
+        {[1, 2, 3].map((n) => (
+          <div
+            key={n}
+            className={`h-1.5 flex-1 rounded-full ${n <= step ? "bg-primary" : "bg-muted"}`}
+          />
+        ))}
+      </div>
+
+      {/* ===== الخطوة 1 — بيانات العقد الأساسية ===== */}
+      {step === 1 && (
+        <Card>
+          <CardContent className="p-4 md:p-6">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
+                <Label htmlFor="ct-name" className="text-xs">
+                  اسم العقد
+                </Label>
+                <Input
+                  id="ct-name"
+                  className="h-9"
+                  value={fName}
+                  onChange={(e) => setFName(e.target.value)}
+                  placeholder="مثال: تأسيس فيلا — قطعة 123"
+                />
+              </div>
+              <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
+                <Label className="text-xs">العميل *</Label>
+                <Select value={fCustomerId} onValueChange={setFCustomerId}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="اختر العميل" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {(customersQuery.data?.customers ?? []).map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name} ({c.customerCode})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">نوع العقد</Label>
+                <Select value={fTypeId} onValueChange={(v) => {
+                  setFTypeId(v);
+                  const t = typesQuery.data?.types.find((x) => String(x.id) === v);
+                  if (t && t.defaultAmount && Number(t.defaultAmount) > 0 && !fAmount) {
+                    setFAmount(String(Number(t.defaultAmount)));
+                  }
+                }}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="اختر النوع" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {(typesQuery.data?.types ?? []).filter((t) => t.active !== false).map((t) => (
+                      <SelectItem key={t.id} value={String(t.id)}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ct-amount" className="text-xs">
+                  المبلغ (د.ك) *
+                </Label>
+                <Input
+                  id="ct-amount"
+                  className="h-9"
+                  dir="ltr"
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  value={fAmount}
+                  onChange={(e) => setFAmount(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ct-date" className="text-xs">
+                  تاريخ العقد *
+                </Label>
+                <Input
+                  id="ct-date"
+                  className="h-9"
+                  dir="ltr"
+                  type="date"
+                  value={fDate}
+                  onChange={(e) => setFDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
+                <Label htmlFor="ct-desc" className="text-xs">
+                  الوصف
+                </Label>
+                <Textarea
+                  id="ct-desc"
+                  rows={2}
+                  value={fDescription}
+                  onChange={(e) => setFDescription(e.target.value)}
+                  placeholder="وصف موجز لنطاق العمل…"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground md:col-span-2 lg:col-span-3">
+                ملاحظة: مبلغ العقد لا يُعدَّل بعد الإنشاء — الزيادة والنقصان تتم عبر الملاحق المعتمدة.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ===== الخطوة 2 — المراحل (اختياري) ===== */}
+      {step === 2 && (
+        <Card>
+          <CardContent className="space-y-3 p-4 md:p-6">
+            <p className="text-xs text-muted-foreground">
+              أضف مراحل تنفيذ العقد بالترتيب — تُستخدم كبوابات استحقاق للدفعات. يمكن تركها فارغة والاعتماد على قالب النوع.
+            </p>
+            {stages.length === 0 && (
+              <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+                لا مراحل مضافة
+              </p>
+            )}
+            <ul className="max-h-64 space-y-2 overflow-y-auto">
+              {stages.map((s, i) => (
+                <li key={i} className="grid grid-cols-[1fr_5rem_5rem_2rem] items-end gap-2 rounded-md border p-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">اسم المرحلة {i + 1}</Label>
+                    <Input
+                      className="h-9"
+                      value={s.name}
+                      onChange={(e) =>
+                        setStages((arr) => arr.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">أيام</Label>
+                    <Input
+                      className="h-9"
+                      dir="ltr"
+                      type="number"
+                      min="0"
+                      value={s.expectedDays}
+                      onChange={(e) =>
+                        setStages((arr) => arr.map((x, j) => (j === i ? { ...x, expectedDays: e.target.value } : x)))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">دفع %</Label>
+                    <Input
+                      className="h-9"
+                      dir="ltr"
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={s.payPct}
+                      onChange={(e) =>
+                        setStages((arr) => arr.map((x, j) => (j === i ? { ...x, payPct: e.target.value } : x)))
+                      }
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-9 text-destructive hover:text-destructive"
+                    onClick={() => setStages((arr) => arr.filter((_, j) => j !== i))}
+                    aria-label="حذف المرحلة"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            <Button
+              variant="outline"
+              className="h-9 w-full gap-1.5"
+              onClick={() => setStages((arr) => [...arr, { name: "", expectedDays: "", payPct: "" }])}
+            >
+              <Layers className="size-4" />
+              إضافة مرحلة
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ===== الخطوة 3 — الدفعات (اختياري) ===== */}
+      {step === 3 && (
+        <Card>
+          <CardContent className="space-y-3 p-4 md:p-6">
+            <p className="text-xs text-muted-foreground">
+              أضف دفعات يدوية بقيم واستحقاقات محددة. إن تُركت فارغة فسيولّد النظام الخطة من نسب المراحل أو قالب النوع.
+            </p>
+            {payments.length === 0 && (
+              <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+                لا دفعات مضافة
+              </p>
+            )}
+            <ul className="max-h-64 space-y-2 overflow-y-auto">
+              {payments.map((p, i) => (
+                <li key={i} className="grid grid-cols-[1fr_6rem_9rem_2rem] items-end gap-2 rounded-md border p-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">عنوان الدفعة {i + 1}</Label>
+                    <Input
+                      className="h-9"
+                      value={p.title}
+                      onChange={(e) =>
+                        setPayments((arr) => arr.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">المبلغ</Label>
+                    <Input
+                      className="h-9"
+                      dir="ltr"
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      value={p.amount}
+                      onChange={(e) =>
+                        setPayments((arr) => arr.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">الاستحقاق</Label>
+                    <Input
+                      className="h-9"
+                      dir="ltr"
+                      type="date"
+                      value={p.dueDate}
+                      onChange={(e) =>
+                        setPayments((arr) => arr.map((x, j) => (j === i ? { ...x, dueDate: e.target.value } : x)))
+                      }
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-9 text-destructive hover:text-destructive"
+                    onClick={() => setPayments((arr) => arr.filter((_, j) => j !== i))}
+                    aria-label="حذف الدفعة"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            <Button
+              variant="outline"
+              className="h-9 w-full gap-1.5"
+              onClick={() =>
+                setPayments((arr) => [...arr, { title: "", amount: "", dueDate: new Date().toISOString().slice(0, 10) }])
+              }
+            >
+              <Banknote className="size-4" />
+              إضافة دفعة
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ===== شريط الإجراءات السفلي — زر أساسي واحد + إلغاء outline ===== */}
+      <div className="sticky bottom-2 z-30">
+        <Card className="border bg-background/95 shadow-sm backdrop-blur">
+          <CardContent className="flex items-center justify-end gap-2 p-2">
+            <Button
+              variant="outline"
+              className="h-9"
+              onClick={onCancel}
+              disabled={createMutation.isPending}
+            >
+              إلغاء
+            </Button>
+            {step > 1 && (
+              <Button
+                variant="outline"
+                className="h-9 gap-1"
+                onClick={() => setStep((s) => s - 1)}
+                disabled={createMutation.isPending}
+              >
+                <ChevronRight className="size-4" />
+                السابق
+              </Button>
+            )}
+            {step < 3 ? (
+              <Button className="h-9 gap-1" onClick={() => setStep((s) => s + 1)}>
+                التالي
+                <ChevronLeft className="size-4" />
+              </Button>
+            ) : (
+              <Button className="h-9" onClick={submitCreate} disabled={createMutation.isPending}>
+                {createMutation.isPending ? "جارٍ الإنشاء…" : "إنشاء العقد"}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

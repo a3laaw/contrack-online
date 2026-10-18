@@ -1,0 +1,1813 @@
+================================================================================
+1. من ui/contracts.py — دالة _auto_plan_ui (تحديد نوع العقد)
+================================================================================
+830:     def _auto_plan_ui(self) -> bool:
+831:         """V4.5.13: نوع «تلقائي» (له قالب مراحل وليس مسارًا يدويًا).
+832: 
+833:         قرار صاحب النظام: هذا النوع **لا يُظهر** واجهة سحب البنود والدفعات
+834:         (شجرة النطاق وجدول القالب) — العقد يحمل القالب كاملًا تلقائيًا.
+835:         النوع اليدوي يبقى كما هو (اختيار كامل/جزء).
+836:         """
+837:         try:
+838:             from services import contract_type_service as _cts13
+839:             from services import workflow_service as _wf13
+840:             from services.contract_type_service import UNSPECIFIED as _UNS13
+841:             _name13 = (self.ctype.currentData() or "").strip()
+842:             if not _name13 or _name13 == _UNS13:
+843:                 return False   # «غير محدد» ليست نظامًا مُعدًا
+
+================================================================================
+2. من ui/subcontractors.py — دالة _apply_items_visibility
+================================================================================
+242:     def _apply_items_visibility(self, cid=None) -> bool:
+243:         """V8.1: سياسة صندوق بنود عقد العميل.
+244: 
+245:         · عقد تلقائي (قالب مراحل/دفعات) **بلا بنود** ⇒ يُخفى الصندوق كاملًا
+246:           ويُكتفى بدفعات عقد الباطن.
+247:         · عقد يدوي له قالب ⇒ يبقى ظاهرًا (المستخدم يختار البنود يدويًا).
+248:         · عقد تلقائي له بنود فعلية ⇒ يبقى ظاهرًا.
+249:         · غير ذلك ⇒ ظاهر دائمًا.
+250: 
+251:         تُرجع: هل العقد له قالب (تلقائي أو يدوي)؟
+252:         """
+253:         auto = self._client_contract_auto(cid)
+254:         templated = auto or self._client_contract_templated(cid)
+255:         self._client_auto = auto
+256:         # V8.1: يُخفى فقط للتلقائي بلا بنود — اليدوي يبقى ظاهر
+257:         hide = bool(auto and not getattr(self, "_items", None))
+258:         self._items_hidden = hide
+259:         box = getattr(self, "items_box", None)
+260:         if box is not None:
+261:             box.setVisible(not hide)
+262:         note = getattr(self, "items_hidden_note", None)
+263:         if note is not None:
+264:             note.setVisible(hide)
+265:         pb = getattr(self, "plan_box", None)
+266:         if pb is not None:
+267:             _t = pb.title()
+268:             if hide and "③" in _t:
+269:                 pb.setTitle(_t.replace("③", "②", 1))
+270:             elif (not hide) and "②" in _t:
+271:                 pb.setTitle(_t.replace("②", "③", 1))
+272:         if hide:
+273:             self._chosen_ids = []
+274:         return templated
+
+================================================================================
+3. من ui/subcontractors.py — دالة _reload_items (تحميل البنود/الدفعات)
+================================================================================
+885:     def _reload_items(self, cid=None):
+886:         """يعبّئ جدول بنود عقد العميل (V4.5.15: بلا جدول مختار منفصل).
+887: 
+888:         V8.2: للعقود اليدوية (قالب مراحل/دفعات) بلا بنود، يعرض الدفعات/المراحل
+889:         من payment_plan بدل الجدول الفارغ.
+890:         """
+891:         import logging
+892:         _log = logging.getLogger("subcontractors.items")
+893:         if cid is None:
+894:             cid = self.contract.selected_data()
+895:         cid = int(cid) if cid else None
+896:         changed_contract = (getattr(self, "_items_cid", None) != cid)
+897:         if changed_contract:
+898:             self._chosen_ids = []
+899:         self._items_cid = cid
+900:         self._items = []
+901:         self._items_by_id = {}
+902:         self._linked_other = {}
+903:         self._items_error = None  # V8.1: لحفظ رسالة الخطأ إن وُجد
+904:         self._is_plan_mode = False  # V8.2: هل نعرض دفعات بدل بنود؟
+905: 
+906:         if cid:
+907:             # ── قراءة البنود ──
+908:             try:
+909:                 self._items = [dict(x) for x in lc.list_boq(cid)]
+910:             except Exception as exc:
+911:                 _log.exception("list_boq failed for contract %s", cid)
+912:                 self._items = []
+913:                 self._items_error = str(exc)[:120]
+914: 
+915:             # V8.2: إذا لم توجد بنود في boq_items، نقرأ من payment_plan
+916:             # (للعقود اليدوية فقط — التلقائي يبقى بلا بنود)
+917:             if not self._items:
+918:                 try:
+919:                     from database.database import get_connection
+920:                     with get_connection() as conn:
+921:                         # التحقق من نوع العقد
+922:                         con = conn.execute(
+923:                             "SELECT contract_type FROM contracts WHERE id=?",
+924:                             (cid,)).fetchone()
+925:                         if con:
+926:                             ctype = (con[0] or "").strip()
+927:                             # قراءة إعدادات النوع
+928:                             type_row = conn.execute(
+929:                                 "SELECT manual_track FROM contract_types WHERE name=?",
+930:                                 (ctype,)).fetchone()
+931:                             is_manual = bool(type_row and type_row[0])
+932: 
+933:                             if is_manual:
+934:                                 # قراءة المراحل من payment_plan
+935:                                 plan_rows = conn.execute(
+936:                                     "SELECT pp.*, cs.name AS stage_name "
+937:                                     "FROM payment_plan pp "
+938:                                     "LEFT JOIN contract_stages cs ON cs.id = pp.stage_id "
+939:                                     "WHERE pp.contract_id=? "
+940:                                     "ORDER BY pp.sort_order, pp.due_date",
+941:                                     (cid,)).fetchall()
+942: 
+943:                                 if plan_rows:
+944:                                     # تحويل المراحل إلى تنسيق البنود
+945:                                     self._items = []
+946:                                     for i, row in enumerate(plan_rows):
+947:                                         r = dict(row)
+948:                                         self._items.append({
+949:                                             "id": r["id"],  # نستخدم id من payment_plan
+950:                                             "description": r.get("title") or r.get("stage_name") or f"دفعة {i+1}",
+951:                                             "qty": 1,
+952:                                             "unit": "دفعة",
+953:                                             "unit_price": float(r.get("amount") or 0),
+954:                                             "total": float(r.get("amount") or 0),
+955:                                             "stage_id": r.get("stage_id"),
+956:                                             "due_date": r.get("due_date"),
+957:                                             "notes": r.get("notes", ""),
+958:                                             "_from_plan": True  # علامة أنها من payment_plan
+959:                                         })
+960:                                     self._is_plan_mode = True
+961:                                     _log.info("Loaded %d payment plan items for manual contract %s",
+962:                                              len(self._items), cid)
+963:                 except Exception as exc:
+964:                     _log.exception("Failed to load payment_plan items for contract %s", cid)
+965:                     # لا نغير _items_error هنا لأنها ليست خطأ حقيقي
+966: 
+967:             # ── قراءة البنود المرتبطة بمقاول آخر ──
+968:             # (فقط للبنود الحقيقية من boq_items، وليس للدفعات)
+969:             if not getattr(self, "_is_plan_mode", False):
+970:                 try:
+971:                     from database.database import get_connection
+972:                     with get_connection() as conn:
+973:                         rows = conn.execute(
+974:                             "SELECT si.boq_item_id, s.name FROM sub_contract_items si "
+975:                             "JOIN sub_contracts sc ON sc.id = si.sub_contract_id "
+976:                             "JOIN subcontractors s ON s.id = sc.subcontractor_id "
+977:                             "WHERE sc.contract_id=?", (cid,)).fetchall()
+978:                         self._linked_other = {int(r[0]): (r[1] or "")
+979:                                               for r in rows}
+980:                 except Exception as exc:
+981:                     _log.exception("linked_other query failed for contract %s", cid)
+982:                     self._linked_other = {}
+983: 
+984:         self._items_by_id = {int(x["id"]): x for x in self._items}
+985:         if changed_contract:
+986:             # V8.2: للدفعات، الافتراضي غير محدد (المستخدم يختار)
+987:             if getattr(self, "_is_plan_mode", False):
+988:                 self._chosen_ids = []  # غير محدد افتراضيًا
+989:             else:
+990:                 self._chosen_ids = [int(x["id"]) for x in self._items
+991:                                     if int(x["id"]) not in self._linked_other]
+992:         else:
+993:             self._chosen_ids = [i for i in self._chosen_ids
+994:                                 if i in self._items_by_id]
+995: 
+996:         # V4.5.15: العقد التلقائي (قالب مراحل/دفعات) بلا بنود ⇒ يُخفى
+997:         # صندوق البنود كاملًا ويُكتفى بدفعات عقد الباطن.
+998:         _tpl15 = self._apply_items_visibility(cid)
+999:         _type_name = self._client_contract_type_name(cid)
+1000: 
+1001:         if getattr(self, "_items_hidden", False):
+1002:             # V8.1: تلقائي بلا بنود ⇒ يُخفى
+1003:             _lbl = _type_name or "عقد العميل"
+1004:             self.items_hint.setText(
+1005:                 f"عقد العميل من نوع «{_lbl}» (تلقائي) — البنود تُضاف "
+1006:                 "تلقائيًا؛ يُكتفى بدفعات عقد الباطن أدناه.")
+1007:             self.items_hidden_note.setText(self.items_hint.text())
+1008:         elif getattr(self, "_is_plan_mode", False):
+1009:             # V8.2: يدوي له قالب بلا بنود ⇒ يعرض الدفعات للاختيار
+1010:             self.items_hint.setText(
+1011:                 f"عقد العميل من نوع «{_type_name or 'يدوي'}» له قالب — "
+1012:                 "علّم الدفعات/المراحل التي تعطيها لهذا المقاول "
+1013:                 "(المحدد يظهر مميزًا وعدّاده أسفل الجدول).")
+1014:             # تحديث عنوان الصندوق
+1015:             box = getattr(self, "items_box", None)
+1016:             if box is not None:
+1017:                 box.setTitle("② دفعات/مراحل عقد العميل — علّم الدفعات التي تعطيها لهذا المقاول")
+1018:             # إخفاء جدول البنود المختارة (فارغ في هذه الحالة)
+1019:             ct = getattr(self, "chosen_table", None)
+1020:             if ct is not None:
+1021:                 ct.setVisible(False)
+1022:             _chosen_lbl = getattr(self, "_chosen_lbl", None)
+1023:             if _chosen_lbl is not None:
+1024:                 _chosen_lbl.setVisible(False)
+1025:         elif _tpl15:
+1026:             # V8.1: يدوي له قالب ⇒ يظهر ويختار يدويًا
+1027:             self.items_hint.setText(
+1028:                 f"عقد العميل من نوع «{_type_name or 'يدوي'}» له قالب — "
+1029:                 "اختر البنود التي تعطيها لهذا المقاول "
+1030:                 "(المختار يظهر مميزًا وعدّاده أسفل الجدول).")
+1031:         elif self._items_error:
+1032:             # V8.1: خطأ في قراءة البنود
+1033:             self.items_hint.setText(
+1034:                 f"⚠ تعذّر قراءة بنود عقد العميل: {self._items_error}")
+1035:         elif not self._items:
+1036:             self.items_hint.setText(
+1037:                 "لا بنود على عقد العميل — يمكنك الحفظ بلا بنود. "
+1038:                 "لإضافة بنود، افتح شاشة العقد الرئيسي واضفها في "
+1039:                 "جدول «بنود العقد»." if cid else
+1040:                 "اختر العقد الرئيسي أولًا لعرض بنوده.")
+1041:         elif self._items and len(self._chosen_ids) == 0 and self._linked_other:
+1042:             # V8.1: كل البنود عند مقاول آخر
+1043:             _names = sorted(set(self._linked_other.values()))
+1044:             _names_str = "، ".join(_names)
+1045:             self.items_hint.setText(
+1046:                 f"⚠ كل بنود هذا العقد مرتبطة بمقاول آخر: {_names_str} — "
+1047:                 "لا يمكن اختيار أي بند من هذه البنود.")
+1048:         else:
+1049:             self.items_hint.setText(
+1050:                 "كل بنود العقد كما هي — علّم البند الذي تعطيه لهذا "
+1051:                 "المقاول · البنود المرتبطة بمقاول آخر تبقى معطّلة بوسم "
+1052:                 "المقاول · المختار يظهر مميزًا وعدّاده أسفل الجدول.")
+1053: 
+1054:         self._fill_items_table()
+
+================================================================================
+4. من ui/subcontractors.py — دالة _fill_items_table (عرض الجدول)
+================================================================================
+277:     def _fill_items_table(self):
+278:         from ui.widgets import MONEY_ALIGN, sync_header_alignment
+279:         from PySide6.QtGui import QColor
+280:         t = self.items_table
+281:         t.blockSignals(True)
+282: 
+283:         # V8.2: تغيير رؤوس الأعمدة حسب الوضع
+284:         if getattr(self, "_is_plan_mode", False):
+285:             t.setHorizontalHeaderLabels(
+286:                 ["✔", "الدفعة", "المرحلة", "الاستحقاق", "المبلغ", "ملاحظات"])
+287:         else:
+288:             t.setHorizontalHeaderLabels(
+289:                 ["✔", "البند", "الكمية", "الوحدة", "سعر الوحدة", "الإجمالي"])
+290: 
+291:         t.setRowCount(len(self._items))
+292:         for r, it in enumerate(self._items):
+293:             iid = int(it["id"])
+294:             qty = float(it.get("qty") or 0)
+295:             price = float(it.get("unit_price") or 0)
+296:             total = float(it.get("total") or qty * price)
+297:             taken = iid in self._linked_other
+298:             chosen = (iid in self._chosen_ids) and not taken
+299:             chk = QTableWidgetItem("")
+300:             flags = (Qt.ItemIsUserCheckable | Qt.ItemIsEnabled
+301:                      | Qt.ItemIsSelectable)
+302:             chk.setFlags(flags)
+303:             chk.setCheckState(Qt.Checked if chosen else Qt.Unchecked)
+304:             chk.setData(Qt.UserRole, iid)
+305:             if taken:
+306:                 chk.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+307:             t.setItem(r, 0, chk)
+308: 
+309:             # V8.2: عرض الدفعات بدل البنود في وضع الخطة
+310:             if getattr(self, "_is_plan_mode", False):
+311:                 vals = [
+312:                     it.get("description") or "",
+313:                     it.get("stage_name") or "—",
+314:                     it.get("due_date") or "—",
+315:                     f"{total:,.3f}",
+316:                     it.get("notes") or ""
+317:                 ]
+318:             else:
+319:                 vals = [it.get("description") or "", f"{qty:,.3f}",
+320:                         it.get("unit") or "—", f"{price:,.3f}", f"{total:,.3f}"]
+321: 
+322:             for c, v in enumerate(vals, start=1):
+323:                 cell = QTableWidgetItem(str(v))
+324:                 cell.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+325:                 cell.setTextAlignment(MONEY_ALIGN if c in (3, 4, 5)
+326:                                       else Qt.AlignCenter)
+327:                 cell.setData(Qt.UserRole, iid)
+328:                 if taken:
+329:                     cell.setForeground(QColor(style.WARN))
+330:                     _other = self._linked_other.get(iid, "")
+331:                     if _other:
+332:                         cell.setToolTip(f"مرتبط بمقاول آخر: {_other}")
+333:                 t.setItem(r, c, cell)
+334:         t.blockSignals(False)
+335:         sync_header_alignment(t)
+336:         self._mark_chosen_rows()
+
+================================================================================
+5. من ui/subcontractors.py — دالة _build_plan_rows (بناء الدفعات)
+================================================================================
+1059:     def _build_plan_rows(self, cid=None):
+1060:         """صفوف الدفعات = دفعات عقد العميل نفسها — والمبالغ فارغة يدويًا.
+1061: 
+1062:         V8.2: في وضع الخطة (الدفعات)، يبني الدفعات من العناصر المحددة فقط.
+1063:         """
+1064:         if cid is None:
+1065:             cid = self.contract.selected_data()
+1066:         self._plan_rows = []
+1067:         self._client_lines = {}
+1068:         if not cid:
+1069:             self._plan_note = "اختر عقد العميل لعرض دفعاته."
+1070:             self._fill_plan_table()
+
+================================================================================
+6. من ui/subcontractors.py — دالة _refresh_sub_totals (العدّاد)
+================================================================================
+435:     def _refresh_sub_totals(self):
+436:         """عدّاد ومجموع المختار + مقارنته بقيمة عقد الباطن (كان في صندوق ③).
+437: 
+438:         V8.2: في وضع الخطة، يعرض عداد الدفعات المحددة.
+439:         """
+440:         _color = None      # V5.4 ⑤: لون سطر المقارنة
+441:         rows = [self._items_by_id[i] for i in self._chosen_ids
+442:                 if i in getattr(self, "_items_by_id", {})]
+443:         total = 0.0
+444:         for it in rows:
+445:             qty = float(it.get("qty") or 0)
+446:             price = float(it.get("unit_price") or 0)
+447:             total += float(it.get("total") or qty * price)
+448:         self._chosen_total = total
+449: 
+450:         if getattr(self, "_items_hidden", False):
+451:             txt = ("بلا بنود — عقد العميل من نوع تلقائي (يُكتفى بدفعات "
+452:                    "عقد الباطن)"
+453:                    if getattr(self, "_client_auto", False) else
+454:                    "بلا بنود — نوع عقد العميل له قالب (يُكتفى بدفعات "
+455:                    "عقد الباطن)")
+456:         elif getattr(self, "_is_plan_mode", False):
+457:             # V8.2: وضع الدفعات
+458:             if not rows:
+459:                 txt = "لم تحدد أي دفعة — علّم الدفعات في الجدول العلوي"
+460:             else:
+461:                 _all_total = 0.0
+462:                 for _it in (getattr(self, "_items", None) or []):
+463:                     _q = float(_it.get("qty") or 0)
+464:                     _p = float(_it.get("unit_price") or 0)
+465:                     _all_total += float(_it.get("total") or _q * _p)
+466:                 txt = (f"مجموع دفعات العقد: {_all_total:,.3f} د.ك · "
+467:                        f"المحدد: {len(rows)} دفعة · {total:,.3f} د.ك")
+468:                 try:
+469:                     amt = float(self.amount.value() or 0)
+470:                 except Exception:
+471:                     amt = 0.0
+472:                 if amt > 0:
+473:                     diff = total - amt
+474:                     txt += f" · قيمة عقد الباطن: {amt:,.3f} د.ك"
+475:                     txt += (" · ✓ مطابق" if abs(diff) <= 0.001
+476:                             else f" · ⚠ الفرق: {diff:+,.3f} د.ك")
+477:                     _color = (style.OK_GREEN if abs(diff) <= 0.001
+478:                               else style.WARN)
+479:                 else:
+480:                     _color = None
+481:         elif not getattr(self, "_items", None):
+482:             txt = "لا بنود على عقد العميل"
+483:         elif not rows:
+484:             txt = "لم تُعلّم أي بند — يمكن الحفظ بلا بنود"
+485:         else:
+486:             # V5.4 ⑤: سطر مقارنة كامل مثل عقد العميل تمامًا
+487:             # (مجموع البنود ← المختار ← قيمة عقد الباطن ← الفرق)
+488:             _all_total = 0.0
+489:             for _it in (getattr(self, "_items", None) or []):
+490:                 _q = float(_it.get("qty") or 0)
+491:                 _p = float(_it.get("unit_price") or 0)
+492:                 _all_total += float(_it.get("total") or _q * _p)
+493:             txt = (f"مجموع بنود عقد العميل: {_all_total:,.3f} د.ك · "
+494:                    f"المختار لهذا المقاول: {len(rows)} بند · {total:,.3f} د.ك")
+495:             try:
+496:                 amt = float(self.amount.value() or 0)
+497:             except Exception:
+498:                 amt = 0.0
+499:             if amt > 0:
+500:                 # نفس إشارة شاشة عقد العميل: مجموع البنود − قيمة العقد
+501:                 diff = total - amt
+502:                 txt += f" · قيمة عقد الباطن: {amt:,.3f} د.ك"
+503:                 txt += (" · ✓ مطابق لقيمة عقد الباطن" if abs(diff) <= 0.001
+504:                         else f" · ⚠ الفرق: {diff:+,.3f} د.ك")
+505:                 _color = (style.OK_GREEN if abs(diff) <= 0.001
+506:                           else style.WARN)
+507:             else:
+508:                 _color = None
+509:         lbl = getattr(self, "items_total_lbl", None)
+510:         if lbl is not None:
+511:             lbl.setText(txt)
+512:             try:
+513:                 if _color:
+514:                     lbl.setStyleSheet(
+515:                         "background: transparent; border: none; "
+516:                         f"font-weight: 800; color: {_color};")
+517:                 else:
+518:                     lbl.setStyleSheet(
+519:                         "font-weight: 800;")
+520:             except Exception:
+521:                 pass
+522:         other = getattr(self, "chosen_total_lbl", None)
+523:         if other is not None and other is not lbl:
+524:             other.setText(txt)
+
+================================================================================
+7. من services/contract_type_service.py — type_config
+================================================================================
+37: def type_config(name: str) -> dict:
+38:     # V2.48: تغليف بذاكرة البناء
+39:     from services.qcache import memo
+40:     return memo(("type_config", name),
+41:                 lambda: _type_config_impl(name))
+42: 
+43: 
+44: def _type_config_impl(name: str) -> dict:
+45:     """كل ما تحتاجه نافذة العقد عن النوع · مصدر واحد للحقيقة.
+46: 
+47:     يرجع: {mode, unit_label, unit_price, default_amount, is_supervision}
+48:     ونوع غير موجود يرجع «مبلغ مقطوع» فارغًا (سلوك آمن).
+49:     """
+50:     empty = {"mode": MODE_LUMP, "unit_label": "", "unit_price": 0.0,
+51:              "default_amount": 0.0, "is_supervision": False,
+52:              "is_bundle": False, "manual_track": False}
+53:     if not name:
+54:         return empty
+
+================================================================================
+8. هيكل جدول contract_typesในฐานة
+================================================================================
+CREATE TABLE IF NOT EXISTS customers (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_code TEXT NOT NULL UNIQUE,
+    name          TEXT NOT NULL,
+    phone         TEXT DEFAULT '',
+    address       TEXT DEFAULT '',
+    address_governorate TEXT DEFAULT '',
+    address_area  TEXT DEFAULT '',
+    address_block TEXT DEFAULT '',
+    address_plot  TEXT DEFAULT '',
+    email         TEXT DEFAULT '',
+    notes         TEXT DEFAULT '',
+    created_at    TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS contracts (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    contract_number TEXT NOT NULL UNIQUE,
+    customer_id     INTEGER NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
+    contract_date   TEXT NOT NULL,
+    description     TEXT DEFAULT '',
+    amount          REAL NOT NULL CHECK (amount > 0),
+    notes           TEXT DEFAULT '',
+    created_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS invoices (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    invoice_number TEXT NOT NULL UNIQUE,
+    customer_id    INTEGER NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
+    contract_id    INTEGER NOT NULL REFERENCES contracts(id) ON DELETE RESTRICT,
+    invoice_date   TEXT NOT NULL,
+    description    TEXT DEFAULT '',
+    amount         REAL NOT NULL CHECK (amount > 0),
+    notes          TEXT DEFAULT '',
+    created_at     TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS settings (
+    id              INTEGER PRIMARY KEY CHECK (id = 1),
+    company_name    TEXT DEFAULT '',
+    company_address TEXT DEFAULT '',
+    company_phone   TEXT DEFAULT '',
+    company_email   TEXT DEFAULT '',
+    logo_path       TEXT DEFAULT '',
+    header_title    TEXT DEFAULT 'نظام إدارة العقود والمحاسبة',
+    currency        TEXT DEFAULT 'د.ك',
+    invoice_primary TEXT DEFAULT '#1e3a5f',
+    invoice_accent  TEXT DEFAULT '#2e86ab',
+    auto_backup_enabled  INTEGER DEFAULT 1,
+    auto_backup_interval INTEGER DEFAULT 24,
+    auto_backup_folder   TEXT DEFAULT '',
+    last_backup_at       TEXT DEFAULT '',
+    ui_theme             TEXT DEFAULT 'light',
+    opening_balance_bank REAL DEFAULT 0,
+    opening_balance_cash REAL DEFAULT 0,
+    sub_pay_client_gate INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS users (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    username      TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    salt          TEXT NOT NULL,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+-- ============================================================
+-- الصلاحيات الدقيقة لكل مستخدم (Granular Permissions)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS user_permissions (
+    user_id  INTEGER NOT NULL,
+    perm_key TEXT NOT NULL,
+    allowed  INTEGER NOT NULL DEFAULT 1,
+    UNIQUE(user_id, perm_key)
+);
+
+-- ============================================================
+-- مركز النماذج (Generic Form Engine) — نماذج PDF قابلة للتعبئة
+-- النموذج الأصلي يبقى كما هو (overlay فوقه) · إصدارات محفوظة ·
+-- حقول يدوية أو مربوطة ببيانات النظام أو تلقائية أو محسوبة.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS form_categories (
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    name  TEXT NOT NULL UNIQUE,
+    sort  INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS form_templates (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    base_name   TEXT NOT NULL,          -- الاسم الموحد عبر الإصدارات
+    version     INTEGER NOT NULL DEFAULT 1,
+    description TEXT DEFAULT '',
+    category_id INTEGER,
+    status      TEXT NOT NULL DEFAULT 'مسودة',  -- مسودة/معتمد/معطل/مؤرشف
+    pdf_path    TEXT NOT NULL,
+    pages_count INTEGER NOT NULL DEFAULT 1,
+    -- هوية الطباعة على المستند المولَّد:
+    -- none = لا شيء (النموذج كامل الهوية بنفسه)
+    -- logo = لوجو الشركة فقط (نماذج الوزارات ذات الترويسة الرسمية)
+    -- full = ترويسة الشركة أعلى الصفحة + الفوتر أسفلها
+    print_identity TEXT NOT NULL DEFAULT 'none',
+    -- مصدر النموذج: pdf = ملف PDF أصلي · word = ملف Word قابل للتعديل
+    -- (قوالب Word: المعاينة PDF مولَّد، والناتج النهائي .docx قابل
+    -- للتعديل — خانات مرسومة + حقول {{...}} داخل النص)
+    source_type   TEXT NOT NULL DEFAULT 'pdf',
+    word_path     TEXT DEFAULT '',      -- ملف الوورد الأصلي (للقوالب word)
+    created_by  TEXT DEFAULT '',
+    created_at  TEXT DEFAULT (datetime('now', 'localtime')),
+    updated_by  TEXT DEFAULT '',
+    updated_at  TEXT DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS form_fields (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    template_id   INTEGER NOT NULL,
+    name          TEXT NOT NULL,
+    field_type    TEXT NOT NULL DEFAULT 'text',  -- text/longtext/number/money/date/choice/bool/table/signature/image
+    page          INTEGER NOT NULL DEFAULT 1,
+    x             REAL NOT NULL DEFAULT 0,   -- نقاط PDF · أعلى-يسار
+    y             REAL NOT NULL DEFAULT 0,
+    w             REAL NOT NULL DEFAULT 120,
+    h             REAL NOT NULL DEFAULT 18,
+    source_type   TEXT NOT NULL DEFAULT 'manual',  -- manual/system/auto/calc
+    source_entity TEXT DEFAULT '',   -- customers/contracts/settings/system
+    source_key    TEXT DEFAULT '',
+    context       TEXT DEFAULT '',   -- customer/contract — يحدد شاشة الاختيار
+    default_value TEXT DEFAULT '',
+    options       TEXT DEFAULT '',   -- JSON: خيارات القائمة/أعمدة الجدول
+    required      INTEGER NOT NULL DEFAULT 0,
+    align         TEXT NOT NULL DEFAULT 'right',
+    sort          INTEGER NOT NULL DEFAULT 0,
+    -- خانة استمرار: هذا الحقل يستقبل النص الزائد من حقل آخر (تدفق
+    -- نصي بين خانتين أو أكثر — شائع في نماذج الوزارات)
+    continues_field_id INTEGER,
+    -- حقل نصي داخل قالب Word: {{placeholder} يُستبدل بالقيمة في مكان
+    -- كتابته داخل الوورد نفسه (بلا إحداثيات — ليس خانة مرسومة)
+    placeholder   TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS form_documents (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    template_id      INTEGER NOT NULL,
+    template_version INTEGER NOT NULL DEFAULT 1,
+    title            TEXT DEFAULT '',
+    values_json      TEXT NOT NULL DEFAULT '{}',
+    pdf_path         TEXT DEFAULT '',
+    word_path        TEXT DEFAULT '',   -- ملف Word المولَّد (قوالب word)
+    customer_id      INTEGER,
+    contract_id      INTEGER,
+    created_by       TEXT DEFAULT '',
+    created_at       TEXT DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_form_fields_tpl ON form_fields(template_id);
+
+-- ============================================================
+-- جدول الزيارات اليومي: صفوف الساعات × أعمدة المهندسين
+-- ============================================================
+CREATE TABLE IF NOT EXISTS employees (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL UNIQUE,
+    phone       TEXT DEFAULT '',
+    notes       TEXT DEFAULT '',
+    active      INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS visit_staff (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    phone       TEXT DEFAULT '',
+    active      INTEGER NOT NULL DEFAULT 1,
+    sort        INTEGER NOT NULL DEFAULT 0
+);
+
+-- قالب دفعات نوع العقد: يُسحب جاهزًا عند إنشاء أي عقد من النوع —
+-- كل دفعة برقمها ونسبتها ومرحلتها المرتبطة (مرحلة ↔ دفعة واحدة)
+-- نسخة العقد من شجرة مراحل نوعه + إعداداتها المالية: تُؤخذ Snapshot
+-- عند إنشاء العقد — فتعديل القالب لاحقًا لا يمس العقود القديمة أبدًا
+CREATE TABLE IF NOT EXISTS contract_stages (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    contract_id   INTEGER NOT NULL REFERENCES contracts(id),
+    name          TEXT NOT NULL,
+    level         INTEGER NOT NULL DEFAULT 1,
+    parent_name   TEXT DEFAULT '',
+    expected_days INTEGER NOT NULL DEFAULT 0,
+    pay_pct       REAL NOT NULL DEFAULT 0,
+    pay_kind      TEXT NOT NULL DEFAULT '',
+    sort_order    INTEGER NOT NULL DEFAULT 0,
+    start_date    TEXT DEFAULT '',
+    end_date      TEXT DEFAULT '',
+    is_skipped    INTEGER NOT NULL DEFAULT 0,
+    closed_by     TEXT DEFAULT '',
+    is_supervision INTEGER NOT NULL DEFAULT 0,
+    sup_start     TEXT DEFAULT '',
+    sup_end       TEXT DEFAULT '',
+    sup_actual_end TEXT DEFAULT '',
+    sup_monthly   REAL NOT NULL DEFAULT 0,
+    sup_waived_months REAL NOT NULL DEFAULT 0,
+    sup_waive_reason TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS type_payment_tpl (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    contract_type TEXT NOT NULL,
+    pay_no        INTEGER NOT NULL DEFAULT 1,
+    title         TEXT NOT NULL DEFAULT '',
+    pct           REAL NOT NULL DEFAULT 0,
+    -- مبلغ ثابت بدل النسبة (0 = بالنسبة)
+    amount_fixed  REAL NOT NULL DEFAULT 0,
+    stage_id      INTEGER REFERENCES workflow_stages(id),
+    -- المرحلة المُحفِّزة: إنهاؤها فعليًا هو ما يستحق الدفعة (يجب أن
+    -- تكون من مراحل الدفعة؛ NULL = دفعة بالأيام تُستحق بعد أيامها)
+    trigger_stage_id INTEGER REFERENCES workflow_stages(id),
+    days_offset   INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(contract_type, pay_no)
+);
+
+-- دفعات تجمع أكثر من مرحلة: المرحلة الواحدة تتبع دفعة واحدة فقط
+-- (UNIQUE على المرحلة) — والدفعة الواحدة تجمع عدة مراحل معًا
+CREATE TABLE IF NOT EXISTS type_payment_stages (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    payment_id  INTEGER NOT NULL REFERENCES type_payment_tpl(id),
+    stage_id    INTEGER NOT NULL REFERENCES workflow_stages(id),
+    UNIQUE(stage_id)
+);
+
+CREATE TABLE IF NOT EXISTS visits (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    visit_date  TEXT NOT NULL,
+    hour_slot   TEXT NOT NULL,
+    staff_id    INTEGER REFERENCES visit_staff(id),
+    customer_id INTEGER REFERENCES customers(id),
+    note        TEXT DEFAULT '',
+    task_id     INTEGER,
+    created_by  TEXT DEFAULT '',
+    created_at  TEXT DEFAULT (datetime('now','localtime')),
+    UNIQUE(visit_date, hour_slot, staff_id)
+);
+CREATE INDEX IF NOT EXISTS idx_form_docs_tpl   ON form_documents(template_id);
+
+
+INSERT OR IGNORE INTO settings (id, company_name, currency)
+VALUES (1, 'اسم الشركة', 'د.ك');
+
+-- ============================================================
+-- مديول «متابعة»: دورة حياة المعاملات + شات + تنبيهات
+-- ============================================================
+CREATE TABLE IF NOT EXISTS workflow_stages (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    transaction_type  TEXT NOT NULL,
+    stage_name        TEXT NOT NULL,
+    stage_order       INTEGER NOT NULL,
+    color             TEXT DEFAULT '#3B82F6',
+    -- مراحل التنفيذ الشجرية: رئيسية (NULL) وفرعية تتبعها —
+    -- المسار الخطي للتنفيذ = الفرعيات + الرئيسيات بلا أبناء
+    parent_id         INTEGER REFERENCES workflow_stages(id),
+    expected_days     INTEGER NOT NULL DEFAULT 0,
+    -- مرحلة «ما قبل التعاقد» للعملاء المحتملين — لا تُحذف
+    is_pre_contract   INTEGER NOT NULL DEFAULT 0,
+    -- لمراحل العقود: '' = القالب العام لكل الأنواع · وإلا اسم نوع
+    -- العقد (يرث مراحله الخاصة من هنا عند إنشائه)
+    contract_type     TEXT DEFAULT '',
+    -- نسبة دفعة المرحلة من قيمة العقد (%) — يتولد بها بند في خطة
+    -- السداد مربوط بهذه المرحلة عند إنشاء العقد (مرحلة ↔ دفعة واحدة)
+    payment_pct       REAL DEFAULT 0,
+    -- طريقة الدفعة: '' بلا · achieve عند إنجاز المرحلة · advance
+    -- دفعة مقدمة عند التوقيع · final ختامية · days بعد أيام من التوقيع
+    pay_kind          TEXT DEFAULT '',
+    -- V3.23: الطابع الإشرافي في القالب — تُعلَّم مرحلة الإشراف هنا
+    -- مرة واحدة في الإعدادات وترثها العقود الجديدة تلقائيًا
+    is_supervision    INTEGER NOT NULL DEFAULT 0,
+    sup_monthly       REAL NOT NULL DEFAULT 0,
+    UNIQUE(transaction_type, contract_type, stage_name)
+);
+
+CREATE TABLE IF NOT EXISTS transaction_stage_log (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    transaction_type  TEXT NOT NULL,
+    transaction_id    INTEGER NOT NULL,
+    stage_id          INTEGER REFERENCES workflow_stages(id),
+    moved_by          INTEGER REFERENCES users(id),
+    moved_at          TEXT DEFAULT (datetime('now','localtime')),
+    note              TEXT DEFAULT '',
+    -- عداد الأيام: بدء المرحلة وإنهاؤها (فارغ = ما زالت جارية)
+    start_date        TEXT DEFAULT '',
+    end_date          TEXT DEFAULT '',
+    is_skipped        INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_stage_log_tx
+    ON transaction_stage_log(transaction_type, transaction_id);
+
+-- V5.9: ملاحظات المرحلة (سبب التأخير / واقفة فين) — مستقلة عن سجل
+-- الحركة كي لا تؤثر على عدّادات المراحل، وتظهر في السجل والتعليقات.
+CREATE TABLE IF NOT EXISTS stage_notes (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    transaction_type  TEXT NOT NULL,
+    transaction_id    INTEGER NOT NULL,
+    contract_id       INTEGER,
+    customer_id       INTEGER,
+    stage_name        TEXT DEFAULT '',
+    note              TEXT NOT NULL,
+    created_by        INTEGER REFERENCES users(id),
+    author            TEXT DEFAULT '',
+    created_at        TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_stage_notes_tx
+    ON stage_notes(transaction_type, transaction_id, id);
+CREATE INDEX IF NOT EXISTS idx_stage_notes_contract
+    ON stage_notes(contract_id, id);
+
+CREATE TABLE IF NOT EXISTS transaction_messages (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    transaction_type  TEXT NOT NULL,
+    transaction_id    INTEGER NOT NULL,
+    user_id           INTEGER REFERENCES users(id),
+    message           TEXT NOT NULL,
+    attachment_path   TEXT DEFAULT '',
+    created_at        TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_tx_messages
+    ON transaction_messages(transaction_type, transaction_id);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id           INTEGER REFERENCES users(id),
+    transaction_type  TEXT NOT NULL,
+    transaction_id    INTEGER NOT NULL,
+    type              TEXT NOT NULL,
+    text              TEXT NOT NULL,
+    is_read           INTEGER DEFAULT 0,
+    created_at        TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_notif_user
+    ON notifications(user_id, is_read);
+
+CREATE TABLE IF NOT EXISTS transaction_visibility (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    transaction_type  TEXT NOT NULL,
+    transaction_id    INTEGER NOT NULL,
+    user_id           INTEGER REFERENCES users(id),
+    UNIQUE(transaction_type, transaction_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_contracts_customer ON contracts(customer_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_customer  ON invoices(customer_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_contract  ON invoices(contract_id);
+
+/* ============ إدارة دورة حياة العقد ============ */
+
+CREATE TABLE IF NOT EXISTS projects (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_code TEXT NOT NULL UNIQUE,
+    name         TEXT NOT NULL,
+    customer_id  INTEGER REFERENCES customers(id) ON DELETE RESTRICT,
+    description  TEXT DEFAULT '',
+    status       TEXT DEFAULT 'نشط',
+    created_at   TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS quotations (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    quote_number    TEXT NOT NULL UNIQUE,
+    qdate           TEXT NOT NULL,
+    customer_id     INTEGER NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
+    project_id      INTEGER REFERENCES projects(id),
+    validity_days   INTEGER DEFAULT 30,
+    execution_period TEXT DEFAULT '',
+    currency        TEXT DEFAULT 'د.ك',
+    discount        REAL DEFAULT 0,
+    tax             REAL DEFAULT 0,
+    payment_terms   TEXT DEFAULT '',
+    execution_terms TEXT DEFAULT '',
+    notes           TEXT DEFAULT '',
+    status          TEXT DEFAULT 'مسودة',
+    contract_id     INTEGER REFERENCES contracts(id),
+    created_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS quotation_items (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    quotation_id INTEGER NOT NULL REFERENCES quotations(id) ON DELETE CASCADE,
+    description  TEXT NOT NULL,
+    qty          REAL DEFAULT 1,
+    unit         TEXT DEFAULT '',
+    unit_price   REAL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS boq_items (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+    description TEXT NOT NULL,
+    qty         REAL DEFAULT 1,
+    unit        TEXT DEFAULT '',
+    unit_price  REAL DEFAULT 0,
+    stage_id    INTEGER REFERENCES contract_stages(id)
+);
+
+CREATE TABLE IF NOT EXISTS subcontractors (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    sub_code   TEXT NOT NULL UNIQUE,
+    name       TEXT NOT NULL,
+    phone      TEXT DEFAULT '',
+    email      TEXT DEFAULT '',
+    activity   TEXT DEFAULT '',
+    notes      TEXT DEFAULT '',
+    show_all_contracts INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS sub_contracts (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    subcontractor_id INTEGER NOT NULL REFERENCES subcontractors(id) ON DELETE RESTRICT,
+    contract_id      INTEGER NOT NULL REFERENCES contracts(id) ON DELETE RESTRICT,
+    project_id       INTEGER REFERENCES projects(id),
+    amount           REAL NOT NULL DEFAULT 0,
+    start_date       TEXT DEFAULT '',
+    end_date         TEXT DEFAULT '',
+    status           TEXT DEFAULT 'نشط',
+    description      TEXT DEFAULT '',
+    created_at       TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS sub_contract_items (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    sub_contract_id INTEGER NOT NULL REFERENCES sub_contracts(id) ON DELETE CASCADE,
+    boq_item_id     INTEGER NOT NULL REFERENCES boq_items(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS expense_accounts (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_id       INTEGER REFERENCES expense_accounts(id) ON DELETE SET NULL,
+    name            TEXT NOT NULL,
+    full_path       TEXT DEFAULT '',
+    is_active       INTEGER DEFAULT 1,
+    allow_posting   INTEGER DEFAULT 1,
+    include_in_profitability INTEGER DEFAULT 1,
+    account_kind    TEXT DEFAULT 'expense',
+    sort_order      INTEGER DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    updated_at      TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS vouchers (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    voucher_number  TEXT NOT NULL UNIQUE,
+    vtype           TEXT NOT NULL CHECK (vtype IN ('payment','receipt','transfer','custody_return','salary_deduction')),
+    vdate           TEXT NOT NULL,
+    party           TEXT DEFAULT '',
+    party_type      TEXT DEFAULT '',
+    party_id        INTEGER,
+    method          TEXT DEFAULT '',
+    account         TEXT DEFAULT '',
+    expense_account_id INTEGER REFERENCES expense_accounts(id),
+    expense_account_snapshot TEXT DEFAULT '',
+    expense_group_ref TEXT DEFAULT '',
+    expense_group_line INTEGER,
+    custody_account_id INTEGER REFERENCES expense_accounts(id),
+    custody_account_snapshot TEXT DEFAULT '',
+    advance_employee_id INTEGER REFERENCES employees(id),
+    amount          REAL NOT NULL CHECK (amount > 0),
+    advance_amount  REAL NOT NULL DEFAULT 0,
+    description     TEXT DEFAULT '',
+    project_id      INTEGER REFERENCES projects(id),
+    expense_customer_id INTEGER REFERENCES customers(id),
+    contract_id     INTEGER REFERENCES contracts(id),
+    boq_item_id     INTEGER REFERENCES boq_items(id),
+    sub_contract_id INTEGER REFERENCES sub_contracts(id),
+    cost_center     TEXT DEFAULT '',
+    attachment      TEXT DEFAULT '',
+    notes           TEXT DEFAULT '',
+    receipt_group_ref TEXT DEFAULT '',
+    receipt_group_line INTEGER,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS addendums (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    addendum_number TEXT NOT NULL,
+    contract_id     INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+    addendum_type   TEXT DEFAULT 'أمر تغييري',
+    adate           TEXT DEFAULT '',
+    reason          TEXT DEFAULT '',
+    description     TEXT DEFAULT '',
+    amount_add      REAL DEFAULT 0,
+    amount_deduct   REAL DEFAULT 0,
+    start_date      TEXT DEFAULT '',
+    end_date        TEXT DEFAULT '',
+    status          TEXT DEFAULT 'مسودة',
+    approved_date   TEXT DEFAULT '',
+    notes           TEXT DEFAULT '',
+    created_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS contract_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+    event_time  TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    event_type  TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    username    TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS journal_entries (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_date      TEXT NOT NULL,
+    description     TEXT DEFAULT '',
+    debit_account   TEXT DEFAULT '',
+    credit_account  TEXT DEFAULT '',
+    amount          REAL NOT NULL,
+    project_id      INTEGER,
+    contract_id     INTEGER,
+    boq_item_id     INTEGER,
+    sub_contract_id INTEGER,
+    cost_center     TEXT DEFAULT '',
+    source_type     TEXT DEFAULT '',
+    source_id       INTEGER,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS contract_templates (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL,
+    body       TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS payment_plan (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+    title       TEXT NOT NULL,
+    due_date    TEXT NOT NULL,
+    amount      REAL NOT NULL CHECK (amount > 0),
+    sort_order  INTEGER DEFAULT 0,
+    -- الدفعة مربوطة بمرحلة **نسخة العقد** (contract_stages) —
+    -- إنهاؤها فعليًا يستحق الدفعة (كل مرحلة ↔ دفعة واحدة)
+    stage_id    INTEGER REFERENCES contract_stages(id),
+    -- سبب الاستحقاق: "مستحقة لانتهاء مرحلة «X» بتاريخ Y..."
+    notes       TEXT DEFAULT '',
+    -- تاريخ الاستحقاق الفعلي بعد إنهاء المرحلة (فارغ = تقديري)
+    triggered_at TEXT DEFAULT '',
+    created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_plan_contract ON payment_plan(contract_id);
+
+-- V4.2 (P1-4): خطة دفعات عقد الباطن — مرآة payment_plan.
+-- stage_id يشير لمرحلة من عقد العميل الأب: إنهاؤها يستحق الدفعة.
+-- بلا stage_id = دفعة بالأيام تُستحق بتاريخها.
+CREATE TABLE IF NOT EXISTS sub_payment_plan (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    sub_contract_id INTEGER NOT NULL REFERENCES sub_contracts(id) ON DELETE CASCADE,
+    title           TEXT NOT NULL,
+    due_date        TEXT NOT NULL,
+    amount          REAL NOT NULL CHECK (amount > 0),
+    sort_order      INTEGER DEFAULT 0,
+    stage_id        INTEGER REFERENCES contract_stages(id),
+    notes           TEXT DEFAULT '',
+    triggered_at    TEXT DEFAULT '',
+    created_at      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_subplan_sub ON sub_payment_plan(sub_contract_id);
+
+-- V4.6: مصادر دفعة الباطن من دفعات عقد العميل (N:M) — تُستحق الدفعة
+-- باكتمال كل مصادرها. إضافي بالكامل؛ حذفه تلقائي مع أي طرف.
+CREATE TABLE IF NOT EXISTS sub_payment_sources (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    sub_line_id     INTEGER NOT NULL REFERENCES sub_payment_plan(id) ON DELETE CASCADE,
+    cust_line_id    INTEGER NOT NULL REFERENCES payment_plan(id) ON DELETE CASCADE,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+    UNIQUE (sub_line_id, cust_line_id)
+);
+CREATE INDEX IF NOT EXISTS idx_subsrc_sub ON sub_payment_sources(sub_line_id);
+CREATE INDEX IF NOT EXISTS idx_subsrc_cust ON sub_payment_sources(cust_line_id);
+
+CREATE INDEX IF NOT EXISTS idx_vouchers_contract ON vouchers(contract_id);
+CREATE INDEX IF NOT EXISTS idx_vouchers_project  ON vouchers(project_id);
+
+-- V6.2: ربط السند بخط دفعة بعينه (قبض لخطة العميل · صرف لخطة عقد الباطن)
+-- العلاقة بمعرّف (id) لا بنص — ويمكن توزيع الزيادة على أكثر من خط.
+CREATE TABLE IF NOT EXISTS voucher_payment_links (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    voucher_id  INTEGER NOT NULL REFERENCES vouchers(id),
+    kind        TEXT NOT NULL CHECK (kind IN ('receipt','payment')),
+    line_id     INTEGER NOT NULL,
+    amount      REAL NOT NULL CHECK (amount > 0),
+    created_at  TEXT DEFAULT (datetime('now')),
+    UNIQUE (voucher_id, line_id)
+);
+CREATE INDEX IF NOT EXISTS idx_vpl_voucher ON voucher_payment_links(voucher_id);
+CREATE INDEX IF NOT EXISTS idx_vpl_line    ON voucher_payment_links(line_id);
+CREATE INDEX IF NOT EXISTS idx_events_contract   ON contract_events(contract_id);
+CREATE INDEX IF NOT EXISTS idx_boq_contract      ON boq_items(contract_id);
+"""
+
+
+class DatabaseError(Exception):
+    """خطأ عام في قاعدة البيانات برسالة عربية واضحة."""
+
+
+class _SharedConnection:
+    """اتصال SQLite مُعاد الاستخدام لكل خيط."""
+
+    __slots__ = ("_raw", "_depth", "_failed")
+
+    def __init__(self, raw: sqlite3.Connection):
+        self._raw = raw
+        self._depth = 0
+        self._failed = False
+
+    def __getattr__(self, name):
+        return getattr(self._raw, name)
+
+    def __enter__(self):
+        self._depth += 1
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self._depth = max(0, self._depth - 1)
+        if self._depth == 0:
+            # الفشل يُحسم عند الخارجية فقط: استثناء غير مُمسَك = rollback
+            # كامل (ذرية)، وخطأ ممسوك ومُعالَج داخليًا (إعادة ترقيم، تجاهل
+            # اختياري) = commit طبيعي كما كان قبل التداخل.
+            try:
+                if exc_type is not None:
+                    self._raw.rollback()
+                else:
+                    self._raw.commit()
+            finally:
+                self._failed = False
+        elif exc_type is not None:
+            self._failed = True
+        return False
+
+    def close(self):
+        """الإغلاق الفعلي يتم عبر close_connections فقط."""
+        return None
+
+    def _real_close(self):
+        try:
+            self._raw.close()
+        except Exception:
+            pass
+
+
+_conn_store = threading.local()
+
+
+def get_connection():
+    """الحصول على اتصال SQLite مع إعدادات محسّنة للشبكات."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    
+    shared = getattr(_conn_store, "conn", None)
+    path = getattr(_conn_store, "path", None)
+    
+    if shared is not None and path == DB_PATH:
+        if getattr(shared, "_depth", 0) > 0:
+            return shared  # داخل معاملة خارجية — متحقق منه ولا حاجة لرحلة شبكة
+        # V2.48: التحقق مرة/ثانية فقط بدل كل استدعاء — كان SELECT 1
+        # يمثل ~40% من كل الاستعلامات (207 في صفحة العملاء وحدها).
+        now = time.monotonic()
+        if now - getattr(_conn_store, "checked_at", 0.0) < 1.0:
+            return shared
+        try:                       # التحقق من صلاحية الاتصال المخزَّن
+            shared._raw.execute("SELECT 1")
+            _conn_store.checked_at = time.monotonic()
+            return shared
+        except Exception:
+            shared._real_close()
+            shared = None
+    elif shared is not None:       # تغيّر مسار القاعدة (مجلد شبكة/اختبار)
+        shared._real_close()
+        _conn_store.checked_at = 0.0
+    
+    # timeout: عند عمل عدة أجهزة على مجلد شبكة، ينتظر تحرر القفل
+    # بدل رسالة database is locked الفورية
+    raw = sqlite3.connect(DB_PATH, timeout=30.0)
+    raw.row_factory = sqlite3.Row
+
+    # إعدادات محسّنة
+    raw.execute("PRAGMA foreign_keys = ON;")
+    raw.execute("PRAGMA busy_timeout = 30000;")      # 30 ثانية انتظار
+    raw.execute("PRAGMA cache_size=-64000;")          # 64 ميجابايت — قراءات أقل عبر الشبكة
+    raw.execute("PRAGMA temp_store=MEMORY;")         # تخزين مؤقت في الذاكرة
+    # وضع WAL ممتاز محليًا، لكنه غير موثوق على مجلدات SMB/Windows Server.
+    # في وضع الشبكة: DELETE + NORMAL — القاعدة تبقى متسقة دائمًا، وأقصى
+    # خسارة عند انقطاع الكهرباء لحظة الحفظ هي آخر معاملة فقط (تُعاد).
+    # أما FULL فكانت تُبطئ كل حفظ لثوانٍ عبر الشبكة (flush كامل لكل commit).
+    try:
+        _on_network = bool(os.path.exists(_NET_CONFIG))
+        if _on_network:
+            raw.execute("PRAGMA journal_mode=DELETE;")
+            raw.execute("PRAGMA synchronous=NORMAL;")
+            raw.execute("PRAGMA locking_mode=NORMAL;")
+        else:
+            raw.execute("PRAGMA journal_mode=WAL;")
+            raw.execute("PRAGMA synchronous=NORMAL;")
+    except Exception:
+        raw.execute("PRAGMA synchronous=NORMAL;")
+    
+    shared = _SharedConnection(raw)
+    _conn_store.conn = shared
+    _conn_store.path = DB_PATH
+    _conn_store.checked_at = time.monotonic()
+    return shared
+
+
+def atomic(fn):
+    """معاملة واحدة للعملية كاملة: commit واحد بدل عشرة (تسريع الشبكة).
+
+    يعتمد على عدّاد التداخل في _SharedConnection: كل with داخلية
+    متداخلة لا تحفظ حتى خروج الخارجية. الفشل غير الممسوك = rollback
+    كامل (أصح من الحفظ الجزئي السابق).
+    """
+    import functools
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        with get_connection():
+            return fn(*args, **kwargs)
+
+    return wrapper
+
+
+def close_connections() -> None:
+    """إغلاق الاتصال المخزَّن — قبل استبدال ملف القاعدة (استعادة نسخة)."""
+    shared = getattr(_conn_store, "conn", None)
+    if shared is not None:
+        shared._real_close()
+    _conn_store.conn = None
+    _conn_store.path = None
+    _conn_store.checked_at = 0.0
+
+
+def _ensure_vouchers_transfer_check(conn) -> None:
+    """ترقية قيد نوع السند ليقبل التحويل الداخلي دون فقد بيانات."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='vouchers'"
+    ).fetchone()
+    sql = (row[0] if row else "") or ""
+    if "transfer" in sql or "vtype IN ('payment','receipt')" not in sql:
+        return
+    desired = [
+        ("id", "INTEGER PRIMARY KEY AUTOINCREMENT", "id"),
+        ("voucher_number", "TEXT NOT NULL UNIQUE", "voucher_number"),
+        ("vtype", "TEXT NOT NULL CHECK (vtype IN ('payment','receipt','transfer'))", "vtype"),
+        ("vdate", "TEXT NOT NULL", "vdate"),
+        ("party", "TEXT DEFAULT ''", "COALESCE(party, '')"),
+        ("party_type", "TEXT DEFAULT ''", "COALESCE(party_type, '')"),
+        ("party_id", "INTEGER", "party_id"),
+        ("method", "TEXT DEFAULT ''", "COALESCE(method, '')"),
+        ("account", "TEXT DEFAULT ''", "COALESCE(account, '')"),
+        ("amount", "REAL NOT NULL CHECK (amount > 0)", "amount"),
+        ("description", "TEXT DEFAULT ''", "COALESCE(description, '')"),
+        ("project_id", "INTEGER REFERENCES projects(id)", "project_id"),
+        ("expense_customer_id", "INTEGER REFERENCES customers(id)", "expense_customer_id"),
+        ("contract_id", "INTEGER REFERENCES contracts(id)", "contract_id"),
+        ("boq_item_id", "INTEGER REFERENCES boq_items(id)", "boq_item_id"),
+        ("sub_contract_id", "INTEGER REFERENCES sub_contracts(id)", "sub_contract_id"),
+        ("cost_center", "TEXT DEFAULT ''", "COALESCE(cost_center, '')"),
+        ("attachment", "TEXT DEFAULT ''", "COALESCE(attachment, '')"),
+        ("notes", "TEXT DEFAULT ''", "COALESCE(notes, '')"),
+        ("created_at", "TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))", "COALESCE(created_at, datetime('now', 'localtime'))"),
+        ("parent_voucher_id", "INTEGER", "parent_voucher_id"),
+        ("cheque_due_date", "TEXT DEFAULT ''", "COALESCE(cheque_due_date, '')"),
+        ("cancelled", "INTEGER DEFAULT 0", "COALESCE(cancelled, 0)"),
+        ("cancel_reason", "TEXT DEFAULT ''", "COALESCE(cancel_reason, '')"),
+        ("cancelled_at", "TEXT DEFAULT ''", "COALESCE(cancelled_at, '')"),
+        ("allocation", "TEXT DEFAULT ''", "COALESCE(allocation, '')"),
+    ]
+    existing = {r[1] for r in conn.execute("PRAGMA table_info(vouchers);")}
+    cols_sql = ",\n        ".join(f"{name} {decl}" for name, decl, _ in desired)
+    conn.execute("ALTER TABLE vouchers RENAME TO vouchers_old_transfer_migration")
+    conn.execute(f"CREATE TABLE vouchers (\n        {cols_sql}\n    )")
+    names = [name for name, _, _ in desired]
+    exprs = [expr if name in existing else ("0" if name == "cancelled" else "NULL") for name, _, expr in desired]
+    conn.execute(
+        f"INSERT INTO vouchers ({', '.join(names)}) "
+        f"SELECT {', '.join(exprs)} FROM vouchers_old_transfer_migration"
+    )
+    conn.execute("DROP TABLE vouchers_old_transfer_migration")
+
+
+def _ensure_vouchers_custody_return_check(conn) -> None:
+    """V4.52: توسيع CHECK النوع ليشمل custody_return — بلا فقدان بيانات.
+
+    جراحة نصية على CREATE TABLE الأصلي (تحفظ كل الأعمدة والقيود كما هي)
+    ثم نسخ الصفوف وإعادة الفهارس الخارجية. الصيغ غير المتوقعة تُترك
+    بلا مساس.
+    """
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' "
+        "AND name='vouchers'").fetchone()
+    sql = (row[0] if row else "") or ""
+    if "custody_return" in sql:
+        return
+    if "vtype IN ('payment','receipt','transfer')" in sql:
+        new_sql = sql.replace(
+            "vtype IN ('payment','receipt','transfer')",
+            "vtype IN ('payment','receipt','transfer','custody_return')", 1)
+    elif "vtype IN ('payment','receipt')" in sql:
+        _ensure_vouchers_transfer_check(conn)
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' "
+            "AND name='vouchers'").fetchone()
+        sql = (row[0] if row else "") or ""
+        if ("custody_return" in sql
+                or "vtype IN ('payment','receipt','transfer')" not in sql):
+            return
+        new_sql = sql.replace(
+            "vtype IN ('payment','receipt','transfer')",
+            "vtype IN ('payment','receipt','transfer','custody_return')", 1)
+    else:
+        return
+    cols = [r[1] for r in conn.execute(
+        "PRAGMA table_info(vouchers)").fetchall()]
+    names = ", ".join(f'"{c}"' for c in cols)
+    conn.execute("ALTER TABLE vouchers RENAME TO vouchers_old_cr_migration")
+    conn.execute(new_sql)
+    conn.execute(
+        f"INSERT INTO vouchers ({names}) "
+        f"SELECT {names} FROM vouchers_old_cr_migration")
+    conn.execute("DROP TABLE vouchers_old_cr_migration")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_vouchers_contract "
+                 "ON vouchers(contract_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_vouchers_project "
+                 "ON vouchers(project_id)")
+
+
+def _ensure_vouchers_salary_deduction_check(conn) -> None:
+    """V4.53: توسيع CHECK ليشمل salary_deduction — نفس جراحة V4.52."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' "
+        "AND name='vouchers'").fetchone()
+    sql = (row[0] if row else "") or ""
+    if "salary_deduction" in sql:
+        return
+    _OLD4 = "vtype IN ('payment','receipt','transfer','custody_return')"
+    _NEW5 = ("vtype IN ('payment','receipt','transfer','custody_return',"
+             "'salary_deduction')")
+    if _OLD4 not in sql:
+        _ensure_vouchers_custody_return_check(conn)
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' "
+            "AND name='vouchers'").fetchone()
+        sql = (row[0] if row else "") or ""
+        if "salary_deduction" in sql or _OLD4 not in sql:
+            return
+    new_sql = sql.replace(_OLD4, _NEW5, 1)
+    cols = [r[1] for r in conn.execute(
+        "PRAGMA table_info(vouchers)").fetchall()]
+    names = ", ".join(f'"{c}"' for c in cols)
+    conn.execute("ALTER TABLE vouchers RENAME TO vouchers_old_sd_migration")
+    conn.execute(new_sql)
+    conn.execute(
+        f"INSERT INTO vouchers ({names}) "
+        f"SELECT {names} FROM vouchers_old_sd_migration")
+    conn.execute("DROP TABLE vouchers_old_sd_migration")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_vouchers_contract "
+                 "ON vouchers(contract_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_vouchers_project "
+                 "ON vouchers(project_id)")
+
+
+def _apply_schema(conn) -> None:
+    """إنشاء الجداول وتطبيق كل الترقيات — تُستدعى فقط عند تغيّر البصمة."""
+
+    conn.executescript(_SCHEMA)
+    _ensure_vouchers_transfer_check(conn)
+    _ensure_vouchers_custody_return_check(conn)
+    _ensure_vouchers_salary_deduction_check(conn)
+    # ترقية قواعد البيانات القديمة: إضافة الأعمدة الجديدة إن لم توجد
+    # مركز النماذج: عمود هوية الطباعة (none/logo/full) للقوالب القديمة
+    _tcols = {r[1] for r in conn.execute(
+        "PRAGMA table_info(form_templates);")}
+    if "print_identity" not in _tcols:
+        conn.execute("ALTER TABLE form_templates ADD COLUMN "
+                     "print_identity TEXT NOT NULL DEFAULT 'none'")
+    _fcols = {r[1] for r in conn.execute(
+        "PRAGMA table_info(form_fields);")}
+    if "continues_field_id" not in _fcols:
+        conn.execute("ALTER TABLE form_fields ADD COLUMN "
+                     "continues_field_id INTEGER")
+    # قوالب Word القابلة للتعديل: مصدر القالب + ملف الوورد الأصلي +
+    # حقول {{...}} النصية + مسار ملف Word المولَّد لكل مستند
+    if "source_type" not in _tcols:
+        conn.execute("ALTER TABLE form_templates ADD COLUMN "
+                     "source_type TEXT NOT NULL DEFAULT 'pdf'")
+    if "word_path" not in _tcols:
+        conn.execute("ALTER TABLE form_templates ADD COLUMN "
+                     "word_path TEXT DEFAULT ''")
+    if "placeholder" not in _fcols:
+        conn.execute("ALTER TABLE form_fields ADD COLUMN "
+                     "placeholder TEXT DEFAULT ''")
+    _dcols = {r[1] for r in conn.execute(
+        "PRAGMA table_info(form_documents);")}
+    if "word_path" not in _dcols:
+        conn.execute("ALTER TABLE form_documents ADD COLUMN "
+                     "word_path TEXT DEFAULT ''")
+    # مديول المتابعة الجديد: مراحل شجرية (رئيسية/فرعية) + عداد أيام
+    _wcols = {r[1] for r in conn.execute(
+        "PRAGMA table_info(workflow_stages);")}
+    if "parent_id" not in _wcols:
+        conn.execute("ALTER TABLE workflow_stages ADD COLUMN "
+                     "parent_id INTEGER REFERENCES workflow_stages(id)")
+    if "expected_days" not in _wcols:
+        conn.execute("ALTER TABLE workflow_stages ADD COLUMN "
+                     "expected_days INTEGER NOT NULL DEFAULT 0")
+    if "is_pre_contract" not in _wcols:
+        conn.execute("ALTER TABLE workflow_stages ADD COLUMN "
+                     "is_pre_contract INTEGER NOT NULL DEFAULT 0")
+    # V3.20: استثناء مقاول الباطن — إظهار كل العقود في السندات
+    _scols = {r[1] for r in conn.execute(
+        "PRAGMA table_info(subcontractors);")}
+    if "show_all_contracts" not in _scols:
+        conn.execute("ALTER TABLE subcontractors ADD COLUMN "
+                     "show_all_contracts INTEGER NOT NULL DEFAULT 0")
+    # V3.21: الطابع الإشرافي للمراحل — بداية/نهاية/قيمة شهر/تنازل
+    _cscols = {r[1] for r in conn.execute(
+        "PRAGMA table_info(contract_stages);")}
+    for _ccol, _cdef in (
+            ("is_supervision", "INTEGER NOT NULL DEFAULT 0"),
+            ("sup_start", "TEXT DEFAULT ''"),
+            ("sup_end", "TEXT DEFAULT ''"),
+            ("sup_actual_end", "TEXT DEFAULT ''"),
+            ("sup_monthly", "REAL NOT NULL DEFAULT 0"),
+            ("sup_waived_months", "REAL NOT NULL DEFAULT 0"),
+            ("sup_waive_reason", "TEXT DEFAULT ''")):
+        if _ccol not in _cscols:
+            conn.execute(f"ALTER TABLE contract_stages ADD COLUMN "
+                         f"{_ccol} {_cdef}")
+    _lcols = {r[1] for r in conn.execute(
+        "PRAGMA table_info(transaction_stage_log);")}
+    if "start_date" not in _lcols:
+        conn.execute("ALTER TABLE transaction_stage_log ADD COLUMN "
+                     "start_date TEXT DEFAULT ''")
+    if "end_date" not in _lcols:
+        conn.execute("ALTER TABLE transaction_stage_log ADD COLUMN "
+                     "end_date TEXT DEFAULT ''")
+    if "is_skipped" not in _lcols:
+        conn.execute("ALTER TABLE transaction_stage_log ADD COLUMN "
+                     "is_skipped INTEGER NOT NULL DEFAULT 0")
+    # مراحل لكل نوع عقد + ربط الدفعات بالمراحل
+    if "contract_type" not in _wcols:
+        conn.execute("ALTER TABLE workflow_stages ADD COLUMN "
+                     "contract_type TEXT DEFAULT ''")
+    if "payment_pct" not in _wcols:
+        conn.execute("ALTER TABLE workflow_stages ADD COLUMN "
+                     "payment_pct REAL DEFAULT 0")
+    if "pay_kind" not in _wcols:
+        conn.execute("ALTER TABLE workflow_stages ADD COLUMN "
+                     "pay_kind TEXT DEFAULT ''")
+    _pcols = {r[1] for r in conn.execute(
+        "PRAGMA table_info(payment_plan);")}
+    if "stage_id" not in _pcols:
+        conn.execute("ALTER TABLE payment_plan ADD COLUMN "
+                     "stage_id INTEGER")
+    if "notes" not in _pcols:
+        conn.execute("ALTER TABLE payment_plan ADD COLUMN "
+                     "notes TEXT DEFAULT ''")
+    if "triggered_at" not in _pcols:
+        conn.execute("ALTER TABLE payment_plan ADD COLUMN "
+                     "triggered_at TEXT DEFAULT ''")
+    if "manual_amount" not in _pcols:
+        conn.execute("ALTER TABLE payment_plan ADD COLUMN "
+                     "manual_amount INTEGER DEFAULT 0")
+    _tcols = {r[1] for r in conn.execute(
+        "PRAGMA table_info(type_payment_tpl);")}
+    if "trigger_stage_id" not in _tcols:
+        conn.execute("ALTER TABLE type_payment_tpl ADD COLUMN "
+                     "trigger_stage_id INTEGER")
+    if "amount_fixed" not in _tcols:
+        conn.execute("ALTER TABLE type_payment_tpl ADD COLUMN "
+                     "amount_fixed REAL NOT NULL DEFAULT 0")
+    # إعادة بناء workflow_stages بقيد فريد يشمل قالب النوع — الاسم
+    # الواحد يجوز للقالب العام ولنوع خاص (مرة واحدة للقواعد القديمة)
+    _wsql = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND "
+        "name='workflow_stages'").fetchone()
+    if _wsql and "UNIQUE(transaction_type, contract_type, stage_name)" \
+            not in (_wsql[0] or ""):
+        conn.execute("PRAGMA foreign_keys=OFF")
+        conn.executescript(
+            "CREATE TABLE workflow_stages_mig ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "transaction_type TEXT NOT NULL, "
+            "stage_name TEXT NOT NULL, "
+            "stage_order INTEGER NOT NULL, "
+            "color TEXT DEFAULT '#3B82F6', "
+            "parent_id INTEGER REFERENCES workflow_stages(id), "
+            "expected_days INTEGER NOT NULL DEFAULT 0, "
+            "is_pre_contract INTEGER NOT NULL DEFAULT 0, "
+            "contract_type TEXT DEFAULT '', "
+            "payment_pct REAL DEFAULT 0, "
+            "UNIQUE(transaction_type, contract_type, stage_name)); "
+            "INSERT INTO workflow_stages_mig "
+            "(id, transaction_type, stage_name, stage_order, color, "
+            " parent_id, expected_days, is_pre_contract, "
+            " contract_type, payment_pct) "
+            "SELECT id, transaction_type, stage_name, stage_order, color, "
+            " parent_id, COALESCE(expected_days, 0), "
+            " COALESCE(is_pre_contract, 0), "
+            " COALESCE(contract_type, ''), COALESCE(payment_pct, 0) "
+            "FROM workflow_stages; "
+            "DROP TABLE workflow_stages; "
+            "ALTER TABLE workflow_stages_mig RENAME TO workflow_stages;")
+        conn.execute("PRAGMA foreign_keys=ON")
+    # بعد إعادة بناء workflow_stages للقواعد القديمة قد تختفي أعمدة أضيفت قبلها.
+    # نعيد فحصها هنا لضمان فتح شجرة المراحل وعدم ظهور no such column: pay_kind.
+    _wcols_after = {r[1] for r in conn.execute("PRAGMA table_info(workflow_stages);")}
+    if "pay_kind" not in _wcols_after:
+        conn.execute("ALTER TABLE workflow_stages ADD COLUMN pay_kind TEXT DEFAULT ''")
+    if "payment_pct" not in _wcols_after:
+        conn.execute("ALTER TABLE workflow_stages ADD COLUMN payment_pct REAL DEFAULT 0")
+    if "contract_type" not in _wcols_after:
+        conn.execute("ALTER TABLE workflow_stages ADD COLUMN contract_type TEXT DEFAULT ''")
+    if "parent_id" not in _wcols_after:
+        conn.execute("ALTER TABLE workflow_stages ADD COLUMN parent_id INTEGER REFERENCES workflow_stages(id)")
+    if "expected_days" not in _wcols_after:
+        conn.execute("ALTER TABLE workflow_stages ADD COLUMN expected_days INTEGER NOT NULL DEFAULT 0")
+    if "is_pre_contract" not in _wcols_after:
+        conn.execute("ALTER TABLE workflow_stages ADD COLUMN is_pre_contract INTEGER NOT NULL DEFAULT 0")
+    if "is_supervision" not in _wcols_after:
+        conn.execute("ALTER TABLE workflow_stages ADD COLUMN is_supervision INTEGER NOT NULL DEFAULT 0")
+    if "sup_monthly" not in _wcols_after:
+        conn.execute("ALTER TABLE workflow_stages ADD COLUMN sup_monthly REAL NOT NULL DEFAULT 0")
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(settings);")}
+    upgrades = {
+        "invoice_primary": "TEXT DEFAULT '#1e3a5f'",
+        "invoice_accent": "TEXT DEFAULT '#2e86ab'",
+        "auto_backup_enabled": "INTEGER DEFAULT 1",
+        "auto_backup_interval": "INTEGER DEFAULT 24",
+        "auto_backup_folder": "TEXT DEFAULT ''",
+        "last_backup_at": "TEXT DEFAULT ''",
+        "ui_theme": "TEXT DEFAULT 'light'",
+        "header_title": "TEXT DEFAULT 'نظام إدارة العقود والمحاسبة'",
+        "task_wa_customer": "TEXT DEFAULT ''",
+        "task_wa_manager": "TEXT DEFAULT ''",
+        "wa_appt": "TEXT DEFAULT ''",
+        "wa_reminder": "TEXT DEFAULT ''",
+        "wa_payment": "TEXT DEFAULT ''",
+        "collection_alert_days": "INTEGER DEFAULT 30",
+        "ui_prefs": "TEXT DEFAULT '{}'",
+        "manager_phone": "TEXT DEFAULT ''",
+        "app_name": "TEXT DEFAULT 'ConTrack'",
+        "max_users": "INTEGER DEFAULT 0",
+        "full_backup_enabled": "INTEGER DEFAULT 1",
+        "full_backup_interval_days": "INTEGER DEFAULT 7",
+        "full_backup_weekday": "INTEGER DEFAULT 3",
+        "visits_start_hour": "INTEGER DEFAULT 8",
+        "stages_seeded": "INTEGER DEFAULT 0",
+        "visits_end_hour": "INTEGER DEFAULT 17",
+        "visits_slot_minutes": "INTEGER DEFAULT 60",
+        "full_backup_keep_weekly": "INTEGER DEFAULT 4",
+        "full_backup_keep_monthly": "INTEGER DEFAULT 3",
+        "full_backup_folder": "TEXT DEFAULT ''",
+        "last_full_backup_at": "TEXT DEFAULT ''",
+        "desc_prefix_receipt": "TEXT DEFAULT ''",
+        "desc_prefix_supervision": "TEXT DEFAULT ''",
+        "desc_prefix_transfer": "TEXT DEFAULT ''",
+        "desc_prefix_custody": "TEXT DEFAULT ''",
+        "desc_prefix_stage_note": "TEXT DEFAULT ''",
+        # V5.9: بداية الاحتساب النقدي — الحركات الأقدم تُستبعد من تقارير
+        # وأرصدة البنك/الصندوق (زر مؤقت في الإعدادات) بلا حذف أي بيانات.
+        "cash_start_date": "TEXT DEFAULT ''",
+    }
+    for col, decl in upgrades.items():
+        if col not in cols:
+            conn.execute(f"ALTER TABLE settings ADD COLUMN {col} {decl}")
+    # ترقية جدول العقود: أعمدة دورة حياة العقد
+    ccols = {r[1] for r in conn.execute("PRAGMA table_info(contracts);")}
+    contract_upgrades = {
+        "contract_name": "TEXT DEFAULT ''",
+        "project_id": "INTEGER REFERENCES projects(id)",
+        "contract_type": "TEXT DEFAULT ''",
+        "manual_path": "INTEGER DEFAULT 0",  # V4.45: المسار اليدوي
+        "sign_date": "TEXT DEFAULT ''",
+        "start_date": "TEXT DEFAULT ''",
+        "end_date": "TEXT DEFAULT ''",
+        "status": "TEXT DEFAULT 'نشط'",
+        "currency": "TEXT DEFAULT 'د.ك'",
+        "sup_start_date": "TEXT DEFAULT ''",
+        "sup_months": "INTEGER DEFAULT 0",
+        "sup_monthly": "REAL DEFAULT 0",
+        "sup_discount": "REAL DEFAULT 0",
+        "sup_waived_months": "REAL DEFAULT 0",
+        "sup_waive_reason": "TEXT DEFAULT ''",
+        "status_reason": "TEXT DEFAULT ''",
+        "cancelled_at": "TEXT DEFAULT ''",
+        "cancel_close_amount": "REAL DEFAULT 0",
+        "qty": "REAL DEFAULT 1",
+        "unit_price": "REAL DEFAULT 0",
+    }
+    for col, decl in contract_upgrades.items():
+        if col not in ccols:
+            conn.execute(f"ALTER TABLE contracts ADD COLUMN {col} {decl}")
+    # أسباب إلغاء عقود الباطن تحفظ للتدقيق مثل باقي الإلغاءات
+    try:
+        scols2 = {r[1] for r in conn.execute("PRAGMA table_info(sub_contracts);")}
+        if "cancel_reason" not in scols2:
+            conn.execute("ALTER TABLE sub_contracts ADD COLUMN cancel_reason TEXT DEFAULT ''")
+        if "cancelled_at" not in scols2:
+            conn.execute("ALTER TABLE sub_contracts ADD COLUMN cancelled_at TEXT DEFAULT ''")
+        if "cancel_close_amount" not in scols2:
+            conn.execute("ALTER TABLE sub_contracts ADD COLUMN cancel_close_amount REAL DEFAULT 0")
+    except Exception:
+        pass
+    # اسم العقد المعروض موحّد مع نوع العقد ولا يُحرر يدويًا
+    conn.execute(
+        "UPDATE contracts SET contract_name = "
+        "COALESCE(NULLIF(TRIM(contract_type), ''), 'غير محدد')")
+    conn.executescript("""
+    CREATE TRIGGER IF NOT EXISTS trg_contract_name_type_insert
+    AFTER INSERT ON contracts
+    BEGIN
+        UPDATE contracts
+           SET contract_name = COALESCE(NULLIF(TRIM(NEW.contract_type), ''), 'غير محدد')
+         WHERE id = NEW.id;
+    END;
+    CREATE TRIGGER IF NOT EXISTS trg_contract_name_type_update
+    AFTER UPDATE OF contract_type, contract_name ON contracts
+    BEGIN
+        UPDATE contracts
+           SET contract_name = COALESCE(NULLIF(TRIM(NEW.contract_type), ''), 'غير محدد')
+         WHERE id = NEW.id
+           AND COALESCE(TRIM(contract_name), '') <> COALESCE(NULLIF(TRIM(NEW.contract_type), ''), 'غير محدد');
+    END;
+    """)
+    # إعدادات تنبيهات انتهاء العقد
+    scols = {r[1] for r in conn.execute("PRAGMA table_info(settings);")}
+    # التقرير المالي: رسوم التحويل البنكي والرصيد الافتتاحي
+    if "bank_fee_amount" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN "
+                     "bank_fee_amount REAL DEFAULT 0.150")
+    if "bank_fee_method" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN "
+                     "bank_fee_method TEXT DEFAULT 'تحويل بنكي'")
+    if "opening_balance" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN "
+                     "opening_balance REAL DEFAULT 0")
+    if "opening_balance_date" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN "
+                     "opening_balance_date TEXT DEFAULT ''")
+    if "opening_balance_bank" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN "
+                     "opening_balance_bank REAL DEFAULT 0")
+    if "opening_balance_cash" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN "
+                     "opening_balance_cash REAL DEFAULT 0")
+        # توافق مع الإعداد القديم: كان الرصيد الافتتاحي كله يُعامل كصندوق.
+        conn.execute("UPDATE settings SET opening_balance_cash=COALESCE(opening_balance,0) "
+                     "WHERE COALESCE(opening_balance_cash,0)=0 AND COALESCE(opening_balance_bank,0)=0")
+    # مفاتيح المديولات الاختيارية (يضبطها المطور لكل عميل)
+    if "cashflow_enabled" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN "
+                     "cashflow_enabled INTEGER DEFAULT 1")
+    if "bank_fee_enabled" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN "
+                     "bank_fee_enabled INTEGER DEFAULT 1")
+    # ربط سند الرسوم بسند القبض الأصلي (إلغاء الأب يلغي الابن)
+    vcols2 = {r[1] for r in conn.execute("PRAGMA table_info(vouchers);")}
+    if "parent_voucher_id" not in vcols2:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN "
+                     "parent_voucher_id INTEGER")
+    if "expiry_alerts" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN "
+                     "expiry_alerts TEXT DEFAULT '90,60,30,7'")
+    # صور الهيدر والفوتر للمطبوعات
+    if "header_image" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN header_image TEXT DEFAULT ''")
+    if "footer_image" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN footer_image TEXT DEFAULT ''")
+    if "print_economy" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN "
+                     "print_economy INTEGER DEFAULT 0")
+    if "stamp_image" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN "
+                     "stamp_image TEXT DEFAULT ''")
+    if "stamp_x_mm" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN "
+                     "stamp_x_mm REAL DEFAULT 0")
+    if "stamp_y_mm" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN "
+                     "stamp_y_mm REAL DEFAULT 0")
+    if "stamp_size_mm" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN "
+                     "stamp_size_mm REAL DEFAULT 0")
+    if "signature_image" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN "
+                     "signature_image TEXT DEFAULT ''")
+    # إضافة عمود رمز التفعيل (الترخيص)
+    if "license_key" not in scols:
+        conn.execute("ALTER TABLE settings ADD COLUMN "
+                     "license_key TEXT DEFAULT ''")
+    # ===== طرق الدفع المخصصة ورسومها =====
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS payment_methods (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            name      TEXT NOT NULL UNIQUE,
+            fee_type  TEXT DEFAULT 'amount',
+            fee_value REAL DEFAULT 0,
+            is_active INTEGER DEFAULT 1
+        )""")
+
+    
+    # زرع الطرق الافتراضية مرة واحدة
+    conn.execute(
+        "INSERT OR IGNORE INTO payment_methods (name, fee_type, fee_value) "
+        "VALUES ('نقدًا', 'amount', 0)")
+    conn.execute(
+        "INSERT OR IGNORE INTO payment_methods (name, fee_type, fee_value) "
+        "VALUES ('تحويل بنكي', 'amount', 0.150)")
+    conn.execute(
+        "INSERT OR IGNORE INTO payment_methods (name, fee_type, fee_value) "
+        "VALUES ('KNET', 'percent', 1.5)")
+    conn.execute(
+        "INSERT OR IGNORE INTO payment_methods (name, fee_type, fee_value) "
+        "VALUES ('شيك', 'amount', 0)")
+    conn.execute(
+        "INSERT OR IGNORE INTO payment_methods (name, fee_type, fee_value) "
+        "VALUES ('أخرى', 'amount', 0)")
+    # تنظيف: إزالة جداول ميزة المواعيد الملغاة إن وُجدت
+    conn.execute("DROP TABLE IF EXISTS appointments")
+    # V4.53: اسم employees أُعيد إحياؤه لسلف الموظفين — إسقاط نسخة
+    # المواعيد القديمة (كانت تُسقط هنا دائمًا) ثم إنشاء الجديدة.
+    conn.execute("DROP TABLE IF EXISTS employees")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS employees (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT NOT NULL UNIQUE,
+            phone       TEXT DEFAULT '',
+            notes       TEXT DEFAULT '',
+            active      INTEGER NOT NULL DEFAULT 1
+        )""")
+    # ترقية جدول السندات: ربط الطرف بعميل أو مقاول
+    vcols = {r[1] for r in conn.execute("PRAGMA table_info(vouchers);")}
+    if "party_type" not in vcols:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN party_type TEXT DEFAULT ''")
+    if "party_id" not in vcols:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN party_id INTEGER")
+    # ترقية جدول الملحقات: نوع الملحق (عقد إضافي / أمر تغييري)
+    acols = {r[1] for r in conn.execute("PRAGMA table_info(addendums);")}
+    if "addendum_type" not in acols:
+        conn.execute("ALTER TABLE addendums ADD COLUMN "
+                     "addendum_type TEXT DEFAULT 'أمر تغييري'")
+    if "cancel_reason" not in acols:
+        conn.execute("ALTER TABLE addendums ADD COLUMN "
+                     "cancel_reason TEXT DEFAULT ''")
+    if "cancelled_at" not in acols:
+        conn.execute("ALTER TABLE addendums ADD COLUMN "
+                     "cancelled_at TEXT DEFAULT ''")
+    # V5.4 ④: الأمر التغييري بجهتين (عميل/مقاول) وببنود
+    if "side" not in acols:
+        conn.execute("ALTER TABLE addendums ADD COLUMN "
+                     "side TEXT DEFAULT 'client'")
+    if "sub_contract_id" not in acols:
+        conn.execute("ALTER TABLE addendums ADD COLUMN "
+                     "sub_contract_id INTEGER REFERENCES sub_contracts(id)")
+    if "items_count" not in acols:
+        conn.execute("ALTER TABLE addendums ADD COLUMN "
+                     "items_count INTEGER DEFAULT 0")
+    if "applied_at" not in acols:
+        conn.execute("ALTER TABLE addendums ADD COLUMN "
+                     "applied_at TEXT DEFAULT ''")
+    # V5.4 ④: وسم البند المحذوف بأمر تغييري (لا يُمحى — يُستثنى من المجاميع)
+    bcols = {r[1] for r in conn.execute("PRAGMA table_info(boq_items);")}
+    if "deleted_addendum_id" not in bcols:
+        conn.execute("ALTER TABLE boq_items ADD COLUMN "
+                     "deleted_addendum_id INTEGER")
+    if "deleted_at" not in bcols:
+        conn.execute("ALTER TABLE boq_items ADD COLUMN "
+                     "deleted_at TEXT DEFAULT ''")
+    # V6.6: ربط كل بند بالمرحلة التي يقع فيها (لتوزيع دفعات المقاول حسب البنود)
+    if "stage_id" not in bcols:
+        conn.execute("ALTER TABLE boq_items ADD COLUMN "
+                     "stage_id INTEGER REFERENCES contract_stages(id)")
+    # V5.4 ④: بنود الأمر التغييري (إضافة يدوية / من المتاح / حذف)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS addendum_items (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            addendum_id     INTEGER NOT NULL
+                            REFERENCES addendums(id) ON DELETE CASCADE,
+            side            TEXT NOT NULL DEFAULT 'client',
+            action          TEXT NOT NULL DEFAULT 'add',
+            parent_part_id  INTEGER DEFAULT 0,
+            created_item    INTEGER DEFAULT 0,
+            restore_deleted_by INTEGER DEFAULT 0,
+            applied         INTEGER DEFAULT 0,
+            boq_item_id     INTEGER,
+            sub_contract_id INTEGER,
+            subcontractor_id INTEGER,
+            description     TEXT DEFAULT '',
+            qty             REAL DEFAULT 0,
+            unit            TEXT DEFAULT '',
+            unit_price      REAL DEFAULT 0,
+            amount          REAL DEFAULT 0,
+            created_at      TEXT NOT NULL
+                            DEFAULT (datetime('now','localtime'))
+        )""")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_addendum_items_addendum "
+                 "ON addendum_items(addendum_id)")
+    # V6.2: جهة المقاول على سطر الأمر (تتيح ربط نفس البند بأكثر من مقاول)
+    _acls = {r[1] for r in conn.execute(
+        "PRAGMA table_info(addendum_items);")}
+    if "subcontractor_id" not in _acls:
+        conn.execute("ALTER TABLE addendum_items ADD COLUMN "
+                     "subcontractor_id INTEGER REFERENCES subcontractors(id)")
+    # تاريخ استحقاق الشيك (لسندات طريقة دفعها شيك)
+    if "cheque_due_date" not in vcols:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN "
+                     "cheque_due_date TEXT DEFAULT ''")
+    # إلغاء السند (بدل الحذف — الرقم محفوظ للتسلسل)
+    if "cancelled" not in vcols:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN "
+                     "cancelled INTEGER DEFAULT 0")
+    if "cancel_reason" not in vcols:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN "
+                     "cancel_reason TEXT DEFAULT ''")
+    if "cancelled_at" not in vcols:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN "
+                     "cancelled_at TEXT DEFAULT ''")
+    # تخصيص السند: سداد مقابل بند محدد (أمر تغييري/عقد إضافي)
+    if "allocation" not in vcols:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN "
+                     "allocation TEXT DEFAULT ''")
+    if "receipt_group_ref" not in vcols:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN "
+                     "receipt_group_ref TEXT DEFAULT ''")
+    if "receipt_group_line" not in vcols:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN "
+                     "receipt_group_line INTEGER")
+    if "expense_customer_id" not in vcols:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN "
+                     "expense_customer_id INTEGER REFERENCES customers(id)")
+    if "expense_account_id" not in vcols:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN "
+                     "expense_account_id INTEGER REFERENCES expense_accounts(id)")
+    if "expense_account_snapshot" not in vcols:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN "
+                     "expense_account_snapshot TEXT DEFAULT ''")
+    if "expense_group_ref" not in vcols:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN "
+                     "expense_group_ref TEXT DEFAULT ''")
+    if "expense_group_line" not in vcols:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN "
+                     "expense_group_line INTEGER")
+    if "custody_account_id" not in vcols:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN "
+                     "custody_account_id INTEGER REFERENCES expense_accounts(id)")
+    if "custody_account_snapshot" not in vcols:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN "
+                     "custody_account_snapshot TEXT DEFAULT ''")
+    if "advance_employee_id" not in vcols:
+        conn.execute("ALTER TABLE vouchers ADD COLUMN "
+                     "advance_employee_id INTEGER REFERENCES employees(id)")
+    # مرفقات العقد (صورة العقد الموقع وغيرها)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS contract_attachments (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            contract_id INTEGER NOT NULL,
+            file_name   TEXT NOT NULL,
+            stored_path TEXT NOT NULL,
+            added_at    TEXT DEFAULT (datetime('now', 'localtime')),
+            FOREIGN KEY (contract_id) REFERENCES contracts(id)
+        )""")
+    # مجلد العميل على الشبكة المحلية + آخر اطلاع
+    cucols = {r[1] for r in conn.execute("PRAGMA table_info(customers);")}
+    if "folder_path" not in cucols:
+        conn.execute("ALTER TABLE customers ADD COLUMN "
+                     "folder_path TEXT DEFAULT ''")
+    if "folder_seen" not in cucols:
+        conn.execute("ALTER TABLE customers ADD COLUMN "
+                     "folder_seen REAL DEFAULT 0")
+    for col in ("address_governorate", "address_area", "address_block", "address_plot"):
+        if col not in cucols:
+            conn.execute(f"ALTER TABLE customers ADD COLUMN {col} TEXT DEFAULT ''")
+    # أنواع العقود المعتمدة + المبلغ الافتراضي لكل نوع
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS contract_types (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            name            TEXT NOT NULL UNIQUE,
+            default_amount  REAL DEFAULT 0,
+            notes           TEXT DEFAULT '',
+            active          INTEGER DEFAULT 1,
+            manual_track    INTEGER DEFAULT 0,
+            created_at      TEXT DEFAULT (datetime('now','localtime')

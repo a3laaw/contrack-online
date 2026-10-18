@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V8.1 — مشكلة إخفاء البنود للعقد اليدوي</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { text-align: center; color: #1e40af; margin-bottom: 30px; font-size: 28px; }
+        h2 { color: #1e293b; margin: 20px 0 15px; font-size: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px; }
+        .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .problem { background: #fef2f2; border: 2px solid #ef4444; }
+        .solution { background: #f0fdf4; border: 2px solid #22c55e; }
+        .info { background: #eff6ff; border: 2px solid #3b82f6; }
+        .warning { background: #fffbeb; border: 2px solid #f59e0b; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; margin: 2px; }
+        .badge-red { background: #fee2e2; color: #dc2626; }
+        .badge-green { background: #dcfce7; color: #16a34a; }
+        .badge-blue { background: #dbeafe; color: #2563eb; }
+        .badge-yellow { background: #fef3c7; color: #d97706; }
+        .flow { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; margin: 15px 0; }
+        .flow-step { background: #f1f5f9; border: 2px solid #94a3b8; border-radius: 8px; padding: 12px 20px; text-align: center; min-width: 150px; }
+        .flow-arrow { font-size: 24px; color: #64748b; }
+        .screen { background: #1e293b; border-radius: 12px; padding: 20px; margin: 15px 0; color: white; }
+        .screen-title { background: #3b82f6; color: white; padding: 8px 16px; border-radius: 8px 8px 0 0; font-weight: bold; margin: -20px -20px 15px; }
+        .field { background: #334155; border-radius: 6px; padding: 10px 15px; margin: 8px 0; display: flex; align-items: center; gap: 10px; }
+        .field-label { color: #94a3b8; min-width: 120px; }
+        .field-value { color: #f1f5f9; font-weight: bold; }
+        .field-input { background: #475569; border: 1px solid #64748b; border-radius: 4px; padding: 6px 10px; color: white; flex: 1; }
+        .box { border: 2px dashed #64748b; border-radius: 8px; padding: 15px; margin: 10px 0; }
+        .box-hidden { opacity: 0.3; border-color: #ef4444; background: #7f1d1d20; }
+        .box-visible { border-color: #22c55e; background: #14532d20; }
+        .checkbox { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+        .checkbox input { width: 18px; height: 18px; }
+        .table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        .table th, .table td { border: 1px solid #475569; padding: 8px 12px; text-align: center; }
+        .table th { background: #334155; color: #94a3b8; }
+        .table td { color: #f1f5f9; }
+        .highlight { background: #fbbf24; color: #1e293b; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+        .strike { text-decoration: line-through; opacity: 0.5; }
+        .code { background: #1e293b; color: #22c55e; padding: 15px; border-radius: 8px; font-family: 'Courier New', monospace; margin: 10px 0; overflow-x: auto; }
+        .code .comment { color: #64748b; }
+        .code .keyword { color: #3b82f6; }
+        .code .string { color: #f59e0b; }
+        .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .comparison { grid-template-columns: 1fr; } }
+        .step-num { background: #3b82f6; color: white; width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; margin-left: 8px; }
+        .result { font-size: 18px; font-weight: bold; padding: 10px; border-radius: 8px; text-align: center; margin: 10px 0; }
+        .result-wrong { background: #fee2e2; color: #dc2626; }
+        .result-right { background: #dcfce7; color: #16a34a; }
+        ul { margin: 10px 0 10px 20px; }
+        li { margin: 5px 0; }
+        .diagram { background: white; border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 15px 0; }
+        .row { display: flex; gap: 15px; flex-wrap: wrap; }
+        .col { flex: 1; min-width: 250px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 تحليل مشكلة إخفاء البنود — V8.1</h1>
+        
+        <!-- المشكلة -->
+        <div class="card problem">
+            <h2>❌ المشكلة الأصلية (قبل الإصلاح)</h2>
+            <p style="margin-bottom: 15px; color: #991b1b;">
+                <strong>الكود القديم:</strong> كان يُخفي جدول البنود لأي عقد له <span class="badge badge-red">قالب</span> 
+                (سواء تلقائي أو يدوي)، وهذا خاطئ لأن العقد اليدوي يحتاج المستخدم يختار البنود بنفسه.
+            </p>
+            
+            <div class="code">
+                <span class="comment"># الكود القديم (خاطئ)</span><br>
+                <span class="keyword">def</span> _apply_items_visibility(self, cid=<span class="keyword">None</span>):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;templated = self._client_contract_templated(cid)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="string"># ❌ يُخفي لأي عقد له قالب (يدوي أو تلقائي)</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;hide = bool(templated <span class="keyword">and not</span> items)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;...
+            </div>
+            
+            <div class="result result-wrong">
+                ❌ النتيجة: العقد اليدوي (له قالب) → البنود تُخفى بشكل خاطئ!
+            </div>
+        </div>
+
+        <!-- الحل -->
+        <div class="card solution">
+            <h2>✅ الحل (V8.1)</h2>
+            <p style="margin-bottom: 15px; color: #166534;">
+                <strong>الكود الجديد:</strong> يُخفي فقط للعقود <span class="badge badge-yellow">التلقائية</span> 
+                التي ليس لها بنود، أما <span class="badge badge-green">اليدوية</span> فتبقى ظاهرة.
+            </p>
+            
+            <div class="code">
+                <span class="comment"># الكود الجديد (صحيح)</span><br>
+                <span class="keyword">def</span> _apply_items_visibility(self, cid=<span class="keyword">None</span>):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;auto = self._client_contract_auto(cid)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="string"># ✅ يُخفي فقط للتلقائي بلا بنود</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;hide = bool(auto <span class="keyword">and not</span> items)<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;...
+            </div>
+            
+            <div class="result result-right">
+                ✅ النتيجة: العقد اليدوي → البنود تبقى ظاهرة للمستخدم يختار!
+            </div>
+        </div>
+
+        <!-- المقارنة -->
+        <div class="card info">
+            <h2>📊 المقارنة بين القديم والجديد</h2>
+            
+            <div class="comparison">
+                <div>
+                    <h3 style="color: #dc2626;">❌ القديم (خاطئ)</h3>
+                    <table class="table">
+                        <tr>
+                            <th>نوع العقد</th>
+                            <th>القالب</th>
+                            <th>البنود</th>
+                            <th>النتيجة</th>
+                        </tr>
+                        <tr>
+                            <td>يدوي</td>
+                            <td>✅ له</td>
+                            <td>فارغ</td>
+                            <td><span class="badge badge-red">مخفي ❌</span></td>
+                        </tr>
+                        <tr>
+                            <td>تلقائي</td>
+                            <td>✅ له</td>
+                            <td>فارغ</td>
+                            <td><span class="badge badge-red">مخفي</span></td>
+                        </tr>
+                        <tr>
+                            <td>يدوي</td>
+                            <td>✅ له</td>
+                            <td>موجود</td>
+                            <td><span class="badge badge-green">ظاهر</span></td>
+                        </tr>
+                        <tr>
+                            <td>بدون قالب</td>
+                            <td>❌ لا</td>
+                            <td>أي</td>
+                            <td><span class="badge badge-green">ظاهر</span></td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <div>
+                    <h3 style="color: #16a34a;">✅ الجديد (صحيح)</h3>
+                    <table class="table">
+                        <tr>
+                            <th>نوع العقد</th>
+                            <th>القالب</th>
+                            <th>البنود</th>
+                            <th>النتيجة</th>
+                        </tr>
+                        <tr>
+                            <td>يدوي</td>
+                            <td>✅ له</td>
+                            <td>فارغ</td>
+                            <td><span class="badge badge-green">ظاهر ✅</span></td>
+                        </tr>
+                        <tr>
+                            <td>تلقائي</td>
+                            <td>✅ له</td>
+                            <td>فارغ</td>
+                            <td><span class="badge badge-yellow">مخفي</span></td>
+                        </tr>
+                        <tr>
+                            <td>يدوي</td>
+                            <td>✅ له</td>
+                            <td>موجود</td>
+                            <td><span class="badge badge-green">ظاهر</span></td>
+                        </tr>
+                        <tr>
+                            <td>بدون قالب</td>
+                            <td>❌ لا</td>
+                            <td>أي</td>
+                            <td><span class="badge badge-green">ظاهر</span></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- سير العمل -->
+        <div class="card warning">
+            <h2>🔄 سير عمل إنشاء عقد مقاول باطن (يدوي)</h2>
+            
+            <div class="flow">
+                <div class="flow-step">
+                    <span class="step-num">1</span><br>
+                    اختر العميل
+                </div>
+                <div class="flow-arrow">←</div>
+                <div class="flow-step">
+                    <span class="step-num">2</span><br>
+                    اختر العقد<br>
+                    <span class="badge badge-green">يدوي له قالب</span>
+                </div>
+                <div class="flow-arrow">←</div>
+                <div class="flow-step" style="border-color: #22c55e; background: #f0fdf4;">
+                    <span class="step-num">3</span><br>
+                    <strong>البنود تظهر</strong><br>
+                    <span class="badge badge-green">ظاهر ✅</span>
+                </div>
+                <div class="flow-arrow">←</div>
+                <div class="flow-step">
+                    <span class="step-num">4</span><br>
+                    اختر البنود يدويًا
+                </div>
+                <div class="flow-arrow">←</div>
+                <div class="flow-step">
+                    <span class="step-num">5</span><br>
+                    احفظ عقد الباطن
+                </div>
+            </div>
+        </div>
+
+        <!-- شاشة العقد اليدوي -->
+        <div class="card">
+            <h2>🖥️ شاشة إنشاء عقد مقاول باطن — العقد اليدوي</h2>
+            
+            <div class="screen">
+                <div class="screen-title">إنشاء عقد مقاول باطن — V8.1</div>
+                
+                <div class="field">
+                    <span class="field-label">العميل:</span>
+                    <span class="field-value">أحمد محمد</span>
+                </div>
+                
+                <div class="field">
+                    <span class="field-label">عقد العميل:</span>
+                    <span class="field-value">CON-001 — عقد فيلا (يدوي)</span>
+                    <span class="badge badge-green">يدوي</span>
+                </div>
+                
+                <div class="field">
+                    <span class="field-label">المقاول:</span>
+                    <span class="field-input" style="color: #94a3b8;">اختر المقاول...</span>
+                </div>
+                
+                <div class="field">
+                    <span class="field-label">القيمة:</span>
+                    <span class="field-input" style="color: #94a3b8;">0.000</span>
+                </div>
+
+                <!-- صندوق البنود — ظاهر للعقد اليدوي -->
+                <div class="box box-visible">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <strong style="color: #22c55e;">② بنود عقد العميل</strong>
+                        <span class="badge badge-green">ظاهر ✅</span>
+                    </div>
+                    <p style="color: #94a3b8; font-size: 14px; margin-bottom: 10px;">
+                        💡 عقد العميل من نوع «يدوي» له قالب — <strong style="color: #f1f5f9;">اختر البنود التي تعطيها لهذا المقاول</strong>
+                    </p>
+                    
+                    <table class="table">
+                        <tr>
+                            <th>اختيار</th>
+                            <th>#</th>
+                            <th>الوصف</th>
+                            <th>الكمية</th>
+                            <th>السعر</th>
+                            <th>الإجمالي</th>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" checked></td>
+                            <td>1</td>
+                            <td>أعمال الحفر</td>
+                            <td>100</td>
+                            <td>50.000</td>
+                            <td>5,000.000</td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox"></td>
+                            <td>2</td>
+                            <td>أعمال الخرسانة</td>
+                            <td>200</td>
+                            <td>75.000</td>
+                            <td>15,000.000</td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" checked></td>
+                            <td>3</td>
+                            <td>أعمال البناء</td>
+                            <td>150</td>
+                            <td>100.000</td>
+                            <td>15,000.000</td>
+                        </tr>
+                    </table>
+                    
+                    <div style="text-align: left; color: #94a3b8; margin-top: 10px;">
+                        المختار: <strong style="color: #22c55e;">2 بند</strong> | 
+                        الإجمالي: <strong style="color: #f1f5f9;">20,000.000</strong>
+                    </div>
+                </div>
+
+                <!-- صندوق الدفعات -->
+                <div class="box box-visible">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <strong style="color: #3b82f6;">③ خطة سداد عقد الباطن</strong>
+                        <span class="badge badge-blue">③ (البنود ظاهرة)</span>
+                    </div>
+                    
+                    <table class="table">
+                        <tr>
+                            <th>#</th>
+                            <th>الدفعة</th>
+                            <th>المبلغ</th>
+                            <th>التاريخ</th>
+                        </tr>
+                        <tr>
+                            <td>1</td>
+                            <td>دفعة مقدمة</td>
+                            <td>6,666.667</td>
+                            <td>2026-01-15</td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td>دفعة ثانية</td>
+                            <td>6,666.667</td>
+                            <td>2026-02-15</td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td>دفعة أخيرة</td>
+                            <td>6,666.666</td>
+                            <td>2026-03-15</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- شاشة العقد التلقائي -->
+        <div class="card">
+            <h2>🖥️ شاشة إنشاء عقد مقاول باطن — العقد التلقائي</h2>
+            
+            <div class="screen">
+                <div class="screen-title">إنشاء عقد مقاول باطن — V8.1</div>
+                
+                <div class="field">
+                    <span class="field-label">العميل:</span>
+                    <span class="field-value">سالم العلي</span>
+                </div>
+                
+                <div class="field">
+                    <span class="field-label">عقد العميل:</span>
+                    <span class="field-value">CON-002 — عقد إشراف (تلقائي)</span>
+                    <span class="badge badge-yellow">تلقائي</span>
+                </div>
+                
+                <div class="field">
+                    <span class="field-label">المقاول:</span>
+                    <span class="field-input" style="color: #94a3b8;">اختر المقاول...</span>
+                </div>
+                
+                <div class="field">
+                    <span class="field-label">القيمة:</span>
+                    <span class="field-input" style="color: #94a3b8;">0.000</span>
+                </div>
+
+                <!-- صندوق البنود — مخفي للعقد التلقائي -->
+                <div class="box box-hidden">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <strong style="color: #ef4444;">② بنود عقد العميل</strong>
+                        <span class="badge badge-red">مخفي ❌</span>
+                    </div>
+                    <p style="color: #ef4444; font-size: 14px;">
+                        ⚠ عقد العميل من نوع «تلقائي» — البنود تُضاف تلقائيًا؛ يُكتفى بدفعات عقد الباطن أدناه.
+                    </p>
+                </div>
+
+                <!-- صندوق الدفعات — ② لأن البنود مخفية -->
+                <div class="box box-visible">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <strong style="color: #3b82f6;">② خطة سداد عقد الباطن</strong>
+                        <span class="badge badge-blue">② (البنود مخفية)</span>
+                    </div>
+                    
+                    <table class="table">
+                        <tr>
+                            <th>#</th>
+                            <th>الدفعة</th>
+                            <th>المبلغ</th>
+                            <th>التاريخ</th>
+                        </tr>
+                        <tr>
+                            <td>1</td>
+                            <td>دفعة مقدمة</td>
+                            <td>10,000.000</td>
+                            <td>2026-01-15</td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td>دفعة ثانية</td>
+                            <td>10,000.000</td>
+                            <td>2026-02-15</td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td>دفعة أخيرة</td>
+                            <td>10,000.000</td>
+                            <td>2026-03-15</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ملخص -->
+        <div class="card solution">
+            <h2>✅ ملخص الإصلاح</h2>
+            
+            <div class="row">
+                <div class="col">
+                    <h3>المنطق الجديد:</h3>
+                    <ul>
+                        <li><span class="badge badge-yellow">تلقائي</span> + لا بنود → <strong>مخفي</strong></li>
+                        <li><span class="badge badge-green">يدوي</span> + له قالب → <strong>ظاهر</strong></li>
+                        <li><span class="badge badge-green">يدوي</span> + بنود موجودة → <strong>ظاهر</strong></li>
+                        <li><span class="badge badge-blue">بدون قالب</span> → <strong>ظاهر دائمًا</strong></li>
+                    </ul>
+                </div>
+                <div class="col">
+                    <h3>الرسائل الإرشادية:</h3>
+                    <ul>
+                        <li><span class="badge badge-yellow">تلقائي</span>: "البنود تُضاف تلقائيًا"</li>
+                        <li><span class="badge badge-green">يدوي</span>: "اختر البنود التي تعطيها لهذا المقاول"</li>
+                    </ul>
+                    
+                    <h3 style="margin-top: 15px;">ترقيم الصناديق:</h3>
+                    <ul>
+                        <li>بنود مخفية: <span class="badge badge-blue">①</span> → <span class="badge badge-blue">②</span></li>
+                        <li>بنود ظاهرة: <span class="badge badge-blue">①</span> → <span class="badge badge-blue">②</span> → <span class="badge badge-blue">③</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- الكود -->
+        <div class="card info">
+            <h2>💻 الكود المُصلح (V8.1)</h2>
+            
+            <div class="code">
+<span class="keyword">def</span> _apply_items_visibility(self, cid=<span class="keyword">None</span>) -> bool:
+    <span class="string">"""V8.1: سياسة صندوق بنود عقد العميل.
+
+    · عقد تلقائي (قالب مراحل/دفعات) **بلا بنود** ⇒ يُخفى الصندوق كاملًا
+      ويُكتفى بدفعات عقد الباطن.
+    · عقد يدوي له قالب ⇒ يبقى ظاهرًا (المستخدم يختار البنود يدويًا).
+    · عقد تلقائي له بنود فعلية ⇒ يبقى ظاهرًا.
+    · غير ذلك ⇒ ظاهر دائمًا.
+    """</span>
+    auto = self._client_contract_auto(cid)
+    templated = auto <span class="keyword">or</span> self._client_contract_templated(cid)
+    self._client_auto = auto
+    
+    <span class="comment"># V8.1: يُخفى فقط للتلقائي بلا بنود — اليدوي يبقى ظاهر</span>
+    hide = bool(auto <span class="keyword">and not</span> getattr(self, <span class="string">"_items"</span>, <span class="keyword">None</span>))
+    
+    self._items_hidden = hide
+    box = getattr(self, <span class="string">"items_box"</span>, <span class="keyword">None</span>)
+    <span class="keyword">if</span> box <span class="keyword">is not None</span>:
+        box.setVisible(<span class="keyword">not</span> hide)
+    
+    note = getattr(self, <span class="string">"items_hidden_note"</span>, <span class="keyword">None</span>)
+    <span class="keyword">if</span> note <span class="keyword">is not None</span>:
+        note.setVisible(hide)
+    
+    pb = getattr(self, <span class="string">"plan_box"</span>, <span class="keyword">None</span>)
+    <span class="keyword">if</span> pb <span class="keyword">is not None</span>:
+        _t = pb.title()
+        <span class="keyword">if</span> hide <span class="keyword">and</span> <span class="string">"③"</span> <span class="keyword">in</span> _t:
+            pb.setTitle(_t.replace(<span class="string">"③"</span>, <span class="string">"②"</span>, 1))
+        <span class="keyword">elif</span> (<span class="keyword">not</span> hide) <span class="keyword">and</span> <span class="string">"②"</span> <span class="keyword">in</span> _t:
+            pb.setTitle(_t.replace(<span class="string">"②"</span>, <span class="string">"③"</span>, 1))
+    
+    <span class="keyword">if</span> hide:
+        self._chosen_ids = []
+    
+    <span class="keyword">return</span> templated
+            </div>
+        </div>
+
+        <!-- النتيجة -->
+        <div class="card solution">
+            <h2>🎯 النتيجة النهائية</h2>
+            
+            <div class="result result-right" style="font-size: 20px;">
+                ✅ العقد اليدوي (له قالب) → البنود تظهر للمستخدم يختار يدويًا
+            </div>
+            
+            <div class="result result-right" style="font-size: 20px;">
+                ✅ العقد التلقائي (بلا بنود) → البنود تُخفى ويُكتفى بدفعات الباطن
+            </div>
+            
+            <p style="text-align: center; margin-top: 15px; color: #64748b;">
+                <strong>الاختبارات:</strong> 122/122 ✅ | <strong>الإصدار:</strong> V8.1
+            </p>
+        </div>
+    </div>
+</body>
+</html>
