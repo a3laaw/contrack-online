@@ -8,7 +8,7 @@ export type UiPrefs = Record<string, unknown>
 
 /** يضمن وجود صف الإعدادات الواحد ويعيد uiPrefs مفكوكة بأمان */
 export async function getUiPrefs(): Promise<{ prefs: UiPrefs }> {
-  const s = await db.settings.upsert({
+  const s = await db.setting.upsert({
     where: { id: 1 },
     create: { id: 1 },
     update: {},
@@ -31,6 +31,6 @@ export async function getUiPrefs(): Promise<{ prefs: UiPrefs }> {
 export async function updateUiPrefs(patch: UiPrefs): Promise<UiPrefs> {
   const { prefs } = await getUiPrefs()
   const next = { ...prefs, ...patch }
-  await db.settings.update({ where: { id: 1 }, data: { uiPrefs: JSON.stringify(next) } })
+  await db.setting.update({ where: { id: 1 }, data: { uiPrefs: JSON.stringify(next) } })
   return next
 }

@@ -2,8 +2,23 @@
 // POST /api/contracts/[id]/items — إضافة بند جديد (مع حدث «إضافة بند»)
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { addContractEvent, authGuard, jsonError, parseAmount } from '@/lib/api-utils'
+import { authGuard, jsonError } from '@/lib/api-utils'
 import { formatKWD, round3 } from '@/lib/format'
+
+/** تحويل قيمة مدخل إلى رقم — null إن كانت غير رقمية (بديل محلي) */
+function parseAmount(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+/** حدث على العقد (بديل محلي) */
+async function addContractEvent(contractId: number, eventType: string, description: string, username: string) {
+  await db.contractEvent.create({ data: { contractId, eventType, description, username } })
+}
 
 async function loadContract(cid: number) {
   return db.contract.findUnique({ where: { id: cid }, select: { id: true, amount: true } })
@@ -19,7 +34,7 @@ function normalizeStageId(v: unknown): number | null | 'invalid' {
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const g = await authGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   const { id } = await ctx.params
   const cid = Number(id)
@@ -29,14 +44,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (!contract) return jsonError('العقد غير موجود', 404)
 
   const items = await db.boqItem.findMany({
-    where: { contractId: cid, deletedAt: null },
+    where: { contractId: cid, deleted: false },
     orderBy: { id: 'asc' },
     include: { stage: { select: { name: true } } },
   })
 
   let itemsTotal = 0
   const rows = items.map((it) => {
-    const total = round3(it.qty * it.unitPrice)
+    const total = round3(Number(it.qty) * Number(it.unitPrice))
     itemsTotal += total
     return {
       id: it.id,
@@ -50,7 +65,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     }
   })
   itemsTotal = round3(itemsTotal)
-  const contractAmount = round3(contract.amount)
+  const contractAmount = round3(Number(contract.amount))
 
   return NextResponse.json({
     items: rows,
@@ -62,7 +77,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const g = await authGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   const { id } = await ctx.params
   const cid = Number(id)

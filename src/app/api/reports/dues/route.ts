@@ -10,7 +10,7 @@ import type { DuesDTO, DuesRow } from '@/lib/report-types'
 
 export async function GET(req: NextRequest) {
   const g = await authGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   const sp = req.nextUrl.searchParams
   const customerId = Number(sp.get('customerId') ?? '') || undefined
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 
   const where: Record<string, unknown> = { status: { notIn: ['ملغى', 'مسودة'] } }
   if (customerId) where.customerId = customerId
-  const dRange: Record<string, Date> = {}
+  const dRange: Record<string, string> = {}
   if (fromD) dRange.gte = fromD
   if (toD) dRange.lte = toD
   if (fromD || toD) where.contractDate = dRange
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
 
   const rows: DuesRow[] = []
   for (const c of contracts) {
-    const v = values.get(c.id) ?? { amount: c.amount, netAdd: 0, supExt: 0, current: round3(c.amount) }
+    const v = values.get(c.id) ?? { amount: Number(c.amount), netAdd: 0, supExt: 0, current: round3(Number(c.amount)) }
     const collected = collectedMap.get(c.id) ?? 0
     const remaining = round3(v.current - collected)
     if (remaining <= EPS) continue

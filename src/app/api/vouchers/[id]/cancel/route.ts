@@ -1,11 +1,16 @@
 // POST /api/vouchers/[id]/cancel — إلغاء سند (المدير فقط)
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { addContractEvent, adminGuard, jsonError } from '@/lib/api-utils'
+import { adminGuard, jsonError, todayStr } from '@/lib/api-utils'
+
+/** حدث على العقد (بديل محلي) */
+async function addContractEvent(contractId: number, eventType: string, description: string, username: string) {
+  await db.contractEvent.create({ data: { contractId, eventType, description, username } })
+}
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const g = await adminGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   const { id } = await ctx.params
   const vid = Number(id)
@@ -41,7 +46,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const updated = await db.voucher.update({
     where: { id: vid },
-    data: { cancelled: true, cancelReason: reason, cancelledAt: new Date() },
+    data: { cancelled: true, cancelReason: reason, cancelledAt: todayStr() },
   })
 
   if (updated.contractId) {

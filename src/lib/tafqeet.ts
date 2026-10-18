@@ -78,3 +78,6 @@ export function tafqeet(value: number, currency = "د.ك"): string {
   const subPart = sub > 0 ? `و${numberToWordsArabic(sub)} ${cur.sub}` : "";
   return `فقط ${[mainPart, subPart].filter(Boolean).join(" ")} لا غير`;
 }
+
+/** تفقيط بالدينار الكويتي — اسم متوافق مع حوارات الطباعة */
+export const tafqeetKWD = (value: number): string => tafqeet(value, "د.ك");

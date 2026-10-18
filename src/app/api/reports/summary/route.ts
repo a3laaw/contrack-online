@@ -5,18 +5,18 @@ import { authGuard, parseDay } from '@/lib/api-utils'
 import { round3 } from '@/lib/format'
 import type { ReportSummaryDTO } from '@/lib/report-types'
 
-/** نطاق يوم كامل [00:00:00.000 — 23:59:59.999] انطلاقًا من تاريخ ظهرًا (parseDay) */
-function dayRange(from: Date | null, to: Date | null): { gte?: Date; lte?: Date } | undefined {
+/** نطاق نصي [from..to] لتواريخ yyyy-MM-dd المخزنة نصيًا */
+function dayRange(from: string, to: string): { gte?: string; lte?: string } | undefined {
   if (!from && !to) return undefined
-  const range: { gte?: Date; lte?: Date } = {}
-  if (from) range.gte = new Date(from.getTime() - 12 * 60 * 60 * 1000)
-  if (to) range.lte = new Date(to.getTime() + 12 * 60 * 60 * 1000 - 1)
+  const range: { gte?: string; lte?: string } = {}
+  if (from) range.gte = from
+  if (to) range.lte = to
   return range
 }
 
 export async function GET(req: NextRequest) {
   const g = await authGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   const sp = req.nextUrl.searchParams
   const fromD = parseDay(sp.get('from'))
@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
   const now = new Date()
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1)
+  const twelveMonthsAgoStr = `${twelveMonthsAgo.getFullYear()}-${String(twelveMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`
 
   const contractWhere: Record<string, unknown> = range ? { contractDate: range } : {}
   const receiptWhere = {
@@ -46,13 +47,13 @@ export async function GET(req: NextRequest) {
     }),
     db.voucher.findMany({ where: receiptWhere, select: { amount: true } }),
     db.voucher.findMany({ where: paymentWhere, select: { amount: true } }),
-    db.paymentPlan.findMany({ select: { id: true, amount: true, dueDate: true } }),
+    db.paymentPlanItem.findMany({ select: { id: true, amount: true, dueDate: true } }),
     db.voucher.findMany({
-      where: { vtype: 'receipt', cancelled: false, vdate: { gte: twelveMonthsAgo } },
+      where: { vtype: 'receipt', cancelled: false, vdate: { gte: twelveMonthsAgoStr } },
       select: { vdate: true, amount: true },
     }),
     db.voucher.findMany({
-      where: { vtype: 'payment', cancelled: false, vdate: { gte: twelveMonthsAgo } },
+      where: { vtype: 'payment', cancelled: false, vdate: { gte: twelveMonthsAgoStr } },
       select: { vdate: true, amount: true },
     }),
   ])
@@ -63,14 +64,14 @@ export async function GET(req: NextRequest) {
     select: { lineId: true, amount: true },
   })
   const paidByLine = new Map<number, number>()
-  for (const l of links) paidByLine.set(l.lineId, (paidByLine.get(l.lineId) ?? 0) + l.amount)
+  for (const l of links) paidByLine.set(l.lineId, (paidByLine.get(l.lineId) ?? 0) + Number(l.amount))
 
   // المتأخرات: دفعات استحقاقها قبل بداية اليوم ولم تُسدد كليًا
   let overdueCount = 0
   let overdueAmount = 0
   for (const line of paymentLines) {
     if (new Date(line.dueDate) >= todayStart) continue
-    const remaining = round3(line.amount - (paidByLine.get(line.id) ?? 0))
+    const remaining = round3(Number(line.amount) - (paidByLine.get(line.id) ?? 0))
     if (remaining > 0.0005) {
       overdueCount++
       overdueAmount += remaining
@@ -78,9 +79,9 @@ export async function GET(req: NextRequest) {
   }
   overdueAmount = round3(overdueAmount)
 
-  const receiptsAmount = round3(receipts.reduce((s, v) => s + v.amount, 0))
-  const paymentsAmount = round3(payments.reduce((s, v) => s + v.amount, 0))
-  const contractsAmount = round3(contracts.reduce((s, c) => s + c.amount, 0))
+  const receiptsAmount = round3(receipts.reduce((s, v) => s + Number(v.amount), 0))
+  const paymentsAmount = round3(payments.reduce((s, v) => s + Number(v.amount), 0))
+  const contractsAmount = round3(contracts.reduce((s, c) => s + Number(c.amount), 0))
 
   // آخر 12 شهرًا (صيغة YYYY-MM) — حتى الشهور الصفرية
   const monthlyMap = new Map<string, { receipts: number; payments: number }>()
@@ -88,14 +89,14 @@ export async function GET(req: NextRequest) {
     const d = new Date(v.vdate)
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
     const m = monthlyMap.get(key) ?? { receipts: 0, payments: 0 }
-    m.receipts += v.amount
+    m.receipts += Number(v.amount)
     monthlyMap.set(key, m)
   }
   for (const v of monthlyPayments) {
     const d = new Date(v.vdate)
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
     const m = monthlyMap.get(key) ?? { receipts: 0, payments: 0 }
-    m.payments += v.amount
+    m.payments += Number(v.amount)
     monthlyMap.set(key, m)
   }
   const monthly: ReportSummaryDTO['monthly'] = []
@@ -115,7 +116,7 @@ export async function GET(req: NextRequest) {
   for (const c of contracts) {
     const s = statusMap.get(c.status) ?? { count: 0, amount: 0 }
     s.count++
-    s.amount += c.amount
+    s.amount += Number(c.amount)
     statusMap.set(c.status, s)
   }
   const byStatus = Array.from(statusMap.entries())

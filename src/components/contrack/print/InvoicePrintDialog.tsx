@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table'
 import { printElement } from '@/lib/print-html'
 import { api } from '../api'
-import { formatDate, formatKWD } from '@/lib/format'
+import { formatDate, formatKWD, todayStr } from '@/lib/format'
 import { tafqeetKWD } from '@/lib/tafqeet'
 import type { InvoiceDTO } from '@/lib/invoice-types'
 
@@ -143,7 +143,7 @@ export function InvoicePrintDialog({ invoice, open, onOpenChange }: InvoicePrint
 
             <Separator className="print-border" />
             <footer className="text-center text-[10px] text-gray-500">
-              {settings?.headerTitle || 'نظام إدارة العقود والمحاسبة'} — فاتورة {invoice.invoiceNumber} (للعلم) — طُبع بتاريخ {formatDate(new Date())}
+              {settings?.headerTitle || 'نظام إدارة العقود والمحاسبة'} — فاتورة {invoice.invoiceNumber} (للعلم) — طُبع بتاريخ {formatDate(todayStr())}
             </footer>
           </div>
         </div>

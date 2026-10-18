@@ -14,7 +14,7 @@ const WAIT_EXCLUDED = ['لم يحل', 'بانتظار إنجاز المرحلة'
 
 export async function GET(req: NextRequest) {
   const g = await authGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   const sp = req.nextUrl.searchParams
   const option = (sp.get('option') ?? 'all').trim() || 'all'
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
   const subIds = subs.map((s) => s.id)
 
   const [subPlans, poolRows, linksByLine, sources, sameCounts] = await Promise.all([
-    db.subPaymentPlan.findMany({
+    db.subPaymentPlanItem.findMany({
       where: { subContractId: { in: subIds } },
       orderBy: [{ sortOrder: 'asc' }, { dueDate: 'asc' }],
       select: {
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
 
   const poolBySub = new Map<number, number>()
   for (const r of poolRows) {
-    if (r.subContractId != null) poolBySub.set(r.subContractId, round3(r._sum.amount ?? 0))
+    if (r.subContractId != null) poolBySub.set(r.subContractId, round3(Number(r._sum.amount ?? 0)))
   }
   const sourcesByLine = new Map<number, string[]>()
   for (const s of sources) {
@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
       },
       _sum: { amount: true },
     })
-    const legacy = round3(agg._sum.amount ?? 0)
+    const legacy = round3(Number(agg._sum.amount ?? 0))
     if (legacy > 0) legacyBySub.set(sc.id, legacy)
   }
 
@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
     const items = plansBySub.get(s.id) ?? []
     if (items.length === 0) {
       const paid = round3((poolBySub.get(s.id) ?? 0) + (legacyBySub.get(s.id) ?? 0))
-      const amt = round3(s.amount)
+      const amt = round3(Number(s.amount))
       const rem = Math.max(0, round3(amt - paid))
       const due = dayStr(s.endDate) ?? ''
       const dueD = due ? new Date(due + 'T12:00:00.000Z') : today
@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
     const covers = fifoCover(
       items.map((p) => ({
         id: p.id, contractId: s.id, title: p.title, dueDate: p.dueDate,
-        amount: p.amount, sortOrder: 0, stageId: p.stageId,
+        amount: Number(p.amount), sortOrder: 0, stageId: p.stageId,
         triggeredAt: p.triggeredAt, stageSkipped: p.stage?.isSkipped ?? false,
         stageName: p.stage?.name ?? null, stageEnd: null,
       })),
@@ -155,8 +155,9 @@ export async function GET(req: NextRequest) {
       const { covered, remaining } = covers[i]
       const stageLinked = Boolean(p.stageId)
       const triggered = Boolean(p.triggeredAt)
+      const todayIso = dayStr(today) as string
       let status: string
-      let daysDiff = Math.round((p.dueDate.getTime() - today.getTime()) / 86_400_000)
+      let daysDiff = Math.round((new Date(`${p.dueDate}T12:00:00.000Z`).getTime() - today.getTime()) / 86_400_000)
       if (stageLinked && (p.stage?.isSkipped ?? false)) {
         status = 'مرحلة متخطاة'
         daysDiff = 999999
@@ -166,8 +167,8 @@ export async function GET(req: NextRequest) {
       } else if (remaining <= EPS) {
         status = 'مدفوع'
       } else if (covered > EPS) {
-        status = p.dueDate >= today ? 'جزئي' : 'متأخر'
-      } else if (p.dueDate < today) {
+        status = p.dueDate >= todayIso ? 'جزئي' : 'متأخر'
+      } else if (p.dueDate < todayIso) {
         status = 'متأخر'
       } else if (triggered) {
         status = 'مستحقة'
@@ -183,7 +184,7 @@ export async function GET(req: NextRequest) {
         stage: stageLinked ? (p.stage?.name || '—') : '—',
         title: p.title,
         due: trig ? `${trig} ✓` : (dayStr(p.dueDate) ?? '—'),
-        amount: round3(p.amount),
+        amount: round3(Number(p.amount)),
         paid: round3(covered),
         remaining: round3(remaining),
         status,

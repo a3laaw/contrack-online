@@ -4,12 +4,13 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
-  Archive,
   Database,
   DatabaseBackup,
+  Download,
   Eye,
   Loader2,
   Lock,
+  RefreshCw,
   RotateCcw,
   ScrollText,
   Search,
@@ -49,20 +50,20 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { adminApi } from "@/lib/admin-api";
 import { ApiError, apiGet, apiPost } from "./api";
 import type {
   AuditResponse,
   BackupsResponse,
   BackupCreateResponse,
   BackupRestoreResponse,
-  BackupKind,
   FullResetResponse,
   PurgeAuditResponse,
   PurgeExecuteResponse,
   PurgePreviewResponse,
   User,
 } from "./contrack-types";
-import { BACKUP_KIND_LABEL, PURGE_KIND_LABEL, errMessage, isManagerRole } from "./contrack-types";
+import { PURGE_KIND_LABEL, errMessage, isManagerRole } from "./contrack-types";
 import { fmtDateTime } from "@/lib/format";
 
 interface DataManagementViewProps {
@@ -331,6 +332,20 @@ function AuditTab({ onAuthError }: { onAuthError: () => void }) {
 
 // ==================== تبويب النسخ الاحتياطي ====================
 
+interface BackupRow {
+  fileName: string;
+  kind: "db" | "full" | "safety";
+  username: string;
+  sizeKB: number;
+  createdAt: string;
+  exists: boolean;
+  tableCounts?: Record<string, number>;
+}
+
+function rowsCountOf(tc?: Record<string, number>): number {
+  return Object.values(tc ?? {}).reduce((a, b) => a + b, 0);
+}
+
 function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -341,22 +356,31 @@ function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
     queryFn: () => apiGet<BackupsResponse>("/api/backups"),
   });
 
-  const createMutation = useMutation<BackupCreateResponse, unknown, { kind: "db" | "full" }>({
-    mutationFn: (body) => apiPost<BackupCreateResponse>("/api/backups", body),
+  const createMutation = useMutation<BackupCreateResponse, unknown, void>({
+    mutationFn: () => apiPost<BackupCreateResponse>("/api/backups", {}),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["backups"] });
+      qc.invalidateQueries({ queryKey: ["audit"] });
       toast({ title: "تم إنشاء النسخة", description: res.message || `الملف: ${res.fileName}` });
     },
     onError: failToast(toast, onAuthError, "تعذر إنشاء النسخة الاحتياطية"),
   });
 
+  const downloadMutation = useMutation<Awaited<ReturnType<typeof adminApi.downloadBackup>>, unknown, void>({
+    mutationFn: () => adminApi.downloadBackup(),
+    onSuccess: (res) => {
+      const total = rowsCountOf(res.meta.tables);
+      toast({ title: "تم تنزيل النسخة", description: `${res.filename} — ${total.toLocaleString("en-US")} صفًا` });
+    },
+    onError: failToast(toast, onAuthError, "تعذر تنزيل النسخة الاحتياطية"),
+  });
+
   const restoreMutation = useMutation<BackupRestoreResponse, unknown, { fileName: string }>({
     mutationFn: (body) => apiPost<BackupRestoreResponse>("/api/backups/restore", body),
     onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: ["backups"] });
-      qc.invalidateQueries({ queryKey: ["audit"] });
+      qc.invalidateQueries(); // كل البيانات تغيّرت بعد الاستعادة
       setRestoreTarget(null);
-      toast({ title: "تمت الاستعادة", description: `${res.message} (نسخة الأمان: ${res.safetyFile})` });
+      toast({ title: "تمت الاستعادة", description: res.message });
     },
     onError: (e) => {
       setRestoreTarget(null);
@@ -364,7 +388,7 @@ function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
     },
   });
 
-  const items = backupsQuery.data?.items ?? [];
+  const items = (backupsQuery.data?.items ?? []) as BackupRow[];
 
   return (
     <div className="space-y-4">
@@ -374,25 +398,39 @@ function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
             <DatabaseBackup className="size-4 text-primary" />
             إنشاء نسخة احتياطية
           </CardTitle>
-          <CardDescription>تُحفظ النسخ في مجلد db/backups مع ملف فهرس، ويُحتفظ بآخر 30 نسخة تلقائيًا</CardDescription>
+          <CardDescription>
+            تُحفظ نسخ JSON كاملة على الخادم في مجلد db/backups مع فهرس، ويُحتفظ بآخر 30 نسخة تلقائيًا — والاستعادة
+            تحافظ على المعرّفات الأصلية وتعيد ضبط تسلسلات المعرّفات
+          </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
+        <CardContent className="flex flex-wrap items-center gap-2">
           <Button
             className="h-10 gap-1.5"
-            onClick={() => createMutation.mutate({ kind: "db" })}
+            onClick={() => createMutation.mutate()}
             disabled={createMutation.isPending}
           >
             {createMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Database className="size-4" />}
-            نسخة قاعدة البيانات
+            إنشاء نسخة
           </Button>
           <Button
             variant="outline"
             className="h-10 gap-1.5"
-            onClick={() => createMutation.mutate({ kind: "full" })}
-            disabled={createMutation.isPending}
+            onClick={() => downloadMutation.mutate()}
+            disabled={downloadMutation.isPending}
           >
-            {createMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Archive className="size-4" />}
-            نسخة كاملة (قاعدة + مرفقات)
+            {downloadMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+            تنزيل نسخة JSON
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-10"
+            aria-label="تحديث القائمة"
+            title="تحديث القائمة"
+            onClick={() => backupsQuery.refetch()}
+            disabled={backupsQuery.isFetching}
+          >
+            <RefreshCw className={backupsQuery.isFetching ? "size-4 animate-spin" : "size-4"} />
           </Button>
         </CardContent>
       </Card>
@@ -415,7 +453,7 @@ function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
                 <TableHeader className="sticky top-0 z-10 bg-card">
                   <TableRow>
                     <TableHead className="text-right">الاسم</TableHead>
-                    <TableHead className="text-right">النوع</TableHead>
+                    <TableHead className="text-right">الصفوف</TableHead>
                     <TableHead className="text-right">الحجم</TableHead>
                     <TableHead className="text-right">التاريخ</TableHead>
                     <TableHead className="text-right">المستخدم</TableHead>
@@ -426,17 +464,20 @@ function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
                   {items.map((b) => (
                     <TableRow key={b.fileName}>
                       <TableCell className="max-w-64">
-                        <span className="line-clamp-1 font-mono text-xs" dir="ltr" title={b.fileName}>{b.fileName}</span>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={b.kind === "safety" ? "destructive" : "secondary"}
+                            className="shrink-0 text-[10px]"
+                          >
+                            {b.kind === "safety" ? "أمان" : "خادم"}
+                          </Badge>
+                          <span className="line-clamp-1 font-mono text-xs" dir="ltr" title={b.fileName}>{b.fileName}</span>
+                        </div>
                       </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={b.kind === "full" ? "default" : b.kind === "safety" ? "destructive" : "secondary"}
-                          className="text-[10px]"
-                        >
-                          {BACKUP_KIND_LABEL[b.kind] || b.kind}
-                        </Badge>
+                      <TableCell className="whitespace-nowrap text-xs">
+                        {rowsCountOf(b.tableCounts).toLocaleString("en-US")}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-xs">{b.exists ? `${b.sizeKB.toLocaleString("en-US")} KB` : "مفقود"}</TableCell>
+                      <TableCell className="whitespace-nowrap text-xs">{b.sizeKB.toLocaleString("en-US")} KB</TableCell>
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{fmtTs(b.createdAt)}</TableCell>
                       <TableCell className="whitespace-nowrap text-xs">{b.username || "—"}</TableCell>
                       <TableCell className="text-left">
@@ -471,11 +512,13 @@ function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm leading-6">
                 <p>
-                  سيتم استبدال قاعدة البيانات الحالية بالنسخة <span className="font-mono text-xs" dir="ltr">{restoreTarget}</span>.
+                  سيتم حذف بيانات قاعدة Postgres الحالية من كل الجداول وإعادة إنشائها من النسخة
+                  <span className="mx-1 font-mono text-xs" dir="ltr">{restoreTarget}</span>
+                  مع الحفاظ على المعرّفات الأصلية وإعادة ضبط التسلسلات.
                 </p>
                 <p className="rounded-md bg-amber-500/10 p-2 text-xs text-status-warn">
-                  سيُؤخذ أولًا <strong>نسخة أمان</strong> من القاعدة الحالية (safety-…) ويمكن استعادتها لاحقًا. إن لزم،
-                  يتفعل الاستبدال عند إعادة تشغيل الخدمة — يعيد Prisma الاتصال تلقائيًا بملف القاعدة.
+                  سيُنشأ أولًا <strong>نسخة أمان</strong> (safety-…) من الوضع الحالي ويمكن استعادتها لاحقًا. كل خطوات
+                  الحذف والإنشاء داخل معاملة واحدة — إن فشل أي جزء تُرجع القاعدة كما كانت.
                 </p>
                 <p className="text-xs text-muted-foreground">هل تريد المتابعة؟</p>
               </div>

@@ -145,7 +145,7 @@ function PaymentVoucherForm({ onOpenChange, onCreated }: {
             <SelectContent>
               <SelectItem value="0">بدون ربط</SelectItem>
               {contracts.filter((c) => c.status !== 'ملغى').map((c) => (
-                <SelectItem key={c.id} value={String(c.id)}>{c.contractNumber} — {c.contractName || c.customer.name}</SelectItem>
+                <SelectItem key={c.id} value={String(c.id)}>{c.contractNumber} — {c.contractName || c.customerName}</SelectItem>
               ))}
             </SelectContent>
           </Select>

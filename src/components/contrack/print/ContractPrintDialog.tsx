@@ -18,7 +18,7 @@ import {
 import { boqApi } from '@/lib/boq-api'
 import { printElement } from '@/lib/print-html'
 import { api } from '../api'
-import { formatDate, formatKWD } from '@/lib/format'
+import { formatDate, formatKWD, todayStr } from '@/lib/format'
 import { tafqeetKWD } from '@/lib/tafqeet'
 import type { ContractDetailDTO } from '@/lib/contrack-types'
 
@@ -189,7 +189,7 @@ export function ContractPrintDialog({ contract, open, onOpenChange }: ContractPr
 
             <Separator className="print-border" />
             <footer className="text-center text-[10px] text-gray-500">
-              {settings?.headerTitle || 'نظام إدارة العقود والمحاسبة'} — عقد {contract.contractNumber} — طُبع بتاريخ {formatDate(new Date())}
+              {settings?.headerTitle || 'نظام إدارة العقود والمحاسبة'} — عقد {contract.contractNumber} — طُبع بتاريخ {formatDate(todayStr())}
             </footer>
           </div>
         </div>

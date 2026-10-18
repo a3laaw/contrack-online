@@ -144,6 +144,7 @@ model Contract {
   subContracts      SubContract[]
   tasks             Task[]
   comments          Comment[]
+  groupItems        ContractGroupItem[]
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
   contractScopes    ContractScope[]
@@ -272,6 +273,7 @@ model Voucher {
   cancelReason           String               @default("") @map("cancel_reason")
   cancelledAt            String               @default("") @map("cancelled_at")
   links                  VoucherPaymentLink[]
+  gatewayFeeLinks        GatewayFeeVoucher[]
   createdAt              DateTime             @default(now())
 
   @@index([vtype, cancelled, vdate])
@@ -325,49 +327,51 @@ model Addendum {
 }
 
 model AddendumItem {
-  id               Int      @id @default(autoincrement())
-  addendumId       Int      @map("addendum_id")
-  addendum         Addendum @relation(fields: [addendumId], references: [id], onDelete: Cascade)
-  side             String   @default("client")
-  action           String   @default("add") // add|delete|unlink
-  parentPartId     Int      @default(0) @map("parent_part_id")
-  createdItemId    Int      @default(0) @map("created_item_id")
-  restoreDeletedBy Int      @default(0) @map("restore_deleted_by")
-  applied          Boolean  @default(false)
-  boqItemId        Int?     @map("boq_item_id")
-  boqItem          BoqItem? @relation(fields: [boqItemId], references: [id])
-  subContractId    Int?     @map("sub_contract_id")
-  description      String   @default("")
-  qty              Decimal  @default(0)
-  unit             String   @default("")
-  unitPrice        Decimal  @default(0) @map("unit_price")
-  amount           Decimal  @default(0)
-  refKind          String   @default("") @map("ref_kind") // boq|plan|stage
-  refId            Int      @default(0) @map("ref_id")
+  id               Int          @id @default(autoincrement())
+  addendumId       Int          @map("addendum_id")
+  addendum         Addendum     @relation(fields: [addendumId], references: [id], onDelete: Cascade)
+  side             String       @default("client")
+  action           String       @default("add") // add|delete|unlink
+  parentPartId     Int          @default(0) @map("parent_part_id")
+  createdItemId    Int          @default(0) @map("created_item_id")
+  restoreDeletedBy Int          @default(0) @map("restore_deleted_by")
+  applied          Boolean      @default(false)
+  boqItemId        Int?         @map("boq_item_id")
+  boqItem          BoqItem?     @relation(fields: [boqItemId], references: [id])
+  subContractId    Int?         @map("sub_contract_id")
+  subContract      SubContract? @relation(fields: [subContractId], references: [id], onDelete: SetNull)
+  description      String       @default("")
+  qty              Decimal      @default(0)
+  unit             String       @default("")
+  unitPrice        Decimal      @default(0) @map("unit_price")
+  amount           Decimal      @default(0)
+  refKind          String       @default("") @map("ref_kind") // boq|plan|stage
+  refId            Int          @default(0) @map("ref_id")
 
   @@index([addendumId])
   @@map("addendum_items")
 }
 
 model Claim {
-  id             Int              @id @default(autoincrement())
-  claimNumber    String           @unique @map("claim_number")
+  id             Int                 @id @default(autoincrement())
+  claimNumber    String              @unique @map("claim_number")
   direction      String // out|in
-  contractId     Int              @map("contract_id")
-  contract       Contract         @relation(fields: [contractId], references: [id])
-  subContractId  Int?             @map("sub_contract_id")
-  subContract    SubContract?     @relation(fields: [subContractId], references: [id])
-  custLineId     Int?             @map("cust_line_id")
-  custLine       PaymentPlanItem? @relation(fields: [custLineId], references: [id])
-  subLineId      Int?             @map("sub_line_id")
+  contractId     Int                 @map("contract_id")
+  contract       Contract            @relation(fields: [contractId], references: [id])
+  subContractId  Int?                @map("sub_contract_id")
+  subContract    SubContract?        @relation(fields: [subContractId], references: [id])
+  custLineId     Int?                @map("cust_line_id")
+  custLine       PaymentPlanItem?    @relation(fields: [custLineId], references: [id])
+  subLineId      Int?                @map("sub_line_id")
+  subLine        SubPaymentPlanItem? @relation(fields: [subLineId], references: [id], onDelete: SetNull)
   title          String
   amount         Decimal
-  dueDate        String           @default("") @map("due_date")
-  voucherRef     String           @default("") @map("voucher_ref") // سند القبض المرتبط (سقف المطالبة out)
-  status         String           @default("registered")
-  postponedUntil String           @default("") @map("postponed_until")
-  notes          String           @default("")
-  createdAt      DateTime         @default(now())
+  dueDate        String              @default("") @map("due_date")
+  voucherRef     String              @default("") @map("voucher_ref") // سند القبض المرتبط (سقف المطالبة out)
+  status         String              @default("registered")
+  postponedUntil String              @default("") @map("postponed_until")
+  notes          String              @default("")
+  createdAt      DateTime            @default(now())
 
   @@index([contractId])
   @@index([direction, status])
@@ -410,6 +414,7 @@ model SubContract {
   vouchers          Voucher[]
   claims            Claim[]
   addendums         Addendum[]
+  addendumItems     AddendumItem[]
   createdAt         DateTime             @default(now())
 
   @@index([contractId])
@@ -445,6 +450,7 @@ model SubPaymentPlanItem {
   notes         String             @default("")
   triggeredAt   String             @default("") @map("triggered_at")
   sources       SubPaymentSource[]
+  claims        Claim[]
   createdAt     DateTime           @default(now())
 
   @@index([subContractId])
@@ -491,6 +497,7 @@ model TypePaymentTemplate {
   pct            Decimal            @default(0)
   amountFixed    Decimal            @default(0) @map("amount_fixed")
   triggerStageId Int?               @map("trigger_stage_id")
+  triggerStage   WorkflowStage?     @relation("paymentTrigger", fields: [triggerStageId], references: [id], onDelete: SetNull)
   daysOffset     Int                @default(0) @map("days_offset")
   linkKeyword    String             @default("") @map("link_keyword")
   stageLinks     TypePaymentStage[]
@@ -523,24 +530,25 @@ model TypeBundleComponent {
 }
 
 model WorkflowStage {
-  id              Int                @id @default(autoincrement())
-  transactionType String             @map("transaction_type") // contract|payment|subcontract|customer
-  stageName       String             @map("stage_name")
-  stageOrder      Int                @default(0) @map("stage_order")
-  color           String             @default("#3B82F6")
-  parentId        Int?               @map("parent_id")
-  parent          WorkflowStage?     @relation("tree", fields: [parentId], references: [id])
-  children        WorkflowStage[]    @relation("tree")
-  expectedDays    Int                @default(0) @map("expected_days")
-  isPreContract   Boolean            @default(false) @map("is_pre_contract")
-  contractType    String             @default("") @map("contract_type") // '' = القالب العام
-  paymentPct      Decimal            @default(0) @map("payment_pct")
-  payKind         String             @default("") @map("pay_kind")
-  isSupervision   Boolean            @default(false) @map("is_supervision")
-  supMonthly      Decimal            @default(0) @map("sup_monthly")
-  componentKey    String             @default("") @map("component_key")
-  templateLinks   TypePaymentStage[]
-  scopes          ContractScope[]
+  id                      Int                   @id @default(autoincrement())
+  transactionType         String                @map("transaction_type") // contract|payment|subcontract|customer
+  stageName               String                @map("stage_name")
+  stageOrder              Int                   @default(0) @map("stage_order")
+  color                   String                @default("#3B82F6")
+  parentId                Int?                  @map("parent_id")
+  parent                  WorkflowStage?        @relation("tree", fields: [parentId], references: [id])
+  children                WorkflowStage[]       @relation("tree")
+  expectedDays            Int                   @default(0) @map("expected_days")
+  isPreContract           Boolean               @default(false) @map("is_pre_contract")
+  contractType            String                @default("") @map("contract_type") // '' = القالب العام
+  paymentPct              Decimal               @default(0) @map("payment_pct")
+  payKind                 String                @default("") @map("pay_kind")
+  isSupervision           Boolean               @default(false) @map("is_supervision")
+  supMonthly              Decimal               @default(0) @map("sup_monthly")
+  componentKey            String                @default("") @map("component_key")
+  templateLinks           TypePaymentStage[]
+  scopes                  ContractScope[]
+  paymentTriggerTemplates TypePaymentTemplate[] @relation("paymentTrigger")
 
   @@unique([transactionType, contractType, stageName])
   @@map("workflow_stages")
@@ -585,6 +593,7 @@ model Setting {
   autoBackupEnabled     Boolean  @default(true) @map("auto_backup_enabled")
   autoBackupInterval    Int      @default(24) @map("auto_backup_interval")
   uiTheme               String   @default("light") @map("ui_theme")
+  uiPrefs               String?  @map("ui_prefs")
   updatedAt             DateTime @updatedAt
 
   @@map("settings")
@@ -638,6 +647,7 @@ model ContractGroupItem {
   groupId    Int           @map("group_id")
   group      ContractGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   contractId Int           @map("contract_id")
+  contract   Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, contractId])
   @@map("contract_group_items")
@@ -781,27 +791,28 @@ model GatewayProfile {
 }
 
 model GatewayOp {
-  id               Int                 @id @default(autoincrement())
-  gateway          String              @default("")
-  opDate           String              @default("") @map("op_date")
-  phone            String              @default("")
-  amount           Decimal             @default(0)
-  ref              String              @default("")
-  status           String              @default("") // mine|other|unmarked
-  receiptNo        String              @default("") @map("receipt_no")
-  customer         String              @default("")
-  batch            String              @default("")
-  paidTransferId   Int?                @map("paid_transfer_id")
-  classifiedManual Boolean             @default(false) @map("classified_manual")
-  distributed      Boolean             @default(false)
-  distributedAt    String              @default("") @map("distributed_at")
-  gwPaid           Int?                @map("gw_paid") // 1 محوّلة 0 معلقة 2 ملغاة -1 فاشلة
-  gwPaidDate       String              @default("") @map("gw_paid_date")
-  gwToken          String              @default("") @map("gw_token")
-  effectiveDate    String              @default("") @map("effective_date")
+  id               Int                   @id @default(autoincrement())
+  gateway          String                @default("")
+  opDate           String                @default("") @map("op_date")
+  phone            String                @default("")
+  amount           Decimal               @default(0)
+  ref              String                @default("")
+  status           String                @default("") // mine|other|unmarked
+  receiptNo        String                @default("") @map("receipt_no")
+  customer         String                @default("")
+  batch            String                @default("")
+  paidTransferId   Int?                  @map("paid_transfer_id")
+  paidTransfer     OtherCompanyTransfer? @relation(fields: [paidTransferId], references: [id], onDelete: SetNull)
+  classifiedManual Boolean               @default(false) @map("classified_manual")
+  distributed      Boolean               @default(false)
+  distributedAt    String                @default("") @map("distributed_at")
+  gwPaid           Int?                  @map("gw_paid") // 1 محوّلة 0 معلقة 2 ملغاة -1 فاشلة
+  gwPaidDate       String                @default("") @map("gw_paid_date")
+  gwToken          String                @default("") @map("gw_token")
+  effectiveDate    String                @default("") @map("effective_date")
   allocs           TransferOpAlloc[]
   feeLinks         GatewayFeeVoucher[]
-  createdAt        DateTime            @default(now())
+  createdAt        DateTime              @default(now())
 
   @@unique([gateway, opDate, phone, amount, ref])
   @@index([gateway, distributed, status])
@@ -831,6 +842,7 @@ model OtherCompanyTransfer {
   voucherId     Int               @default(0) @map("voucher_id") // legacy — لا يُنشأ سند
   voucherNumber String            @default("") @map("voucher_number")
   allocs        TransferOpAlloc[]
+  paidOps       GatewayOp[]
   createdAt     DateTime          @default(now())
 
   @@map("other_company_transfers")
@@ -862,6 +874,7 @@ model GatewayFeeVoucher {
   opId       Int       @id @map("op_id")
   op         GatewayOp @relation(fields: [opId], references: [id])
   voucherId  Int       @map("voucher_id")
+  voucher    Voucher   @relation(fields: [voucherId], references: [id], onDelete: Cascade)
   transferId Int       @default(0) @map("transfer_id")
   fee        Decimal
 
@@ -966,6 +979,8 @@ model FormField {
   align            String       @default("right")
   sort             Int          @default(0)
   continuesFieldId Int?         @map("continues_field_id")
+  continuesFrom    FormField?   @relation("continuesChain", fields: [continuesFieldId], references: [id], onDelete: SetNull)
+  continuesNext    FormField[]  @relation("continuesChain")
   placeholder      String       @default("")
 
   @@index([templateId])

@@ -14,7 +14,7 @@ import type { ProfitabilityDTO, ProfitabilityRow } from '@/lib/report-types'
 
 export async function GET(req: NextRequest) {
   const g = await authGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   const sp = req.nextUrl.searchParams
   const groupBy = (sp.get('groupBy') ?? 'contract').trim() === 'customer' ? 'customer' : 'contract'
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
   ])
   const subsByContract = new Map<number, number>()
   for (const s of subTotals) {
-    if (s.contractId != null) subsByContract.set(s.contractId, round3(s._sum.amount ?? 0))
+    if (s.contractId != null) subsByContract.set(s.contractId, round3(Number(s._sum.amount ?? 0)))
   }
 
   const paidByContract = new Map<number, number>()
@@ -58,9 +58,9 @@ export async function GET(req: NextRequest) {
     if (v.contractId == null) continue
     const include = v.expenseAccount ? v.expenseAccount.includeInProfitability : true
     if (!include) continue
-    paidByContract.set(v.contractId, round3((paidByContract.get(v.contractId) ?? 0) + v.amount))
+    paidByContract.set(v.contractId, round3((paidByContract.get(v.contractId) ?? 0) + Number(v.amount)))
     if ((v.partyType || '') !== 'subcontractor') {
-      otherPaidByContract.set(v.contractId, round3((otherPaidByContract.get(v.contractId) ?? 0) + v.amount))
+      otherPaidByContract.set(v.contractId, round3((otherPaidByContract.get(v.contractId) ?? 0) + Number(v.amount)))
     }
   }
 
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
   const contractRows: (ProfitabilityRow & { customerId: number; customerName: string })[] = []
   for (const c of contracts) {
     const netAdd = addendums.get(c.id)?.net ?? 0
-    const value = round3(c.amount + netAdd)
+    const value = round3(Number(c.amount) + netAdd)
     const collected = receipts.get(c.id) ?? 0
     const paid = paidByContract.get(c.id) ?? 0
     const otherPaid = otherPaidByContract.get(c.id) ?? 0

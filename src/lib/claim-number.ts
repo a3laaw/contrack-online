@@ -3,10 +3,10 @@
 // كالأصل claims_service._next_number: MAX(الرقم الموجود) + 1
 // بصيغة 4 أرقام — يُستدعى دائمًا داخل معاملة (tx) لضمان الذرية.
 // ============================================================
-import type { TxClient } from '@/lib/api-utils'
+import type { Prisma } from '@prisma/client'
 
 /** الرقم العالمي التالي للمطالبة — يجب استدعاؤه داخل $transaction */
-export async function nextClaimNumber(tx: TxClient): Promise<string> {
+export async function nextClaimNumber(tx: Prisma.TransactionClient): Promise<string> {
   const rows = await tx.claim.findMany({ select: { claimNumber: true } })
   let maxN = 0
   for (const r of rows) {

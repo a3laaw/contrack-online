@@ -29,13 +29,13 @@ async function buildResponse(): Promise<VisitSlotSettingsDTO> {
 
 export async function GET(req: NextRequest) {
   const g = await authGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
   return NextResponse.json(await buildResponse())
 }
 
 export async function PUT(req: NextRequest) {
   const g = await adminGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   let body: Record<string, unknown>
   try {

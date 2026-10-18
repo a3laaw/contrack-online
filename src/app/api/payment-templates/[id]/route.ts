@@ -10,15 +10,18 @@ import { templateError, validateTemplateInput } from '@/lib/payment-template-ser
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const g = await adminGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   const { id: idRaw } = await ctx.params
   const id = Math.trunc(Number(idRaw))
   if (!Number.isInteger(id) || id <= 0) return jsonError('معرّف غير صالح', 400)
 
-  const tpl = await db.typePaymentTpl.findUnique({
+  const tpl = await db.typePaymentTemplate.findUnique({
     where: { id },
-    include: { stageLinks: { select: { stageId: true } } },
+    include: {
+      contractType: { select: { name: true } },
+      stageLinks: { select: { stageId: true } },
+    },
   })
   if (!tpl) return jsonError('الدفعة غير موجودة', 404)
 
@@ -31,11 +34,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   try {
     // القيم الفعلية: المرسلة أو الحالية (تعديل جزئي)
-    const effPct = 'pct' in body && body.pct != null && body.pct !== '' ? Number(body.pct) : tpl.pct
+    const effPct = 'pct' in body && body.pct != null && body.pct !== '' ? Number(body.pct) : Number(tpl.pct)
     const effFixed =
       'amountFixed' in body && body.amountFixed != null && body.amountFixed !== ''
         ? Number(body.amountFixed)
-        : tpl.amountFixed
+        : Number(tpl.amountFixed)
     const effValueMode =
       typeof body.valueMode === 'string' && body.valueMode
         ? body.valueMode
@@ -55,7 +58,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         : tpl.daysOffset
 
     const v = await validateTemplateInput({
-      contractType: tpl.contractType,
+      contractType: tpl.contractType.name,
+      contractTypeId: tpl.contractTypeId,
       title: 'title' in body && typeof body.title === 'string' ? body.title : tpl.title,
       valueMode: effValueMode,
       pct: effPct,
@@ -69,7 +73,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
     await db.$transaction([
       db.typePaymentStage.deleteMany({ where: { paymentId: id } }),
-      db.typePaymentTpl.update({
+      db.typePaymentTemplate.update({
         where: { id },
         data: {
           title: v.title,
@@ -93,15 +97,15 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const g = await adminGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   const { id: idRaw } = await ctx.params
   const id = Math.trunc(Number(idRaw))
   if (!Number.isInteger(id) || id <= 0) return jsonError('معرّف غير صالح', 400)
 
-  const tpl = await db.typePaymentTpl.findUnique({ where: { id } })
+  const tpl = await db.typePaymentTemplate.findUnique({ where: { id } })
   if (!tpl) return jsonError('الدفعة غير موجودة', 404)
 
-  await db.typePaymentTpl.delete({ where: { id } })
+  await db.typePaymentTemplate.delete({ where: { id } })
   return NextResponse.json({ ok: true })
 }

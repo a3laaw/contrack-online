@@ -29,8 +29,8 @@ import {
 
 import type { ViewName } from "./contrack-types";
 
-/** معرّف الوحدة الست المعتمدة (توجيه المستخدم — هيكل التنقل) */
-export type ModuleId = "home" | "clients" | "accounting" | "coordination" | "reports" | "settings";
+/** معرّف الوحدات الأربع المعتمدة (توجيه المستخدم — هيكل التنقل ≤4 تبويبات) */
+export type ModuleId = "clients" | "subs" | "accounting" | "settings";
 
 /** بند فرعي داخل وحدة — الشاشة الواحدة مستوى تنقل فرعي واحد فقط */
 export interface NavChild {
@@ -56,34 +56,35 @@ export interface NavModule {
 }
 
 /**
- * هيكل التنقل المعتمد (المرحلة 0):
- *   1. الرئيسية: اللوحة + المهام المستحقة
- *   2. العملاء والعقود: العملاء، العقود، مقاولو الباطن، المتابعة
- *   3. المحاسبة: سندات القبض/الصرف، كشف الحساب، العُهد، السلف، البوابة، الشركة الأخرى، المطالبات، الفواتير
- *   4. المتابعة والتنسيق: المهام، جدول الزيارات، التعليقات
- *   5. التقارير
- *   6. الإعدادات: الشركة، الطباعة، الأمان، المستخدمون، الأنواع، المصروفات، المراحل، الزيارات، النسخ، أدوات المطور
- * خارج النطاق (لا يُضاف): مركز النماذج، المشاريع، عروض الأسعار، مجموعات العقود، الواتساب، الاستيراد من Excel.
+ * هيكل التنقل المعتمد (4 تبويبات — توجيه المستخدم):
+ *   1. العقود: اللوحة، المستحقات، العملاء، العقود، المهام، الزيارات، التعليقات، المتابعة
+ *   2. الباطن: مقاولو الباطن (ملف المقاول: العقود والدفعات والأوامر)
+ *   3. المحاسبة: سندات القبض/الصرف، كشف الحساب، العُهد، السلف، البوابة، الشركة الأخرى، المطالبات، الفواتير، التقارير
+ *   4. الإعدادات: الشركة، الطباعة، الأمان، المستخدمون، الأنواع، المصروفات، المراحل، الزيارات، النسخ، أدوات المطور
+ * خارج النطاق (لا يُضاف): مركز النماذج، المشاريع، عروض الأسعار، مجموعات العقود، الأرشيف، الواتساب، الاستيراد من Excel.
  */
 export const NAV_MODULES: NavModule[] = [
   {
-    id: "home",
-    label: "الرئيسية",
-    icon: LayoutDashboard,
+    id: "clients",
+    label: "العقود",
+    icon: FileText,
     children: [
       { id: "dashboard", label: "اللوحة", icon: LayoutDashboard, view: "dashboard" },
       { id: "due", label: "المهام المستحقة", icon: CalendarClock, view: "due" },
+      { id: "customers", label: "العملاء", icon: UsersIcon, view: "customers" },
+      { id: "contracts", label: "العقود", icon: FileText, view: "contracts" },
+      { id: "tasks", label: "المهام", icon: ListTodo, view: "tasks", flag: "tasks" },
+      { id: "visits", label: "جدول الزيارات", icon: CalendarDays, view: "visits", flag: "visits" },
+      { id: "comments", label: "التعليقات", icon: MessageSquareText, view: "comments", flag: "comments" },
+      { id: "followup", label: "المتابعة", icon: ClipboardList, view: "followup", flag: "followup" },
     ],
   },
   {
-    id: "clients",
-    label: "العملاء والعقود",
-    icon: UsersIcon,
+    id: "subs",
+    label: "الباطن",
+    icon: HardHat,
     children: [
-      { id: "customers", label: "العملاء", icon: UsersIcon, view: "customers" },
-      { id: "contracts", label: "العقود", icon: FileText, view: "contracts" },
       { id: "subcontractors", label: "مقاولو الباطن", icon: HardHat, view: "subcontractors", flag: "subcontractors" },
-      { id: "followup", label: "المتابعة", icon: ClipboardList, view: "followup", flag: "followup" },
     ],
   },
   {
@@ -100,23 +101,8 @@ export const NAV_MODULES: NavModule[] = [
       { id: "other-company", label: "الشركة الأخرى", icon: Building2, view: "other-company" },
       { id: "claims", label: "المطالبات المالية", icon: ReceiptText, view: "claims" },
       { id: "invoices", label: "الفواتير", icon: FileStack, view: "invoices", flag: "invoices" },
+      { id: "reports", label: "مركز التقارير", icon: BarChart3, view: "reports", flag: "reports" },
     ],
-  },
-  {
-    id: "coordination",
-    label: "المتابعة والتنسيق",
-    icon: CalendarDays,
-    children: [
-      { id: "tasks", label: "المهام", icon: ListTodo, view: "tasks", flag: "tasks" },
-      { id: "visits", label: "جدول الزيارات", icon: CalendarDays, view: "visits", flag: "visits" },
-      { id: "comments", label: "التعليقات", icon: MessageSquareText, view: "comments", flag: "comments" },
-    ],
-  },
-  {
-    id: "reports",
-    label: "التقارير",
-    icon: BarChart3,
-    children: [{ id: "reports", label: "مركز التقارير", icon: BarChart3, view: "reports", flag: "reports" }],
   },
   {
     id: "settings",

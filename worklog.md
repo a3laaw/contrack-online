@@ -1008,3 +1008,100 @@ Stage Summary:
 - GitHub مكتمل: main = 78a0486 (استعادة كاملة + worklog + تنظيف git)، المستودع خاص، والرمز ليس محفوظاً في أي ملف.
 - محتوى الإنتاج على Vercel = نفس كود main (آخر نشر CLI شمل كل تغييرات التطبيق) — لا حاجة لنشر فوري.
 - معلق على المستخدم: (1) كلمة مرور Supabase — يُنصح بتدويرها من اللوحة (بند أمني معلق أصلاً) وتزويدي بسلسلة Session pooler لاستعادة التطوير المحلي، مع تحديث DATABASE_URL على Vercel فور التدوير وإعادة نشر. (2) ربط Vercel بـGitHub من لوحة المشروع (Settings → Git) أو تزويدي بـVERCEL_TOKEN للتحقق من النشر التلقائي. (3) حذف رمز GitHub القديم المكشوف، ورمز هذه الجلسة بعد انتهاء الحاجة.
+
+---
+Task ID: 28-a
+Agent: Explore (desktop inventory)
+Task: جرد شامل للنسخة المكتبية (contrack_v9.15.18/app) بلا تعديل أي كود
+
+Work Log:
+- قرأت database/models.py (4 dataclasses فقط: Customer/Contract/Invoice/Settings) وdatabase/database.py بالكامل: المخطط الفعلي SQLite ≈ 45 جدولاً في _SCHEMA + _apply_schema + جداول ينشئها services (customer_comments, gateway_*, feature_flags, purge_audit, cancel_audit_log, audit_log, number_sequences...).
+- جردت UI بالكامل: main_window.py (شريط جانبي RTL بترتيبه وIDX_*)، contract_hub (4 صفحات)، ملف العميل (عام/العقود)، ملف المقاول (3 صفحات)، تابات العهد/البوابة/الإعدادات/النماذج، والتقارير الثمانية في reports_page._REPORTS.
+- استخرجت قواعد الأعمال مع مراجع سطرية: حالات العقود CONTRACT_STATUSES وآلات انتقالات unified_cancel_service/claims_service، ترقيم number_sequences، سقف القبض/الصرف OverpayWarning، بوابة «تحصيل العميل قبل صرف المقاول»، تفعيل الدفعات عند إنهاء المرحلة (trigger_due_payments)، قيمة العقد الحالية (أصل + أوامر معتمدة + تمديد إشراف).
+- وثّقت تكامل الحذف/الإلغاء (منع حذف عند ارتباط، إلغاء سند مع أبنائه وعكس القيود)، الصلاحيات (3 أدوار + ~30 مفتاحاً)، النسخ الاحتياطي (تلقائي + أسبوعي ZIP)، المزايا (feature flags)، والبحث/الطباعة/Word.
+
+Stage Summary:
+- العدّاد النهائي: ~45+ جدولاً، 9 مداخل رئيسية + مجموعات، 8 تقارير، 33 خدمة، 8 مولدات PDF/Excel — جاهز لمقارنة التغطية مع الويب (6 وحدات منفذة).
+- نقاط فارق متوقعة للويب: مطالبات، عهد وسلف، بوابة الدفع/تسديدات الشركة الأخرى، مراحل متابعة شجرية، مركز نماذج Word، الإلغاء المؤرشف وسجل التدقيق، الترقيم الذري.
+- التفاصيل الكاملة (نماذج/تابات/قواعد file:line) في رد الوكيل أدناه — لا تغييرات على أي كود مصدري.
+
+---
+Task ID: 28-b
+Agent: Explore (web inventory)
+Task: جرد شامل لنسخة الويب
+
+Work Log:
+- قرأت prisma/schema.prisma كاملًا (53 نموذجًا): كل العلاقات وonDelete و@@unique/@@index، ورصدت 11 نموذجًا بلا علاقات (FeatureFlag, NumberSequence, AuditLog, PurgeAudit, Setting, PaymentMethod, GatewayProfile, BankLine, OtherCompanyOpening, MatchAlias, JournalEntry)، و4 نماذج ميتة بلا أي استخدام كودي (FormCategory/FormTemplate/FormField/FormDocument)، ومفاتيح FK بلا علاقات (AddendumItem.subContractId, Claim.subLineId, ContractGroupItem.contractId, GatewayOp.paidTransferId, GatewayFeeVoucher.voucherId, JournalEntry.*, Voucher.projectId/expenseCustomerId…)، وعلاقات اختيارية بلا onDelete (افتراضي SetNull = فصل صامت).
+- جردت 156 ملف API route (المسارات + الأفعال + النماذج): اكتشفت أسماء نماذج قديمة (subPaymentPlan/paymentPlan/typePaymentTpl/settings/customerComment/contractComponent/isActive) في /api/subcontracts*، /api/sub-payments، /api/reports/_server.ts+dues-board، /api/backup، prisma/seed.ts، وlib/ui-prefs.ts (db.settings + حقل uiPrefs غير موجود) — تعمل ترجمةً لأن ignoreBuildErrors=true لكنها تنكسر وقت التشغيل؛ كما أن /api/backups+/restore نسخ ملفات SQLite (db/custom.db) لا يتوافق مع Postgres، وUI البوابة ينادي DELETE /api/gateway/ops/[id] غير الموجود.
+- جردت الـUI: 6 وحدات تنقل (الرئيسية، العملاء والعقود، المحاسبة، المتابعة والتنسيق، التقارير، الإعدادات) — لا 4 كما هو متوقع؛ مركز العقد 4 صفحات (مسار فني/نظرة عامة/دفعات موحدة UnifiedPayTable/أوامر تغييرية) + 5 صفحات تدفق (تعديل/باطن جديد/تصفية/بنود/إشراف)؛ 42 feature flag؛ auth PBKDF2-200k + توكن HMAC بكوكي 7 أيام؛ 37 مفتاح صلاحيات.
+- تتبعت الكود الميت: 12 مكوّنًا غير مستورد (ArchiveView, GroupsView, CustomerDetailView, StagesTab, PaymentsTab, BoqTab, SupervisionTab, ContractVouchersTab, SubContractsTab, SubPaymentVoucherDialog, NewContractDialog, CustomerDialog) و~10 مكتبات API clients ميتة (report-api, followup-api, gateway-api, invoice-api, custody-api, advance-api, claim-api, addendum-api, productivity-api, subcontract-api) ونسختا سندات باطن/تحويلات قديمة (subcontracts*, other-transfers*).
+
+Stage Summary:
+- الويب يغطي فعليًا: عملاء/عقود (مراحل، خطة دفع، BOQ، أوامر، مطالبات، إشراف، تصفية)/باطن (بنود، خطة موزعة على دفعات العميل، بوابة العهدة)/محاسبة (سندات قبض وصرف، كشوف 3 أنواع، عهد وسلف، بوابة دفع، شركة أخرى)/إنتاجية (مهام، زيارات، تعليقات، بحث، ملف عميل)/تقارير (11 نوعًا)+تصدير Excel/إعدادات (مستخدمون وصلاحيات، أنواع وقوالب، مراحل شجرية، حسابات مصروفات، مزايا، تدقيق، مسح).
+- أهم الثغرات المرصودة: نسخ احتياطي كله مكسور مع Postgres، إعدادات زيارات (visit-slot) مكسورة عبر ui-prefs، بذور seed.ts قديمة، 4 نماذج نماذج-Word بلا API/UI، وapi/gateway/ops/[id] DELETE ناقص — تُفضّل معالجتها قبل مقارنة التكافؤ النهائية.
+- لا تعديل على أي كود مصدري — التفاصيل الكاملة (53 نموذجًا، 156 مسارًا، كل الشاشات) في رد الوكيل أدناه.
+
+---
+Task ID: 28-c
+Agent: full-stack-developer
+Task: إعادة بناء النسخ الاحتياطي للـPostgres
+
+Work Log:
+- قرأت worklog (28-a/28-b) + prisma/schema.prisma كاملًا حرفيًا، والمسارات القديمة الثلاثة (/api/backup و/api/backups و/restore) وlib/backups.ts (نظام ملفات SQLite المكسور) وapi-utils/auth لنسخ نمط الحماية.
+- أنشأت src/lib/backup-dump.ts: قائمة BACKUP_MODELS بطول 53 نموذجًا بالترتيب الطوبولوجي (آباء قبل أبناء: users→permissions، customers→contracts→stages→boq→payment_plan→sub_*→vouchers→links→addendums→claims…) بأسماء مندوبي Prisma وأسماء الجداول @@map وراية serial لكل جدول له id autoincrement — تحققت من وجود كل المندوبين الـ53 في المولَّد .prisma/client (عدّاد مطابق 53/53).
+- buildBackupDump: findMany تسلسلي لكل جدول (بلا include — كل الجداول تُنسخ فلا حاجة للعلاقات) + manifest {app, version, createdAt, generatedBy, tableCounts}؛ Decimal يخرج نصًا والتواريخ ISO ⇒ round-trip سليم.
+- restoreBackupData داخل معاملة واحدة: تحقق مفاتيح الملف ضد القائمة البيضاء ⇒ deleteMany بالترتيب العكسي ⇒ إنشاء بالمعرّفات الأصلية عبر createMany بدفعات 200 مع معالجة الجداول ذاتية المرجع (workflow_stages/expense_accounts/vouchers: parent أولاً بمرورات متكررة، والمرجع المكسور يُنشأ بلا رابط) ⇒ إعادة ضبط التسلسلات بـ setval(pg_get_serial_sequence('"جدول"','id'), COALESCE(MAX(id),1), MAX(id) IS NOT NULL) عبر $queryRawUnsafe بأسماء حرفية من القائمة البيضاء فقط.
+- تخزين الخادم: db/backups يُنشأ وقت التشغيل (fs.mkdir recursive، وdb/ gitignored)؛ كل نسخة ملف JSON ذو العنوان manifest ذاتيًا + فهرس index.json يُحدَّث عند الإنشاء/الاكتشاف (يلتقط ملفات غير مفهرسة يدويًا) + تقليم لآخر 30 نسخة (ملفات safety- مستثناة) + listBackupFiles يتحقق من الوجود ويحدّث الأحجام.
+- أعيدت كتابة المسارات الثلاثة بنمط الجوار (adminGuard + audit + jsonError/ok): GET /api/backup تنزيل JSON بـContent-Disposition attachment (اسم contrack-backup-<stamp>.json)؛ GET/POST /api/backups قائمة/إنشاء نسخة خادم مع سطر تدقيق؛ POST /api/backups/restore { fileName }: تحقق .json + داخل مجلد النسخ + بنية manifest/data ⇒ نسخة أمان safety-<stamp>.json أولاً ⇒ معاملة بمهلة 180s ⇒ رسالة عربية بعدد الصفوف والجداول، وفشل المعاملة يعني بلا أي تغيير. أزلت اعتماد /api/backup على updateUiPrefs (db.settings المكسور) وأزلت كل إشارات ملف SQLite (db/custom.db، kind full لمرفقات).
+- أعدت BackupsTab في DataManagementView: زر «إنشاء نسخة» (POST /api/backups) + زر «تنزيل نسخة JSON» (adminApi.downloadBackup) + زر تحديث، وجدول (الاسم/الصفوف/الحجم/التاريخ/المستخدم/استعادة) بشارة «خادم|أمان» من بادئة الملف، وحوار تأكيدي AlertDialog بلا كتابة نصه الجديد يوضح حذف الجداول وإعادة الإنشاء بالمعرّفات ونسخة الأمان والمعاملة الواحدة، وonSuccess للاستعادة يبطل كل استعلامات react-query لأن البيانات كلها تغيّرت.
+- tsc --noEmit: صفر أخطاء في ملفاتي (أصلحت خطأ sizeKB/size واحدًا)؛ bun run lint exit 0؛ dev.log سليم 200.
+- لم ألمس: prisma/schema.prisma وlib/backups.ts (لا يزال يستخدمه /api/data-mgmt/purge لـATTACH_DIR) وlib/ui-prefs وcontrack-types.ts (اكتفيت بنوع محلي BackupRow في المكوّن حتى لا أحتك بوكيل آخر).
+
+Stage Summary:
+- النسخ الاحتياطي أصبح JSON كاملًا متوافقًا مع Postgres: تنزيل + نسخة خادم + استعادة بحفظ المعرّفات وإعادة ضبط التسلسلات، كلها admin-only بنمط adminGuard، والأسماء 53/53 مطابقة للمخطط الحالي (لا أسماء قديمة paymentPlan/typePaymentTpl/settings/customerComment/isActive).
+- القيد المعلوم: على Vercel القراءة/الكتابة مؤقتة (ephemeral) — مجلد db/backups صالح للتشغيل الخادمي الدائم؛ ونظام مرفقات النسخة الكاملة السابق أُسقط عمدًا (metadata المرفقات تُنسخ ضمن contract_attachments، وملفاتها على القرص خارج نطاق هذه المهمة).
+- مستخدمو النسخة المستعادة: الـdump يحتفظ بكامل حقول users (بما فيها passwordHash/salt) لأن الاستعادة تعيد إنشاء الصفوف كما كانت — الملف admin-only، والبديل (استبعادها) كان سيكسر الاستعادة على NOT NULL.
+
+---
+Task ID: 28-e
+Agent: full-stack-developer
+Task: تصفير أخطاء TypeScript في عائلة تقارير الـAPI + إصلاح ثغرة الحارس
+
+Work Log:
+- قرأت worklog (28-b/28-c) للسياق، ثم _server.ts + مسارات التقارير الستة + api-utils.ts (توقيع الحارس الحالي `{user}|{response}`) + prisma/schema.prisma (كل تواريخ الجداول نصية yyyy-MM-dd والمبالغ Decimal).
+- **إصلاح ثغرة الحارس الأمنية** في المسارات الخمسة (customer-statement/customers-full/dues-board/dues/profitability/summary): استُبدل `if (g.error) return g.error` المكسور (كان لا يرفض أبدًا لأن `.error` غير موجود في الاتحاد) بـ`if ('response' in g) return g.response` — نفس نمط الجوار، وبدون مفاتيح صلاحيات إضافية كما كان مُمرَّرًا (authGuard(req) بلا permKey). تحقّقت عمليًا: كل المسارات تعيد 401 «يجب تسجيل الدخول» لغير المصادق بدل السقوط في منطق التقرير.
+- **_server.ts** (المشترك): dayStr يقبل Date|string (النص يُعاد كما هو و''→null)؛ isSupervisionContract/supervisionStatus توقيعاتها على حقول المخطط (supStartDate string، supMonthly/supDiscount/supWaivedMonths Decimal عبر Prisma.Decimal) مع Number() عند الحدود وstart يُشتق `new Date(`${supStartDate}T12:00:00.000Z`)` (ظهر noon كـtodayNoon)؛ actualSupervisionEnd يعيد string|null وفلتر endDate `{ not: '' }` بدل `{ not: null }`؛ PlanLineRaw أصبحت dueDate/triggeredAt نصية وstageEnd string|null؛ strictDueByContract يقارن `it.dueDate > dayStr(today)` نصيًا بدل calendarDays؛ كل عمليات _sum/amount/links ملفوفة Number() (netAddendumsMap, receiptsByContract, unallocatedReceiptsByContract, receiptLinksMaps, paymentLinksByLine, contractValuesMap, loadCustomerPlan).
+- **customer-statement**: isoDay تقبل Date|string (adate/vdate/invoiceDate/contractDate نصية)، فك Decimal بـNumber() في (amountAdd−amountDeduct، المقبوضات، قيمة العقد، الإجماليات)، و`Number(inv.amount).toLocaleString(...)` بدل toLocaleString على Decimal (TS2554).
+- **customers-full/dues**: نطاق التاريخ dRange أصبح Record<string,string> (parseDay يعيد نصًا وcontractDate عمود String)، fallback values map بـNumber(c.amount).
+- **dues-board**: fifoCover items تُبنى بـamount: Number(p.amount) وdueDate نصية؛ daysDiff عبر `new Date(p.dueDate+'T12:00:00.000Z')`؛ مقارنات «جزئي/متأخر» نصية ضد todayIso=dayStr(today) (نفس اليوم = غير متأخر، متوافق مع دقة strict «اليوم أو قبله»)؛ round3(s.amount/p.amount/_sum) بـNumber().
+- **profitability/summary**: Number() على كل Decimal (subTotals، المدفوعات، c.amount، line.amount، روابط، تجميعات 12 شهرًا وbyStatus)؛ dayRange نصية {gte,lte} (مكافئة لتضمين اليومين على نص yyyy-MM-dd) وvdate>=`twelveMonthsAgoStr` (`YYYY-MM-01` بعد 11 شهرًا) بدل كائن Date.
+- صفر تغيير منطق/رسائل/حالات — كل النصوص العربية والبنية كما هي؛ لم ألمس api-utils.ts ولا report-types.ts ولا أي ملف خارج نطاقي (export/route.ts سليم ولم يُعلَّم من tsc).
+- التحقق: `bunx tsc --noEmit | rg 'reports'` ⇒ لا شيء (كانت ~84)؛ الأخطاء الـ185 المتبقية كلها في ملفات وكلاء آخرين ولا أحد منها يلمس رموزي المُصدَّرة؛ `bunx eslint src/app/api/reports` ⇒ exit 0؛ dev.log نظيف والمسارات الخمسة تترجم وتعيد 401 سليمة.
+
+Stage Summary:
+- عائلة /api/reports (6 مسارات + _server.ts) صارت متوافقة نوعيًا 100% مع المخطط الحالي (تواريخ نصية + Prisma.Decimal) وبصفر أخطاء tsc وlint، مع إغلاق ثغرة الحارس التي كانت تسمح بطلبات غير مصادقة بتنفيذ منطق التقارير — الحارس الآن يرفض 401 فعليًا.
+- القاعدة المعتمدة في الملفات: Date يُشتق من النص بظهر noon UTC (`T12:00:00.000Z`) لمطابقة todayNoon، ومقارنات الاستحقاق الصارمة نصية ISO مباشرة، وكل Decimal يُفك بـNumber() عند أول حد حسابي/تنسيقي — جاهزة للاختبار الوظيفي مع بيانات Postgres.
+
+---
+Task ID: 28-f
+Agent: full-stack-developer
+Task: تصفير أخطاء TypeScript في محاسبة/عقود/إعدادات API + إصلاح ثغرة الحارس
+
+Work Log:
+- شغّلت `bunx tsc --noEmit` قبل البدء: 167 سطرًا خارج reports/components/seed في 7 ملفات API + src/lib/claim-number.ts؛ حددت الملفات بدقة عبر تجميع السطور الأولى للأخطاء فقط (سطور الـcontinuation متعددة الأسطر كانت تعود لأخطاء _server.ts المفلترة بالمسار).
+- أصلحت ثغرة الحارس الأمنية في كل مواقعها (13 موضعًا): نمط `if (g.error) return g.error` الذي لا يرفض أبدًا (غير المصرح كان يمرّ!) استُبدل بـ`if ("response" in g) return g.response` مع الحفاظ على مفاتيح الصلاحيات كما هي — في custody (GET/POST/addAccount-admin)، items/[id] (PATCH/DELETE-admin)، contracts/[id]/items (GET/POST)، payment-templates (GET/POST + [id] PATCH/DELETE-admin)، vouchers/[id]/cancel (admin)، settings/visit-slot (GET/PUT-admin).
+- المصدّات الناقصة من api-utils (parseAmount/TxClient/addContractEvent) عالجتها بلا لمس api-utils: عرّفت parseAmount محليًا في الملفات الثلاثة المستخدمة له (custody، items/[id]، contracts/[id]/items) بدلالة رقم نهائي finite أو null، وعرّفت addContractEvent محليًا في 3 ملفات (كتابة db.contractEvent.create بالحقول eventType/description/username المطابقة لنمط الجوار)، واستبدلت type TxClient بـ`Prisma.TransactionClient` من @prisma/client (في custody وclaim-number.ts).
+- custody: حذفت `createdBy` من create Voucher الثلاثة (الحقل غير موجود في المخطط وكان سيرمي 500 وقت التشغيل — بقي تعليق الحارس الحرفي)، وحولت nextNumber من نمط المُنسّق المكسور `nextNumber('vouchers', (n)=>…, tx)` (كان سيرمي RangeError في padStart) إلى `nextNumber('PV', 4, tx)` و`nextNumber('CV', 4, tx)` المطابق تمامًا لاصطلاح voucher-server (VOUCHER_PREFIX payment→PV، custody_return→CV) وبنفس مخرجات PV-####/CV-#### المقصودة، وحولت ymd إلى `vdate.replace(/-/g,'')` (تاريخ نصي) وجعلت ymdOf تقبل string|Date، وفككت Decimal بـNumber() في computeBalances وpush amount.
+- items/[id]: deletedAt غير موجود في BoqItem — استبدلت فحص `item.deletedAt == null` بـ`!item.deleted` والتحديث `deletedAt: new Date()` بـ`deleted: true` (حذف ناعم بالحقل الفعلي)، وفككت Decimal في مقارنات qty/unitPrice (Number(item.qty)) وformatKWD وحساب qty×unitPrice — وإصلاح where التالف كشف نوع include stage فأصلح خطأ it.stage المرافق تلقائيًا.
+- contracts/[id]/items: `deletedAt: null` في where → `deleted: false` (وهذا أصلح خطأ it.stage?.name الناتج عن تدهور النوع)، وNumber() في round3(qty×unitPrice) وround3(contract.amount).
+- payment-templates: DTO listTemplates يعيد الآن pct/amountFixed كـNumber() مع kindOf(Number, Number)، وeffPct/effFixed في [id]/PATCH تُشتق من Number(tpl.pct)/Number(tpl.amountFixed) (أصلح مقارنات >0)، وأضفت `contractTypeId: type.id` الناقص لنداء validateTemplateInput في POST (مطلوب بعد هجرة contractTypeId Int — نفس نمط [id]/PATCH).
+- vouchers/[id]/cancel: cancelledAt كان يكتب Date والعمود String — استبدلته بـtodayStr() المطابق لاصطلاح voucher-server.ts (سطرا 1488/1357)، وaddContractEvent محلية.
+- src/lib/claim-number.ts (مشار إليه بنداءات /api/claims): استيراد TxClient غير الموجود → `import type { Prisma } from '@prisma/client'` وتوقيع Prisma.TransactionClient (نداءاها الحاليان يمرران tx المعاملات فيتوافقان).
+- أخطاء مرحّلتان ظهرا بعد أول تصفير وأصلحتهما: TS2367 مقارنة number≠Decimal في items/[id] (q !== item.qty وup !== item.unitPrice) — حولتهما لـNumber(item.qty)/Number(item.unitPrice).
+- VERIFY: `bunx tsc --noEmit` أخطاء خارج reports/components/seed = صفر (الباقي 111 كلها prisma/seed.ts وsrc/components/** لغيري)؛ `bun run lint` exit 0 بلا ملاحظات؛ dev.log سليم (401 متوقعة لمسارات reports بلا جلسة).
+
+Stage Summary:
+- صفر أخطاء tsc في كل src/app/api خارج reports/ (+src/lib/claim-number.ts) بعد تصليح 8 ملفات: custody، items/[id]، contracts/[id]/items، payment-templates/[id]، payment-templates، vouchers/[id]/cancel، settings/visit-slot، claim-number.
+- الثغرة الأمنية الجوهرية مغلقة: 13 موقع حارس كانت تمرّر الطلبات غير المصادقة/غير المخوّلة إلى منطق الأعمال (تسليم وتصفية وإرجاع عهدة، حذف بنود، إلغاء سندات، إعدادات) — الآن ترفض 401/403 فعليًا بنفس مفاتيح الصلاحيات السابقة.
+- إصلاحات وقت تشغيل حقيقية رافقت الأنواع: createdBy على Voucher كان سيرمي Prisma runtime error، وnextNumber بصيغة المُنسّق كان سيرمي RangeError — الترقيم الآن PV/CV متسق مع بقية التطبيق، وcancelledAt نصي YYYY-MM-DD مطابق لاصطلاح الإلغاء الموحد.
+- لم ألمس api-utils.ts ولا schema.prisma ولا أي ملف خارج نطاقي (لا reports ولا components ولا seed)؛ التغييرات كلها نوعية/حدودية بلا أي تغيير منطقي، والرسائل والحالات العربية كما هي.

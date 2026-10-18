@@ -16,7 +16,8 @@ import {
 } from '../_server'
 import type { CustomerStatementDTO, CustomerStatementRow } from '@/lib/report-types'
 
-const isoDay = (d: Date): string => d.toISOString().slice(0, 10)
+/** yyyy-MM-dd من Date أو من النص المخزن */
+const isoDay = (d: Date | string): string => (typeof d === 'string' ? d : d.toISOString().slice(0, 10))
 
 /** قيود حركة داخل عقد واحد قبل الترتيب */
 interface Movement {
@@ -68,7 +69,7 @@ async function buildStatement(contractId: number): Promise<{
   const movements: Movement[] = []
   let netAddendums = 0
   for (const a of addendums) {
-    const net = round3(a.amountAdd - a.amountDeduct)
+    const net = round3(Number(a.amountAdd) - Number(a.amountDeduct))
     if (Math.abs(net) < EPS) continue
     const atype = a.addendumType || 'أمر تغييري'
     const desc = `${atype}: ${a.reason || ''}`.trim().replace(/:$/, '')
@@ -81,16 +82,16 @@ async function buildStatement(contractId: number): Promise<{
     movements.push({
       date: isoDay(inv.invoiceDate),
       ref: inv.invoiceNumber,
-      description: `فاتورة (للعلم): ${inv.description || 'فاتورة'} · ${inv.amount.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`,
+      description: `فاتورة (للعلم): ${inv.description || 'فاتورة'} · ${Number(inv.amount).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`,
       debit: 0, credit: 0,
     })
   }
-  const receiptsTotal = round3(receipts.reduce((s, r) => s + r.amount, 0))
+  const receiptsTotal = round3(receipts.reduce((s, r) => s + Number(r.amount), 0))
   for (const r of receipts) {
     movements.push({
       date: isoDay(r.vdate), ref: r.voucherNumber,
       description: r.description || 'سند قبض',
-      debit: 0, credit: round3(r.amount),
+      debit: 0, credit: round3(Number(r.amount)),
     })
   }
   // مديونية تمديد الإشراف — قيد مدين واحد عند نهاية المدة الأساسية
@@ -113,13 +114,13 @@ async function buildStatement(contractId: number): Promise<{
   void addMonths
 
   movements.sort((a, b) => (a.date.localeCompare(b.date)) || a.ref.localeCompare(b.ref))
-  let balance = round3(contract.amount)
+  let balance = round3(Number(contract.amount))
   const rows: CustomerStatementRow[] = [{
     date: isoDay(contract.contractDate),
     contractNumber: contract.contractNumber,
     kind: 'move', ref: contract.contractNumber,
     description: 'قيمة العقد',
-    debit: round3(contract.amount), credit: 0, balance,
+    debit: round3(Number(contract.amount)), credit: 0, balance,
   }]
   for (const m of movements) {
     balance = round3(balance + m.debit - m.credit)
@@ -130,15 +131,15 @@ async function buildStatement(contractId: number): Promise<{
     })
   }
   const totalDeducts = round3(rows.filter((r) => r.ref.startsWith('ADD-')).reduce((s, r) => s + r.credit, 0))
-  const totalDebit = round3(contract.amount + supExtension + rows.filter((r) => r.ref.startsWith('ADD-')).reduce((s, r) => s + r.debit, 0))
+  const totalDebit = round3(Number(contract.amount) + supExtension + rows.filter((r) => r.ref.startsWith('ADD-')).reduce((s, r) => s + r.debit, 0))
   const totalCredit = round3(receiptsTotal + totalDeducts)
-  const currentValue = round3(contract.amount + netAddendums + supExtension)
+  const currentValue = round3(Number(contract.amount) + netAddendums + supExtension)
   return { rows, currentValue, netAddendums, supExtension, receiptsTotal, totalDebit, totalCredit }
 }
 
 export async function GET(req: NextRequest) {
   const g = await authGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   const sp = req.nextUrl.searchParams
   const customerId = Number(sp.get('customerId') ?? '')

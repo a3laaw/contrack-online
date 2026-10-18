@@ -28,7 +28,7 @@ function visibleChildren(module: NavModule, isAdmin: boolean, flagOn: (f: string
 }
 
 /**
- * الهيكل المعتمد (المرحلة 3): شريط علوي للوحدات الست + قائمة جانبية داخل كل وحدة
+ * الهيكل المعتمد (المرحلة 3): شريط علوي للوحدات الأربع + قائمة جانبية داخل كل وحدة
  * قابلة للطي إلى أيقونات + درج منزلق على الشاشات الصغيرة. بلا شريط سفلي.
  */
 export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearch, children }: AppShellProps) {
@@ -57,7 +57,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
   }, []);
 
   const active = findNavChild(activeNav);
-  const activeModuleId = active?.module.id ?? "home";
+  const activeModuleId = active?.module.id ?? "clients";
 
   // الوحدات ذات بنود مرئية فقط
   const modules = React.useMemo(
@@ -80,7 +80,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* ===== الشريط العلوي: الوحدات الست ===== */}
+      {/* ===== الشريط العلوي: الوحدات الأربع ===== */}
       <header className="sticky top-0 z-40 border-b bg-card">
         <div className="flex h-14 items-center gap-2 px-3 lg:px-4">
           {/* زر الدرج — الشاشات الصغيرة */}

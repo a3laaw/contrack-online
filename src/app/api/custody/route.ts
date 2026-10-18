@@ -25,24 +25,32 @@
 // يبقى حرفيًا كما في الأصل: وجود/عدم وجود expenseAccountId.
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
-import {
-  authGuard,
-  adminGuard,
-  jsonError,
-  nextNumber,
-  parseAmount,
-  parseDay,
-  type TxClient,
-} from '@/lib/api-utils'
+import { authGuard, adminGuard, jsonError, nextNumber, parseDay } from '@/lib/api-utils'
 import { round3 } from '@/lib/format'
+
+/** تحويل قيمة مدخل إلى رقم — null إن كانت غير رقمية (بديل محلي) */
+function parseAmount(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
 
 const EPS = 0.001 // تسامح الحرس المالي (المتبقي)
 const SETTLE_METHOD = 'تصفية عهدة'
 const CUSTODY_ROOT = 'عهد الموظفين'
 const GROUP_RE = /المرجع: (PAY-GRP-\d{8}-\d{3})/
 
-type VoucherRow = { vtype: string; custodyAccountId: number | null; expenseAccountId: number | null; amount: number }
+type VoucherRow = {
+  vtype: string
+  custodyAccountId: number | null
+  expenseAccountId: number | null
+  amount: number | Prisma.Decimal
+}
 
 function isHandover(v: VoucherRow): boolean {
   return v.vtype === 'payment' && v.expenseAccountId == null
@@ -59,9 +67,10 @@ function computeBalances(accounts: { id: number }[], rows: VoucherRow[]) {
     if (v.custodyAccountId == null) continue
     const b = acc.get(v.custodyAccountId)
     if (!b) continue
-    if (isHandover(v)) b.handed += v.amount
-    else if (isSettlementItem(v)) b.spent += v.amount
-    else if (v.vtype === 'custody_return') b.returned += v.amount
+    const amt = Number(v.amount)
+    if (isHandover(v)) b.handed += amt
+    else if (isSettlementItem(v)) b.spent += amt
+    else if (v.vtype === 'custody_return') b.returned += amt
   }
   const out = new Map<number, { handed: number; spent: number; returned: number; balance: number }>()
   for (const [id, b] of acc) {
@@ -84,7 +93,7 @@ async function findCustodyAccount(id: unknown) {
 }
 
 /** جذر شجرة العهد — يُنشأ عند أول حاجة (لا يقبل قيدًا كالأصل) */
-async function ensureCustodyRoot(tx?: TxClient) {
+async function ensureCustodyRoot(tx?: Prisma.TransactionClient) {
   const client = tx ?? db
   const root = await client.expenseAccount.findFirst({
     where: { name: CUSTODY_ROOT, accountKind: 'advance' },
@@ -105,15 +114,17 @@ async function ensureCustodyRoot(tx?: TxClient) {
 
 const pad3 = (n: number) => String(n).padStart(3, '0')
 
-const ymdOf = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const ymdOf = (d: string | Date) =>
+  typeof d === 'string'
+    ? d.slice(0, 10)
+    : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 // ------------------------------------------------------------
 // GET
 // ------------------------------------------------------------
 export async function GET(req: NextRequest) {
   const g = await authGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   const sp = req.nextUrl.searchParams
   const employee = sp.get('employee')?.trim() ?? ''
@@ -192,7 +203,7 @@ export async function GET(req: NextRequest) {
 // ------------------------------------------------------------
 export async function POST(req: NextRequest) {
   const g = await authGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   let body: Record<string, unknown>
   try {
@@ -206,7 +217,7 @@ export async function POST(req: NextRequest) {
   // ---------- إنشاء حساب عهدة (مدير فقط) ----------
   if (op === 'addAccount') {
     const a = await adminGuard(req)
-    if (a.error) return a.error
+    if ('response' in a) return a.response
     const name = typeof body.name === 'string' ? body.name.trim() : ''
     if (!name) return jsonError('اسم حساب العهدة مطلوب', 400)
     const dup = await db.expenseAccount.findFirst({ where: { name } })
@@ -239,7 +250,7 @@ export async function POST(req: NextRequest) {
       (typeof body.description === 'string' && body.description.trim()) || `تسليم عهدة${party ? ` — ${party}` : ''}`
 
     const created = await db.$transaction(async (tx) => {
-      const number = await nextNumber('vouchers', (n) => `PV-${String(n).padStart(4, '0')}`, tx)
+      const number = await nextNumber('PV', 4, tx)
       return tx.voucher.create({
         data: {
           voucherNumber: number,
@@ -253,7 +264,6 @@ export async function POST(req: NextRequest) {
           description,
           custodyAccountId: acc.id,
           // الحارس الحرفي: التسليم بلا حساب مصروف — ولا يجمع عهدة وسلفة معًا (advanceEmployeeId يبقى null)
-          createdBy: g.user.username,
         },
       })
     })
@@ -312,7 +322,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const ymd = `${vdate.getFullYear()}${String(vdate.getMonth() + 1).padStart(2, '0')}${String(vdate.getDate()).padStart(2, '0')}`
+    const ymd = vdate.replace(/-/g, '')
 
     const result = await db.$transaction(
       async (tx) => {
@@ -324,7 +334,7 @@ export async function POST(req: NextRequest) {
         const created: { id: number; voucherNumber: string; amount: number }[] = []
         for (let i = 0; i < items.length; i++) {
           const it = items[i]
-          const number = await nextNumber('vouchers', (n) => `PV-${String(n).padStart(4, '0')}`, tx)
+          const number = await nextNumber('PV', 4, tx)
           const v = await tx.voucher.create({
             data: {
               voucherNumber: number,
@@ -339,10 +349,9 @@ export async function POST(req: NextRequest) {
               expenseAccountId: it.expenseAccountId,
               custodyAccountId: acc.id,
               notes: `تصفية عهدة من حساب: ${acc.fullPath} | المرجع: ${groupRef} | بند ${i + 1}/${items.length}`,
-              createdBy: g.user.username,
             },
           })
-          created.push({ id: v.id, voucherNumber: v.voucherNumber, amount: v.amount })
+          created.push({ id: v.id, voucherNumber: v.voucherNumber, amount: Number(v.amount) })
         }
         return { groupRef, created }
       },
@@ -381,7 +390,7 @@ export async function POST(req: NextRequest) {
     }
 
     const created = await db.$transaction(async (tx) => {
-      const number = await nextNumber('vouchers', (n) => `CV-${String(n).padStart(4, '0')}`, tx)
+      const number = await nextNumber('CV', 4, tx)
       return tx.voucher.create({
         data: {
           voucherNumber: number,
@@ -395,7 +404,6 @@ export async function POST(req: NextRequest) {
           description,
           custodyAccountId: acc.id,
           expenseAccountId: null,
-          createdBy: g.user.username,
         },
       })
     })

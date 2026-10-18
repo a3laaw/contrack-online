@@ -65,3 +65,98 @@ export const apiPatch = <T = unknown>(path: string, body?: unknown) =>
 export const apiPut = <T = unknown>(path: string, body?: unknown) =>
   apiFetch<T>(path, { method: "PUT", body });
 export const apiDelete = <T = unknown>(path: string) => apiFetch<T>(path, { method: "DELETE" });
+
+// ============================================================
+// واجهة نطاق مبسطة تستخدمها الحوارات (السندات/الطباعة/الأنواع)
+// تلتف على نقاط النهاية الفعلية وتكشف استجاباتها
+// ============================================================
+export interface SettingsLite {
+  companyName: string;
+  companyAddress: string;
+  companyPhone: string;
+  companyEmail: string;
+  headerTitle: string;
+}
+
+export interface CustomerOption {
+  id: number;
+  customerCode: string;
+  name: string;
+  phone: string;
+  email: string;
+}
+
+export interface ContractOption {
+  id: number;
+  customerId: number;
+  customerName: string;
+  contractNumber: string;
+  contractName: string;
+  contractType: string;
+  status: string;
+}
+
+/** دفعة من خطة العقد كما يرجعها GET /api/contracts/[id] */
+export interface PlanLineLite {
+  id: number;
+  title: string;
+  dueDate: string;
+  amount: number;
+  remaining: number;
+  triggeredAt: string;
+}
+
+export interface ContractDetailLite {
+  id: number;
+  contractNumber: string;
+  payments: PlanLineLite[];
+}
+
+export interface VoucherCreatedLite {
+  id: number;
+  voucherNumber: string;
+  amount: number;
+}
+
+export interface ContractTypeLite {
+  id: number;
+  name: string;
+  defaultAmount: number;
+  notes: string;
+  active: boolean;
+  manualTrack: boolean;
+  unitLabel: string;
+  unitPrice: number;
+  pricingMode: string;
+  isSupervision: boolean;
+  templatesCount: number;
+}
+
+export const api = {
+  /** إعدادات الشركة (كائن الإعدادات نفسه) */
+  settings: () => apiGet<{ settings: SettingsLite }>("/api/settings").then((r) => r.settings),
+  /** قائمة العملاء (اختيارياً بالبحث) */
+  customers: (q: string) =>
+    apiGet<{ customers: CustomerOption[] }>(`/api/customers?q=${encodeURIComponent(q)}`).then((r) => r.customers),
+  /** قائمة العقود مع فلترة العميل */
+  contracts: (filter: { customerId?: number } = {}) => {
+    const sp = new URLSearchParams();
+    if (filter.customerId) sp.set("customerId", String(filter.customerId));
+    const qs = sp.toString();
+    return apiGet<{ contracts: ContractOption[] }>(`/api/contracts${qs ? `?${qs}` : ""}`).then((r) => r.contracts);
+  },
+  /** تفاصيل عقد (يشمل دفعات الخطة مع المتبقي) */
+  contract: (id: number) =>
+    apiGet<{ contract: ContractDetailLite }>(`/api/contracts/${id}`).then((r) => r.contract),
+  /** إنشاء سند (قبض/صرف/تحويل) مع روابط الدفعات */
+  createVoucher: (payload: Record<string, unknown>) =>
+    apiPost<{ voucher: VoucherCreatedLite }>("/api/vouchers", payload).then((r) => r.voucher),
+  /** إلغاء سند بسبب */
+  cancelVoucher: (id: number, reason: string) =>
+    apiPost<{ ok: boolean; id: number }>(`/api/vouchers/${id}/cancel`, { reason }),
+  /** شجرة حسابات المصروفات */
+  expenseAccounts: () => apiGet<import("@/lib/contrack-types").ExpenseAccountDTO[]>("/api/expense-accounts"),
+  /** أنواع العقود (مع عدّاد القوالب) */
+  contractTypes: () =>
+    apiGet<{ types: ContractTypeLite[] }>("/api/contract-types").then((r) => r.types),
+};

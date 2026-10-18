@@ -2,8 +2,23 @@
 // DELETE /api/items/[id] — حذف ناعم (deletedAt) — للمدير فقط + حدث «حذف بند»
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { addContractEvent, adminGuard, authGuard, jsonError, parseAmount } from '@/lib/api-utils'
+import { adminGuard, authGuard, jsonError } from '@/lib/api-utils'
 import { formatKWD, round3 } from '@/lib/format'
+
+/** تحويل قيمة مدخل إلى رقم — null إن كانت غير رقمية (بديل محلي) */
+function parseAmount(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+/** حدث على العقد (بديل محلي) */
+async function addContractEvent(contractId: number, eventType: string, description: string, username: string) {
+  await db.contractEvent.create({ data: { contractId, eventType, description, username } })
+}
 
 function stageLabel(name: string | null | undefined): string {
   return name || 'بدون مرحلة'
@@ -11,7 +26,7 @@ function stageLabel(name: string | null | undefined): string {
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const g = await authGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   const { id } = await ctx.params
   const iid = Number(id)
@@ -51,7 +66,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if ('qty' in body) {
     const q = parseAmount(body.qty)
     if (q == null || q <= 0) return jsonError('الكمية يجب أن تكون رقمًا أكبر من صفر', 400)
-    if (q !== item.qty) {
+    if (q !== Number(item.qty)) {
       data.qty = q
       changes.push(`الكمية ${item.qty} → ${q}`)
     }
@@ -68,9 +83,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if ('unitPrice' in body) {
     const up = parseAmount(body.unitPrice)
     if (up == null) return jsonError('سعر الوحدة يجب أن يكون رقمًا غير سالب', 400)
-    if (up !== item.unitPrice) {
+    if (up !== Number(item.unitPrice)) {
       data.unitPrice = up
-      changes.push(`سعر الوحدة ${formatKWD(item.unitPrice)} → ${formatKWD(up)}`)
+      changes.push(`سعر الوحدة ${formatKWD(Number(item.unitPrice))} → ${formatKWD(up)}`)
     }
   }
 
@@ -110,7 +125,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const g = await adminGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   const { id } = await ctx.params
   const iid = Number(id)
@@ -120,12 +135,12 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   if (!item) return jsonError('البند غير موجود', 404)
 
   // حذف ناعم — لا نكرّر الحدث إن كان محذوفًا مسبقًا
-  if (item.deletedAt == null) {
-    await db.boqItem.update({ where: { id: iid }, data: { deletedAt: new Date() } })
+  if (!item.deleted) {
+    await db.boqItem.update({ where: { id: iid }, data: { deleted: true } })
     await addContractEvent(
       item.contractId,
       'حذف بند',
-      `حذف بند «${item.description}» — ${item.qty} ${item.unit || 'بدون وحدة'} × ${formatKWD(item.unitPrice)} = ${formatKWD(round3(item.qty * item.unitPrice))}`,
+      `حذف بند «${item.description}» — ${item.qty} ${item.unit || 'بدون وحدة'} × ${formatKWD(Number(item.unitPrice))} = ${formatKWD(round3(Number(item.qty) * Number(item.unitPrice)))}`,
       g.user.username,
     )
   }

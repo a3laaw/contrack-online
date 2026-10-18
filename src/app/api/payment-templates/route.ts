@@ -17,9 +17,9 @@ function kindOf(pct: number, amountFixed: number): PaymentTemplateDTO['kind'] {
   return 'flex'
 }
 
-async function listTemplates(contractType: string): Promise<PaymentTemplateDTO[]> {
-  const rows = await db.typePaymentTpl.findMany({
-    where: { contractType },
+async function listTemplates(contractTypeId: number): Promise<PaymentTemplateDTO[]> {
+  const rows = await db.typePaymentTemplate.findMany({
+    where: { contractTypeId },
     orderBy: { payNo: 'asc' },
     include: {
       triggerStage: { select: { stageName: true } },
@@ -30,11 +30,11 @@ async function listTemplates(contractType: string): Promise<PaymentTemplateDTO[]
     id: t.id,
     payNo: t.payNo,
     title: t.title,
-    pct: t.pct,
-    amountFixed: t.amountFixed,
+    pct: Number(t.pct),
+    amountFixed: Number(t.amountFixed),
     daysOffset: t.daysOffset,
     linkKeyword: t.linkKeyword,
-    kind: kindOf(t.pct, t.amountFixed),
+    kind: kindOf(Number(t.pct), Number(t.amountFixed)),
     triggerStageId: t.triggerStageId,
     triggerStageName: t.triggerStage?.stageName ?? null,
     stages: t.stageLinks.map((l) => ({ stageId: l.stage.id, stageName: l.stage.stageName })),
@@ -43,16 +43,18 @@ async function listTemplates(contractType: string): Promise<PaymentTemplateDTO[]
 
 export async function GET(req: NextRequest) {
   const g = await authGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   const contractType = req.nextUrl.searchParams.get('contractType')?.trim() ?? ''
   if (!contractType) return jsonError('نوع العقد مطلوب', 400)
-  return NextResponse.json({ contractType, templates: await listTemplates(contractType) })
+  const type = await db.contractType.findUnique({ where: { name: contractType } })
+  if (!type) return jsonError('نوع العقد غير موجود', 404)
+  return NextResponse.json({ contractType, templates: await listTemplates(type.id) })
 }
 
 export async function POST(req: NextRequest) {
   const g = await adminGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   let body: Record<string, unknown>
   try {
@@ -70,6 +72,7 @@ export async function POST(req: NextRequest) {
   try {
     const v = await validateTemplateInput({
       contractType,
+      contractTypeId: type.id,
       title: body.title,
       valueMode: body.valueMode,
       pct: body.pct,
@@ -80,9 +83,9 @@ export async function POST(req: NextRequest) {
       payNo: body.payNo,
     })
 
-    const created = await db.typePaymentTpl.create({
+    const created = await db.typePaymentTemplate.create({
       data: {
-        contractType,
+        contractTypeId: type.id,
         payNo: v.payNo,
         title: v.title,
         pct: v.pct,

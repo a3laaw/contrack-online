@@ -6,15 +6,16 @@
 //  · FIFO V6.2: بركة القبض غير المخصص تُصرف على الخطة ثم الروابط الصريحة
 //  · العتبة المالية 0.001 · التواريخ نصية yyyy-MM-dd
 // ============================================================
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { round3 } from '@/lib/format'
 
 export const EPS = 0.001
 
-/** yyyy-MM-dd من Date (بأجزاء UTC) */
-export function dayStr(d: Date | null | undefined): string | null {
+/** yyyy-MM-dd من Date أو نص التاريخ المخزن (بأجزاء UTC) */
+export function dayStr(d: Date | string | null | undefined): string | null {
   if (!d) return null
-  return d.toISOString().slice(0, 10)
+  return typeof d === 'string' ? d : d.toISOString().slice(0, 10)
 }
 
 /** «اليوم» على منتصف النهار UTC لطابق مقارنة التواريخ المخزنة 12:00 */
@@ -82,7 +83,7 @@ export async function netAddendumsMap(contractIds: number[]): Promise<Map<number
     select: { contractId: true, amountAdd: true, amountDeduct: true },
   })
   for (const r of rows) {
-    const net = round3(r.amountAdd - r.amountDeduct)
+    const net = round3(Number(r.amountAdd) - Number(r.amountDeduct))
     if (Math.abs(net) < EPS) continue
     const cur = map.get(r.contractId) ?? { net: 0, debit: 0, credit: 0 }
     cur.net = round3(cur.net + net)
@@ -131,9 +132,9 @@ function normAr(s: string): string {
  * نهاية الإشراف الفعلية: مرحلة اسمها يحوي «انهاء» و«اشراف» أُغلقت —
  * بعدها لا تُحسب أيام جديدة (كالأصل _actual_supervision_end).
  */
-async function actualSupervisionEnd(contractId: number): Promise<Date | null> {
+async function actualSupervisionEnd(contractId: number): Promise<string | null> {
   const stages = await db.contractStage.findMany({
-    where: { contractId, endDate: { not: null }, isSkipped: false },
+    where: { contractId, endDate: { not: '' }, isSkipped: false },
     select: { name: true, endDate: true },
     orderBy: { endDate: 'desc' },
   })
@@ -145,21 +146,21 @@ async function actualSupervisionEnd(contractId: number): Promise<Date | null> {
 }
 
 export function isSupervisionContract(c: {
-  supStartDate: Date | null
+  supStartDate: string | null
   supMonths: number
-  supMonthly: number
+  supMonthly: number | Prisma.Decimal
 }): boolean {
-  return Boolean(c.supStartDate) && c.supMonths > 0 && c.supMonthly > 0
+  return Boolean(c.supStartDate) && c.supMonths > 0 && Number(c.supMonthly) > 0
 }
 
 /** الحالة الكاملة لعقد إشراف (collected = قبض العقد الساري) */
 export function supervisionStatus(
   c: {
-    supStartDate: Date | null
+    supStartDate: string | null
     supMonths: number
-    supMonthly: number
-    supDiscount: number
-    supWaivedMonths: number
+    supMonthly: number | Prisma.Decimal
+    supDiscount: number | Prisma.Decimal
+    supWaivedMonths: number | Prisma.Decimal
     supWaiveReason: string
   },
   collected: number,
@@ -167,12 +168,12 @@ export function supervisionStatus(
   actualEnd: Date | null = null,
 ): SupStatus | null {
   if (!isSupervisionContract(c)) return null
-  const start = c.supStartDate as Date
+  const start = new Date(`${c.supStartDate as string}T12:00:00.000Z`)
   const effToday = actualEnd && today >= actualEnd ? actualEnd : today
   const months = c.supMonths
-  const monthly = c.supMonthly
-  const discount = c.supDiscount || 0
-  const waived = c.supWaivedMonths || 0
+  const monthly = Number(c.supMonthly)
+  const discount = Number(c.supDiscount) || 0
+  const waived = Number(c.supWaivedMonths) || 0
   const gross = months * monthly
   const baseValue = Math.max(0, gross - discount)
   const baseEnd = addMonths(start, months)
@@ -238,7 +239,7 @@ export async function contractValuesMap(
     receiptsByContract(contractIds),
   ])
   for (const c of contracts) {
-    const amount = c.amount
+    const amount = Number(c.amount)
     const netAdd = addendums.get(c.id)?.net ?? 0
     const collected = receipts.get(c.id) ?? 0
     let supExt = 0
@@ -265,7 +266,7 @@ export async function receiptsByContract(contractIds: number[]): Promise<Map<num
     _sum: { amount: true },
   })
   for (const r of rows) {
-    if (r.contractId != null) map.set(r.contractId, round3(r._sum.amount ?? 0))
+    if (r.contractId != null) map.set(r.contractId, round3(Number(r._sum.amount ?? 0)))
   }
   return map
 }
@@ -283,7 +284,7 @@ export async function unallocatedReceiptsByContract(contractIds: number[]): Prom
     _sum: { amount: true },
   })
   for (const r of rows) {
-    if (r.contractId != null) map.set(r.contractId, round3(r._sum.amount ?? 0))
+    if (r.contractId != null) map.set(r.contractId, round3(Number(r._sum.amount ?? 0)))
   }
   return map
 }
@@ -301,7 +302,7 @@ export async function receiptLinksMaps(contractIds: number[]): Promise<{
     select: { lineId: true, amount: true, voucher: { select: { contractId: true } } },
   })
   const lineToContract = new Map<number, number>()
-  const plans = await db.paymentPlan.findMany({
+  const plans = await db.paymentPlanItem.findMany({
     where: { contractId: { in: contractIds } },
     select: { id: true, contractId: true },
   })
@@ -309,8 +310,8 @@ export async function receiptLinksMaps(contractIds: number[]): Promise<{
   for (const l of rows) {
     const cid = lineToContract.get(l.lineId)
     if (cid == null) continue
-    byLine.set(l.lineId, round3((byLine.get(l.lineId) ?? 0) + l.amount))
-    byContract.set(cid, round3((byContract.get(cid) ?? 0) + l.amount))
+    byLine.set(l.lineId, round3((byLine.get(l.lineId) ?? 0) + Number(l.amount)))
+    byContract.set(cid, round3((byContract.get(cid) ?? 0) + Number(l.amount)))
   }
   return { byContract, byLine }
 }
@@ -319,7 +320,7 @@ export async function receiptLinksMaps(contractIds: number[]): Promise<{
 export async function paymentLinksByLine(subContractIds: number[]): Promise<Map<number, number>> {
   const byLine = new Map<number, number>()
   if (subContractIds.length === 0) return byLine
-  const plans = await db.subPaymentPlan.findMany({
+  const plans = await db.subPaymentPlanItem.findMany({
     where: { subContractId: { in: subContractIds } },
     select: { id: true },
   })
@@ -329,7 +330,7 @@ export async function paymentLinksByLine(subContractIds: number[]): Promise<Map<
     where: { kind: 'payment', voucher: { cancelled: false }, lineId: { in: [...ids] } },
     select: { lineId: true, amount: true },
   })
-  for (const l of rows) byLine.set(l.lineId, round3((byLine.get(l.lineId) ?? 0) + l.amount))
+  for (const l of rows) byLine.set(l.lineId, round3((byLine.get(l.lineId) ?? 0) + Number(l.amount)))
   return byLine
 }
 
@@ -341,14 +342,16 @@ export interface PlanLineRaw {
   id: number
   contractId: number
   title: string
-  dueDate: Date
+  /** yyyy-MM-dd نصيًا كما في المخطط */
+  dueDate: string
   amount: number
   sortOrder: number
   stageId: number | null
-  triggeredAt: Date | null
+  /** '' = غير مُطلقة */
+  triggeredAt: string
   stageSkipped: boolean
   stageName: string | null
-  stageEnd: Date | null
+  stageEnd: string | null
 }
 
 /** تغطية FIFO: بركة القبض غير المخصص (ناقص الموجّه بالروابط) ثم الروابط لكل خط */
@@ -372,7 +375,7 @@ export function fifoCover(
 export async function loadCustomerPlan(contractIds: number[]): Promise<Map<number, PlanLineRaw[]>> {
   const byContract = new Map<number, PlanLineRaw[]>()
   if (contractIds.length === 0) return byContract
-  const rows = await db.paymentPlan.findMany({
+  const rows = await db.paymentPlanItem.findMany({
     where: { contractId: { in: contractIds } },
     orderBy: [{ dueDate: 'asc' }, { sortOrder: 'asc' }],
     select: {
@@ -388,7 +391,7 @@ export async function loadCustomerPlan(contractIds: number[]): Promise<Map<numbe
       contractId: r.contractId,
       title: r.title,
       dueDate: r.dueDate,
-      amount: r.amount,
+      amount: Number(r.amount),
       sortOrder: r.sortOrder,
       stageId: r.stageId,
       triggeredAt: r.triggeredAt,
@@ -436,7 +439,7 @@ export function strictDueByContract(
       if (stageLinked && it.stageSkipped) return
       if (stageLinked && !triggered && remaining > EPS) return
       if (remaining <= EPS) return
-      if (calendarDays(it.dueDate, today) > 0) return // strict: اليوم أو قبله
+      if (it.dueDate > (dayStr(today) as string)) return // strict: اليوم أو قبله
       sum = round3(sum + remaining)
     })
     if (sum > EPS) out.set(cid, sum)

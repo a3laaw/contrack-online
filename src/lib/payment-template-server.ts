@@ -84,6 +84,7 @@ async function validateStageLinks(
  */
 export async function validateTemplateInput(opts: {
   contractType: string
+  contractTypeId: number
   title: unknown
   valueMode: unknown
   pct?: unknown
@@ -94,7 +95,7 @@ export async function validateTemplateInput(opts: {
   payNo?: unknown
   excludeTemplateId?: number | null
 }): Promise<TemplateValidated> {
-  const { contractType, excludeTemplateId = null } = opts
+  const { contractType, contractTypeId, excludeTemplateId = null } = opts
 
   const title = typeof opts.title === 'string' ? opts.title.trim() : ''
   if (!title) throw new TemplateInputError('اسم الدفعة إلزامي')
@@ -183,15 +184,15 @@ export async function validateTemplateInput(opts: {
     throw new TemplateInputError('رقم الدفعة يجب أن يكون بين 1 و 99')
   }
   if (payNo == null) {
-    const max = await db.typePaymentTpl.aggregate({
-      where: { contractType },
+    const max = await db.typePaymentTemplate.aggregate({
+      where: { contractTypeId },
       _max: { payNo: true },
     })
     payNo = (max._max.payNo ?? 0) + 1
   } else {
-    const dup = await db.typePaymentTpl.findFirst({
+    const dup = await db.typePaymentTemplate.findFirst({
       where: {
-        contractType,
+        contractTypeId,
         payNo,
         id: excludeTemplateId ? { not: excludeTemplateId } : undefined,
       },

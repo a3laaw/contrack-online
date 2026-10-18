@@ -16,7 +16,7 @@ import type { CustomerBalanceDTO, CustomerBalanceRow } from '@/lib/report-types'
 
 export async function GET(req: NextRequest) {
   const g = await authGuard(req)
-  if (g.error) return g.error
+  if ('response' in g) return g.response
 
   const sp = req.nextUrl.searchParams
   const fromD = parseDay(sp.get('from'))
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
   const cWhere: Record<string, unknown> = { status: { not: 'ملغى' } }
   if (hasPeriod) {
-    const dRange: Record<string, Date> = {}
+    const dRange: Record<string, string> = {}
     if (fromD) dRange.gte = fromD
     if (toD) dRange.lte = toD
     cWhere.contractDate = dRange
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
   })
   const partyByCustomer = new Map<number, number>()
   for (const r of partyReceipts) {
-    if (r.partyId != null) partyByCustomer.set(r.partyId, round3(r._sum.amount ?? 0))
+    if (r.partyId != null) partyByCustomer.set(r.partyId, round3(Number(r._sum.amount ?? 0)))
   }
 
   // المتبقي بقاعدة 35 لكل عقد (لحساب المستحق الآن للعقود بلا خطة)
@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
     let rawValue = 0, current = 0, collected = 0, dueNow = 0
     let debit = 0, credit = partyByCustomer.get(cu.id) ?? 0
     for (const c of mine) {
-      const v = values.get(c.id) ?? { amount: c.amount, netAdd: 0, supExt: 0, current: round3(c.amount) }
+      const v = values.get(c.id) ?? { amount: Number(c.amount), netAdd: 0, supExt: 0, current: round3(Number(c.amount)) }
       const add = addendums.get(c.id)
       rawValue = round3(rawValue + v.amount)
       current = round3(current + v.current)

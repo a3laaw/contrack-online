@@ -35,12 +35,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { api } from './api'
+import { api, apiGet, type ContractTypeLite } from './api'
 import { WorkflowEditor } from './WorkflowEditor'
 import { adminApi } from '@/lib/admin-api'
 import type { PaymentTemplateDTO, PaymentTemplateInput } from '@/lib/admin-types'
 import { formatKWD } from '@/lib/format'
-import type { ContractTypeDTO } from '@/lib/contrack-types'
+
 
 const payKindLabel: Record<string, string> = {
   advance: 'مقدمة',
@@ -49,7 +49,32 @@ const payKindLabel: Record<string, string> = {
   days: 'بالأيام',
 }
 
-function TypeCard({ t }: { t: ContractTypeDTO }) {
+/** بند من قالب دفعات النوع كما يرجعه GET /api/contract-types/[id]/template */
+interface TypeTplItem {
+  payNo: number
+  title: string
+  pct: number
+  amountFixed: number
+  triggerStageName: string
+  daysOffset: number
+  linkKeyword: string
+}
+
+/** كارت نوع عقد — يجلب شجرة مراحل النوع وقالب دفعاته من نقاط النهاية الفعلية */
+function TypeCard({ t }: { t: ContractTypeLite }) {
+  const stagesQ = useQuery({
+    queryKey: ['type-card-stages', t.name],
+    queryFn: () => adminApi.workflowStages(t.name),
+    staleTime: 60_000,
+  })
+  const tplQ = useQuery({
+    queryKey: ['type-card-template', t.id],
+    queryFn: () => apiGet<{ items: TypeTplItem[] }>(`/api/contract-types/${t.id}/template`),
+    staleTime: 60_000,
+  })
+  const stages = (stagesQ.data?.stages ?? []).filter((s) => s.childrenCount === 0)
+  const payments = tplQ.data?.items ?? []
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -66,43 +91,59 @@ function TypeCard({ t }: { t: ContractTypeDTO }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <p className="text-xs font-bold text-muted-foreground mb-2">مراحل القالب ({t.stages.length})</p>
-          <ol className="space-y-1.5">
-            {t.stages.map((s) => (
-              <li key={s.id} className="flex flex-wrap items-center gap-2 text-sm bg-muted/40 rounded-lg px-3 py-2">
-                <span className="size-5 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center numeric shrink-0">
-                  {s.stageOrder}
-                </span>
-                <span className="font-medium">{s.stageName}</span>
-                {s.expectedDays > 0 && <span className="text-[11px] text-muted-foreground numeric">{s.expectedDays} يومًا</span>}
-                {s.payPct > 0 && (
-                  <Badge variant="outline" className="text-[10px] ms-auto numeric">
-                    {payKindLabel[s.payKind] ?? s.payKind} {s.payPct}%
-                  </Badge>
-                )}
-              </li>
-            ))}
-          </ol>
+          <p className="text-xs font-bold text-muted-foreground mb-2">
+            مراحل القالب ({stages.length}){stagesQ.isLoading ? ' …' : ''}
+          </p>
+          {stagesQ.isLoading ? (
+            <Skeleton className="h-20 rounded-lg" />
+          ) : stages.length === 0 ? (
+            <p className="text-xs text-muted-foreground border rounded-lg p-3 bg-muted/30">لا مراحل معرفة — عدّل من تاب «شجرة المراحل»</p>
+          ) : (
+            <ol className="space-y-1.5">
+              {stages.map((s) => (
+                <li key={s.id} className="flex flex-wrap items-center gap-2 text-sm bg-muted/40 rounded-lg px-3 py-2">
+                  <span className="size-5 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center numeric shrink-0">
+                    {s.stageOrder}
+                  </span>
+                  <span className="font-medium">{s.stageName}</span>
+                  {s.expectedDays > 0 && <span className="text-[11px] text-muted-foreground numeric">{s.expectedDays} يومًا</span>}
+                  {s.payPct > 0 && (
+                    <Badge variant="outline" className="text-[10px] ms-auto numeric">
+                      {payKindLabel[s.payKind] ?? s.payKind} {s.payPct}%
+                    </Badge>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
         <div>
-          <p className="text-xs font-bold text-muted-foreground mb-2">خطة الدفعات ({t.payments.length})</p>
-          <ol className="space-y-1.5">
-            {t.payments.map((p) => (
-              <li key={p.id} className="flex flex-wrap items-center gap-2 text-sm border rounded-lg px-3 py-2">
-                <span className="size-5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-[11px] font-bold flex items-center justify-center numeric shrink-0">
-                  {p.payNo}
-                </span>
-                <span className="font-medium">{p.title}</span>
-                <span className="text-[11px] text-muted-foreground">
-                  {p.triggerStageName ? `عند «${p.triggerStageName}»` : 'بلا مرحلة محفزة'}
-                  {p.daysOffset > 0 ? ` + ${p.daysOffset} يومًا` : ''}
-                </span>
-                <span className="ms-auto font-bold text-xs numeric">
-                  {p.pct > 0 ? `${p.pct}%` : formatKWD(p.amountFixed)}
-                </span>
-              </li>
-            ))}
-          </ol>
+          <p className="text-xs font-bold text-muted-foreground mb-2">
+            خطة الدفعات ({payments.length}){tplQ.isLoading ? ' …' : ''}
+          </p>
+          {tplQ.isLoading ? (
+            <Skeleton className="h-20 rounded-lg" />
+          ) : payments.length === 0 ? (
+            <p className="text-xs text-muted-foreground border rounded-lg p-3 bg-muted/30">لا دفعات معرفة — عدّل من تاب «قوالب الدفع»</p>
+          ) : (
+            <ol className="space-y-1.5">
+              {payments.map((p, i) => (
+                <li key={`${p.payNo}-${i}`} className="flex flex-wrap items-center gap-2 text-sm border rounded-lg px-3 py-2">
+                  <span className="size-5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-[11px] font-bold flex items-center justify-center numeric shrink-0">
+                    {p.payNo}
+                  </span>
+                  <span className="font-medium">{p.title}</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {p.triggerStageName ? `عند «${p.triggerStageName}»` : 'بلا مرحلة محفزة'}
+                    {p.daysOffset > 0 ? ` + ${p.daysOffset} يومًا` : ''}
+                  </span>
+                  <span className="ms-auto font-bold text-xs numeric">
+                    {p.pct > 0 ? `${p.pct}%` : formatKWD(p.amountFixed)}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
       </CardContent>
     </Card>

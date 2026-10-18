@@ -1,3 +1,9 @@
+// ============================================================
+// POST /api/backups/restore — استعادة نسخة JSON على Postgres — للمدير
+// { fileName } ⇒ ملف من db/backups:
+// 1) نسخة أمان (safety-…) من الوضع الحالي قبل أي تغيير
+// 2) معاملة واحدة: حذف بالترتيب العكسي ثم إنشاء بالمعرّفات الأصلية ثم setval للتسلسلات
+// ============================================================
 import { NextRequest } from "next/server";
 import fs from "fs";
 import path from "path";
@@ -5,13 +11,13 @@ import { db } from "@/lib/db";
 import { adminGuard, audit, jsonError, ok } from "@/lib/api-utils";
 import {
   BACKUPS_DIR,
-  DB_PATH,
-  addManifestEntry,
-  ensureBackupsDir,
-  stampNow,
-} from "@/lib/backups";
+  buildBackupDump,
+  readSnapshotFile,
+  restoreBackupData,
+  saveSnapshotFile,
+  snapshotFileName,
+} from "@/lib/backup-dump";
 
-/** استعادة نسخة احتياطية: {fileName} — للمدير، مع نسخة أمان تلقائية أولًا */
 export async function POST(req: NextRequest) {
   const guard = await adminGuard(req);
   if ("response" in guard) return guard.response;
@@ -20,50 +26,60 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as { fileName?: string };
   const fileName = path.basename(String(body.fileName || "").trim());
   if (!fileName) return jsonError("اسم ملف النسخة مطلوب");
-  if (!fileName.endsWith(".db")) return jsonError("الملف المحدد ليس نسخة قاعدة بيانات صحيحة");
+  if (!fileName.endsWith(".json")) return jsonError("الملف المحدد ليس نسخة JSON صحيحة");
 
   const srcPath = path.join(BACKUPS_DIR, fileName);
-  if (!srcPath.startsWith(BACKUPS_DIR) || !fs.existsSync(srcPath)) {
+  if (!srcPath.startsWith(BACKUPS_DIR + path.sep) || !fs.existsSync(srcPath)) {
     return jsonError("ملف النسخة الاحتياطية غير موجود", 404);
   }
-  if (!fs.existsSync(DB_PATH)) return jsonError("ملف قاعدة البيانات الحالي غير موجود", 500);
 
-  ensureBackupsDir();
-  const stamp = stampNow();
+  // قراءة النسخة والتحقق من بنيتها قبل العبث بالقاعدة
+  let dump;
+  try {
+    dump = readSnapshotFile(fileName);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg === "NOT_A_BACKUP") {
+      return jsonError("الملف ليس نسخة احتياطية صالحة — الفهرس المختصر (manifest) أو البيانات مفقودة", 400);
+    }
+    return jsonError("الملف تالف — تعذرت قراءته بصيغة JSON", 400);
+  }
 
   try {
-    // 1) نسخة أمان من القاعدة الحالية قبل أي استبدال
-    const safetyFile = `safety-${stamp}.db`;
-    const safetyPath = path.join(BACKUPS_DIR, safetyFile);
-    await fs.promises.copyFile(DB_PATH, safetyPath);
-    const safetySize = fs.statSync(safetyPath).size;
-    addManifestEntry({
-      fileName: safetyFile,
-      kind: "safety",
-      username,
-      size: safetySize,
-      createdAt: new Date().toISOString(),
+    // 1) نسخة أمان من الوضع الحالي (JSON) — يمكن استعادتها لاحقًا
+    const safetyDump = await buildBackupDump(db, username);
+    const safetyFile = snapshotFileName("safety");
+    await saveSnapshotFile(safetyFile, safetyDump);
+
+    // 2) الاستعادة في معاملة واحدة (مهلة واسعة لقاعدة كبيرة)
+    const { inserted } = await db.$transaction(async (tx) => restoreBackupData(tx, dump.data), {
+      timeout: 180_000,
+      maxWait: 15_000,
     });
 
-    // 2) استبدال القاعدة بالنسخة المطلوبة (Prisma يعيد الاتصال بالملف تلقائيًا)
-    await fs.promises.copyFile(srcPath, DB_PATH);
+    const total = Object.values(inserted).reduce((a, b) => a + b, 0);
+    const tablesCount = Object.keys(inserted).length;
 
-    await audit(db, {
-      username,
-      action: "استعادة نسخة احتياطية",
-      entityType: "backup",
-      entityName: fileName,
-      reason: `نسخة الأمان: ${safetyFile}`,
-    });
+    try {
+      await audit(db, {
+        username,
+        action: "استعادة نسخة احتياطية",
+        entityType: "backup",
+        entityName: fileName,
+        reason: `نسخة الأمان: ${safetyFile} — الصفوف: ${total}`,
+      });
+    } catch {
+      /* لا نُفشل الاستعادة إن تعذر التدقيق */
+    }
 
     return ok({
       restored: true,
       safetyFile,
-      message:
-        "تمت الاستعادة بنجاح — أخذنا نسخة أمان من القاعدة الحالية قبل الاستبدال. إن لزم يتفعل الأمر عند إعادة تشغيل الخدمة، ويعيد Prisma الاتصال تلقائيًا بملف القاعدة.",
+      counts: inserted,
+      message: `تمت الاستعادة بنجاح — ${total} صفًا عبر ${tablesCount} جدولًا، وأُعيد ضبط تسلسلات المعرّفات. أُخذت نسخة أمان (${safetyFile}) من الوضع السابق.`,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "خطأ غير معروف";
-    return jsonError(`تعذرت الاستعادة: ${msg}`, 500);
+    return jsonError(`تعذرت الاستعادة — لم يطرأ أي تغيير على القاعدة (كل العمليات داخل معاملة واحدة): ${msg}`, 500);
   }
 }

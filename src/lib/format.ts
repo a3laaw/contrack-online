@@ -110,3 +110,29 @@ export const PAYMENT_STATUS_LABEL: Record<string, string> = {
   skipped: "متخطاة",
   advance: "دفعة مقدمة",
 };
+
+/** طرق الدفع الافتراضية (كقائمة المكتب — تُستخدم في حوارات السندات) */
+export const PAYMENT_METHODS = ["نقدًا", "تحويل بنكي", "KNET", "شيك", "أخرى"] as const;
+
+const VOUCHER_TYPE_LABEL: Record<string, string> = {
+  payment: "سند صرف",
+  receipt: "سند قبض",
+  transfer: "سند تحويل",
+  custody_return: "إرجاع عهدة",
+  salary_deduction: "خصم راتب",
+};
+
+/** تسمية عربية لنوع السند */
+export function voucherTypeLabel(vtype: string): string {
+  return VOUCHER_TYPE_LABEL[vtype] ?? vtype;
+}
+
+/** اسم بديل متوافق مع حوارات الطباعة */
+export const formatDate = fmtDate;
+
+/** تاريخ اليوم المحلي بصيغة YYYY-MM-DD (آمن للعميل — بدون انزياح UTC) */
+export function todayStr(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
