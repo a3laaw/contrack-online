@@ -16,6 +16,14 @@ import {
   LinkRow,
 } from "@/lib/contrack-core";
 import { actualSupervisionEnd, getSettingsRow } from "@/lib/contrack-server";
+import {
+  cashflowPaymentsOnly,
+  cashflowReceiptsOnly,
+  cashflowRecoveriesOnly,
+  cashflowTransfersOnly,
+  type CashItem,
+  type TransferItem,
+} from "@/lib/cashflow-modes-core";
 
 // ===================================================================
 // المكتبة الخلفية المشتركة للتقارير وكشوف الحساب (Task 10-a)
@@ -53,7 +61,8 @@ export interface ReportTable {
   rows: (string | number)[][];
   numberCols: number[];
   accentRows: number[];
-  totals?: Record<string, number | string>;
+  /** مصفوفة = صف إجماليات مطابق للمكتبي (أنماط *_only) · كائن = مفاتيح مسماة (الأنماط القديمة) */
+  totals?: Record<string, number | string> | (string | number)[];
   note?: string;
 }
 
@@ -1093,6 +1102,48 @@ export async function reportCashflow(opts: { from?: string; to?: string; mode?: 
     orderBy: [{ vdate: "asc" }, { id: "asc" }],
   });
 
+  // ===== المرحلة 5: أنماط *_only الأربعة — مرآة _data_cash_flow المكتبي (reports_page.py:474+) =====
+  // نفس تصنيفات الوضع التفصيلي القائم: بلا الشريك · بلا تصفيات العهد المجمّع · بلا ردّ السلف
+  if (mode === "receipts_only" || mode === "payments_only" || mode === "recoveries_only" || mode === "transfers_only") {
+    const receipts: CashItem[] = [];
+    const payments: CashItem[] = [];
+    const recoveries: CashItem[] = [];
+    const transfers: TransferItem[] = [];
+    for (const v of rows0) {
+      const amount = Number(v.amount);
+      const party = v.party || v.employee?.name || "";
+      const contract = v.contract?.contractNumber || "";
+      const desc = v.description || "";
+      if (v.vtype === "receipt") {
+        if (v.advanceEmployeeId || desc.startsWith("رد سلفة")) continue;
+        if (v.partyType === "partner") continue;
+        receipts.push({ vdate: v.vdate, party, contract, amount, desc });
+      } else if (v.vtype === "payment") {
+        if (v.custodyAccountId && v.expenseGroupRef) continue;
+        if (v.partyType === "partner") continue;
+        payments.push({ vdate: v.vdate, party, contract, amount, desc });
+      } else if (v.vtype === "custody_return") {
+        recoveries.push({ vdate: v.vdate, party, contract, amount, desc });
+      } else if (v.vtype === "transfer") {
+        transfers.push({ vdate: v.vdate, from: v.method, to: v.account, amount, desc });
+      }
+    }
+    const built =
+      mode === "receipts_only" ? cashflowReceiptsOnly(receipts)
+      : mode === "payments_only" ? cashflowPaymentsOnly(payments)
+      : mode === "recoveries_only" ? cashflowRecoveriesOnly(recoveries)
+      : cashflowTransfersOnly(transfers);
+    return {
+      title: built.title,
+      heads: built.heads,
+      rows: built.rows,
+      numberCols: [4],
+      accentRows: [],
+      totals: built.totalsRow,
+      note: built.note,
+    };
+  }
+
   interface Bucket { inflow: number; outflow: number; bankFees: number; recoveries: number; partnerNet: number; net: number; rows: { date: string; kind: string; party: string; contract: string; amount: number; desc: string }[] }
   const isFee = (v: (typeof rows0)[number]) => v.parentVoucherId !== null || (v.notes || "").startsWith("BANK_FEE");
   const blank = (): Bucket => ({ inflow: 0, outflow: 0, bankFees: 0, recoveries: 0, partnerNet: 0, net: 0, rows: [] });
@@ -1594,7 +1645,10 @@ export function reportTableToCsv(table: ReportTable): string {
   lines.push("");
   lines.push(table.heads.map(csvField).join(","));
   for (const row of table.rows) lines.push(row.map(csvField).join(","));
-  if (table.totals && Object.keys(table.totals).length > 0) {
+  if (Array.isArray(table.totals)) {
+    // صف الإجماليات المصفوفي (أنماط *_only) — صف واحد كالمكتبي حرفيًا
+    if (table.totals.length > 0) lines.push(table.totals.map(csvField).join(","));
+  } else if (table.totals && Object.keys(table.totals).length > 0) {
     lines.push("");
     lines.push(table.heads.map(() => "").join(","));
     lines.push(["الإجماليات", ...Object.entries(table.totals).map(([k, v]) => `${k}: ${csvField(v)}`)].filter(Boolean).join(","));

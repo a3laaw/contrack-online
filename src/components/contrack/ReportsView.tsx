@@ -37,6 +37,8 @@ import { errMessage } from "./contrack-types";
 import { REPORTS, visibleReports } from "./reports-list";
 import { useFeatureFlags } from "./FeatureFlagsProvider";
 import { formatKWD } from "@/lib/format";
+import { monthlyChartData } from "@/lib/cashflow-modes-core";
+import { CashflowChart } from "./CashflowChart";
 
 interface ReportsViewProps {
   user: User;
@@ -261,6 +263,16 @@ export function ReportsView({ user: _user, onAuthError, selected, onSelect }: Re
               </Button>
             </CardContent>
           </Card>
+
+          {/* الرسم الشهري — مرآة CashflowChart المكتبي (أخضر وارد / أحمر منصرف) */}
+          {def.key === "cashflow" && option === "monthly" && data && data.rows.length > 0 && (
+            <Card className="p-0">
+              <CardContent className="p-3">
+                <p className="mb-2 text-xs font-semibold text-muted-foreground">الوارد والمنصرف شهريًا</p>
+                <CashflowChart data={monthlyChartData(data.rows)} />
+              </CardContent>
+            </Card>
+          )}
 
           {/* الجدول الموحد */}
           <Card className="p-0">

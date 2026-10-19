@@ -132,6 +132,10 @@ export const REPORTS: ReportDef[] = [
     options: [
       { value: "detail", label: "تفصيلي" },
       { value: "summary", label: "ملخص" },
+      { value: "receipts_only", label: "وارد فقط" },
+      { value: "payments_only", label: "منصرف فقط" },
+      { value: "recoveries_only", label: "مسترد فقط" },
+      { value: "transfers_only", label: "تحويلات فقط" },
       { value: "daily", label: "يومي" },
       { value: "monthly", label: "شهري" },
       { value: "yearly", label: "سنوي" },
