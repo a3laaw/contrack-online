@@ -36,6 +36,12 @@ export interface ReportDef {
   selectParam?: string; // اسم باراميتر القائمة المنسدلة
   selectLabel?: string;
   options?: ReportOption[]; // أول خيار = «الكل» (قيمة فارغة لا تُرسل)
+  /**
+   * مفتاح الميزة rep_* (المرحلة 3/ب — مطابقة المكتبي feature_service):
+   * تعطيله يخفي التقرير من القائمة ويوقفه خادميًا (report-features.ts).
+   * «تفصيل المصروفات» لا مفتاحًا مكتبيًا لها — بلا بوابة ميزة (موثق).
+   */
+  flag?: string;
 }
 
 export const REPORTS: ReportDef[] = [
@@ -45,6 +51,7 @@ export const REPORTS: ReportDef[] = [
     icon: UsersIcon,
     desc: "أرصدة العملاء والمحصّل والمستحق الآن",
     period: true,
+    flag: "rep_customers",
     selectParam: "option",
     selectLabel: "العرض",
     options: [
@@ -60,6 +67,7 @@ export const REPORTS: ReportDef[] = [
     label: "مستحقات المراحل",
     icon: Layers,
     desc: "المستحق لكل مرحلة بحالاتها الصارمة",
+    flag: "rep_dues_board",
     selectParam: "option",
     selectLabel: "العرض",
     options: [
@@ -73,6 +81,7 @@ export const REPORTS: ReportDef[] = [
     label: "تأخير الإشراف",
     icon: Timer,
     desc: "شهور وأيام وأموال التأخير الإشرافي",
+    flag: "rep_supervision_delay",
     selectParam: "option",
     selectLabel: "العرض",
     options: [
@@ -85,6 +94,7 @@ export const REPORTS: ReportDef[] = [
     label: "المقاولون",
     icon: HardHat,
     desc: "تقرير مقاولي الباطن الشامل بالدفعات",
+    flag: "rep_subcontractors",
   },
   {
     key: "vouchers",
@@ -92,6 +102,7 @@ export const REPORTS: ReportDef[] = [
     icon: Receipt,
     desc: "سندات الفترة مقسمة إيرادًا ومصروفًا",
     period: true,
+    flag: "rep_vouchers",
     selectParam: "vtype",
     selectLabel: "نوع السند",
     options: [
@@ -115,6 +126,7 @@ export const REPORTS: ReportDef[] = [
     icon: Banknote,
     desc: "الوارد والمنصرف وصافي الحركة",
     period: true,
+    flag: "rep_cashflow",
     selectParam: "mode",
     selectLabel: "العرض",
     options: [
@@ -131,6 +143,7 @@ export const REPORTS: ReportDef[] = [
     icon: FileText,
     desc: "نظرة شاملة وربحية وانتهاء",
     period: true,
+    flag: "rep_contracts",
     selectParam: "option",
     selectLabel: "الخيار",
     options: [
@@ -146,6 +159,7 @@ export const REPORTS: ReportDef[] = [
     label: "مراحل التنفيذ",
     icon: Gauge,
     desc: "الإشغال الزمني للمراحل الجارية",
+    flag: "rep_execution",
     selectParam: "option",
     selectLabel: "العرض",
     options: [
@@ -163,6 +177,7 @@ export const REPORTS: ReportDef[] = [
     icon: Target,
     desc: "العملاء المسجلون بلا أي عقد بعد · فرصك البيعية القادمة للتواصل والمتابعة",
     period: true,
+    flag: "rep_leads",
   },
   {
     key: "journal",
@@ -170,8 +185,14 @@ export const REPORTS: ReportDef[] = [
     icon: BookOpenText,
     desc: "قيود اليومية المزدوجة",
     period: true,
+    flag: "rep_journal",
   },
 ];
 
 /** التقرير الافتراضي عند فتح تاب التقارير */
 export const DEFAULT_REPORT_KEY = REPORTS[0].key;
+
+/** التقارير المرئية فقط حسب مزاياها rep_* (المرحلة 3/ب) — القائمة والمنسدلة والافتراضي */
+export function visibleReports(flagOn: (key: string) => boolean): ReportDef[] {
+  return REPORTS.filter((r) => !r.flag || flagOn(r.flag));
+}

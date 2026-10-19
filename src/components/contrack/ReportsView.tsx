@@ -34,7 +34,8 @@ import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, getStoredToken } from "./api";
 import type { ReportCellValue, ReportResponse, User } from "./contrack-types";
 import { errMessage } from "./contrack-types";
-import { REPORTS } from "./reports-list";
+import { REPORTS, visibleReports } from "./reports-list";
+import { useFeatureFlags } from "./FeatureFlagsProvider";
 import { formatKWD } from "@/lib/format";
 
 interface ReportsViewProps {
@@ -100,13 +101,16 @@ async function downloadCsv(report: string, params: Record<string, string>, title
 
 export function ReportsView({ user: _user, onAuthError, selected, onSelect }: ReportsViewProps) {
   const { toast } = useToast();
+  // المرحلة 3/ب: التقارير المرئية حسب مزاياها rep_* (المنسدلة والافتراضي — والقائمة الرسمية تخفي من nav)
+  const { enabled: flagOn } = useFeatureFlags();
+  const visReports = React.useMemo(() => visibleReports(flagOn), [flagOn]);
 
   const [from, setFrom] = React.useState("");
   const [to, setTo] = React.useState("");
   const [option, setOption] = React.useState("");
   const [exporting, setExporting] = React.useState(false);
 
-  const def = REPORTS.find((r) => r.key === selected) ?? REPORTS[0];
+  const def = REPORTS.find((r) => r.key === selected) ?? visReports[0] ?? REPORTS[0];
 
   // إعادة ضبط الفلاتر عند تبديل التقرير
   React.useEffect(() => {
@@ -182,7 +186,7 @@ export function ReportsView({ user: _user, onAuthError, selected, onSelect }: Re
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {REPORTS.map((r) => (
+              {visReports.map((r) => (
                 <SelectItem key={r.key} value={r.key}>
                   {r.label}
                 </SelectItem>

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { adminGuard, authGuard, jsonError, ok, parseDay, audit, todayStr } from "@/lib/api-utils";
+import { adminGuard, authGuard, featureGuard, jsonError, ok, parseDay, audit, todayStr } from "@/lib/api-utils";
 import { EPS, r3 } from "@/lib/contrack-core";
 import { VoucherError } from "@/lib/voucher-server";
 import {
@@ -37,6 +37,10 @@ export async function GET(req: NextRequest, { params }: P) {
 export async function PATCH(req: NextRequest, { params }: P) {
   const guard = await adminGuard(req);
   if ("response" in guard) return guard.response;
+  // المرحلة 3/ج: بوابة settle_edit — مطابقة المكتبي custody_center.py
+  // (تعطيل الميزة يمنع تعديل بنود التصفية حتى للمدير بنفس رسالة الأصل)
+  const seGuard = await featureGuard("settle_edit", "تعديل التصفية معطّل لهذا العميل.");
+  if (seGuard) return seGuard;
   try {
     const { ref } = await params;
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;

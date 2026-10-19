@@ -1,11 +1,16 @@
 import { NextRequest } from "next/server";
-import { authGuard, ok } from "@/lib/api-utils";
+import { authGuard, ok, featureGuard } from "@/lib/api-utils";
+import { REPORT_FEATURE } from "@/lib/report-features";
 import { reportExecution } from "@/lib/report-server";
 
 /** مراحل التنفيذ — GET /api/reports/execution?option=stages|occupancy&contractType&stage */
 export async function GET(req: NextRequest) {
   const guard = await authGuard(req, "report_execution");
   if ("response" in guard) return guard.response;
+
+  // المرحلة 3/ب: بوابة الميزة rep_execution — تعطيلها يوقف التقرير خادميًا (كالمكتبي)
+  const fGuard = await featureGuard(REPORT_FEATURE["execution"]!);
+  if (fGuard) return fGuard;
 
   const sp = req.nextUrl.searchParams;
   const table = await reportExecution({

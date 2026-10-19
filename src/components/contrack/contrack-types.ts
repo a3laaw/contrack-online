@@ -690,6 +690,8 @@ export interface ContractTypeDTO {
   defaultAmount?: number;
   notes?: string;
   active?: boolean;
+  /** عدد دفعات قالب النوع (type_payment_tpl) — المرحلة 3/ج: وضع القالب في التعديل */
+  templatesCount?: number;
   manualTrack?: boolean;
   unitLabel?: string;
   unitPrice?: number;

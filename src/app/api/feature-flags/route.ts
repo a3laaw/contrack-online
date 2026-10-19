@@ -58,6 +58,13 @@ export async function PUT(req: NextRequest) {
       update: { enabled },
       create: { key, enabled },
     });
+    // المرحلة 3/ج: مزامنة bank_fee مع إعدادات الرسوم — مطابقة المكتبي
+    // settings.py:_save_modules ⇒ settings_service.set_modules(bank_fee=…):
+    // الرسوم تُقرأ من الإعداد bankFeeEnabled في محرك السندات (receiptBankFee)
+    // فحفظ المفتاح هنا يحدّثه فورًا (None = لا تغيير لبقية المفاتيح — قاعدة 15).
+    if (key === "bank_fee") {
+      await tx.setting.update({ where: { id: 1 }, data: { bankFeeEnabled: enabled } });
+    }
     await audit(tx, {
       username: guard.user.username,
       action: "تعديل ميزة",

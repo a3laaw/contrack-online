@@ -138,7 +138,8 @@ export const NAV_MODULES: NavModule[] = [
       icon: r.icon,
       view: "reports" as ViewName,
       report: r.key,
-      flag: "reports",
+      // المرحلة 3/ب: مفتاح الميزة rep_* لكل تقرير (كالشجرة المكتبية)، والأساس «reports»
+      flag: r.flag ?? "reports",
       perm: REPORT_PERM[r.key],
     })),
   },

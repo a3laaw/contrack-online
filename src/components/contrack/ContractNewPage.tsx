@@ -12,6 +12,16 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Banknote, ChevronLeft, ChevronRight, Layers, Trash2 } from "lucide-react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,8 +36,10 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, apiPost } from "./api";
+import { useFeatureFlags } from "./FeatureFlagsProvider";
 import type { ContractTypesResponse, CustomersResponse } from "./contrack-types";
 import { errMessage } from "./contrack-types";
+import { amountGuardProblems, type AmountGuardProblem } from "@/lib/contract-create";
 
 interface ContractNewPageProps {
   onAuthError: () => void;
@@ -63,6 +75,8 @@ export function ContractNewPage({
   const { toast } = useToast();
   const qc = useQueryClient();
   const [step, setStep] = React.useState(1);
+  // المرحلة 3/ج: مفاتيح amount_guard وtemplate_plan_mode (كالمكتبي)
+  const { enabled: flagOn } = useFeatureFlags();
 
   const typesQuery = useQuery<ContractTypesResponse>({
     queryKey: ["contract-types"],
@@ -86,8 +100,9 @@ export function ContractNewPage({
   const [payments, setPayments] = React.useState<PaymentDraft[]>([]);
 
   // ===== نفس إنشاء النافذة السابقة حرفيًا (نفس الـpayload والـinvalidations والـtoasts) =====
+  // المرحلة 3/ج: body.amountPolicy يُرسل فقط عند فرق المبلغ مع ميزة amount_guard مفعّلة
   const createMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (amountPolicy?: string) => {
       const typeName = fTypeId
         ? typesQuery.data?.types.find((t) => String(t.id) === fTypeId)?.name
         : undefined;
@@ -115,6 +130,7 @@ export function ContractNewPage({
             sortOrder: i,
           })),
       };
+      if (amountPolicy) body.amountPolicy = amountPolicy;
       return apiPost<{ contract: { id: number; contractNumber: string } }>("/api/contracts", body);
     },
     onSuccess: (res) => {
@@ -134,6 +150,17 @@ export function ContractNewPage({
     },
   });
 
+  // ===== حارس المبلغ amount_guard — مطابقة المكتبي (contracts.py) =====
+  // معطّلة ⇒ منع صارم برسالة الأصل الحرفية · مفعّلة ⇒ حوار الخيارات الثلاثة
+  const [guardBox, setGuardBox] = React.useState<{
+    amount: number;
+    planTotal: number;
+    problems: AmountGuardProblem[];
+  } | null>(null);
+
+  const fmtK = (n: number) =>
+    n.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+
   const submitCreate = () => {
     if (!fCustomerId) {
       toast({ variant: "destructive", title: "بيانات ناقصة", description: "اختر العميل أولًا" });
@@ -145,8 +172,40 @@ export function ContractNewPage({
       setStep(1);
       return;
     }
-    createMutation.mutate();
+    const planList = payments.filter((p) => p.title.trim() && Number(p.amount) > 0);
+    const amount = Number(fAmount || 0);
+    const planTotal = planList.reduce((s, p) => s + Number(p.amount || 0), 0);
+    const problems = amountGuardProblems(amount, planList.length ? planTotal : null);
+    if (problems.length) {
+      if (!flagOn("amount_guard")) {
+        // المنع الصارم — رسالة الأصل الحرفية
+        toast({
+          variant: "destructive",
+          title: "تعذر إنشاء العقد",
+          description: problems
+            .map((p) => `${p.label}: ${fmtK(p.total)} د.ك (الفرق ${fmtK(p.total - amount)})`)
+            .join("\n") + "\n\nعدّل القيم حتى تتساوى قبل الحفظ.",
+          className: "whitespace-pre-line text-right",
+        });
+        return;
+      }
+      setGuardBox({ amount, planTotal, problems });
+      return;
+    }
+    createMutation.mutate(undefined);
   };
+
+  const guardCreate = (policy: string) => {
+    setGuardBox(null);
+    createMutation.mutate(policy);
+  };
+
+  // ===== وضع القالب template_plan_mode — مطابقة المكتبي (contracts.py:947) =====
+  // نوع له دفعات قالب + الميزة مفعّلة ⇒ وضع القالب (الإضافة اليدوية معطّلة والخطة تُولّد من القالب)
+  const selectedType = typesQuery.data?.types.find((t) => String(t.id) === fTypeId);
+  const hasTpl = Boolean(
+    selectedType && (selectedType.templatesCount ?? 0) > 0 && flagOn("template_plan_mode")
+  );
 
   return (
     <div className="space-y-4">
@@ -351,9 +410,16 @@ export function ContractNewPage({
       {step === 3 && (
         <Card>
           <CardContent className="space-y-3 p-4 md:p-6">
-            <p className="text-xs text-muted-foreground">
-              أضف دفعات يدوية بقيم واستحقاقات محددة. إن تُركت فارغة فسيولّد النظام الخطة من نسب المراحل أو قالب النوع.
-            </p>
+            {hasTpl ? (
+              <p className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs font-medium text-primary">
+                وضع القالب: دفعات النوع ستولّد خطة السداد تلقائيًا (النسبة من قيمة العقد أو المبلغ اليدوي)
+                — الإضافة اليدوية معطّلة كالمكتبي. أضف مراحل العقد في الخطوة السابقة لربطها.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                أضف دفعات يدوية بقيم واستحقاقات محددة. إن تُركت فارغة فسيولّد النظام الخطة من نسب المراحل أو قالب النوع.
+              </p>
+            )}
             {payments.length === 0 && (
               <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
                 لا دفعات مضافة
@@ -404,22 +470,25 @@ export function ContractNewPage({
                     className="size-9 text-destructive hover:text-destructive"
                     onClick={() => setPayments((arr) => arr.filter((_, j) => j !== i))}
                     aria-label="حذف الدفعة"
+                    disabled={hasTpl}
                   >
                     <Trash2 className="size-4" />
                   </Button>
                 </li>
               ))}
             </ul>
-            <Button
-              variant="outline"
-              className="h-9 w-full gap-1.5"
-              onClick={() =>
-                setPayments((arr) => [...arr, { title: "", amount: "", dueDate: new Date().toISOString().slice(0, 10) }])
-              }
-            >
-              <Banknote className="size-4" />
-              إضافة دفعة
-            </Button>
+            {!hasTpl && (
+              <Button
+                variant="outline"
+                className="h-9 w-full gap-1.5"
+                onClick={() =>
+                  setPayments((arr) => [...arr, { title: "", amount: "", dueDate: new Date().toISOString().slice(0, 10) }])
+                }
+              >
+                <Banknote className="size-4" />
+                إضافة دفعة
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
@@ -460,6 +529,52 @@ export function ContractNewPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* ===== حوار حارس المبلغ amount_guard — مطابقة المكتبي حرفيًا (QMessageBox + 3 خيارات) ===== */}
+      <AlertDialog open={guardBox !== null} onOpenChange={(o) => !o && setGuardBox(null)}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>تنبيه: فرق بين المبلغ والمجموع</AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-line">
+              يوجد فرق — ماذا تريد أن تفعل؟
+              {"\n"}
+              {guardBox && `قيمة العقد: ${fmtK(guardBox.amount)} د.ك`}
+              {guardBox &&
+                guardBox.problems.map((p) => (
+                  <span key={p.label}>
+                    {"\n"}
+                    {`${p.label}: ${fmtK(p.total)} د.ك (الفرق ${fmtK(p.total - guardBox.amount)})`}
+                  </span>
+                ))}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
+            {guardBox && (
+              <>
+                <AlertDialogAction
+                  className="w-full"
+                  onClick={() => guardCreate("update_amount")}
+                >
+                  تحديث مبلغ العقد إلى {fmtK(guardBox.problems[0].total)}
+                </AlertDialogAction>
+                <AlertDialogAction
+                  className="w-full"
+                  onClick={() => guardCreate("scale_plan")}
+                >
+                  توزيع الدفعات على المبلغ {fmtK(guardBox.amount)}
+                </AlertDialogAction>
+                <AlertDialogAction
+                  className="w-full"
+                  onClick={() => guardCreate("keep_diff")}
+                >
+                  حفظ بالفرق (يُسجل في التقرير)
+                </AlertDialogAction>
+                <AlertDialogCancel className="w-full">رجوع للتعديل</AlertDialogCancel>
+              </>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

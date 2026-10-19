@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { authGuard, jsonError, parseDay, todayStr } from "@/lib/api-utils";
+import { authGuard, featureGuard, jsonError, parseDay, todayStr } from "@/lib/api-utils";
+import { REPORT_FEATURE } from "@/lib/report-features";
 import { reportLeads } from "@/lib/report-leads";
 import {
   ReportTable,
@@ -65,6 +66,13 @@ export async function POST(req: NextRequest) {
 
   const guard = await authGuard(req, entry.permKey);
   if ("response" in guard) return guard.response;
+
+  // المرحلة 3/ب: بوابة الميزة rep_* — تعطيل التقرير يوقف تصديره أيضًا (كالمكتبي)
+  // («expenses» و«gateway-summary» بلا مفتاح مكتبي — بلا بوابة ميزة، موثق في report-features.ts)
+  if (REPORT_FEATURE[report]) {
+    const fGuard = await featureGuard(REPORT_FEATURE[report]);
+    if (fGuard) return fGuard;
+  }
 
   const rawParams = body?.params || {};
   const params: Record<string, string> = {};

@@ -10,6 +10,7 @@ import {
   forbidden,
   SessionUser,
 } from "@/lib/auth";
+import { isEffectivelyEnabled } from "@/lib/feature-flags";
 
 export { unauthorized, forbidden } from "@/lib/auth";
 
@@ -40,6 +41,30 @@ export async function adminGuard(req: NextRequest): Promise<{ user: SessionUser 
   if (!user) return { response: unauthorized() };
   if (!isSuperRole(user.role)) return { response: forbidden("هذا الإجراء للمدير فقط") };
   return { user };
+}
+
+/**
+ * حارس المزايا (المرحلة 3/أ) — مطابقة المكتبي feature_service.enabled:
+ * يعيد 403 برسالة عربية إن كانت الميزة معطّلة فعليًا (مع اعتمادياتها requires)
+ * وnull إن كانت مفعّلة — يُستدعى بعد authGuard في المسار.
+ */
+export async function featureGuard(
+  featureKey: string,
+  message = "هذه الميزة معطّلة في النظام"
+): Promise<NextResponse | null> {
+  const rows = await db.featureFlag.findMany({ where: { key: featureKey } });
+  const stored: Record<string, boolean> = {};
+  for (const r of rows) stored[r.key] = r.enabled;
+  if (isEffectivelyEnabled(featureKey, stored)) return null;
+  return jsonError(message, 403);
+}
+
+/** قراءة حالة ميزة خادميًا (true افتراضيًا — كالمكتبي عند غياب الصف) */
+export async function featureOn(featureKey: string): Promise<boolean> {
+  const rows = await db.featureFlag.findMany({ where: { key: featureKey } });
+  const stored: Record<string, boolean> = {};
+  for (const r of rows) stored[r.key] = r.enabled;
+  return isEffectivelyEnabled(featureKey, stored);
 }
 
 /** ترقيم ذري عبر number_sequences — داخل معاملة إن مُمرَّرت */
