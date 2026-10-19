@@ -30,8 +30,10 @@ async function resolveExecutablePath(): Promise<{ path: string; sparticuz: boole
     const chromium = (await import("@sparticuz/chromium")).default;
     const p = await chromium.executablePath();
     if (p && existsSync(p)) return { path: p, sparticuz: true };
-  } catch {
+    console.error("[pdf] @sparticuz/chromium أعاد مسارًا غير موجود:", p);
+  } catch (e) {
     // محليًا قد يفشل الاستخراج (بيئة غير Amazon Linux) — ننسحب إلى كاش playwright
+    console.error("[pdf] فشل @sparticuz/chromium executablePath:", e instanceof Error ? e.message : e);
   }
 
   const cache = path.join(homedir(), ".cache", "ms-playwright");
@@ -56,10 +58,15 @@ async function resolveExecutablePath(): Promise<{ path: string; sparticuz: boole
 
 /** يطبع HTML مستقل (بـ@page كامل) إلى PDF A4 — الهوامش تأتي من CSS لا من الخيار */
 export async function renderHtmlToPdf(html: string): Promise<Buffer> {
-  const { path: executablePath, sparticuz } = await resolveExecutablePath();
-  const args = sparticuz ? [...BASE_ARGS] : BASE_ARGS;
+  let executablePath: string;
+  try {
+    executablePath = (await resolveExecutablePath()).path;
+  } catch (e) {
+    console.error("[pdf] لا كروميوم:", e instanceof Error ? e.message : e);
+    throw e;
+  }
   const browser = await puppeteer.launch({
-    args,
+    args: BASE_ARGS,
     executablePath,
     headless: true,
   });

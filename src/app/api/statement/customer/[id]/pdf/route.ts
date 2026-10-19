@@ -73,17 +73,24 @@ export async function GET(req: NextRequest, { params }: P) {
     }
   );
 
-  const pdf = await renderHtmlToPdf(html);
-
   const code = data.customer.customerCode || String(id);
   const asciiName = `statement_customer_${encodeURIComponent(code)}.pdf`;
   const utf8Name = encodeURIComponent(`كشف حساب شامل ${code}.pdf`);
-  return new NextResponse(new Uint8Array(pdf), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`,
-      "Cache-Control": "no-store",
-    },
-  });
+  try {
+    const pdf = await renderHtmlToPdf(html);
+    return new NextResponse(new Uint8Array(pdf), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `inline; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`,
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (e) {
+    console.error("[pdf] فشل توليد الكشف الشامل:", e);
+    return jsonError(
+      `تعذر إنشاء ملف PDF: ${e instanceof Error ? e.message : "خطأ غير معروف"}`,
+      500
+    );
+  }
 }
