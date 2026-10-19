@@ -8,7 +8,8 @@ const nextConfig: NextConfig = {
   // في تتبع ملفات الـserverless وإلا فشل executablePath() على Vercel.
   serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
   outputFileTracingIncludes: {
-    "src/app/api/statement/**": ["./node_modules/@sparticuz/chromium/**/*"],
+    "/api/statement/contract/[id]/pdf": ["./node_modules/@sparticuz/chromium/**/*"],
+    "/api/statement/customer/[id]/pdf": ["./node_modules/@sparticuz/chromium/**/*"],
   },
 };
 
