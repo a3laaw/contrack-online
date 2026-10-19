@@ -24,6 +24,15 @@ import {
   intOr,
 } from "@/lib/contrack-server";
 import { nextNumber, parseDay, audit } from "@/lib/api-utils";
+import {
+  applyDescriptionPrefix,
+  contractDisplayName,
+  describeForLinks,
+  describeItems,
+  smartReceiptDescription,
+  smartReceiptStageNote,
+  stageNameMap,
+} from "@/lib/voucher-describe";
 
 export type Tx = Prisma.TransactionClient;
 export type DbClient = Prisma.TransactionClient | PrismaClient;
@@ -866,6 +875,21 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
       base.lines = core.computed.lines;
       base.newCollected = r3(core.collected + amount);
       base.current = core.current;
+      // البيان التلقائي (المكتبية V9.15.2/V6.1): يُملأ فقط عندما يُرسل الحقل فارغًا — المكتوب يدويًا لا يُستبدل
+      if (!base.description.trim()) {
+        if (input.links && input.links.length && base.lines) {
+          const cName = contractDisplayName(core.contract);
+          const stageNames = await stageNameMap(db, base.contractId!);
+          const d = await describeForLinks(db, amount, input.links, base.lines, base.gatedIds, "receipt", cName, stageNames);
+          base.description = d.text;
+          if (!base.notes.trim() && d.stages.length) {
+            base.notes = await applyDescriptionPrefix(db, "stage_note", "مرحلة العمل: " + d.stages.join(" + "));
+          }
+        } else {
+          base.description = await smartReceiptDescription(db, core, amount);
+          if (!base.notes.trim()) base.notes = await smartReceiptStageNote(db, core, amount);
+        }
+      }
     } else {
       // قبض بلا عقد: partyType='' فقط — يخضع لرسوم بنكية موزعة بالقيمة
       base.partyType = "";
@@ -882,7 +906,7 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
         where: { id: intOr(input.subContractId, 0) },
         include: {
           subcontractor: { select: { id: true, name: true } },
-          contract: { select: { id: true, status: true } },
+          contract: { select: { id: true, status: true, contractName: true, description: true, contractNumber: true } },
         },
       });
       if (!sc) throw new VoucherError("عقد الباطن غير موجود", 404);
@@ -916,6 +940,17 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
         base.lines = subPlan.lines;
         base.gatedIds = new Set(subPlan.lines.filter((l) => l.gated).map((l) => l.id));
       }
+      // البيان التلقائي لصرف الباطن: «سداد على الحساب — عقد …» أو صياغة الدفعات عند الربط (V9.15.17)
+      if (!base.description.trim()) {
+        const cName = contractDisplayName(sc.contract);
+        if (base.lines) {
+          const stageNames = await stageNameMap(db, sc.contractId);
+          const d = await describeForLinks(db, amount, input.links || null, base.lines, base.gatedIds, "payment", cName, stageNames);
+          base.description = d.text;
+        } else {
+          base.description = describeItems([], 0, cName);
+        }
+      }
       return base;
     }
     // صرف غير باطن: مصروف أو عهدة أو شريك
@@ -933,6 +968,7 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
       }
       base.custodyAccountId = acc.id;
       base.custodyAccountSnapshot = acc.name;
+      if (!base.description.trim()) base.description = await applyDescriptionPrefix(db, "custody", "تسليم عهدة");
       if (input.expenseAccountId) {
         const exp = await db.expenseAccount.findUnique({ where: { id: intOr(input.expenseAccountId, 0) } });
         if (exp && exp.allowPosting && exp.accountKind === "expense") {
@@ -953,6 +989,10 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
     base.expenseAccountSnapshot = acc.name;
     if (base.partyType === "subcontractor" && base.partyId) {
       if (!base.contractId) throw new VoucherError("العقد مطلوب للصرف لمقاول باطن");
+      if (!base.description.trim()) {
+        const pc = await db.contract.findUnique({ where: { id: base.contractId }, select: { contractName: true, description: true, contractNumber: true } });
+        if (pc) base.description = describeItems([], 0, contractDisplayName(pc));
+      }
       const linked = await db.subContract.findFirst({
         where: { subcontractorId: base.partyId, contractId: base.contractId, status: { not: "ملغى" } },
       });
@@ -984,6 +1024,9 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
     base.party = "تحويل داخلي";
     base.partyType = "transfer";
     base.partyId = null;
+    if (!base.description.trim()) {
+      base.description = await applyDescriptionPrefix(db, "transfer", `تحويل داخلي من ${from} إلى ${to}`);
+    }
     return base;
   }
 
@@ -999,6 +1042,7 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
     base.custodyAccountSnapshot = acc.name;
     base.account = normalizeAccount(input.account, base.method);
     base.party = base.party || acc.name;
+    if (!base.description.trim()) base.description = await applyDescriptionPrefix(db, "custody", "إرجاع عهدة");
     return base;
   }
 
@@ -1286,6 +1330,30 @@ export async function updateVoucher(
   const methodChanged = newMethod !== v.method;
   const amountChanged = r3(newAmount) !== r3(Number(v.amount));
 
+  // البيان التلقائي عند التعديل (V9.15.2): حقل البيان المُرسل فارغًا يُملأ بقواعد المكتبي
+  let finalDescription = newDescription;
+  if (body.description !== undefined && !newDescription.trim()) {
+    if (v.vtype === "receipt" && v.contractId) {
+      const core = await loadContractCore(v.contractId, { excludeVoucherId: v.id });
+      if (core) finalDescription = await smartReceiptDescription(db, core, newAmount);
+    } else if (v.vtype === "payment" && v.subContractId) {
+      const subPlan = await computeSubPlan(v.subContractId, { excludeVoucherId: v.id });
+      if (subPlan) {
+        const pc = await db.contract.findUnique({ where: { id: subPlan.subContract.contractId }, select: { contractName: true, description: true, contractNumber: true } });
+        if (pc) {
+          const stageNames = await stageNameMap(db, subPlan.subContract.contractId);
+          const gated = new Set(subPlan.lines.filter((l) => l.gated).map((l) => l.id));
+          finalDescription = (await describeForLinks(db, newAmount, newLinks, subPlan.lines, gated, "payment", contractDisplayName(pc), stageNames, v.id)).text;
+        }
+      }
+    } else if (v.vtype === "payment" && v.contractId) {
+      const pc = await db.contract.findUnique({ where: { id: v.contractId }, select: { contractName: true, description: true, contractNumber: true } });
+      if (pc) finalDescription = describeItems([], 0, contractDisplayName(pc));
+    } else if (v.vtype === "transfer") {
+      finalDescription = await applyDescriptionPrefix(db, "transfer", `تحويل داخلي من ${newMethod} إلى ${newAccount}`);
+    }
+  }
+
   // الخطة لروابط التعديل (باستثناء السند نفسه)
   let lines: ComputedPlanLine[] | null = null;
   let gatedIds = new Set<number>();
@@ -1310,7 +1378,7 @@ export async function updateVoucher(
         account: newAccount,
         vdate: newVdate,
         party: newParty,
-        description: newDescription,
+        description: finalDescription,
         chequeDueDate: newCheque,
       },
     });
