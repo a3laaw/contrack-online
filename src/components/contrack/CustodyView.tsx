@@ -4,6 +4,7 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowUpToLine,
+  BarChart3,
   BookOpen,
   ClipboardCheck,
   Eye,
@@ -73,13 +74,14 @@ import {
 } from "./contrack-types";
 import { fmtDate, formatKWD, round3 } from "@/lib/format";
 import { CustodyAccountsPage } from "./CustodyAccountsPage";
+import { CustodyReports } from "./CustodyReports";
 
 interface CustodyViewProps {
   user: User;
   onAuthError: () => void;
 }
 
-type CustodyTab = "accounts" | "settlements" | "ledger";
+type CustodyTab = "accounts" | "settlements" | "ledger" | "reports";
 
 const DEAD_CONTRACT_STATUSES = new Set(["ملغى"]);
 
@@ -883,6 +885,10 @@ export function CustodyView({ user, onAuthError }: CustodyViewProps) {
             <BookOpen className="size-4" />
             السجل
           </TabsTrigger>
+          <TabsTrigger value="reports" className="gap-1.5">
+            <BarChart3 className="size-4" />
+            التقارير
+          </TabsTrigger>
         </TabsList>
 
         {/* ===== الحسابات ===== */}
@@ -1183,6 +1189,11 @@ export function CustodyView({ user, onAuthError }: CustodyViewProps) {
               )}
             </>
           )}
+        </TabsContent>
+
+        {/* ===== التقارير السبعة (مرآة مركز العهد المكتبي) ===== */}
+        <TabsContent value="reports" className="mt-3 space-y-3">
+          <CustodyReports accounts={activeAccounts} onAuthError={onAuthError} />
         </TabsContent>
       </Tabs>
 
