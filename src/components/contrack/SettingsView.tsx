@@ -60,6 +60,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost, apiPut } from "./api";
 import type { PaymentMethodDTO, PaymentMethodsResponse, SettingsDTO, SettingsResponse, User } from "./contrack-types";
 import { errMessage } from "./contrack-types";
+import { ContractTypesManager } from "./ContractTypesManager";
 
 interface SettingsViewProps {
   user: User;
@@ -306,23 +307,10 @@ export function SettingsView({ user, onAuthError, initialSection }: SettingsView
           </Card>
         </TabsContent>
 
-        {/* ===== 4) أنواع العقود (مدير) ===== */}
+        {/* ===== 4) أنواع العقود (مدير) — إدارة كاملة (المرحلة 7-ج) ===== */}
         {manager && (
           <TabsContent value="contract-types" className="space-y-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">أنواع العقود والمبالغ</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm leading-relaxed">
-                <p className="text-muted-foreground">
-                  نوع العقد يحدد طريقة التسعير للعقود الجديدة فقط — وحزم مكونات النوع تُدار من نوافذ
-                  النوع (نافذة النوع ومكونات الحزمة) في نسخة المكتب.
-                </p>
-                <p className="rounded-lg border border-status-warn/40 bg-status-warn-bg px-3 py-2 text-xs font-bold text-status-warn">
-                  إدارة أنواع العقود ومكونات الحزم غير متاحة في نسخة الويب الحالية — تُدار من نسخة المكتب.
-                </p>
-              </CardContent>
-            </Card>
+            <ContractTypesManager onAuthError={onAuthError} />
           </TabsContent>
         )}
 

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import {
   ArrowRight,
   Pencil,
@@ -31,6 +31,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -93,6 +94,7 @@ import type {
 } from "./contrack-types";
 import { STATUS_CHANGE_OPTIONS, STATUS_REASON_REQUIRED, errMessage, isManagerRole } from "./contrack-types";
 import { PAYMENT_STATUS_LABEL, fmtDate, formatKWD } from "@/lib/format";
+import { formatStageHistoryLine, noteChip, pathPrefix, pctSuffix } from "@/lib/stage-panel";
 import { VoucherPage } from "./VoucherPage";
 import { SubContractDialog } from "./SubContractDialog";
 import { StatusBadge } from "./StatusBadge";
@@ -110,12 +112,17 @@ interface ContractDetailViewProps {
   onAuthError: () => void;
   /** فتح الكشف في شاشة الكشوفات الكاملة — من «☰ إجراءات العقد → ▦ كشف حساب» */
   onOpenStatement?: (target: StatementTarget) => void;
+  /** فتح ملف العميل صاحب العقد — من زر «◉ ملف العميل» في الترويسة (كالمكتبي dealings._open_customer) */
+  onOpenCustomerFile?: (customerId: number) => void;
 }
 
 type PageKey = "stages" | "info" | "pay" | "addendums";
 
 /** الصفحات الداخلية الكاملة — بدل النوافذ الكبرى والصغيرة متوسطة الحجم */
 type FlowPage = "edit" | "sub-new" | "settle" | "boq" | "sup";
+
+/** طفرة إجراء المراحل المشتركة — تبويب المسار الفني ولوحة المتابعة معًا (PATCH stages/[stageId]) */
+type StageActionMut = UseMutationResult<unknown, Error, { stageId: number; body: Record<string, unknown> }>;
 
 /** PageNav بأسلوب المكتبي (contract_hub.py:129–135) — أربع صفحات بمجموعاتها */
 const PAGE_GROUPS: { key: PageKey; group: string; label: string }[] = [
@@ -135,6 +142,7 @@ export function ContractDetailView({
   onBack,
   onAuthError,
   onOpenStatement,
+  onOpenCustomerFile,
 }: ContractDetailViewProps) {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -220,11 +228,14 @@ export function ContractDetailView({
   const [statusOpen, setStatusOpen] = React.useState(false);
   const [newStatus, setNewStatus] = React.useState("");
   const [statusReason, setStatusReason] = React.useState("");
+  // مبلغ إغلاق الإلغاء — يظهر عند «ملغى» فقط (contract_hub.py:735 QInputDialog.getDouble)
+  const [cancelCloseAmount, setCancelCloseAmount] = React.useState("0");
 
   const openStatus = () => {
     if (!detail) return;
     setNewStatus(detail.status);
     setStatusReason(detail.statusReason || "");
+    setCancelCloseAmount("0");
     setStatusOpen(true);
   };
 
@@ -233,6 +244,7 @@ export function ContractDetailView({
       apiPatch(`/api/contracts/${contractId}`, {
         status: newStatus,
         statusReason: statusReason.trim(),
+        ...(newStatus === "ملغى" ? { cancelCloseAmount: Number(cancelCloseAmount || 0) } : {}),
       }),
     onSuccess: () => {
       invalidateAll();
@@ -248,6 +260,14 @@ export function ContractDetailView({
         variant: "destructive",
         title: "السبب إلزامي",
         description: `يجب إدخال سبب عند جعل العقد «${newStatus}»`,
+      });
+      return;
+    }
+    if (newStatus === "ملغى" && Number(cancelCloseAmount || 0) < 0) {
+      toast({
+        variant: "destructive",
+        title: "مبلغ غير صالح",
+        description: "مبلغ الإغلاق لا يمكن أن يكون سالبًا.",
       });
       return;
     }
@@ -516,6 +536,17 @@ export function ContractDetailView({
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
+            {/* ◉ ملف العميل — فتح ملف العميل صاحب هذا العقد (كالمكتبي dealings._open_customer) */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5"
+              title="فتح ملف العميل صاحب هذا العقد"
+              disabled={!onOpenCustomerFile || !detail.customerId}
+              onClick={() => detail.customerId && onOpenCustomerFile?.(detail.customerId)}
+            >
+              ◉ ملف العميل
+            </Button>
             {/* ☰ إجراءات العقد — المرجع: contract_hub.py:248–282 */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -730,6 +761,10 @@ export function ContractDetailView({
           stages={l1Stages}
           planLines={planLines}
           planLoading={planQuery.isLoading}
+          user={user}
+          stageAction={stageAction}
+          onSkipStage={(stageId, name) => setSkipDialog({ stageId, name })}
+          onActionError={fail}
           onOpenSupDialog={() => setFlowPage("sup")}
           onWaive={() => setWaiveOpen(true)}
           onSettle={() => setFlowPage("settle")}
@@ -798,15 +833,40 @@ export function ContractDetailView({
             </div>
             <div className="space-y-1.5">
               <Label>
-                السبب {STATUS_REASON_REQUIRED.has(newStatus) && <span className="text-destructive">*</span>}
+                {newStatus === "ملغى" ? "سبب إلغاء العقد" : "السبب"}
+                {STATUS_REASON_REQUIRED.has(newStatus) && <span className="text-destructive"> *</span>}
               </Label>
               <Textarea
                 rows={2}
-                placeholder={STATUS_REASON_REQUIRED.has(newStatus) ? "إلزامي للإلغاء/الإغلاق" : "اختياري"}
+                placeholder={
+                  newStatus === "ملغى"
+                    ? "اكتب سبب الإلغاء / التوضيح الذي سيظهر في سجل العقد:"
+                    : STATUS_REASON_REQUIRED.has(newStatus)
+                      ? "إلزامي للإغلاق"
+                      : "اختياري"
+                }
                 value={statusReason}
                 onChange={(e) => setStatusReason(e.target.value)}
               />
             </div>
+            {newStatus === "ملغى" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="status-close-amount">مبلغ إغلاق الإلغاء</Label>
+                <Input
+                  id="status-close-amount"
+                  className="h-9"
+                  dir="ltr"
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  value={cancelCloseAmount}
+                  onChange={(e) => setCancelCloseAmount(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  اكتب مبلغ الإغلاق/التسوية عند إلغاء العقد (0 إذا لا يوجد):
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" className="h-9" onClick={() => setStatusOpen(false)} disabled={statusMutation.isPending}>
@@ -1035,6 +1095,10 @@ function OverviewPage({
   stages,
   planLines,
   planLoading,
+  user,
+  stageAction,
+  onSkipStage,
+  onActionError,
   onOpenSupDialog,
   onWaive,
   onSettle,
@@ -1050,6 +1114,10 @@ function OverviewPage({
   stages: ContractDetailResponse["stages"];
   planLines: PlanLine[];
   planLoading: boolean;
+  user: User;
+  stageAction: StageActionMut;
+  onSkipStage: (stageId: number, name: string) => void;
+  onActionError: (e: unknown, title: string) => void;
   onOpenSupDialog: () => void;
   onWaive: () => void;
   onSettle: () => void;
@@ -1270,6 +1338,14 @@ function OverviewPage({
         manual={overview ? { done: overview.stagePath.manualDone, total: overview.stagePath.manualTotal, pct: overview.stagePath.manualPct } : null}
         planLines={planLines}
         planLoading={planLoading}
+        contractId={detail.contract.id}
+        contractNumber={detail.contract.contractNumber}
+        status={detail.contract.status}
+        manager={manager}
+        username={user.username}
+        stageAction={stageAction}
+        onSkipStage={onSkipStage}
+        onActionError={onActionError}
       />
     </div>
   );
@@ -1314,7 +1390,36 @@ function monthsDaysText(m: number, d: number): string {
 // ===================================================================
 // لوحة المتابعة المضمنة — نسخة مدمجة من FollowupPanel (followup.py:487)
 // + StageBar للعقود اليدوية (StageBar/بطاقة المسار اليدوي 602–622)
+// + المرحلة 7-ب: أزرار الإجراء · ملاحظة المرحلة · الطابع الإشرافي ·
+//   سجل المراحل · محادثة المعاملة · تجميد الملغى/المغلق
 // ===================================================================
+
+/** ملاحظة مرحلة — GET/POST /api/contracts/[id]/stage-notes */
+interface StageNoteRow {
+  id: number;
+  stageName: string;
+  note: string;
+  author: string;
+  createdAt: string;
+}
+
+/** رسالة محادثة المعاملة — GET/POST /api/contracts/[id]/messages */
+interface TxMessageRow {
+  id: number;
+  username: string;
+  body: string;
+  createdAt: string;
+}
+
+/** حدث سجل المراحل — GET /api/contracts/[id]/stage-history */
+interface StageHistoryRow {
+  id: number;
+  eventTime: string;
+  eventType: string;
+  description: string;
+  username: string;
+}
+
 function FollowupPanelCompact({
   stages,
   stagePath,
@@ -1323,6 +1428,14 @@ function FollowupPanelCompact({
   manual,
   planLines,
   planLoading,
+  contractId,
+  contractNumber,
+  status,
+  manager,
+  username,
+  stageAction,
+  onSkipStage,
+  onActionError,
 }: {
   stages: ContractDetailResponse["stages"];
   stagePath: ContractOverviewResponse["stagePath"] | null;
@@ -1331,10 +1444,54 @@ function FollowupPanelCompact({
   manual: { done: number; total: number; pct: number } | null;
   planLines: PlanLine[];
   planLoading: boolean;
+  contractId: number;
+  contractNumber: string;
+  /** حالة العقد — الملغى/المغلق يجمّد كل أزرار المراحل (followup.py:712–717) */
+  status: string;
+  manager: boolean;
+  username: string;
+  stageAction: StageActionMut;
+  onSkipStage: (stageId: number, name: string) => void;
+  onActionError: (e: unknown, title: string) => void;
 }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
   const cur = stagePath?.current ?? null;
   const state = stagePath?.state ?? "done";
   const path = stagePath?.path ?? [];
+
+  const frozen = status === "ملغى" || status === "مغلق";
+  const today = todayStr();
+
+  // ===== استعلامات اللوحة: الملاحظات · المحادثة · سجل المراحل =====
+  const notesQuery = useQuery<{ notes: StageNoteRow[] }>({
+    queryKey: ["contract", contractId, "stage-notes"],
+    queryFn: () => apiGet<{ notes: StageNoteRow[] }>(`/api/contracts/${contractId}/stage-notes`),
+  });
+  const msgsQuery = useQuery<{ messages: TxMessageRow[] }>({
+    queryKey: ["contract", contractId, "messages"],
+    queryFn: () => apiGet<{ messages: TxMessageRow[] }>(`/api/contracts/${contractId}/messages`),
+  });
+  const historyQuery = useQuery<{ events: StageHistoryRow[] }>({
+    queryKey: ["contract", contractId, "stage-history"],
+    queryFn: () => apiGet<{ events: StageHistoryRow[] }>(`/api/contracts/${contractId}/stage-history`),
+  });
+  const invalidatePanel = React.useCallback(() => {
+    qc.invalidateQueries({ queryKey: ["contract", contractId] });
+    qc.invalidateQueries({ queryKey: ["contracts"] });
+    qc.invalidateQueries({ queryKey: ["dashboard"] });
+  }, [qc, contractId]);
+
+  // المرحلة الحالية: أول مرحلة بدأت ولم تُنهَ ولم تُتخطَ (stagePath.current عند توافره)
+  const currentStage = React.useMemo(() => {
+    if (cur) {
+      const byId = stages.find((s) => s.id === cur.id);
+      if (byId) return byId;
+    }
+    return stages.find((s) => s.startDate && !s.endDate && !s.isSkipped) ?? null;
+  }, [cur, stages]);
+
+  const payPctOf = React.useMemo(() => new Map(stages.map((s) => [s.id, Number(s.payPct || 0)])), [stages]);
 
   const counterText = manualPath
     ? `🔧 العقد على المسار اليدوي: علّم أي مرحلة من أي تصنيف — المنجز ${manual?.done ?? 0} من ${manual?.total ?? 0}.`
@@ -1355,8 +1512,19 @@ function FollowupPanelCompact({
         ? "text-status-warn"
         : "text-status-done";
 
+  // سطر عدّاد الإشراف للمرحلة الحالية (followup.py:1143–1166)
+  const supLine = (() => {
+    if (!currentStage?.isSupervision || !currentStage.supEnd) return "";
+    const supEnd = currentStage.supEnd;
+    const supActualEnd = currentStage.supActualEnd || "";
+    if (supActualEnd && today > supEnd) return `👁 إشراف: في التمديد · النهاية الكاملة ${supActualEnd}`;
+    if (today > supEnd) return `👁 إشراف: متأخر · حتى ${supEnd}`;
+    return `👁 إشراف: ضمن المدة · حتى ${supEnd}`;
+  })();
+  const supLineClass = supLine.startsWith("👁 إشراف: متأخر") ? "text-status-danger" : "text-status-warn";
+
   // الشريحة المختصرة: السابقة / الحالية / التالية (followup.py:1015–1083)
-  const chips: { label: string; name: string; state: string; days: number }[] = [];
+  const chips: { label: string; name: string; state: string; days: number; payPct: number }[] = [];
   if (manualPath) {
     for (const s of stages) {
       chips.push({
@@ -1364,6 +1532,7 @@ function FollowupPanelCompact({
         name: s.name,
         state: s.endDate || s.isSkipped ? (s.isSkipped ? "skip" : "done") : s.startDate ? "current" : "future",
         days: 0,
+        payPct: Number(s.payPct || 0),
       });
     }
   } else {
@@ -1376,6 +1545,7 @@ function FollowupPanelCompact({
           name: p.name,
           state: p.state,
           days: p.days,
+          payPct: payPctOf.get(p.id) ?? 0,
         });
       }
     }
@@ -1399,60 +1569,519 @@ function FollowupPanelCompact({
         .slice(-6)
         .reverse();
 
+  // شارة آخر ملاحظة على المعاملة (V5.9 — followup.py:726–746)
+  const lastNote = notesQuery.data?.notes?.[0] ?? null;
+
+  // ===== نافذة ملاحظة المرحلة (StageNoteDialog — followup.py:395–484) =====
+  const [noteOpen, setNoteOpen] = React.useState(false);
+  const [noteText, setNoteText] = React.useState("");
+  const noteMutation = useMutation({
+    mutationFn: () =>
+      apiPost(`/api/contracts/${contractId}/stage-notes`, {
+        note: noteText.trim(),
+        stageName: currentStage?.name ?? "",
+      }),
+    onSuccess: () => {
+      toast({ title: "تم حفظ الملاحظة — ظهرت في السجل والتعليقات ✅" });
+      setNoteText("");
+      setNoteOpen(false);
+      qc.invalidateQueries({ queryKey: ["contract", contractId, "stage-notes"] });
+      qc.invalidateQueries({ queryKey: ["contract", contractId, "stage-history"] });
+    },
+    onError: (e) => onActionError(e, "تعذر حفظ الملاحظة"),
+  });
+  const submitNote = () => {
+    if (!noteText.trim()) {
+      toast({ variant: "destructive", title: "اكتب الملاحظة أولًا." });
+      return;
+    }
+    noteMutation.mutate();
+  };
+
+  // ===== نافذة التراجع عن مرحلة (مدير — followup.py:1330 _revert_stage) =====
+  const [revertOpen, setRevertOpen] = React.useState(false);
+  const [revertReason, setRevertReason] = React.useState("");
+  const revertMutation = useMutation({
+    mutationFn: () =>
+      apiPatch<{ from: string; to: string }>(`/api/contracts/${contractId}/stages/${currentStage?.id ?? 0}`, {
+        action: "revert",
+        reason: revertReason.trim(),
+      }),
+    onSuccess: (res) => {
+      toast({ title: `تم التراجع من «${res.from}» إلى «${res.to}»` });
+      setRevertOpen(false);
+      setRevertReason("");
+      invalidatePanel();
+    },
+    onError: (e) => onActionError(e, "تعذر التراجع عن المرحلة"),
+  });
+
+  // ===== نافذة الطابع الإشرافي للمرحلة (V3.21 — followup.py:223–355) =====
+  const [supOpen, setSupOpen] = React.useState(false);
+  const [supForm, setSupForm] = React.useState({
+    isSupervision: false,
+    supEnd: "",
+    supMonthly: "",
+    supStart: "",
+    supActualEnd: "",
+  });
+  const openSupDialog = () => {
+    if (!currentStage) return;
+    setSupForm({
+      isSupervision: Boolean(currentStage.isSupervision),
+      supEnd: currentStage.supEnd || "",
+      supMonthly: currentStage.supMonthly !== undefined && currentStage.supMonthly !== null ? String(currentStage.supMonthly) : "",
+      supStart: currentStage.supStart || "",
+      supActualEnd: currentStage.supActualEnd || "",
+    });
+    setSupOpen(true);
+  };
+  // سطر الحالة في النافذة — بحسب الطابع المحفوظ حاليًا في الخانات
+  const supStatusLine = !supForm.isSupervision
+    ? "بلا طابع إشرافي — فعّل الخانة وحدد النهاية والقيمة ثم احفظ."
+    : !supForm.supEnd
+      ? "ناقص: حدد النهاية والقيمة ثم احفظ."
+      : `👁 طابع إشرافي حتى ${supForm.supEnd}${supForm.supActualEnd && today > supForm.supEnd ? " · في التمديد" : ""}`;
+  const supMutation = useMutation({
+    mutationFn: () =>
+      apiPatch<{ isSupervision: boolean; supStart: string; supEnd: string; supActualEnd: string; supMonthly: number }>(
+        `/api/contracts/${contractId}/stages/${currentStage?.id ?? 0}`,
+        {
+          action: "supervision",
+          isSupervision: supForm.isSupervision,
+          supEnd: supForm.supEnd,
+          supMonthly: Number(supForm.supMonthly || 0),
+          supStart: supForm.supStart,
+          supActualEnd: supForm.supActualEnd,
+        }
+      ),
+    onSuccess: (res) => {
+      toast({ title: "تم حفظ الطابع الإشرافي" });
+      setSupForm((f) => ({
+        ...f,
+        isSupervision: res.isSupervision,
+        supEnd: res.supEnd,
+        supStart: res.supStart,
+        supActualEnd: res.supActualEnd,
+        supMonthly: String(res.supMonthly),
+      }));
+      invalidatePanel();
+    },
+    onError: (e) => onActionError(e, "تعذر حفظ الطابع الإشرافي"),
+  });
+
+  // ===== محادثة المعاملة (followup.py:624–654 + 1277–1299) =====
+  const [msgText, setMsgText] = React.useState("");
+  const msgMutation = useMutation({
+    mutationFn: () => apiPost(`/api/contracts/${contractId}/messages`, { body: msgText.trim() }),
+    onSuccess: () => {
+      setMsgText("");
+      qc.invalidateQueries({ queryKey: ["contract", contractId, "messages"] });
+    },
+    onError: (e) => onActionError(e, "تعذر إرسال الرسالة"),
+  });
+
+  const btnDisabled = frozen || stageAction.isPending;
+
   return (
-    <Card className="p-4">
-      <CardHeader className="p-0 pb-2">
-        <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
-          <span>🔄 مرحلة التنفيذ</span>
-          <span className="text-sm font-bold">
-            {manualPath
-              ? `🔧 مسار يدوي — ${manual?.done ?? 0}/${manual?.total ?? 0}`
-              : cur
-                ? cur.name
-                : "اكتمل المسار ✓"}
-          </span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2 p-0">
-        {loading ? (
-          <Skeleton className="h-16 rounded-lg" />
-        ) : (
-          <>
-            {manualPath && manual && (
-              <p className="text-sm font-bold text-primary">
-                المنجز {manual.done} من {manual.total} · {manual.pct}٪
-              </p>
-            )}
-            <div className="flex flex-wrap gap-1.5">
-              {chips.map((c, i) => (
+    <>
+      <Card className="p-4">
+        <CardHeader className="p-0 pb-2">
+          <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+            <span>🔄 مرحلة التنفيذ</span>
+            <span className="flex min-w-0 flex-wrap items-center gap-2">
+              {/* V5.9: شارة آخر ملاحظة — كاملة في التلميح (followup.py:726–746) */}
+              {lastNote && (
                 <span
-                  key={`${c.name}-${i}`}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${chipClass(c.state)}`}
+                  className="inline-flex max-w-56 items-center truncate rounded-full border px-2.5 py-1 text-[11px] font-bold text-status-warn"
+                  title={`${lastNote.note}\n\n— ${lastNote.author || "مستخدم"} · ${lastNote.createdAt.slice(0, 16).replace("T", " ")}${lastNote.stageName ? ` · ${lastNote.stageName}` : ""}`}
                 >
-                  {c.label ? `${c.label}: ` : ""}
-                  {chipIcon(c.state)} {c.name}
-                  {c.days > 0 ? ` · ${c.days} ي` : ""}
+                  {noteChip(lastNote.note)}
                 </span>
-              ))}
-              {chips.length === 0 && <span className="text-xs text-muted-foreground">لا مراحل على هذا العقد.</span>}
-            </div>
-            <p className={`text-sm font-bold ${counterClass}`}>{counterText}</p>
-            {notes.length > 0 && (
-              <div className="rounded-lg border bg-muted/20 p-2">
-                <p className="mb-1 text-[11px] font-bold text-muted-foreground">📝 ملاحظات الدفعات والمراحل</p>
-                <ul className="space-y-0.5">
-                  {notes.map((n) => (
-                    <li key={n.id} className="truncate text-xs text-muted-foreground" title={n.notes}>
-                      • {n.title}: {(n.notes || "").split("\n")[0]}
-                    </li>
-                  ))}
-                </ul>
+              )}
+              <span className="text-sm font-bold">
+                {cur ? `${pathPrefix(manualPath)}${cur.name}` : "اكتمل المسار ✓"}
+              </span>
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 p-0">
+          {loading ? (
+            <Skeleton className="h-16 rounded-lg" />
+          ) : (
+            <>
+              {manualPath && manual && (
+                <p className="text-sm font-bold text-primary">
+                  المنجز {manual.done} من {manual.total} · {manual.pct}٪
+                </p>
+              )}
+              <div className="flex flex-wrap gap-1.5">
+                {chips.map((c, i) => (
+                  <span
+                    key={`${c.name}-${i}`}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${chipClass(c.state)}`}
+                  >
+                    {c.label ? `${c.label}: ` : ""}
+                    {chipIcon(c.state)} {c.name}
+                    {pctSuffix(c.payPct)}
+                    {c.days > 0 ? ` · ${c.days} ي` : ""}
+                  </span>
+                ))}
+                {chips.length === 0 && <span className="text-xs text-muted-foreground">لا مراحل على هذا العقد.</span>}
+                {!manualPath && path.length > chips.length && chips.length > 0 && (
+                  <span className="self-center text-[10.5px] text-muted-foreground">
+                    + {path.length - chips.length} مرحلة أخرى في المسار
+                  </span>
+                )}
               </div>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
+              <p className={`text-sm font-bold ${counterClass}`}>{counterText}</p>
+              {supLine && <p className={`text-sm font-bold ${supLineClass}`}>{supLine}</p>}
+              {frozen && (
+                <p className="text-sm font-bold text-status-danger">
+                  🔒 العقد ملغى ومجمّد — لا يمكن تغيير المراحل أو تحفيز دفعات جديدة.
+                </p>
+              )}
+              {/* أزرار الإجراء — نفس معالجات تبويب المراحل (PATCH stages/[stageId]) */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {currentStage && (
+                  <>
+                    <Button
+                      size="sm"
+                      className="h-8 gap-1"
+                      disabled={btnDisabled}
+                      onClick={() => stageAction.mutate({ stageId: currentStage.id, body: { endDate: "today" } })}
+                      title="إغلاق المرحلة الحالية والانتقال للمرحلة التالية تلقائيًا"
+                    >
+                      <CheckCircle2 className="size-3.5" />
+                      إنهاء المرحلة
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1"
+                      disabled={btnDisabled}
+                      onClick={() => onSkipStage(currentStage.id, currentStage.name)}
+                      title="للحالات الاستثنائية — عقد لا يحتاج هذه المرحلة"
+                    >
+                      <SkipForward className="size-3.5" />
+                      تخطي هذه المرحلة
+                    </Button>
+                    {manager && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1 border-destructive/40 text-destructive hover:bg-destructive/10"
+                        disabled={btnDisabled}
+                        onClick={() => setRevertOpen(true)}
+                        title="للمدير فقط: إرجاع العقد للمرحلة السابقة مع عكس الاستحقاقات التلقائية الآمنة"
+                      >
+                        <RotateCcw className="size-3.5" />
+                        تراجع مرحلة
+                      </Button>
+                    )}
+                    {manager && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1"
+                        disabled={btnDisabled}
+                        onClick={openSupDialog}
+                        title="المرحلة بطابع إشرافي: بداية/نهاية وتأخير شهور في ملف تأخيرات الإشراف"
+                      >
+                        <Eye className="size-3.5" />
+                        طابع إشراف
+                      </Button>
+                    )}
+                  </>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1"
+                  disabled={frozen}
+                  onClick={() => setNoteOpen(true)}
+                  title="اكتب سبب التأخير أو «واقفة فين» بلا تغيير المرحلة — تظهر في سجل المراحل وتعليقات العميل"
+                >
+                  <FileText className="size-3.5" />
+                  ملاحظة المرحلة
+                </Button>
+              </div>
+              {notes.length > 0 && (
+                <div className="rounded-lg border bg-muted/20 p-2">
+                  <p className="mb-1 text-[11px] font-bold text-muted-foreground">📝 ملاحظات الدفعات والمراحل</p>
+                  <ul className="space-y-0.5">
+                    {notes.map((n) => (
+                      <li key={n.id} className="truncate text-xs text-muted-foreground" title={n.notes}>
+                        • {n.title}: {(n.notes || "").split("\n")[0]}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ===== نافذة ملاحظة المرحلة (StageNoteDialog — followup.py:395–484) ===== */}
+      <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>ملاحظة على المعاملة</DialogTitle>
+            <DialogDescription>
+              {currentStage ? `📝 المرحلة الحالية: ${currentStage.name}` : "📝 ملاحظة على المعاملة"}
+              {" — "}اكتب سبب التأخير أو «واقفة فين» — بلا تغيير للمرحلة.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {/* الملاحظات السابقة — آخر 12 (followup.py:437–450) */}
+            <div className="max-h-48 overflow-y-auto rounded-lg border bg-muted/20 p-2">
+              <p className="mb-1 text-[11px] font-bold text-muted-foreground">
+                {(notesQuery.data?.notes?.length ?? 0) > 0 ? "🕘 الملاحظات السابقة" : "لا ملاحظات سابقة"}
+              </p>
+              <ul className="space-y-1.5">
+                {(notesQuery.data?.notes ?? []).slice(0, 12).map((n) => (
+                  <li key={n.id} className="text-xs leading-5">
+                    <span className="font-semibold text-muted-foreground">
+                      {n.createdAt.slice(0, 16).replace("T", " ")} — {n.author || "مستخدم"}
+                      {n.stageName ? ` · ${n.stageName}` : ""}
+                    </span>
+                    <span className="block whitespace-pre-wrap">{n.note}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="stage-note-text">الملاحظة</Label>
+              <Textarea
+                id="stage-note-text"
+                rows={3}
+                placeholder="مثال: واقف عند البلدية — بانتظار موافقة الإطفاء"
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                تظهر الملاحظة في: سجل المراحل · تعليقات العميل · سجل العقد.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" className="h-9" onClick={() => setNoteOpen(false)} disabled={noteMutation.isPending}>
+              ✕ إغلاق
+            </Button>
+            <Button className="h-9" onClick={submitNote} disabled={noteMutation.isPending}>
+              {noteMutation.isPending ? "جارٍ الحفظ…" : "💾 حفظ الملاحظة"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== نافذة تأكيد التراجع (مدير — followup.py:1338–1346) ===== */}
+      <Dialog open={revertOpen} onOpenChange={setRevertOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>تأكيد التراجع</DialogTitle>
+            <DialogDescription className="leading-6">
+              سيتم إرجاع العقد للمرحلة السابقة.
+              <br />
+              أي استحقاق دفعة تلقائي لم يصدر له سند قبض سيعود لحالة غير مستحق.
+              <br />
+              السندات المالية الموجودة لن تُحذف ولن تُلغى تلقائيًا.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="revert-reason">
+              سبب التراجع عن المرحلة <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="revert-reason"
+              className="h-9"
+              placeholder="اكتب سبب التراجع؛ سيظهر تلقائيًا في تعليقات العميل وسجل العقد"
+              value={revertReason}
+              onChange={(e) => setRevertReason(e.target.value)}
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              className="h-9"
+              onClick={() => setRevertOpen(false)}
+              disabled={revertMutation.isPending}
+            >
+              إلغاء
+            </Button>
+            <Button
+              className="h-9"
+              disabled={revertMutation.isPending || !revertReason.trim()}
+              onClick={() => revertMutation.mutate()}
+            >
+              {revertMutation.isPending ? "جارٍ التنفيذ…" : "تأكيد"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== نافذة الطابع الإشرافي للمرحلة (V3.21 — followup.py:223–355) ===== */}
+      <Dialog open={supOpen} onOpenChange={setSupOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>الطابع الإشرافي للمرحلة</DialogTitle>
+            <DialogDescription>
+              {contractNumber ? `العقد ${contractNumber} · ` : ""}المرحلة «{currentStage?.name ?? ""}»
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="sup-flag"
+                checked={supForm.isSupervision}
+                onCheckedChange={(v) => setSupForm((f) => ({ ...f, isSupervision: v === true }))}
+              />
+              <Label htmlFor="sup-flag" className="cursor-pointer">
+                مرحلة ذات طابع إشراف
+              </Label>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="sup-end">النهاية المخططة</Label>
+                <Input
+                  id="sup-end"
+                  type="date"
+                  className="h-9"
+                  dir="ltr"
+                  value={supForm.supEnd}
+                  onChange={(e) => setSupForm((f) => ({ ...f, supEnd: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="sup-monthly">قيمة الشهر (د.ك/شهر)</Label>
+                <Input
+                  id="sup-monthly"
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  className="h-9"
+                  dir="ltr"
+                  value={supForm.supMonthly}
+                  onChange={(e) => setSupForm((f) => ({ ...f, supMonthly: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="sup-start">تاريخ البداية</Label>
+                <Input
+                  id="sup-start"
+                  type="date"
+                  className="h-9"
+                  dir="ltr"
+                  value={supForm.supStart}
+                  onChange={(e) => setSupForm((f) => ({ ...f, supStart: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="sup-actual">تاريخ الإنهاء</Label>
+                <Input
+                  id="sup-actual"
+                  type="date"
+                  className="h-9"
+                  dir="ltr"
+                  value={supForm.supActualEnd}
+                  onChange={(e) => setSupForm((f) => ({ ...f, supActualEnd: e.target.value }))}
+                />
+              </div>
+            </div>
+            <p className={`text-sm font-bold ${supForm.isSupervision ? "text-status-warn" : "text-muted-foreground"}`}>
+              {supStatusLine}
+            </p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" className="h-9" onClick={() => setSupOpen(false)} disabled={supMutation.isPending}>
+              ✕ إغلاق
+            </Button>
+            <Button className="h-9" onClick={() => supMutation.mutate()} disabled={supMutation.isPending}>
+              {supMutation.isPending ? "جارٍ الحفظ…" : "💾 حفظ الطابع"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== سجل المراحل (followup.py:1301–1324) ===== */}
+      <Card>
+        <CardHeader className="p-4 pb-1">
+          <CardTitle className="text-sm text-primary">🕒 سجل المراحل</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-1">
+          {historyQuery.isLoading ? (
+            <Skeleton className="h-12 rounded-lg" />
+          ) : (historyQuery.data?.events?.length ?? 0) === 0 ? (
+            <p className="text-xs text-muted-foreground">لا حركة بعد</p>
+          ) : (
+            <ul className="max-h-48 space-y-1 overflow-y-auto pe-1 text-xs leading-5 text-muted-foreground">
+              {(historyQuery.data?.events ?? []).map((ev) => (
+                <li key={ev.id}>{formatStageHistoryLine(ev)}</li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ===== محادثة المعاملة (followup.py:624–654 + 1277–1299) ===== */}
+      <Card>
+        <CardHeader className="p-4 pb-1">
+          <CardTitle className="text-sm text-primary">💬 محادثة المعاملة</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 p-4 pt-1">
+          {msgsQuery.isLoading ? (
+            <Skeleton className="h-12 rounded-lg" />
+          ) : (msgsQuery.data?.messages?.length ?? 0) === 0 ? (
+            <p className="py-2 text-center text-xs text-muted-foreground">
+              لا رسائل بعد · اكتب أول رسالة للمشاركين
+            </p>
+          ) : (
+            <div className="max-h-64 space-y-1.5 overflow-y-auto pe-1">
+              {(msgsQuery.data?.messages ?? []).map((m) => {
+                const mine = m.username === username;
+                return (
+                  <div
+                    key={m.id}
+                    className={`max-w-[85%] rounded-lg px-3 py-2 text-xs leading-5 ${
+                      mine ? "bg-primary/10" : "bg-muted/60"
+                    }`}
+                  >
+                    <span className="font-bold text-muted-foreground">
+                      {m.username || "مستخدم"} · {m.createdAt.slice(0, 16).replace("T", " ")}
+                    </span>
+                    <span className="block whitespace-pre-wrap">{m.body}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Input
+              className="h-9"
+              placeholder="اكتب رسالتك للمشاركين..."
+              value={msgText}
+              onChange={(e) => setMsgText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  if (msgText.trim() && !msgMutation.isPending) msgMutation.mutate();
+                }
+              }}
+              aria-label="رسالة المحادثة"
+            />
+            <Button
+              size="sm"
+              className="h-9 shrink-0"
+              disabled={!msgText.trim() || msgMutation.isPending}
+              onClick={() => msgMutation.mutate()}
+            >
+              {msgMutation.isPending ? "جارٍ الإرسال…" : "إرسال"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </>
   );
 }
 

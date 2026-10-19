@@ -2,17 +2,24 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { adminGuard, audit, authGuard, jsonError, ok } from "@/lib/api-utils";
 import { numOr } from "@/lib/contrack-server";
+import { r3 } from "@/lib/contrack-core";
+import { PRICING_MODES, validateTypeInput } from "@/lib/contract-types-admin";
 
-const PRICING_MODES = ["lump", "unit", "items", "bundle"];
-
+/** أنواع العقود — لكل نوع عدد عقوده (contractsCount) وعدد قوالب دفعاته */
 export async function GET(req: NextRequest) {
   const guard = await authGuard(req);
   if ("response" in guard) return guard.response;
 
-  const types = await db.contractType.findMany({
-    include: { _count: { select: { paymentTemplates: true } } },
-    orderBy: { name: "asc" },
-  });
+  const [types, counts] = await Promise.all([
+    db.contractType.findMany({
+      include: { _count: { select: { paymentTemplates: true } } },
+      orderBy: { name: "asc" },
+    }),
+    // الربط بالعقود اسمي (contract.contractType نص) — تُحسب مجموعةً ثم تُطابَق بالاسم
+    db.contract.groupBy({ by: ["contractType"], _count: { _all: true } }),
+  ]);
+  const countMap = new Map(counts.map((c) => [c.contractType, c._count._all]));
+
   return ok({
     types: types.map((t) => ({
       id: t.id,
@@ -26,6 +33,7 @@ export async function GET(req: NextRequest) {
       pricingMode: t.pricingMode,
       isSupervision: t.isSupervision,
       templatesCount: t._count.paymentTemplates,
+      contractsCount: countMap.get(t.name) ?? 0,
     })),
   });
 }
@@ -36,26 +44,36 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const name = String(body.name || "").trim();
-  if (!name) return jsonError("اسم نوع العقد مطلوب");
+
+  // حرس المكتبي الحرفي: الاسم ← المبلغ ← سعر الوحدة ← الشامل/الإشرافي (add_type)
+  const defaultAmount = r3(numOr(body.defaultAmount, 0));
+  const unitPrice = r3(numOr(body.unitPrice, 0));
+  const guardError = validateTypeInput({
+    name,
+    defaultAmount,
+    unitPrice,
+    pricingMode: body.pricingMode !== undefined ? String(body.pricingMode) : undefined,
+    isSupervision: body.isSupervision !== undefined ? Boolean(body.isSupervision) : undefined,
+  });
+  if (guardError) return jsonError(guardError);
+
   const exists = await db.contractType.findUnique({ where: { name } });
-  if (exists) return jsonError("اسم نوع العقد موجود مسبقًا");
+  if (exists) return jsonError(`النوع «${name}» موجود بالفعل.`);
 
   const pricingMode = String(body.pricingMode || "lump");
-  if (!PRICING_MODES.includes(pricingMode)) return jsonError("نمط التسعير غير صحيح");
-  const isSupervision = Boolean(body.isSupervision);
-  if (pricingMode === "bundle" && isSupervision) return jsonError("النوع الشامل لا يكون إشرافيًا");
+  if (!PRICING_MODES.some((m) => m.value === pricingMode)) return jsonError("نمط التسعير غير صحيح");
 
   const type = await db.contractType.create({
     data: {
       name,
-      defaultAmount: numOr(body.defaultAmount, 0),
+      defaultAmount,
       notes: String(body.notes || ""),
       active: body.active !== undefined ? Boolean(body.active) : true,
       manualTrack: Boolean(body.manualTrack),
-      unitLabel: String(body.unitLabel || ""),
-      unitPrice: numOr(body.unitPrice, 0),
+      unitLabel: String(body.unitLabel || "").trim(),
+      unitPrice,
       pricingMode,
-      isSupervision,
+      isSupervision: Boolean(body.isSupervision),
     },
   });
   await audit(db, {

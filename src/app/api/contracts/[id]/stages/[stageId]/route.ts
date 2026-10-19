@@ -1,19 +1,33 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { authGuard, jsonError, ok, parseDay, todayStr } from "@/lib/api-utils";
+import { adminGuard, audit, authGuard, jsonError, ok, parseDay, todayStr } from "@/lib/api-utils";
+import { r3 } from "@/lib/contrack-core";
 import { triggerDuePayments } from "@/lib/contrack-server";
 
 type P = { params: Promise<{ id: string; stageId: string }> };
+
+/** الحالات المجمّدة — لا تغيير مراحل عليها (تجميد المكتبي للعقد الملغى/المغلق) */
+const FROZEN_STATUSES = ["ملغى", "مغلق"];
 
 /**
  * تحديث مرحلة:
  * - بداية/نهاية؛ إنهاء (endDate=today أو تاريخ) يستدعي triggerDuePayments.
  * - تخطي isSkipped+closedBy ⇒ «غير مستحقة لأن المرحلة المرتبطة تم تخطيها».
  * - إعادة فتح (مسح endDate) ⇒ تصفير triggeredAt لسطور المرحلة المُثيرة وnotes=''.
+ * - تراجع مرحلة (action=revert — مدير): إرجاع العقد للمرحلة المكتملة السابقة
+ *   مع عكس الاستحقاق التلقائي غير المصدر له سند (نفس منطق إعادة الفتح).
+ * - طابع إشراف (action=supervision — مدير): ضبط أعمدة الإشراف على المرحلة.
  */
 export async function PATCH(req: NextRequest, { params }: P) {
-  const guard = await authGuard(req, "action_stage_advance");
+  const bodyRaw = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const action = typeof bodyRaw.action === "string" ? bodyRaw.action : "";
+
+  const guard =
+    action === "revert" || action === "supervision"
+      ? await adminGuard(req)
+      : await authGuard(req, "action_stage_advance");
   if ("response" in guard) return guard.response;
+
   const { id: idStr, stageId: stageIdStr } = await params;
   const contractId = Number(idStr);
   const stageId = Number(stageIdStr);
@@ -24,7 +38,125 @@ export async function PATCH(req: NextRequest, { params }: P) {
   const stage = await db.contractStage.findUnique({ where: { id: stageId } });
   if (!stage || stage.contractId !== contractId) return jsonError("المرحلة غير موجودة", 404);
 
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  // ===== تراجع مرحلة (مدير) — followup.py:1330 _revert_stage + workflow_service.revert_contract_stage =====
+  if (action === "revert") {
+    if (FROZEN_STATUSES.includes(contract.status)) {
+      return jsonError("العقد مجمّد (ملغى/مغلق) — لا يمكن تغيير مراحله");
+    }
+    const reason = String(bodyRaw.reason || "").trim();
+    const stages = await db.contractStage.findMany({
+      where: { contractId },
+      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    });
+    // المرحلة المكتملة غير المتخطاة الأعلى ترتيبًا قبل المرحلة المعطاة
+    let target: (typeof stages)[number] | null = null;
+    for (const s of stages) {
+      if (s.id === stage.id) break;
+      if (s.endDate && !s.isSkipped) target = s;
+    }
+    if (!target) return jsonError("لا توجد مرحلة مكتملة للتراجع عنها.");
+
+    await db.$transaction(async (tx) => {
+      // إعادة فتح W: مسح endDate/closedBy مع إبقاء startDate — وتصفير استحقاقاتها التلقائية غير المصدر لها سند
+      await tx.contractStage.update({
+        where: { id: target.id },
+        data: { endDate: "", closedBy: "" },
+      });
+      await tx.paymentPlanItem.updateMany({
+        where: { contractId, stageId: target.id, triggeredAt: { not: "" } },
+        data: { triggeredAt: "", notes: "" },
+      });
+      // المرحلة الحالية المعطاة: مسح بدايتها/نهايتها إن وُجدت
+      const xData: Record<string, string> = {};
+      if (stage.startDate) xData.startDate = "";
+      if (stage.endDate) {
+        xData.endDate = "";
+        xData.closedBy = "";
+      }
+      if (Object.keys(xData).length > 0) {
+        await tx.contractStage.update({ where: { id: stage.id }, data: xData });
+      }
+      await tx.contractEvent.create({
+        data: {
+          contractId,
+          eventType: "إرجاع مرحلة",
+          description: `تم التراجع من «${stage.name}» إلى «${target.name}»${reason ? ` · ${reason}` : ""}`,
+          username: guard.user.username,
+        },
+      });
+      await audit(tx, {
+        username: guard.user.username,
+        action: "تراجع مرحلة",
+        entityType: "contract",
+        entityId: contractId,
+        entityName: contract.contractNumber,
+        reason,
+      });
+    });
+
+    return ok({ from: stage.name, to: target.name });
+  }
+
+  // ===== طابع إشراف المرحلة (مدير) — followup.py:223 StageSupervisionDialog =====
+  if (action === "supervision") {
+    if (FROZEN_STATUSES.includes(contract.status)) {
+      return jsonError("العقد مجمّد (ملغى/مغلق) — لا يمكن تغيير طابعه الإشرافي");
+    }
+    const data: Record<string, unknown> = {};
+    const changes: string[] = [];
+    if (bodyRaw.isSupervision !== undefined) {
+      const flag = Boolean(bodyRaw.isSupervision);
+      if (flag !== stage.isSupervision) {
+        changes.push(flag ? "تفعيل الطابع الإشرافي" : "إزالة الطابع الإشرافي");
+      }
+      data.isSupervision = flag;
+    }
+    const dateFields = [
+      ["supEnd", "النهاية المخططة"],
+      ["supStart", "تاريخ البداية"],
+      ["supActualEnd", "تاريخ الإنهاء"],
+    ] as const;
+    for (const [key, label] of dateFields) {
+      if (bodyRaw[key] !== undefined) {
+        const d = String(bodyRaw[key] ?? "").trim();
+        if (d && !parseDay(d)) return jsonError(`تاريخ غير صالح: ${label}`);
+        if (d !== stage[key]) changes.push(`${label} ${d || "مُسحت"}`);
+        data[key] = d;
+      }
+    }
+    if (bodyRaw.supMonthly !== undefined) {
+      const n = Number(bodyRaw.supMonthly);
+      if (!Number.isFinite(n) || n < 0) return jsonError("قيمة الشهر غير صالحة");
+      const v = r3(n);
+      if (v !== Number(stage.supMonthly)) changes.push(`قيمة الشهر ${v} د.ك`);
+      data.supMonthly = v;
+    }
+    if (Object.keys(data).length === 0) return jsonError("لا توجد بيانات للتعديل");
+
+    const updated = await db.$transaction(async (tx) => {
+      const st = await tx.contractStage.update({ where: { id: stageId }, data });
+      await tx.contractEvent.create({
+        data: {
+          contractId,
+          eventType: "تعديل طابع الإشراف",
+          description: `طابع إشراف «${stage.name}»${changes.length ? `: ${changes.join(" · ")}` : " (بلا تغيير قيم)"}`,
+          username: guard.user.username,
+        },
+      });
+      return st;
+    });
+
+    return ok({
+      isSupervision: updated.isSupervision,
+      supStart: updated.supStart,
+      supEnd: updated.supEnd,
+      supActualEnd: updated.supActualEnd,
+      supMonthly: Number(updated.supMonthly),
+    });
+  }
+
+  // ===== الإجراءات الأصلية (بدء/إنهاء/تخطي/إعادة فتح/تعديل بيانات) =====
+  const body = bodyRaw;
   const data: Record<string, unknown> = {};
   if (body.name !== undefined) {
     const name = String(body.name).trim();

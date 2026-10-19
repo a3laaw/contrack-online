@@ -8,6 +8,8 @@ import {
   ChevronLeft,
   ClipboardList,
   HandCoins,
+  HardHat,
+  Hourglass,
   RefreshCw,
   TimerReset,
 } from "lucide-react";
@@ -32,6 +34,13 @@ function daysLabel(n: number | undefined | null): string {
   const v = Number(n ?? 0);
   return `${v} ${v === 1 ? "يوم" : v === 2 ? "يومين" : v <= 10 ? "أيام" : "يومًا"}`;
 }
+
+/** لون شارة «باقي X» حسب مستوى التنبيه: عميق أحمر · تحذير كهرماني · معلومة زرقاء */
+const EXPIRY_TIER_BADGE: Record<string, string> = {
+  deep: "bg-status-danger-bg text-status-danger",
+  warn: "bg-status-warn-bg text-status-warn",
+  info: "bg-status-info-bg text-status-info",
+};
 
 /** صف قابل للنقر يفتح العقد */
 function Row({
@@ -174,7 +183,7 @@ export function FollowupView({ user: _user, onAuthError, onOpenContract }: Follo
     {
       key: "expiring",
       title: "عقود تنتهي قريبًا",
-      desc: "حسب أيام التنبيه المضبوطة في الإعدادات",
+      desc: "حسب أيام التنبيه المضبوطة في الإعدادات (تدرّج الألوان بالمستويات)",
       icon: CalendarClock,
       count: data?.expiring?.length ?? 0,
       badgeClass: "bg-status-warn-bg text-status-warn",
@@ -192,7 +201,7 @@ export function FollowupView({ user: _user, onAuthError, onOpenContract }: Follo
             </>
           }
           badge={`باقي ${daysLabel(r.daysLeft)}`}
-          badgeClass="bg-status-warn-bg text-status-warn"
+          badgeClass={EXPIRY_TIER_BADGE[r.tier ?? "info"] ?? "bg-status-info-bg text-status-info"}
           trailing={
             <div className="text-[11px] text-muted-foreground" dir="ltr">
               {fmtDate(r.endDate)}
@@ -217,6 +226,7 @@ export function FollowupView({ user: _user, onAuthError, onOpenContract }: Follo
           title={r.contractNumber}
           subtitle={
             <>
+              {r.customerName && <span>{r.customerName} ·</span>}
               <span>نهاية الأساس: {fmtDate(r.baseEnd)}</span>
             </>
           }
@@ -225,6 +235,72 @@ export function FollowupView({ user: _user, onAuthError, onOpenContract }: Follo
           trailing={
             <div className="text-[11px] text-muted-foreground" dir="ltr">
               {fmtDate(r.baseEnd)}
+            </div>
+          }
+        />
+      )),
+    },
+    {
+      key: "extension",
+      title: "تمديد إشراف",
+      desc: "عقود إشراف انتهت مدتها الأساسية وعليها تمديد ساري",
+      icon: Hourglass,
+      count: data?.extension?.length ?? 0,
+      badgeClass: "bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300",
+      cardClass: "bg-purple-500/10 text-purple-600 dark:text-purple-300",
+      empty: "لا إشراف في حالة تمديد",
+      content: (data?.extension ?? []).map((r, i) => (
+        <Row
+          key={`x-${i}`}
+          onClick={r.contractId != null ? () => onOpenContract(r.contractId as number) : undefined}
+          title={r.contractNumber}
+          subtitle={
+            <>
+              <span>{r.customerName}</span>
+              <span>· نهاية الأساس: {fmtDate(r.baseEnd)}</span>
+              {r.actualEnd && <span>· النهاية الكاملة: {fmtDate(r.actualEnd)}</span>}
+            </>
+          }
+          badge="في التمديد"
+          badgeClass="bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300"
+          trailing={
+            <div>
+              <div className="text-sm font-bold tabular-nums text-purple-700 dark:text-purple-300" dir="ltr">
+                {formatKWD(r.supMonthly)}
+              </div>
+              <div className="text-[10px] text-muted-foreground">شهريًا</div>
+            </div>
+          }
+        />
+      )),
+    },
+    {
+      key: "execution",
+      title: "🏗 مراحل التنفيذ",
+      desc: "تأخر العقود في مراحلها الجارية وما قارب على الانتهاء",
+      icon: HardHat,
+      count: data?.execution?.length ?? 0,
+      badgeClass: "bg-status-danger-bg text-status-danger",
+      cardClass: "bg-orange-500/10 text-status-danger",
+      empty: "لا تنبيهات على مراحل التنفيذ",
+      content: (data?.execution ?? []).map((r, i) => (
+        <Row
+          key={`g-${i}`}
+          onClick={r.contractId != null ? () => onOpenContract(r.contractId as number) : undefined}
+          title={r.contractNumber}
+          subtitle={
+            <>
+              <span>{r.customerName}</span>
+              <span>
+                · {r.kind === "overdue" ? "متأخر في" : "قارب على نهاية"} «{r.stageName}»: {r.daysIn} من {r.expected}
+              </span>
+            </>
+          }
+          badge={r.kind === "overdue" ? `متأخر ${daysLabel(r.over)}` : `باقي ${daysLabel(r.left)}`}
+          badgeClass={r.kind === "overdue" ? "bg-status-danger-bg text-status-danger" : "bg-status-warn-bg text-status-warn"}
+          trailing={
+            <div className="text-[11px] text-muted-foreground" dir="ltr">
+              {r.daysIn}/{r.expected}
             </div>
           }
         />
@@ -258,9 +334,9 @@ export function FollowupView({ user: _user, onAuthError, onOpenContract }: Follo
       </div>
 
       {/* بطاقات العد */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         {followQuery.isLoading
-          ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)
+          ? Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)
           : sections.map((s) => {
               const Icon = s.icon;
               return (

@@ -24,6 +24,7 @@ import {
   type CashItem,
   type TransferItem,
 } from "@/lib/cashflow-modes-core";
+import { classifyStageExecution } from "@/lib/followup-alerts";
 
 // ===================================================================
 // المكتبة الخلفية المشتركة للتقارير وكشوف الحساب (Task 10-a)
@@ -1484,12 +1485,10 @@ export async function reportExecution(opts: { option?: string; contractType?: st
       const current = c.stages.find((s) => s.startDate && !s.endDate && !s.isSkipped);
       if (!current) continue;
       if (opts.stage && current.name !== opts.stage) continue;
-      const expected = current.expectedDays;
-      const daysIn = current.startDate ? Math.max(0, daysBetween(current.startDate, today)) : 0;
-      const state = expected > 0 ? (daysIn > expected ? "over" : daysIn >= expected - 3 ? "near" : "ok") : "ok";
+      const state = classifyStageExecution(current, today)?.kind ?? "ok";
       const t = byStage.get(current.name) || { total: 0, over: 0, near: 0 };
       t.total += 1;
-      if (state === "over") t.over += 1;
+      if (state === "overdue") t.over += 1;
       else if (state === "near") t.near += 1;
       byStage.set(current.name, t);
     }
@@ -1528,20 +1527,19 @@ export async function reportExecution(opts: { option?: string; contractType?: st
     const nextStage = stages.slice(idx + 1).find((s) => !s.startDate && !s.isSkipped);
     const expected = current.expectedDays;
     const daysIn = current.startDate ? Math.max(0, daysBetween(current.startDate, today)) : 0;
+    const alert = classifyStageExecution(current, today);
     let label = "جارٍ";
     let sortKey = 3;
     let overBy = 0;
-    if (expected > 0) {
-      if (daysIn > expected) {
-        overBy = daysIn - expected;
-        label = `متأخر ${overBy} يوم`;
-        sortKey = 0;
-      } else if (daysIn >= expected - 3) {
-        label = `قارب · بقي ${expected - daysIn} يوم`;
-        sortKey = 1;
-      } else {
-        label = `ضمن الوقت · بقي ${expected - daysIn} يوم`;
-      }
+    if (alert?.kind === "overdue") {
+      overBy = alert.over ?? 0;
+      label = `متأخر ${overBy} يوم`;
+      sortKey = 0;
+    } else if (alert?.kind === "near") {
+      label = `قارب · بقي ${expected - daysIn} يوم`;
+      sortKey = 1;
+    } else if (expected > 0) {
+      label = `ضمن الوقت · بقي ${expected - daysIn} يوم`;
     }
     data.push({
       customer: c.customer.name,

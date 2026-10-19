@@ -2,12 +2,22 @@ import { NextRequest } from "next/server";
 import { authGuard, ok } from "@/lib/api-utils";
 import { EPS, daysBetween, r3, todayStr } from "@/lib/contrack-core";
 import { getSettingsRow } from "@/lib/contrack-server";
+import { db } from "@/lib/db";
 import { STATUS_CANCELLED, STATUS_CLOSED, loadContractsFinance } from "@/lib/report-server";
+import {
+  buildExecutionAlertRows,
+  expiryLevelsOrDefault,
+  expiryTier,
+  isFollowupCollection,
+  isFollowupExpiring,
+  isSupervisionInExtension,
+} from "@/lib/followup-alerts";
 
 /**
  * شاشة المتابعة — GET /api/followup
  * يجمع: المستحق الآن (strict مع تفاصيل الخطوط المتأخرة)، تعريض التحصيل،
- * عقود تنتهي قريبًا، إشراف قريب من نهاية الأساس (30 يوم) — بحالات ألوان.
+ * عقود تنتهي قريبًا (بتدرّج مستويات التنبيه)، إشراف قريب من نهاية الأساس،
+ * إشراف في حالة تمديد، وتنبيهات مراحل التنفيذ (متأخر/قارب) — بحالات ألوان.
  */
 export async function GET(req: NextRequest) {
   const guard = await authGuard(req);
@@ -15,7 +25,9 @@ export async function GET(req: NextRequest) {
 
   const settings = await getSettingsRow();
   const alertDays = Math.max(7, settings.collectionAlertDays);
-  const expiryWindow = Number((settings.expiryAlerts || "90,60,30,7").split(",")[0]) || 90;
+  // نافذة الانتهاء = أكبر مستوى تنبيه (كالمكتبي: max(get_expiry_alert_days))
+  const expiryLevels = expiryLevelsOrDefault(settings.expiryAlerts);
+  const expiryWindow = expiryLevels[expiryLevels.length - 1];
   const today = todayStr();
 
   const finances = await loadContractsFinance({ excludeStatuses: STATUS_CANCELLED });
@@ -51,7 +63,9 @@ export async function GET(req: NextRequest) {
   dueNowRows.sort((a, b) => a.daysDiff - b.daysDiff || b.remaining - a.remaining);
 
   // 2) تعريض التحصيل — متبقٍ وdaysSince(آخر قبض || تاريخ العقد) ≥ أيام التنبيه
+  //    (GAP 4: يستبقي مسودة/مغلق/ملغى كالمكتبي lifecycle:5303)
   const overdueCollections = finances
+    .filter((f) => isFollowupCollection(f.status))
     .filter((f) => f.remaining > EPS && (f.lastReceiptDate || f.contractDate))
     .map((f) => {
       const baseDate = f.lastReceiptDate || f.contractDate;
@@ -66,10 +80,10 @@ export async function GET(req: NextRequest) {
     .filter((x) => x.daysSince >= alertDays)
     .sort((a, b) => b.daysSince - a.daysSince);
 
-  // 3) عقود تنتهي قريبًا (نافذة التنبيه من الإعدادات — الافتراضي 90 يومًا)
+  // 3) عقود تنتهي قريبًا (نافذة = أكبر مستوى تنبيه — GAP 4: يستبقي مغلق/ملغى/منتهي كالمكتبي lifecycle:437)
   const expiring = finances
     .filter((f) => {
-      if (STATUS_CLOSED.includes(f.status)) return false;
+      if (!isFollowupExpiring(f.status)) return false;
       if (!f.endDate) return false;
       const left = daysBetween(today, f.endDate);
       return left >= 0 && left <= expiryWindow;
@@ -80,6 +94,7 @@ export async function GET(req: NextRequest) {
         contractId: f.id, contractNumber: f.contractNumber,
         customerName: f.customerName,
         endDate: f.endDate, daysLeft,
+        tier: expiryTier(daysLeft, settings.expiryAlerts),
       };
     })
     .sort((a, b) => a.daysLeft - b.daysLeft);
@@ -103,6 +118,60 @@ export async function GET(req: NextRequest) {
     })
     .sort((a, b) => a.daysLeft - b.daysLeft);
 
+  // 5) تمديد إشراف (GAP 2) — أساس الإشراف انتهى والتمديد ساري (مرحلة isSupervision)
+  const supStages = await db.contractStage.findMany({
+    where: {
+      isSupervision: true,
+      supEnd: { not: "" },
+      contract: { status: { notIn: [...STATUS_CLOSED, ...STATUS_CANCELLED] } },
+    },
+    select: {
+      contractId: true, supEnd: true, supActualEnd: true, supMonthly: true,
+      sortOrder: true, id: true,
+      contract: { select: { contractNumber: true, customer: { select: { name: true } } } },
+    },
+    orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+  });
+  const extensionByContract = new Map<number, (typeof supStages)[number]>();
+  for (const st of supStages) {
+    if (!isSupervisionInExtension({ isSupervision: true, supEnd: st.supEnd, supActualEnd: st.supActualEnd }, today)) continue;
+    const prev = extensionByContract.get(st.contractId);
+    // عقد بعدة مراحل إشراف: الأحدث بنهاية الأساس هي المعنية
+    if (!prev || st.supEnd > prev.supEnd) extensionByContract.set(st.contractId, st);
+  }
+  const extension = [...extensionByContract.values()]
+    .map((st) => ({
+      contractId: st.contractId,
+      contractNumber: st.contract.contractNumber,
+      customerName: st.contract.customer.name,
+      baseEnd: st.supEnd,
+      actualEnd: st.supActualEnd || undefined,
+      supMonthly: Number(st.supMonthly),
+    }))
+    .sort((a, b) => a.baseEnd.localeCompare(b.baseEnd) || a.contractId - b.contractId);
+
+  // 6) تنبيهات مراحل التنفيذ (GAP 3) — نفس معيار تقرير مراحل التنفيذ الحرفي
+  const execContracts = await db.contract.findMany({
+    where: { status: { notIn: [...STATUS_CLOSED, ...STATUS_CANCELLED, "مسودة"] } },
+    select: {
+      id: true, contractNumber: true, status: true, customer: { select: { name: true } },
+      stages: {
+        orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+        select: { name: true, startDate: true, endDate: true, isSkipped: true, expectedDays: true },
+      },
+    },
+  });
+  const execution = buildExecutionAlertRows(
+    execContracts.map((c) => ({
+      id: c.id,
+      contractNumber: c.contractNumber,
+      customerName: c.customer.name,
+      status: c.status,
+      stages: c.stages,
+    })),
+    today
+  );
+
   return ok({
     generatedAt: new Date().toISOString(),
     today,
@@ -112,5 +181,7 @@ export async function GET(req: NextRequest) {
     overdueCollections,
     expiring,
     nearBaseEnd,
+    extension,
+    execution,
   });
 }

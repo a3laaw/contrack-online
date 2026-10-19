@@ -249,6 +249,7 @@ function AppRoot() {
           onBack={() => navigate("contracts")}
           onAuthError={onAuthError}
           onOpenStatement={openStatement}
+          onOpenCustomerFile={openCustomerFile}
         />
       )}
       {view === "vouchers" && (

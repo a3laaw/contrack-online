@@ -148,6 +148,8 @@ model Contract {
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
   contractScopes    ContractScope[]
+  stageNotes        StageNote[]
+  txMessages        TxMessage[]
 
   @@index([customerId, status])
   @@map("contracts")
@@ -1002,4 +1004,35 @@ model FormDocument {
   createdAt       DateTime     @default(now())
 
   @@map("form_documents")
+}
+
+// ==================== المرحلة 7-ب: ملاحظات المراحل ومحادثة المعاملة ====================
+
+/** ملاحظة على معاملة (سبب التأخير / واقفة فين) — StageNoteDialog المكتبية V5.9 */
+model StageNote {
+  id         Int       @id @default(autoincrement())
+  txType     String    @default("contract")
+  txId       Int
+  contractId Int?      @map("contract_id")
+  contract   Contract? @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  stageName  String    @default("") @map("stage_name")
+  note       String
+  author     String
+  createdAt  DateTime  @default(now())
+
+  @@index([txType, txId])
+  @@map("stage_notes")
+}
+
+/** رسالة محادثة المعاملة — شات FollowupPanel المكتبي */
+model TxMessage {
+  id         Int      @id @default(autoincrement())
+  contractId Int      @map("contract_id")
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  username   String
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([contractId])
+  @@map("tx_messages")
 }

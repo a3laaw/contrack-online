@@ -60,8 +60,17 @@ export const CONTRACT_STATUSES = [
 
 export type ContractStatus = (typeof CONTRACT_STATUSES)[number];
 
-/** حالات يمكن الانتقال إليها من نافذة تغيير الحالة */
-export const STATUS_CHANGE_OPTIONS = ["نشط", "متوقف", "منتهي", "مغلق", "ملغى"] as const;
+/** حالات يمكن الانتقال إليها من نافذة تغيير الحالة — القائمة الكاملة الثمانية بترتيب المكتبي (lifecycle_service.CONTRACT_STATUSES) */
+export const STATUS_CHANGE_OPTIONS = [
+  "مسودة",
+  "تحت المراجعة",
+  "معتمد",
+  "نشط",
+  "متوقف",
+  "منتهي",
+  "مغلق",
+  "ملغى",
+] as const;
 
 /** الحالات التي يُلزم فيها السبب (إلغاء/إغلاق) */
 export const STATUS_REASON_REQUIRED = new Set(["ملغى", "مغلق"]);
@@ -441,6 +450,11 @@ export interface ContractStage {
   isSkipped?: boolean;
   closedBy?: string;
   isSupervision?: boolean;
+  /** الطابع الإشرافي للمرحلة (V3.21) — يعود في تفاصيل العقد من كامل صف contract_stages */
+  supStart?: string;
+  supEnd?: string;
+  supActualEnd?: string;
+  supMonthly?: number | string;
 }
 
 export interface ContractPlanBrief {
@@ -697,6 +711,8 @@ export interface ContractTypeDTO {
   unitPrice?: number;
   pricingMode?: string;
   isSupervision?: boolean;
+  /** عدد العقود المرتبطة بالنوع (الربط اسمي عبر contract.contractType) — المرحلة 7-ج */
+  contractsCount?: number;
 }
 
 export interface ContractTypesResponse {
@@ -888,21 +904,61 @@ export interface FollowupExpiringRow {
   customerName: string;
   endDate: string;
   daysLeft: number;
+  /** مستوى التنبيه من تدرّج أيام الإعدادات (أصغر حدّ ≥ المتبقي) */
+  tier: FollowupExpiryTier;
 }
 
 export interface FollowupBaseEndRow {
   contractId?: number;
   contractNumber: string;
+  customerName?: string;
   baseEnd: string;
   daysLeft: number;
 }
 
+/** صف «تمديد إشراف»: أساس الإشراف انتهى والتمديد ساري */
+export interface FollowupExtensionRow {
+  contractId?: number;
+  contractNumber: string;
+  customerName: string;
+  baseEnd: string;
+  actualEnd?: string;
+  supMonthly: number;
+}
+
+/** صف تنبيه مراحل التنفيذ: متأخر (over) أو قارب (left) */
+export interface FollowupExecutionRow {
+  contractId?: number;
+  contractNumber: string;
+  customerName: string;
+  stageName: string;
+  kind: "overdue" | "near";
+  daysIn: number;
+  expected: number;
+  over?: number;
+  left?: number;
+}
+
+export type FollowupExpiryTier = "deep" | "warn" | "info";
+
+/** إعدادات المتابعة المُعادة من الخادم */
+export interface FollowupSettings {
+  collectionAlertDays: number;
+  expiryWindow: number;
+}
+
 /** GET /api/followup */
 export interface FollowupResponse {
+  generatedAt: string;
+  today: string;
+  settings: FollowupSettings;
+  dueNowTotal: number;
   dueNow: FollowupDueRow[];
   overdueCollections: FollowupOverdueRow[];
   expiring: FollowupExpiringRow[];
   nearBaseEnd: FollowupBaseEndRow[];
+  extension: FollowupExtensionRow[];
+  execution: FollowupExecutionRow[];
 }
 
 // ==================== البحث الشامل ====================
