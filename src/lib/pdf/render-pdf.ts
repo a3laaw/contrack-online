@@ -8,7 +8,6 @@ import puppeteer from "puppeteer-core";
  * المتتبع على تضمين ثنائية chromium.br وaws.tar.br في حزمة الـserverless —
  * دون هذا يفشل executablePath() على Vercel بمجلد bin ناقص. */
 try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const pkgDir = path.dirname(require.resolve("@sparticuz/chromium/package.json"));
   readdirSync(path.join(pkgDir, "bin"));
 } catch {
