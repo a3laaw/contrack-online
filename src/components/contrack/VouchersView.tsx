@@ -300,7 +300,7 @@ export function VouchersView({ user, onAuthError, presetQ, onConsumePresetQ, ini
                     <TableHead className="w-28">التاريخ</TableHead>
                     <TableHead>الطرف</TableHead>
                     <TableHead>الوصف</TableHead>
-                    <TableHead className="text-left">المبلغ</TableHead>
+                    <TableHead className="text-start">المبلغ</TableHead>
                     <TableHead className="w-24">الحالة</TableHead>
                     <TableHead className="w-20">إجراءات</TableHead>
                   </TableRow>
@@ -324,7 +324,7 @@ export function VouchersView({ user, onAuthError, presetQ, onConsumePresetQ, ini
                         <TableCell className="max-w-48">
                           <span className="block truncate text-muted-foreground">{v.description || "—"}</span>
                         </TableCell>
-                        <TableCell className="font-bold tabular-nums" dir="ltr">{formatKWD(v.amount)}</TableCell>
+                        <TableCell className="text-end font-bold tabular-nums" dir="ltr">{formatKWD(v.amount)}</TableCell>
                         <TableCell>
                           {v.cancelled ? (
                             <Tooltip>

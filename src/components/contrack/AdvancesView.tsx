@@ -431,7 +431,7 @@ function LedgerTable({ rows }: { rows: LedgerRow[] }) {
         <TableHeader className="sticky top-0 z-10 bg-muted">
           <TableRow>
             {HEADS.map((h, i) => (
-              <TableHead key={i} className={`whitespace-nowrap ${i >= 4 ? "text-left" : ""}`}>
+              <TableHead key={i} className={`whitespace-nowrap ${i >= 4 ? "text-start" : ""}`}>
                 {h}
               </TableHead>
             ))}
@@ -444,10 +444,10 @@ function LedgerTable({ rows }: { rows: LedgerRow[] }) {
               <TableCell className="whitespace-nowrap" dir="ltr">{r.ref}</TableCell>
               <TableCell className="whitespace-nowrap">{r.label}</TableCell>
               <TableCell className="whitespace-nowrap">{r.description}</TableCell>
-              <TableCell className="whitespace-nowrap text-left tabular-nums">{r.in ? formatKWD(r.in) : "—"}</TableCell>
-              <TableCell className="whitespace-nowrap text-left tabular-nums">{r.out ? formatKWD(r.out) : "—"}</TableCell>
+              <TableCell className="whitespace-nowrap text-start tabular-nums">{r.in ? formatKWD(r.in) : "—"}</TableCell>
+              <TableCell className="whitespace-nowrap text-start tabular-nums">{r.out ? formatKWD(r.out) : "—"}</TableCell>
               <TableCell
-                className={`whitespace-nowrap text-left tabular-nums font-medium ${
+                className={`whitespace-nowrap text-start tabular-nums font-medium ${
                   r.balance > 0.001 ? "text-status-danger" : r.balance < -0.001 ? "text-status-done" : ""
                 }`}
               >
@@ -528,7 +528,7 @@ function IndividualReport({
                 <TableHeader className="sticky top-0 z-10 bg-muted">
                   <TableRow>
                     {["التاريخ", "النوع", "البيان", "المبلغ", "الرصيد"].map((h, i) => (
-                      <TableHead key={i} className={`whitespace-nowrap ${i >= 3 ? "text-left" : ""}`}>
+                      <TableHead key={i} className={`whitespace-nowrap ${i >= 3 ? "text-start" : ""}`}>
                         {h}
                       </TableHead>
                     ))}
@@ -540,9 +540,9 @@ function IndividualReport({
                       <TableCell className="whitespace-nowrap">{r.vdate}</TableCell>
                       <TableCell className="whitespace-nowrap">{r.label}</TableCell>
                       <TableCell className="whitespace-nowrap">{r.description}</TableCell>
-                      <TableCell className="whitespace-nowrap text-left tabular-nums">{formatKWD(r.in || r.out)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-start tabular-nums">{formatKWD(r.in || r.out)}</TableCell>
                       <TableCell
-                        className={`whitespace-nowrap text-left tabular-nums font-medium ${
+                        className={`whitespace-nowrap text-start tabular-nums font-medium ${
                           r.balance > 0.001 ? "text-status-danger" : r.balance < -0.001 ? "text-status-done" : ""
                         }`}
                       >
@@ -647,10 +647,10 @@ function SummaryReport({ onAuthError }: { onAuthError: () => void }) {
                   <TableRow>
                     <TableHead className="w-12 text-center">#</TableHead>
                     <TableHead className="whitespace-nowrap">الموظف</TableHead>
-                    <TableHead className="whitespace-nowrap text-left">المسلَّم</TableHead>
-                    <TableHead className="whitespace-nowrap text-left">المسترد+المخصوم</TableHead>
-                    <TableHead className="whitespace-nowrap text-left">المتبقي</TableHead>
-                    <TableHead className="whitespace-nowrap text-left">المتبقي عند نهاية الفترة (FIFO)</TableHead>
+                    <TableHead className="whitespace-nowrap text-start">المسلَّم</TableHead>
+                    <TableHead className="whitespace-nowrap text-start">المسترد+المخصوم</TableHead>
+                    <TableHead className="whitespace-nowrap text-start">المتبقي</TableHead>
+                    <TableHead className="whitespace-nowrap text-start">المتبقي عند نهاية الفترة (FIFO)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -658,12 +658,12 @@ function SummaryReport({ onAuthError }: { onAuthError: () => void }) {
                     <TableRow key={r.employeeId}>
                       <TableCell className="text-center text-xs text-muted-foreground">{i + 1}</TableCell>
                       <TableCell className="whitespace-nowrap">{r.employee}</TableCell>
-                      <TableCell className="whitespace-nowrap text-left tabular-nums">{formatKWD(r.advanced)}</TableCell>
-                      <TableCell className="whitespace-nowrap text-left tabular-nums">{formatKWD(r.recovered + r.deducted)}</TableCell>
-                      <TableCell className={`whitespace-nowrap text-left tabular-nums font-medium ${r.balance > 0.001 ? "text-status-danger" : ""}`}>
+                      <TableCell className="whitespace-nowrap text-start tabular-nums">{formatKWD(r.advanced)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-start tabular-nums">{formatKWD(r.recovered + r.deducted)}</TableCell>
+                      <TableCell className={`whitespace-nowrap text-start tabular-nums font-medium ${r.balance > 0.001 ? "text-status-danger" : ""}`}>
                         {formatKWD(r.balance)}
                       </TableCell>
-                      <TableCell className={`whitespace-nowrap text-left tabular-nums font-medium ${r.asOfBalance > 0.001 ? "text-status-danger" : ""}`}>
+                      <TableCell className={`whitespace-nowrap text-start tabular-nums font-medium ${r.asOfBalance > 0.001 ? "text-status-danger" : ""}`}>
                         {formatKWD(r.asOfBalance)}
                       </TableCell>
                     </TableRow>
@@ -692,9 +692,9 @@ function SummaryReport({ onAuthError }: { onAuthError: () => void }) {
                         <TableHead className="whitespace-nowrap">المرجع</TableHead>
                         <TableHead className="whitespace-nowrap">التاريخ</TableHead>
                         <TableHead className="whitespace-nowrap">الموظف</TableHead>
-                        <TableHead className="whitespace-nowrap text-left">المبلغ</TableHead>
-                        <TableHead className="whitespace-nowrap text-left">المُسترَد</TableHead>
-                        <TableHead className="whitespace-nowrap text-left">المتبقي</TableHead>
+                        <TableHead className="whitespace-nowrap text-start">المبلغ</TableHead>
+                        <TableHead className="whitespace-nowrap text-start">المُسترَد</TableHead>
+                        <TableHead className="whitespace-nowrap text-start">المتبقي</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -703,9 +703,9 @@ function SummaryReport({ onAuthError }: { onAuthError: () => void }) {
                           <TableCell className="whitespace-nowrap" dir="ltr">{v.voucherNumber}</TableCell>
                           <TableCell className="whitespace-nowrap">{v.vdate}</TableCell>
                           <TableCell className="whitespace-nowrap">{v.employee}</TableCell>
-                          <TableCell className="whitespace-nowrap text-left tabular-nums">{formatKWD(v.amount)}</TableCell>
-                          <TableCell className="whitespace-nowrap text-left tabular-nums">{formatKWD(v.settled)}</TableCell>
-                          <TableCell className="whitespace-nowrap text-left tabular-nums font-medium">{formatKWD(v.remaining)}</TableCell>
+                          <TableCell className="whitespace-nowrap text-start tabular-nums">{formatKWD(v.amount)}</TableCell>
+                          <TableCell className="whitespace-nowrap text-start tabular-nums">{formatKWD(v.settled)}</TableCell>
+                          <TableCell className="whitespace-nowrap text-start tabular-nums font-medium">{formatKWD(v.remaining)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

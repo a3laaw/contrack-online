@@ -219,7 +219,7 @@ export function TaskEditPage({ editing, onAuthError, onSaved, onClose }: TaskEdi
                 value={due}
                 onChange={(e) => setDue(e.target.value)}
                 dir="ltr"
-                className="h-9 text-right"
+                className="h-9 text-end"
               />
             </div>
 

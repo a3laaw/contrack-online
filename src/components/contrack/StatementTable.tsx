@@ -62,9 +62,9 @@ export function StatementTable({
                   <TableHead className="w-24 whitespace-nowrap">التاريخ</TableHead>
                   <TableHead className="w-28 whitespace-nowrap">المرجع</TableHead>
                   <TableHead>البيان</TableHead>
-                  <TableHead className="w-28 text-left whitespace-nowrap">مدين</TableHead>
-                  <TableHead className="w-28 text-left whitespace-nowrap">دائن</TableHead>
-                  <TableHead className="w-32 text-left whitespace-nowrap">الرصيد</TableHead>
+                  <TableHead className="w-28 text-start whitespace-nowrap">مدين</TableHead>
+                  <TableHead className="w-28 text-start whitespace-nowrap">دائن</TableHead>
+                  <TableHead className="w-32 text-start whitespace-nowrap">الرصيد</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -110,13 +110,13 @@ export function StatementTable({
                           </TooltipProvider>
                         )}
                       </TableCell>
-                      <TableCell className="text-left whitespace-nowrap tabular-nums">
+                      <TableCell className="text-start whitespace-nowrap tabular-nums">
                         {r.debit ? formatKWD(r.debit) : "—"}
                       </TableCell>
-                      <TableCell className="text-left whitespace-nowrap tabular-nums">
+                      <TableCell className="text-start whitespace-nowrap tabular-nums">
                         {r.credit ? formatKWD(r.credit) : "—"}
                       </TableCell>
-                      <TableCell className="text-left whitespace-nowrap font-medium tabular-nums">
+                      <TableCell className="text-start whitespace-nowrap font-medium tabular-nums">
                         {formatKWD(r.balance)}
                       </TableCell>
                     </TableRow>
@@ -129,14 +129,14 @@ export function StatementTable({
                     <TableCell colSpan={4} className="text-sm">
                       الإجماليات — مدين / دائن / المتبقي
                     </TableCell>
-                    <TableCell className="text-left whitespace-nowrap tabular-nums">
+                    <TableCell className="text-start whitespace-nowrap tabular-nums">
                       {formatKWD(totals.debit)}
                     </TableCell>
-                    <TableCell className="text-left whitespace-nowrap tabular-nums">
+                    <TableCell className="text-start whitespace-nowrap tabular-nums">
                       {formatKWD(totals.credit)}
                     </TableCell>
                     <TableCell
-                      className={`text-left whitespace-nowrap tabular-nums ${
+                      className={`text-start whitespace-nowrap tabular-nums ${
                         totals.remaining > 0.001
                           ? "text-status-warn"
                           : "text-status-done"

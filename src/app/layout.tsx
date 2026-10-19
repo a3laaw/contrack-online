@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Cairo } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { AppDirectionProvider } from "@/components/app-direction-provider";
 
 // الخط المعتمد: Cairo (قيد 6 من التوجيه)
 const cairo = Cairo({
@@ -29,8 +30,10 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" className={cairo.variable} suppressHydrationWarning>
       <body className="antialiased bg-background text-foreground font-sans">
-        {children}
-        <Toaster />
+        <AppDirectionProvider>
+          {children}
+          <Toaster />
+        </AppDirectionProvider>
       </body>
     </html>
   );

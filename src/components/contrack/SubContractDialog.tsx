@@ -441,7 +441,7 @@ export function SubItemsEditor({
                 <TableHead>الوصف</TableHead>
                 <TableHead className="w-20">الكمية</TableHead>
                 <TableHead className="w-28">سعر الوحدة</TableHead>
-                <TableHead className="w-24 text-left">المبلغ</TableHead>
+                <TableHead className="w-24 text-start">المبلغ</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
@@ -491,7 +491,7 @@ export function SubItemsEditor({
                       }}
                     />
                   </TableCell>
-                  <TableCell className="tabular-nums" dir="ltr">
+                  <TableCell className="text-end tabular-nums" dir="ltr">
                     {formatKWD(Number(d.qty || 0) * Number(d.unitPrice || 0))}
                   </TableCell>
                   <TableCell>
@@ -564,7 +564,7 @@ export function SubPlanLinesTable({
             <TableRow>
               <TableHead>الخط</TableHead>
               <TableHead className="w-28">الاستحقاق</TableHead>
-              <TableHead className="w-24 text-left">المبلغ</TableHead>
+              <TableHead className="w-24 text-start">المبلغ</TableHead>
               <TableHead className="w-40">الحالة</TableHead>
               {manager && <TableHead className="w-10"></TableHead>}
             </TableRow>
@@ -581,7 +581,7 @@ export function SubPlanLinesTable({
                   )}
                 </TableCell>
                 <TableCell className="tabular-nums" dir="ltr">{fmtDate(l.dueDate)}</TableCell>
-                <TableCell className="font-bold tabular-nums" dir="ltr">{formatKWD(l.amount)}</TableCell>
+                <TableCell className="text-end font-bold tabular-nums" dir="ltr">{formatKWD(l.amount)}</TableCell>
                 <TableCell>
                   <div className="flex flex-wrap items-center gap-1">
                     <StatusBadge status={l.state || ""} label={l.stateLabel || l.state || "—"} className="text-[11px]" />
@@ -642,8 +642,8 @@ export function SubBlocksTable({ loading, rows }: { loading: boolean; rows: SubP
           <TableHeader className="sticky top-0 bg-muted">
             <TableRow>
               <TableHead>دفعة العميل</TableHead>
-              <TableHead className="w-24 text-left">قيمتها</TableHead>
-              <TableHead className="w-24 text-left">المغطى</TableHead>
+              <TableHead className="w-24 text-start">قيمتها</TableHead>
+              <TableHead className="w-24 text-start">المغطى</TableHead>
               <TableHead>خطوط الباطن المرتبطة</TableHead>
             </TableRow>
           </TableHeader>
@@ -654,8 +654,8 @@ export function SubBlocksTable({ loading, rows }: { loading: boolean; rows: SubP
                   <div className="text-sm font-medium">{r.custTitle}</div>
                   <StatusBadge status={r.custState || ""} className="mt-1 text-[10px]" />
                 </TableCell>
-                <TableCell className="tabular-nums" dir="ltr">{formatKWD(r.custAmount)}</TableCell>
-                <TableCell className="tabular-nums" dir="ltr">{formatKWD(r.custCovered)}</TableCell>
+                <TableCell className="text-end tabular-nums" dir="ltr">{formatKWD(r.custAmount)}</TableCell>
+                <TableCell className="text-end tabular-nums" dir="ltr">{formatKWD(r.custCovered)}</TableCell>
                 <TableCell>
                   {r.subLines.length === 0 ? (
                     <span className="text-xs text-muted-foreground">—</span>

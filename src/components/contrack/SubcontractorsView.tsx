@@ -199,9 +199,9 @@ export function SubcontractorsView({ user, onAuthError }: SubcontractorsViewProp
                     <TableHead className="w-28">الهاتف</TableHead>
                     <TableHead>النشاط</TableHead>
                     <TableHead className="w-16 text-center">عقود نشطة</TableHead>
-                    <TableHead className="w-24 text-left">إجمالي</TableHead>
-                    <TableHead className="w-24 text-left">منصرف</TableHead>
-                    <TableHead className="w-24 text-left">متبقي</TableHead>
+                    <TableHead className="w-24 text-start">إجمالي</TableHead>
+                    <TableHead className="w-24 text-start">منصرف</TableHead>
+                    <TableHead className="w-24 text-start">متبقي</TableHead>
                     <TableHead className="w-16">إجراءات</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -215,8 +215,8 @@ export function SubcontractorsView({ user, onAuthError }: SubcontractorsViewProp
                         <TableCell className="tabular-nums" dir="ltr">{c.phone || "—"}</TableCell>
                         <TableCell className="max-w-32 truncate text-muted-foreground">{c.activity || "—"}</TableCell>
                         <TableCell className="text-center tabular-nums">{c._activeContracts ?? 0}</TableCell>
-                        <TableCell className="tabular-nums" dir="ltr">{formatKWD(c._total)}</TableCell>
-                        <TableCell className="tabular-nums" dir="ltr">{formatKWD(c._paid)}</TableCell>
+                        <TableCell className="text-end tabular-nums" dir="ltr">{formatKWD(c._total)}</TableCell>
+                        <TableCell className="text-end tabular-nums" dir="ltr">{formatKWD(c._paid)}</TableCell>
                         <TableCell>
                           <Badge className={remaining > 0.001 ? "bg-status-warn-bg text-status-warn" : "bg-status-done-bg text-status-done"}>
                             <span className="tabular-nums" dir="ltr">{formatKWD(remaining)}</span>

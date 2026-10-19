@@ -1256,3 +1256,36 @@ Stage Summary:
 - gh-6 مُغلق نهائياً: GitHub ⇄ Vercel مربوطان والنشر التلقائي يعمل (بشرط بريد الكاتب الصالح المضبوط محلياً).
 - gh-x (تأخر مزامنة الإنتاج) مُغلق: الإنتاج = المحلي = GitHub على 91d2d4c.
 - هذا الـcommit نفسه سيُطلق نشراً ثانياً تلقائياً (توثيق فقط) — لا أثر وظيفي.
+
+---
+Task ID: 31-b
+Agent: Z.ai Code (وكيل RTL — تحويل الأصناف الفيزيائية إلى منطقية في src/components)
+Task: مسح فيزيائي RTL — تحويل text-left/right في src/components/contrack إلى text-start/text-end وفق القواعد (بما يعادل ml/mr/pl/pr في النطاق لأن المسح أثبت خلوّه منها)
+
+Work Log:
+- مسح شامل بـgrep على src/components: 28 ملفاً مطابقاً — 13 منها ضمن نطاقي (src/components/contrack) والباقي src/components/ui/** ممنوع اللمس. مسح إضافي موسّع (ml-/mr-/pl-/pr-/left-/right-/float-/space-x-) أثبت خلوّ contrack تماماً من غير text-left/right — أي لا قيم ml/mr/pl/pr أصلاً في نطاقي.
+- تحويل 71 صنفاً فيزيائياً في 13 ملفاً: text-left→text-start (54: دائماً آمن — داخل dir="ltr" يبقى يساراً، وفي RTL يصير يميناً وهو صحيح للعربية)؛ text-right→text-start (16 رأس جدول عربي في DataManagementView — نفس المنظر يمين)؛ text-right→text-end (1: Input datetime-local مع dir="ltr" في TaskEditPage — نفس المنظر يمين داخل ltr).
+- إضافة 9 أصناف text-end مكمّلة على خلايا أرقام dir="ltr" بلا صنف محاذاة، لأن تحويل رؤوسها من text-left إلى text-start وحده كان سيكسر اصطفاف العمود (الرأس يمين/الرقم يسار): VouchersView (المبلغ)، SubContractDialog (المبلغ×2، قيمتها، المغطى)، SubDeleteDialog (القيمة، المبلغ)، SubcontractorsView (إجمالي، منصرف). داخل dir="ltr" نتيجة text-end = يمين = اصطفاف مع الرأس المحوَّل — أصلح للعربية ومحافظ على تماسك العمود.
+- متروك بوعي: (1) خلية المتبقي في SubcontractorsView — Badge داخل td بلا dir يصطف يميناً افتراضياً فيطابق الرأس المحوَّل بلا تعديل؛ (2) الأعمدة غير المطابقة التي تعتمد text-left الافتراضي من ui/table.tsx نفسها (الأساس يحمل text-left فيزيائياً على كل TableHead) — إصلاحها الوحيد في ui/table.tsx الممنوع عليّ، سُجّل للمنسق؛ (3) خلايا dir="ltr" غير المرافقة لرؤوس محوَّلة (أكواد/تواريخ/هواتف) تُركت كما هي.
+- تحقق: bunx tsc --noEmit = صفر أخطاء، bun run lint = exit 0، grep العدّاد على contrack = 0 تطابق، git status = 13 ملفاً معدلاً كلها تحت src/components/contrack (صفر لمس لui/app/lib/hooks/prisma). لا قاعدة بيانات، لا dev server، لا commit.
+
+Stage Summary:
+- شاشات contrack صارت بلا أصناف محاذاة فيزيائية: الأرقام والمبالغ تصطف لجهة البداية في RTL عبر text-start/text-end مع الحفاظ التام على منظر dir="ltr" للأرقام نفسها، والجداول العربية أصبحت رؤوسها وبياناتها مصطفة معاً.
+- أعلى أثر متبقٍ خارج نطاقي: صنف text-left الوحيد في src/components/ui/table.tsx (أساس TableHead) — تحويله إلى text-start يصلح محاذاة كل رؤوس الجداول في التطبيق دفعة واحدة؛ القرار للمنسق لأن ui/** محظور عليّ.
+
+---
+Task ID: 31 (منسق) + 31-a/31-b
+Agent: Z.ai Code (منسق) + وكيل عام (31-b مسح الأصناف الفيزيائية)
+Task: طلب المستخدم: «الشاشات بعضها RTL وبعضها LTR» + «مركز التقارير تاب علوي مع المحاسبة»
+
+Work Log:
+- التشخيص: (1) لا DirectionProvider في التطبيق ⇒ كل مكوّنات Radix عبر البوابات (Select/DropdownMenu/Popover/Dialog) تُصيَّر LTR افتراضياً رغم html dir=rtl — وهذا ما يراه المستخدم «شاشات LTR»؛ (2) أصناف فيزيائية (text-left/right) في 28 ملفاً تجعل شاشات كاملة تبدو يسارية؛ (3) رؤوس الجداول الأساسية ui/table.tsx تحمل text-left فيزيائياً.
+- 31-b (وكيل): تحويل 80 موضعاً في 13 ملفاً (text-left→start 54، text-right→start 16، text-right→end داخل ltr 1، +9 text-end مكمّلة لاصطفاف الأعمدة الرقمية) — tsc 0/lint 0.
+- 31-a (يدوي): bun add @radix-ui/react-direction + مكوّن AppDirectionProvider (use client) يلف children وToaster في layout.tsx بـdir="rtl"؛ إصلاح ui/table.tsx TableHead text-left→text-start وpr-0→pe-0؛ nav-structure.ts: ModuleId +reports، وحدة «التقارير» علوية (مركز التقارير الوحيد بنفس view/flag) وحذفها من المحاسبة (التعليق الموثّق حدّث إلى 5 تبويبات بتاريخ التوجيه).
+- تحقق متصفحي (مستخدم مؤقت zverify admin أُنشئ ثم حُذف): 5 تبويبات علوية (العقود/الباطن/المحاسبة/التقارير/الإعدادات)؛ الجذر والقائمة rtl؛ القائمة المنبثقة Select فُتحت من اليمين وعلامة الاختيار يساراً (كانت الجوهرة الأهم)؛ شاشة السلف (أسوأ الملفات سابقاً) RTL كاملة؛ حوار «سلفة جديدة» dir=rtl والحفظ يميناً؛ مركز التقارير كتبويب مستقل بكل تقاريره الـ11؛ الجوال 390px بلا تمرير أفقي وقائمة الجوال RTL؛ صفر أخطاء/تحذيرات كونسول.
+- حُذف zverify من القاعدة وكُسر سكربت الإنشاء (لا أثر دائم).
+
+Stage Summary:
+- gh-y مُغلق: توحيد الاتجاه RTL على مستوى Radix + الجداول + 13 شاشة كانت فيزيائية.
+- تبويب «التقارير» علوي خامس كما وجه المستخدم، والمحاسبة بلا مركز التقارير.
+- الرفع التالي سيُنشر تلقائياً على الإنتاج (النشر التلقائي يعمل منذ 30-f).

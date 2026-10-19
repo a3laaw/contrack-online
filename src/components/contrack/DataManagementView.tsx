@@ -270,12 +270,12 @@ function AuditTab({ onAuthError }: { onAuthError: () => void }) {
               <Table>
                 <TableHeader className="sticky top-0 z-10 bg-card">
                   <TableRow>
-                    <TableHead className="text-right">الوقت</TableHead>
-                    <TableHead className="text-right">المستخدم</TableHead>
-                    <TableHead className="text-right">الإجراء</TableHead>
-                    <TableHead className="text-right">الكيان</TableHead>
-                    <TableHead className="text-right">الاسم</TableHead>
-                    <TableHead className="text-right">الحالة</TableHead>
+                    <TableHead className="text-start">الوقت</TableHead>
+                    <TableHead className="text-start">المستخدم</TableHead>
+                    <TableHead className="text-start">الإجراء</TableHead>
+                    <TableHead className="text-start">الكيان</TableHead>
+                    <TableHead className="text-start">الاسم</TableHead>
+                    <TableHead className="text-start">الحالة</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -452,12 +452,12 @@ function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
               <Table>
                 <TableHeader className="sticky top-0 z-10 bg-card">
                   <TableRow>
-                    <TableHead className="text-right">الاسم</TableHead>
-                    <TableHead className="text-right">الصفوف</TableHead>
-                    <TableHead className="text-right">الحجم</TableHead>
-                    <TableHead className="text-right">التاريخ</TableHead>
-                    <TableHead className="text-right">المستخدم</TableHead>
-                    <TableHead className="text-left">إجراء</TableHead>
+                    <TableHead className="text-start">الاسم</TableHead>
+                    <TableHead className="text-start">الصفوف</TableHead>
+                    <TableHead className="text-start">الحجم</TableHead>
+                    <TableHead className="text-start">التاريخ</TableHead>
+                    <TableHead className="text-start">المستخدم</TableHead>
+                    <TableHead className="text-start">إجراء</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -480,7 +480,7 @@ function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
                       <TableCell className="whitespace-nowrap text-xs">{b.sizeKB.toLocaleString("en-US")} KB</TableCell>
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{fmtTs(b.createdAt)}</TableCell>
                       <TableCell className="whitespace-nowrap text-xs">{b.username || "—"}</TableCell>
-                      <TableCell className="text-left">
+                      <TableCell className="text-start">
                         <Button
                           variant="outline"
                           size="sm"
@@ -850,12 +850,12 @@ function DataTab({ onAuthError }: { onAuthError: () => void }) {
               <Table>
                 <TableHeader className="sticky top-0 z-10 bg-card">
                   <TableRow>
-                    <TableHead className="text-right">التاريخ</TableHead>
-                    <TableHead className="text-right">المستخدم</TableHead>
-                    <TableHead className="text-right">الكيان</TableHead>
-                    <TableHead className="text-right">الاسم</TableHead>
-                    <TableHead className="text-right">السبب</TableHead>
-                    <TableHead className="text-left">اللقطة</TableHead>
+                    <TableHead className="text-start">التاريخ</TableHead>
+                    <TableHead className="text-start">المستخدم</TableHead>
+                    <TableHead className="text-start">الكيان</TableHead>
+                    <TableHead className="text-start">الاسم</TableHead>
+                    <TableHead className="text-start">السبب</TableHead>
+                    <TableHead className="text-start">اللقطة</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -875,7 +875,7 @@ function DataTab({ onAuthError }: { onAuthError: () => void }) {
                       <TableCell className="max-w-52">
                         <span className="line-clamp-1 text-xs text-muted-foreground" title={r.reason}>{r.reason || "—"}</span>
                       </TableCell>
-                      <TableCell className="whitespace-nowrap text-left text-xs text-muted-foreground">
+                      <TableCell className="whitespace-nowrap text-start text-xs text-muted-foreground">
                         {(r.snapshotSize / 1024).toFixed(1)} KB
                       </TableCell>
                     </TableRow>

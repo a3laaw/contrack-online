@@ -414,7 +414,7 @@ export function SubDeleteDialog({ subcontractorId, open, onOpenChange, onAuthErr
                             <TableHead className="w-10">✔</TableHead>
                             <TableHead>عقد الباطن</TableHead>
                             <TableHead>عقد العميل</TableHead>
-                            <TableHead className="text-left">القيمة</TableHead>
+                            <TableHead className="text-start">القيمة</TableHead>
                             <TableHead>الحالة</TableHead>
                             <TableHead className="text-center">بنود</TableHead>
                             <TableHead className="text-center">دفعات</TableHead>
@@ -438,7 +438,7 @@ export function SubDeleteDialog({ subcontractorId, open, onOpenChange, onAuthErr
                                 #{c.id} — {c.contractNumber || "—"}
                               </TableCell>
                               <TableCell>{c.customerName || "—"}</TableCell>
-                              <TableCell className="tabular-nums" dir="ltr">
+                              <TableCell className="text-end tabular-nums" dir="ltr">
                                 {fmt3(c.amount)}
                               </TableCell>
                               <TableCell>{c.status || ""}</TableCell>
@@ -478,7 +478,7 @@ export function SubDeleteDialog({ subcontractorId, open, onOpenChange, onAuthErr
                             <TableHead>رقم السند</TableHead>
                             <TableHead>النوع</TableHead>
                             <TableHead>التاريخ</TableHead>
-                            <TableHead className="text-left">المبلغ</TableHead>
+                            <TableHead className="text-start">المبلغ</TableHead>
                             <TableHead>الحالة</TableHead>
                             <TableHead>عقد العميل المرتبط</TableHead>
                           </TableRow>
@@ -503,7 +503,7 @@ export function SubDeleteDialog({ subcontractorId, open, onOpenChange, onAuthErr
                               <TableCell className="whitespace-nowrap tabular-nums" dir="ltr">
                                 {v.vdate || "—"}
                               </TableCell>
-                              <TableCell className="tabular-nums" dir="ltr">
+                              <TableCell className="text-end tabular-nums" dir="ltr">
                                 {fmt3(v.amount)}
                               </TableCell>
                               <TableCell>{v.cancelled ? "ملغى" : "فعّال"}</TableCell>

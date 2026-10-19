@@ -474,7 +474,7 @@ export function ReportsView({ user: _user, onAuthError }: ReportsViewProps) {
                           {data.heads.map((h, hi) => (
                             <TableHead
                               key={hi}
-                              className={`whitespace-nowrap ${numberCols.has(hi) ? "text-left" : ""}`}
+                              className={`whitespace-nowrap ${numberCols.has(hi) ? "text-start" : ""}`}
                             >
                               {h}
                             </TableHead>
@@ -492,7 +492,7 @@ export function ReportsView({ user: _user, onAuthError }: ReportsViewProps) {
                               <TableCell
                                 key={ci}
                                 className={`whitespace-nowrap ${
-                                  numberCols.has(ci) ? "text-left tabular-nums" : ""
+                                  numberCols.has(ci) ? "text-start tabular-nums" : ""
                                 }`}
                               >
                                 {numberCols.has(ci) && typeof cell === "number"
@@ -511,7 +511,7 @@ export function ReportsView({ user: _user, onAuthError }: ReportsViewProps) {
                               <TableCell
                                 key={ci}
                                 className={`whitespace-nowrap ${
-                                  numberCols.has(ci) ? "text-left tabular-nums" : ""
+                                  numberCols.has(ci) ? "text-start tabular-nums" : ""
                                 }`}
                               >
                                 {numberCols.has(ci) && typeof cell === "number"

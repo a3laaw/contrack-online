@@ -31,7 +31,7 @@ function SumRow({ label, value, tone }: { label: string; value: string; tone?: s
   return (
     <div className="flex items-center justify-between gap-3 py-0.5 text-sm">
       <span className="text-muted-foreground">{label}</span>
-      <span className={`text-left font-mono font-bold tabular-nums ${tone || ""}`} dir="ltr">
+      <span className={`text-start font-mono font-bold tabular-nums ${tone || ""}`} dir="ltr">
         {value || "—"}
       </span>
     </div>

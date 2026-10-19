@@ -488,7 +488,7 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
                                 <div className="min-w-0 flex-1">
                                   <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
                                     <span className="font-medium">{l.title}</span>
-                                    <span className="text-left font-mono tabular-nums text-muted-foreground" dir="ltr">
+                                    <span className="text-start font-mono tabular-nums text-muted-foreground" dir="ltr">
                                       متبقٍ {formatKWD(l.room ?? l.remaining)}
                                     </span>
                                   </div>
@@ -515,7 +515,7 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
                       </div>
                     )}
                     {links.length > 0 && (
-                      <p className="text-left font-mono text-xs tabular-nums text-muted-foreground" dir="ltr">
+                      <p className="text-start font-mono text-xs tabular-nums text-muted-foreground" dir="ltr">
                         Σ الربط: {formatKWD(linksTotal)} — سند: {formatKWD(Number(amount || 0))}
                       </p>
                     )}
@@ -703,7 +703,7 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
                       </p>
                     )}
                     {subContractId && subCapRemaining !== null && (
-                      <p className="text-left font-mono text-xs tabular-nums text-muted-foreground" dir="ltr">
+                      <p className="text-start font-mono text-xs tabular-nums text-muted-foreground" dir="ltr">
                         سقف الصرف المتبقي: {formatKWD(subCapRemaining)}
                       </p>
                     )}

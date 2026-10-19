@@ -102,7 +102,7 @@ export function DueItemsView({ user, onAuthError, onOpenContract }: DueItemsView
                           )}
                         </TableCell>
                         <TableCell className="text-sm">{r.customerName}</TableCell>
-                        <TableCell className="text-left font-mono text-sm tabular-nums" dir="ltr">
+                        <TableCell className="text-start font-mono text-sm tabular-nums" dir="ltr">
                           {formatKWD(r.remaining)}
                         </TableCell>
                         <TableCell className="max-w-40 truncate text-xs text-muted-foreground">{r.title || "—"}</TableCell>
@@ -159,7 +159,7 @@ export function DueItemsView({ user, onAuthError, onOpenContract }: DueItemsView
                           )}
                         </TableCell>
                         <TableCell className="text-sm">{r.customerName}</TableCell>
-                        <TableCell className="text-left font-mono text-sm tabular-nums" dir="ltr">
+                        <TableCell className="text-start font-mono text-sm tabular-nums" dir="ltr">
                           {formatKWD(r.remaining)}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">

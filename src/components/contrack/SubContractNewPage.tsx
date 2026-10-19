@@ -184,7 +184,7 @@ export function SubContractNewPage({ contractId, contractNumber, user, onAuthErr
                 <Label htmlFor="ns-amount">القيمة *</Label>
                 <Input
                   id="ns-amount"
-                  className="h-9 text-left font-mono tabular-nums"
+                  className="h-9 text-start font-mono tabular-nums"
                   dir="ltr"
                   type="number"
                   min="0"
