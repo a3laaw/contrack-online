@@ -4,6 +4,17 @@ import { homedir } from "node:os";
 import path from "node:path";
 import puppeteer from "puppeteer-core";
 
+/* أثر تتبع الملفات (node-file-tracing): readdirSync ثابت على مجلد bin يجبر
+ * المتتبع على تضمين ثنائية chromium.br وaws.tar.br في حزمة الـserverless —
+ * دون هذا يفشل executablePath() على Vercel بمجلد bin ناقص. */
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const pkgDir = path.dirname(require.resolve("@sparticuz/chromium/package.json"));
+  readdirSync(path.join(pkgDir, "bin"));
+} catch {
+  /* بيئات بلا الحزمة (لن تحدث — حزمة إلزامية) */
+}
+
 /**
  * تحويل HTML إلى PDF عبر Chromium بلا واجهة (المرحلة 8).
  * ترتيب البحث عن الملف التنفيذي:

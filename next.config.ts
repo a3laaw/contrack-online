@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/statement/contract/[id]/pdf": ["./node_modules/@sparticuz/chromium/**/*"],
     "/api/statement/customer/[id]/pdf": ["./node_modules/@sparticuz/chromium/**/*"],
+    "src/app/api/statement/**": ["./node_modules/@sparticuz/chromium/**/*"],
+    "**/api/statement/**": ["./node_modules/@sparticuz/chromium/**/*"],
   },
 };
 
