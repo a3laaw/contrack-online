@@ -1387,3 +1387,19 @@ Stage Summary:
 - مفاتيح بلا هدف ويبي حاليًا (mode_banner مُزال مكتبيًا · items_sync يحتاج وضع بنود كامل · notif_cleanup يحتاج قائمة جرس) موثقة في الكتالوج ولا تُبنى إلا بقرار (المرحلة 7/9).
 - الملفات: api-utils.ts، report-features.ts (جديد)، contract-create.ts (جديد)، 12 مسار API (10 تقارير+export+contracts+settlements+feature-flags)، reports-list.ts، nav-structure.ts، ReportsView.tsx، ContractNewPage.tsx، feature-flags.ts، contrack-types.ts، tests/phase3-features.test.ts (جديد).
 - بقي من المرحلة 3: لا شيء جوهري — الدفع لعندي معلق على المفتاح (المرحلتان 1+2+3 جاهزة للدفع معًا).
+
+---
+Task ID: 37 (متابعة «حل موضوع الدفع» — التحقق النهائي واكتشاف توقف النشر)
+Agent: Z.ai Code (منسق)
+Task: طلب المستخدم «حل موضوع الدفع» — التحقق من اكتمال حل موضوع بيان الدفع (المرحلة 1) وحالته على الإنتاج
+
+Work Log:
+- تبيّن من السجل أن المرحلة 1 (بيان السند التلقائي — موضوع الدفع) اكتملت في Task 34: ordinalI + partialTail + منع تكرار «سداد» + allocatedDescription + الأمثلة الذهبية التسعة.
+- تحقق إعادة من الصفر: bun test tests/voucher-describe-matrix.test.ts ⇒ 34/34 pass (44 تأكيدًا)؛ bunx tsc --noEmit ⇒ 0 أخطاء؛ bun run lint ⇒ 0.
+- فحص متصفح agent-browser على http://localhost:3000: صفحة الدخول تُصيَّر كاملة (عنوان + حقول + زر دخول) وصفر أخطاء كونسول.
+- الاكتشاف الجوهري: git rev-list origin/main...main = 0 3 ⇒ ثلاثة commits غير مرفوعة: 4db864c (المرحلة 1 — الدفع) و222eae3 (المرحلة 2) و5fa30a5 (المرحلة 3)؛ آخر commit على GitHub = d718555 (Task 33) ⇒ الإنتاج contrack-online.vercel.app ما زال يشغّل النسخة القديمة بلا إصلاح الدفع.
+- سبب توقف الرفع: لا اعتماديات GitHub في البيئة إطلاقًا (لا credential helper، لا ~/.git-credentials، لا gh، لا رمز في remote أو env أو ملفات .env) — الPAT السابق (Task 30-c) كان مؤقتًا ونُظّف بعده كما الاتفاق.
+- تأكد أمني: لم يُلمس أي مفتاح، ولا أي كتابة على قاعدة الإنتاج (التحقق الوظيفي بالاختبارات فقط والمتصفح قراءة فقط).
+
+Stage Summary:
+- «موضوع الدفع» محلول ومختبر ومحفوظ محليًا (4db864c) — ما تبقى الوحيد لرؤيته على الإنتاج: رفع الـ3 commits بPAT مؤقت من المستخدم (يُنظَّف فور الرفع كالسابق).
