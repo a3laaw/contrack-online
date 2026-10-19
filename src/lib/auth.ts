@@ -2,6 +2,14 @@ import "server-only";
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import {
+  PERMISSIONS,
+  isSuperRole,
+  roleDefaultAllowed,
+} from "@/lib/permissions-catalog";
+
+export { PERMISSIONS, roleDefaultAllowed, isSuperRole } from "@/lib/permissions-catalog";
+export type { PermissionSpec } from "@/lib/permissions-catalog";
 
 export const SESSION_COOKIE = "ctrk_session";
 const AUTH_SECRET = process.env.AUTH_SECRET || "contrack-local-secret-v9";
@@ -90,56 +98,24 @@ export function forbidden(message = "لا تملك صلاحية لهذا الإ�
   return NextResponse.json({ error: message }, { status: 403 });
 }
 
-// كتالوج الصلاحيات (37 مفتاحًا حرفيًا من المصدر — auth_service)
-export const PERMISSIONS: { key: string; label: string; group: string }[] = [
-  { key: "screen_customers", label: "شاشة العملاء", group: "الشاشات" },
-  { key: "screen_contracts", label: "شاشة العقود", group: "الشاشات" },
-  { key: "screen_vouchers", label: "شاشة السندات", group: "الشاشات" },
-  { key: "screen_subcontractors", label: "شاشة المقاولين", group: "الشاشات" },
-  { key: "screen_custody", label: "شاشة العُهد", group: "الشاشات" },
-  { key: "screen_invoices", label: "شاشة الفواتير", group: "الشاشات" },
-  { key: "screen_gateway", label: "البوابة المالية", group: "الشاشات" },
-  { key: "screen_clearing", label: "شاشة التصفية", group: "الشاشات" },
-  { key: "screen_other_company", label: "الشركة الأخرى", group: "الشاشات" },
-  { key: "screen_tasks", label: "شاشة المهام", group: "الشاشات" },
-  { key: "screen_visits", label: "جدول الزيارات", group: "الشاشات" },
-  { key: "screen_archive", label: "الأرشيف", group: "الشاشات" },
-  { key: "report_customers_balances", label: "تقرير العملاء والأرصدة", group: "التقارير" },
-  { key: "report_stage_dues", label: "مستحقات المراحل", group: "التقارير" },
-  { key: "report_supervision_delays", label: "تأخير الإشراف", group: "التقارير" },
-  { key: "report_subcontractors", label: "تقرير المقاولين", group: "التقارير" },
-  { key: "report_vouchers", label: "الإيرادات والمصروفات", group: "التقارير" },
-  { key: "report_expenses", label: "تفصيل المصروفات", group: "التقارير" },
-  { key: "report_cashflow", label: "التدفق النقدي", group: "التقارير" },
-  { key: "report_contracts", label: "تقارير العقود", group: "التقارير" },
-  { key: "report_execution", label: "مراحل التنفيذ", group: "التقارير" },
-  { key: "report_prospects", label: "الفرص البيعية", group: "التقارير" },
-  { key: "report_other_company", label: "كشف الشركة الأخرى", group: "التقارير" },
-  { key: "report_journal", label: "دفتر اليومية", group: "التقارير" },
-  { key: "report_gateway_summary", label: "ملخص البوابة", group: "التقارير" },
-  { key: "action_add_contract", label: "إضافة عقد", group: "الإجراءات" },
-  { key: "action_edit_contract", label: "تعديل عقد", group: "الإجراءات" },
-  { key: "action_cancel_contract", label: "إلغاء عقد", group: "الإجراءات" },
-  { key: "action_add_voucher", label: "إضافة سند", group: "الإجراءات" },
-  { key: "action_cancel_voucher", label: "إلغاء سند", group: "الإجراءات" },
-  { key: "action_add_payment", label: "إضافة دفعة", group: "الإجراءات" },
-  { key: "action_edit_payment", label: "تعديل دفعة", group: "الإجراءات" },
-  { key: "action_addendum_approve", label: "اعتماد ملحق", group: "الإجراءات" },
-  { key: "action_claim_manage", label: "إدارة المطالبات", group: "الإجراءات" },
-  { key: "action_stage_advance", label: "تخطي/إرجاع مرحلة", group: "الإجراءات" },
-  { key: "action_edit_voucher_desc", label: "تعديل وصف السند", group: "الإجراءات" },
-  { key: "action_backups", label: "النسخ الاحتياطي", group: "الإجراءات" },
-];
-
-export function isSuperRole(role: string) {
-  return role === "admin" || role === "developer";
-}
 
 export async function hasPermission(userId: number, role: string, permKey: string): Promise<boolean> {
   if (isSuperRole(role)) return true;
   const row = await db.userPermission.findUnique({
     where: { userId_permKey: { userId, permKey } },
   });
-  if (!row) return true; // المفتاح المجهول لا يقيّد (كالمصدر)
-  return row.allowed;
+  if (row) return row.allowed; // التخصيص الصريح مُقدَّم على افتراضيات الدور
+  return roleDefaultAllowed(role, permKey); // افتراضيات الدور — كالمكتبي role_perm_defaults
+}
+
+/** خريطة صلاحيات كاملة لمستخدم (لبناء القائمة وAppShell) — استعلام واحد + افتراضيات الدور */
+export async function permsForUser(userId: number, role: string): Promise<Record<string, boolean>> {
+  if (isSuperRole(role)) {
+    return Object.fromEntries(PERMISSIONS.map((p) => [p.key, true]));
+  }
+  const rows = await db.userPermission.findMany({ where: { userId }, select: { permKey: true, allowed: true } });
+  const custom = new Map(rows.map((r) => [r.permKey, r.allowed]));
+  return Object.fromEntries(
+    PERMISSIONS.map((p) => [p.key, custom.has(p.key) ? (custom.get(p.key) as boolean) : roleDefaultAllowed(role, p.key)])
+  );
 }

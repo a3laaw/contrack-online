@@ -19,22 +19,36 @@ interface AppShellProps {
   onSelectChild: (child: NavChild) => void;
   onLogout: () => void;
   onOpenSearch?: () => void;
+  /** خريطة صلاحيات المستخدم (من /api/auth/me) — غير محمّلة = السماح مؤقتًا منعًا للوميض */
+  perms?: Record<string, boolean> | null;
   children?: React.ReactNode;
 }
 
 /** بنود وحدة معروصة بالصلاحيات والمزايا */
-function visibleChildren(module: NavModule, isAdmin: boolean, flagOn: (f: string) => boolean): NavChild[] {
-  return module.children.filter((c) => (!c.adminOnly || isAdmin) && (!c.flag || flagOn(c.flag)));
+function visibleChildren(
+  module: NavModule,
+  isAdmin: boolean,
+  flagOn: (f: string) => boolean,
+  permOn: (k: string) => boolean
+): NavChild[] {
+  return module.children.filter(
+    (c) => (!c.adminOnly || isAdmin) && (!c.flag || flagOn(c.flag)) && (!c.perm || permOn(c.perm))
+  );
 }
 
 /**
  * الهيكل المعتمد (المرحلة 3): شريط علوي للوحدات الأربع + قائمة جانبية داخل كل وحدة
  * قابلة للطي إلى أيقونات + درج منزلق على الشاشات الصغيرة. بلا شريط سفلي.
  */
-export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearch, children }: AppShellProps) {
+export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearch, perms, children }: AppShellProps) {
   const manager = isManagerRole(user.role);
   const { enabled: featureEnabled } = useFeatureFlags();
   const flagOn = React.useCallback((f: string) => featureEnabled(f), [featureEnabled]);
+  // المرحلة 2/ب: إخفاء البنود حسب الصلاحيات (المدير والمطور الكل — كالمكتبي)
+  const permOn = React.useCallback(
+    (k: string) => (perms ? perms[k] !== false : true),
+    [perms]
+  );
 
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [collapsed, setCollapsed] = React.useState(false);
@@ -62,10 +76,10 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
   // الوحدات ذات بنود مرئية فقط
   const modules = React.useMemo(
     () =>
-      NAV_MODULES.map((m) => ({ module: m, children: visibleChildren(m, manager, flagOn) })).filter(
+      NAV_MODULES.map((m) => ({ module: m, children: visibleChildren(m, manager, flagOn, permOn) })).filter(
         (m) => m.children.length > 0
       ),
-    [manager, flagOn]
+    [manager, flagOn, permOn]
   );
 
   const currentModule = modules.find((m) => m.module.id === activeModuleId) ?? modules[0];

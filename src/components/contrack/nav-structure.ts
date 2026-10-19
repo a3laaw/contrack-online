@@ -30,6 +30,24 @@ import {
 import type { ViewName } from "./contrack-types";
 import { REPORTS } from "./reports-list";
 
+/**
+ * مواءمة تقارير الويب (reports-list keys) مع مفاتيح الصلاحيات المكتبية — المرحلة 2/ب:
+ * كل تقرير بباب صلاحية مستقل كالمكتبي (تأشيرة مستقلة لكل تقرير).
+ */
+export const REPORT_PERM: Record<string, string> = {
+  "customers-balances": "report_customers_balances",
+  "stage-dues": "report_stage_dues",
+  "supervision-delays": "report_supervision_delays",
+  subcontractors: "report_subcontractors",
+  vouchers: "report_vouchers",
+  expenses: "report_expenses",
+  cashflow: "report_cashflow",
+  contracts: "report_contracts",
+  execution: "report_execution",
+  leads: "report_prospects",
+  journal: "report_journal",
+};
+
 /** معرّف الوحدات المعتمدة (توجيه المستخدم — تبويبات علوية) */
 export type ModuleId = "clients" | "subs" | "accounting" | "reports" | "settings";
 
@@ -49,6 +67,8 @@ export interface NavChild {
   adminOnly?: boolean;
   /** مفتاح الميزة (feature_flags) الذي يخفي البند عند تعطيله — كالشجرة المكتبية */
   flag?: string;
+  /** مفتاح الصلاحية (المواءمة المكتبية) الذي يخفي البند عن من لا يملكه — المرحلة 2/ب */
+  perm?: string;
 }
 
 export interface NavModule {
@@ -73,14 +93,14 @@ export const NAV_MODULES: NavModule[] = [
     label: "العقود",
     icon: FileText,
     children: [
-      { id: "dashboard", label: "اللوحة", icon: LayoutDashboard, view: "dashboard" },
-      { id: "due", label: "المهام المستحقة", icon: CalendarClock, view: "due" },
-      { id: "customers", label: "العملاء", icon: UsersIcon, view: "customers" },
-      { id: "contracts", label: "العقود", icon: FileText, view: "contracts" },
-      { id: "tasks", label: "المهام", icon: ListTodo, view: "tasks", flag: "tasks" },
-      { id: "visits", label: "جدول الزيارات", icon: CalendarDays, view: "visits", flag: "visits" },
-      { id: "comments", label: "التعليقات", icon: MessageSquareText, view: "comments", flag: "comments" },
-      { id: "followup", label: "المتابعة", icon: ClipboardList, view: "followup", flag: "followup" },
+      { id: "dashboard", label: "اللوحة", icon: LayoutDashboard, view: "dashboard", perm: "screen_customers" },
+      { id: "due", label: "المهام المستحقة", icon: CalendarClock, view: "due", perm: "screen_customers" },
+      { id: "customers", label: "العملاء", icon: UsersIcon, view: "customers", perm: "screen_customers" },
+      { id: "contracts", label: "العقود", icon: FileText, view: "contracts", perm: "screen_customers" },
+      { id: "tasks", label: "المهام", icon: ListTodo, view: "tasks", flag: "tasks", perm: "screen_tasks" },
+      { id: "visits", label: "جدول الزيارات", icon: CalendarDays, view: "visits", flag: "visits", perm: "screen_visits" },
+      { id: "comments", label: "التعليقات", icon: MessageSquareText, view: "comments", flag: "comments", perm: "screen_customers" },
+      { id: "followup", label: "المتابعة", icon: ClipboardList, view: "followup", flag: "followup", perm: "screen_followup" },
     ],
   },
   {
@@ -88,7 +108,7 @@ export const NAV_MODULES: NavModule[] = [
     label: "الباطن",
     icon: HardHat,
     children: [
-      { id: "subcontractors", label: "مقاولو الباطن", icon: HardHat, view: "subcontractors", flag: "subcontractors" },
+      { id: "subcontractors", label: "مقاولو الباطن", icon: HardHat, view: "subcontractors", flag: "subcontractors", perm: "screen_subcontractors" },
     ],
   },
   {
@@ -96,15 +116,15 @@ export const NAV_MODULES: NavModule[] = [
     label: "المحاسبة",
     icon: Wallet,
     children: [
-      { id: "vouchers-receipt", label: "سندات القبض", icon: HandCoins, view: "vouchers", mode: "receipt" },
-      { id: "vouchers-payment", label: "سندات الصرف", icon: Receipt, view: "vouchers", mode: "payment" },
-      { id: "statement", label: "كشف الحساب", icon: FileSpreadsheet, view: "statement", flag: "statement" },
-      { id: "custody", label: "العُهد", icon: Wallet, view: "custody", flag: "custody" },
-      { id: "advances", label: "سلف الموظفين", icon: UsersRound, view: "advances", flag: "custody" },
-      { id: "gateway", label: "بوابة الدفع", icon: CreditCard, view: "gateway", flag: "payment_gateway" },
-      { id: "other-company", label: "الشركة الأخرى", icon: Building2, view: "other-company" },
-      { id: "claims", label: "المطالبات المالية", icon: ReceiptText, view: "claims" },
-      { id: "invoices", label: "الفواتير", icon: FileStack, view: "invoices", flag: "invoices" },
+      { id: "vouchers-receipt", label: "سندات القبض", icon: HandCoins, view: "vouchers", mode: "receipt", perm: "screen_vouchers" },
+      { id: "vouchers-payment", label: "سندات الصرف", icon: Receipt, view: "vouchers", mode: "payment", perm: "screen_vouchers" },
+      { id: "statement", label: "كشف الحساب", icon: FileSpreadsheet, view: "statement", flag: "statement", perm: "screen_statement" },
+      { id: "custody", label: "العُهد", icon: Wallet, view: "custody", flag: "custody", perm: "screen_custody" },
+      { id: "advances", label: "سلف الموظفين", icon: UsersRound, view: "advances", flag: "custody", perm: "screen_custody" },
+      { id: "gateway", label: "بوابة الدفع", icon: CreditCard, view: "gateway", flag: "payment_gateway", perm: "screen_gateway" },
+      { id: "other-company", label: "الشركة الأخرى", icon: Building2, view: "other-company", perm: "screen_other_company" },
+      { id: "claims", label: "المطالبات المالية", icon: ReceiptText, view: "claims", perm: "screen_claims" },
+      { id: "invoices", label: "الفواتير", icon: FileStack, view: "invoices", flag: "invoices", perm: "screen_invoices" },
     ],
   },
   {
@@ -119,6 +139,7 @@ export const NAV_MODULES: NavModule[] = [
       view: "reports" as ViewName,
       report: r.key,
       flag: "reports",
+      perm: REPORT_PERM[r.key],
     })),
   },
   {
@@ -127,8 +148,8 @@ export const NAV_MODULES: NavModule[] = [
     icon: SettingsIcon,
     children: [
       { id: "settings-company", label: "بيانات الشركة", icon: SettingsIcon, view: "settings", section: "company", adminOnly: true },
-      { id: "settings-printing", label: "الطباعة والعرض", icon: FileText, view: "settings", section: "appearance" },
-      { id: "settings-security", label: "الأمان وكلمة المرور", icon: ShieldCheck, view: "settings", section: "security" },
+      { id: "settings-printing", label: "الطباعة والعرض", icon: FileText, view: "settings", section: "appearance", perm: "screen_settings" },
+      { id: "settings-security", label: "الأمان وكلمة المرور", icon: ShieldCheck, view: "settings", section: "security", perm: "screen_settings" },
       { id: "users", label: "المستخدمون والصلاحيات", icon: UserCog, view: "users", adminOnly: true },
       { id: "contract-types", label: "أنواع العقود", icon: FileStack, view: "settings", section: "contract-types", adminOnly: true },
       { id: "expense-accounts", label: "حسابات المصروفات", icon: Wallet, view: "settings", section: "expense-accounts", adminOnly: true },

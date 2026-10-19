@@ -7,6 +7,14 @@ import {
   sessionCookieOptionsFor,
   SESSION_COOKIE,
 } from "@/lib/auth";
+import {
+  MAX_ATTEMPTS,
+  attemptKey,
+  clearAttempts,
+  clientIp,
+  lockState,
+  registerFailedAttempt,
+} from "@/lib/login-rate-limit";
 import { audit, jsonError, ok } from "@/lib/api-utils";
 import { ensureSeedData } from "@/lib/seed-defaults";
 
@@ -15,6 +23,24 @@ export async function POST(req: NextRequest) {
   const username = String(body.username || "").trim();
   const password = String(body.password || "");
   if (!username || !password) return jsonError("أدخل اسم المستخدم وكلمة المرور");
+
+  // المرحلة 2/أ — حدّ المحاولات من جهة الخادم (المستخدم + عنوان IP) بقفل مؤقت
+  const ip = clientIp(req);
+  const key = attemptKey(username, ip);
+  const lock = lockState(key);
+  if (lock.locked) {
+    const mins = Math.max(1, Math.ceil(lock.retryAfterSec / 60));
+    await audit(db, {
+      username,
+      action: "دخول مرفوض — قفل مؤقت",
+      entityType: "auth",
+      entityName: `${username} · ${ip}`,
+    });
+    return jsonError(
+      `تم تجاوز عدد المحاولات المسموح بها (${MAX_ATTEMPTS}). الحساب مقفول مؤقتًا — حاول بعد ${mins} دقيقة.`,
+      429
+    );
+  }
 
   // بذرة أول تشغيل: إن كان جدول users فارغًا أنشئ admin/admin و secretary/123456
   const usersCount = await db.user.count();
@@ -52,8 +78,27 @@ export async function POST(req: NextRequest) {
 
   const user = await db.user.findUnique({ where: { username } });
   if (!user || !user.active || !verifyPassword(password, user.salt, user.passwordHash)) {
-    return jsonError("اسم المستخدم أو كلمة المرور غير صحيحة", 401);
+    // رسالة الفشل حرفية من المكتبي ui/login.py مع عدد المحاولات المتبقية
+    const res = registerFailedAttempt(key);
+    await audit(db, {
+      username,
+      action: "دخول فاشل",
+      entityType: "auth",
+      entityName: `${username} · ${ip}`,
+    });
+    if (res.lockedNow) {
+      return jsonError(
+        `تم تجاوز عدد المحاولات المسموح بها (${MAX_ATTEMPTS}). الحساب مقفول مؤقتًا — حاول بعد 15 دقيقة.`,
+        429
+      );
+    }
+    return jsonError(
+      `اسم المستخدم أو كلمة المرور غير صحيحة. (متبقي ${res.remaining} محاولة)`,
+      401
+    );
   }
+
+  clearAttempts(key);
 
   const token = issueToken(user.id);
   const res = ok({
