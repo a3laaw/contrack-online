@@ -325,11 +325,17 @@ function ReportTable({
   showDetails: boolean;
   daysMin: number;
 }) {
-  if (!data) return null;
+  // حماية جوهرية: مع keepPreviousData يبقى رد التقرير السابق حيًا أثناء جلب التقرير الجديد —
+  // أشكال التقارير مختلفة (كائنية/مصفوفية) فلا يجوز تصيير رد لا يطابق نوعه
+  if (!data || data.kind !== kind) return null;
 
   if (kind === "summary") {
-    const rows = (data.data as SummaryGroup[]) || [];
-    const total = rows.reduce((s, g) => s + g.total, 0);
+    // الـAPI يُرجع { rows, count, total } من settlementsSummaryReport — وليس المصفوفة مباشرة
+    const payload = data.data as { rows: SummaryGroup[]; count?: number; total?: number } | null;
+    const rows = payload?.rows || [];
+    const total =
+      typeof payload?.total === "number" ? payload.total : rows.reduce((s, g) => s + g.total, 0);
+    const count = typeof payload?.count === "number" ? payload.count : rows.length;
     const accs = new Set(rows.map((g) => g.custodyAccount || "—"));
     const subtotals: { acc: string; lines: number; total: number }[] = [];
     if (accs.size >= 2) {
@@ -346,7 +352,7 @@ function ReportTable({
     return (
       <div className="space-y-2">
         <TotalsLine>
-          التصفيات: {rows.length} · الإجمالي: {fmt3(total)} د.ك
+          التصفيات: {count} · الإجمالي: {fmt3(total)} د.ك
         </TotalsLine>
         <DataTable heads={["المرجع", "التاريخ", "العهدة", "البنود", "الإجمالي", "البيان"]}>
           {rows.length === 0 ? (
