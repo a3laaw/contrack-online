@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { authGuard, featureGuard, jsonError, parseDay, todayStr } from "@/lib/api-utils";
 import { REPORT_FEATURE } from "@/lib/report-features";
 import { reportLeads } from "@/lib/report-leads";
+import { buildXlsxBuffer, reportTableToSheet, XLSX_MIME } from "@/lib/xlsx-core";
 import {
   ReportTable,
   reportCashflow,
@@ -57,7 +58,7 @@ const REPORT_BUILDERS: Record<
   "gateway-summary": { permKey: "report_gateway_summary", build: async () => reportGatewaySummary() },
 };
 
-/** تصدير تقرير CSV — POST /api/reports/export {report, params} (UTF-8 مع BOM للعربية) */
+/** تصدير تقرير CSV/Excel — POST /api/reports/export {report, params} [&format=xlsx|csv] (الافتراضي csv) */
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as { report?: string; params?: Record<string, string> } | null;
   const report = (body?.report || "").trim();
@@ -81,6 +82,22 @@ export async function POST(req: NextRequest) {
   if (params.to) params.to = parseDay(params.to);
 
   const table = await entry.build(params);
+  const format = (req.nextUrl.searchParams.get("format") || "csv").trim().toLowerCase();
+
+  // المرحلة 8: xlsx حقيقي (RTL وترويسة ملوّنة وأرقام بأرقام) — الافتراضي يبقى csv
+  if (format === "xlsx") {
+    const buf = await buildXlsxBuffer({ sheets: [reportTableToSheet(table)] });
+    const filename = `report-${report}-${todayStr()}.xlsx`;
+    return new NextResponse(new Uint8Array(buf), {
+      status: 200,
+      headers: {
+        "Content-Type": XLSX_MIME,
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
   const csv = reportTableToCsv(table);
   const filename = `report-${report}-${todayStr()}.csv`;
   return new NextResponse(csv, {

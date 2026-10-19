@@ -78,7 +78,8 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "./api";
+import { ApiError, apiDelete, apiGet, apiPatch, apiPost, getStoredToken } from "./api";
+import { fetchBlobDownload } from "@/lib/download-blob";
 import type {
   BoqResponse,
   ContractDetailResponse,
@@ -319,6 +320,26 @@ export function ContractDetailView({
   // ===== الدفعات =====
   const [addPayOpen, setAddPayOpen] = React.useState(false);
   const [payForm, setPayForm] = React.useState({ title: "", amount: "", dueDate: todayStr() });
+
+  // المرحلة 8: زر «تصدير Excel» في تاب الدفعات ⇒ xlsx حقيقي بتنزيل blob (كان window.open لCSV نصي)
+  const [payExporting, setPayExporting] = React.useState(false);
+  const onPayExport = React.useCallback(async () => {
+    if (payExporting) return;
+    try {
+      setPayExporting(true);
+      await fetchBlobDownload({
+        url: `/api/contracts/${contractId}/pay-export?format=xlsx`,
+        token: getStoredToken(),
+        filename: `pay-blocks-${contractId}.xlsx`,
+      });
+      toast({ title: "تم التصدير", description: "نُزّل ملف Excel بنجاح" });
+    } catch (e) {
+      if ((e as { status?: number }).status === 401) onAuthError();
+      else toast({ variant: "destructive", title: "تعذر التصدير", description: errMessage(e) });
+    } finally {
+      setPayExporting(false);
+    }
+  }, [contractId, onAuthError, payExporting, toast]);
 
   const addPayMutation = useMutation({
     mutationFn: () =>
@@ -786,9 +807,8 @@ export function ContractDetailView({
           onDeletePay={(id) => setDeletePayId(id)}
           onReceipt={() => setVoucherPage("receipt")}
           onPayment={() => setVoucherPage("payment")}
-          onExport={() => {
-            window.open(`/api/contracts/${contractId}/pay-export`, "_blank");
-          }}
+          onExport={onPayExport}
+          exporting={payExporting}
           onAddBoq={() => setFlowPage("boq")}
           onDeleteBoq={(id) => setDeleteBoqId(id)}
           onSubDetail={(id) => setSubDetailId(id)}
@@ -2102,6 +2122,7 @@ function PayPage({
   onReceipt,
   onPayment,
   onExport,
+  exporting,
   onAddBoq,
   onDeleteBoq,
   onSubDetail,
@@ -2120,6 +2141,8 @@ function PayPage({
   onReceipt: () => void;
   onPayment: (subContractId?: number, subLabel?: string) => void;
   onExport: () => void;
+  /** المرحلة 8: حالة جارٍ تصدير xlsx — يبدّل الأيقونة لسبينر ويُعطل الزر */
+  exporting?: boolean;
   onAddBoq: () => void;
   onDeleteBoq: (id: number) => void;
   onSubDetail: (id: number) => void;
@@ -2161,8 +2184,16 @@ function PayPage({
               <HandCoins className="size-4" />
               ＋ سند قبض
             </Button>
-            <Button variant="outline" size="icon" className="size-9" onClick={onExport} title="تصدير دفعات العميل والمقاولين إلى Excel" aria-label="تصدير كتل الدفعات">
-              <Download className="size-4" />
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-9"
+              disabled={exporting}
+              onClick={onExport}
+              title="تصدير دفعات العميل والمقاولين إلى Excel"
+              aria-label="تصدير كتل الدفعات"
+            >
+              {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
             </Button>
           </div>
         )}

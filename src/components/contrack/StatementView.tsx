@@ -4,9 +4,11 @@ import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Banknote,
+  FileDown,
   FileSpreadsheet,
   HandCoins,
   HardHat,
+  Loader2,
   Printer,
   ScrollText,
   Users as UsersIcon,
@@ -27,8 +29,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ApiError, apiGet } from "./api";
+import { ApiError, apiGet, getStoredToken } from "./api";
 import { StatementTable } from "./StatementTable";
+import { fetchBlobDownload } from "@/lib/download-blob";
 import type {
   ContractStatementResponse,
   CustomerStatementResponse,
@@ -225,6 +228,35 @@ export function StatementView({ user: _user, onAuthError, presetTarget, onConsum
     window.print();
   };
 
+  // ===== المرحلة 8: PDF خادميًا (كشف العقد أو الكشف الشامل للعميل) =====
+  const [pdfBusy, setPdfBusy] = React.useState(false);
+  const pdfSupported =
+    effectiveContractId !== null ||
+    (kind === "customer" && customerId !== "" && contractId === "all" && directContractId === null);
+
+  const onPdfExport = async () => {
+    if (!pdfSupported || pdfBusy) return;
+    const isContract = effectiveContractId !== null;
+    const url = isContract
+      ? `/api/statement/contract/${effectiveContractId}/pdf${periodQs ? `?${periodQs}` : ""}`
+      : `/api/statement/customer/${customerId}/pdf${periodQs ? `?${periodQs}` : ""}`;
+    const base = isContract
+      ? `كشف حساب ${contractData?.contract?.contractNumber || effectiveContractId}`
+      : `كشف حساب شامل ${selectedCustomerName || customerId}`;
+    try {
+      setPdfBusy(true);
+      await fetchBlobDownload({ url, token: getStoredToken(), filename: `${base}.pdf` });
+      toast({ title: "تم إنشاء PDF", description: "نُزّل ملف الكشف بنجاح" });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) onAuthError();
+      const status = (e as { status?: number }).status;
+      if (status === 401) onAuthError();
+      toast({ variant: "destructive", title: "تعذر إنشاء PDF", description: errMessage(e) });
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* الترويسة */}
@@ -240,10 +272,24 @@ export function StatementView({ user: _user, onAuthError, presetTarget, onConsum
             </p>
           </div>
         </div>
-        <Button variant="outline" size="sm" className="print-hidden h-9 gap-1.5" onClick={onPrint}>
-          <Printer className="size-4" />
-          طباعة
-        </Button>
+        <div className="flex items-center gap-1.5 print-hidden">
+          {pdfSupported && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5"
+              disabled={pdfBusy || loading || !hasSelection}
+              onClick={onPdfExport}
+            >
+              {pdfBusy ? <Loader2 className="size-4 animate-spin" /> : <FileDown className="size-4" />}
+              {pdfBusy ? "جارٍ إنشاء PDF…" : "▦ كشف PDF"}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onPrint}>
+            <Printer className="size-4" />
+            طباعة
+          </Button>
+        </div>
       </div>
 
       {/* الفلاتر */}

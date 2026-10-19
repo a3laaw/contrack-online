@@ -5,7 +5,9 @@ import { useQuery } from "@tanstack/react-query";
 import {
   BarChart3,
   Download,
+  FileSpreadsheet,
   ListFilter,
+  Loader2,
   ScrollText,
 } from "lucide-react";
 
@@ -34,6 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, getStoredToken } from "./api";
 import type { ReportCellValue, ReportResponse, User } from "./contrack-types";
 import { errMessage } from "./contrack-types";
+import { fetchBlobDownload } from "@/lib/download-blob";
 import { REPORTS, visibleReports } from "./reports-list";
 import { useFeatureFlags } from "./FeatureFlagsProvider";
 import { formatKWD } from "@/lib/format";
@@ -163,6 +166,29 @@ export function ReportsView({ user: _user, onAuthError, selected, onSelect }: Re
     }
   };
 
+  // ===== المرحلة 8: xlsx حقيقي (نفس نموذج الجدول الذي يغذي CSV) =====
+  const [exportingXlsx, setExportingXlsx] = React.useState(false);
+  const onExportXlsx = async () => {
+    try {
+      setExportingXlsx(true);
+      await fetchBlobDownload({
+        url: "/api/reports/export?format=xlsx",
+        method: "POST",
+        token: getStoredToken(),
+        body: { report: def.key, params },
+        filename: `${(data?.title || def.label).replace(/\s+/g, "-") || "تقرير"}.xlsx`,
+      });
+      toast({ title: "تم التصدير", description: "نُزّل ملف Excel بنجاح" });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) onAuthError();
+      const status = (e as { status?: number }).status;
+      if (status === 401) onAuthError();
+      toast({ variant: "destructive", title: "تعذر التصدير", description: errMessage(e) });
+    } finally {
+      setExportingXlsx(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* الترويسة */}
@@ -251,6 +277,20 @@ export function ReportsView({ user: _user, onAuthError, selected, onSelect }: Re
                 </div>
               )}
 
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9 gap-1.5"
+                disabled={exportingXlsx || reportQuery.isLoading}
+                onClick={onExportXlsx}
+              >
+                {exportingXlsx ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="size-4" />
+                )}
+                {exportingXlsx ? "جارٍ التصدير…" : "⬇ Excel"}
+              </Button>
               <Button
                 size="sm"
                 variant="outline"

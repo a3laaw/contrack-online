@@ -1,0 +1,82 @@
+import "server-only";
+import { existsSync, readdirSync } from "node:fs";
+import { homedir } from "node:os";
+import path from "node:path";
+import puppeteer from "puppeteer-core";
+
+/**
+ * تحويل HTML إلى PDF عبر Chromium بلا واجهة (المرحلة 8).
+ * ترتيب البحث عن الملف التنفيذي:
+ *   1) PDF_EXECUTABLE_PATH (override صريح)
+ *   2) @sparticuz/chromium — الافتراضي للإنتاج (Vercel serverless، يفك ضغط نسخته إلى /tmp)
+ *   3) كاش playwright المحلي داخل ms-playwright في مجلد المنزل (chrome-linux64/chrome)
+ *      (احتياط بيئات التطوير — مثل هذا الحاوية حيث يفشل استخراج al2023)
+ * الخط العربي مضمّن داخل HTML نفسه (font-data.ts) فلا حاجة لخطوط النظام.
+ */
+
+const BASE_ARGS = [
+  "--no-sandbox",
+  "--disable-setuid-sandbox",
+  "--disable-dev-shm-usage",
+  "--disable-gpu",
+  "--font-render-hinting=none",
+];
+
+async function resolveExecutablePath(): Promise<{ path: string; sparticuz: boolean }> {
+  const envPath = process.env.PDF_EXECUTABLE_PATH;
+  if (envPath && existsSync(envPath)) return { path: envPath, sparticuz: false };
+
+  try {
+    const chromium = (await import("@sparticuz/chromium")).default;
+    const p = await chromium.executablePath();
+    if (p && existsSync(p)) return { path: p, sparticuz: true };
+  } catch {
+    // محليًا قد يفشل الاستخراج (بيئة غير Amazon Linux) — ننسحب إلى كاش playwright
+  }
+
+  const cache = path.join(homedir(), ".cache", "ms-playwright");
+  if (existsSync(cache)) {
+    try {
+      const dirs = readdirSync(cache)
+        .filter((d) => d.startsWith("chromium") && !d.includes("headless"))
+        .sort()
+        .reverse();
+      for (const dir of dirs) {
+        for (const sub of ["chrome-linux64", "chrome-linux"]) {
+          const candidate = path.join(cache, dir, sub, "chrome");
+          if (existsSync(candidate)) return { path: candidate, sparticuz: false };
+        }
+      }
+    } catch {
+      // تجاهل واقذف الخطأ الواضح أدناه
+    }
+  }
+  throw new Error("لا يوجد كروميوم متاح لتحويل HTML إلى PDF (حدد PDF_EXECUTABLE_PATH)");
+}
+
+/** يطبع HTML مستقل (بـ@page كامل) إلى PDF A4 — الهوامش تأتي من CSS لا من الخيار */
+export async function renderHtmlToPdf(html: string): Promise<Buffer> {
+  const { path: executablePath, sparticuz } = await resolveExecutablePath();
+  const args = sparticuz ? [...BASE_ARGS] : BASE_ARGS;
+  const browser = await puppeteer.launch({
+    args,
+    executablePath,
+    headless: true,
+  });
+  try {
+    const page = await browser.newPage();
+    // HTML مستقل بلا موارد خارجية (الخط مضمّن base64) — «load» كافية
+    // (نوع setContent في puppeteer-core 25 لا يقبل networkidle0)
+    await page.setContent(html, { waitUntil: "load", timeout: 45_000 });
+    // انتظار جهوزية الخط المضمّن قبل الطباعة
+    await page.evaluateHandle("document.fonts.ready");
+    const buf = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "0", bottom: "0", left: "0", right: "0" },
+    });
+    return Buffer.from(buf);
+  } finally {
+    await browser.close();
+  }
+}

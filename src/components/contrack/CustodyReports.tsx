@@ -4,12 +4,12 @@
  * تقارير العُهد السبعة — مرآة CustodyReportsWidget المكتبي (ui/custody_center.py:797+):
  * التصفيات المجمع · أرصدة العهد · كشف موظف · تفصيلي بالحركة · الملخص الشهري
  * · كشف عهدة (طباعة) · العهد المعلقة — بنفس الأعمدة ونصوص الإجماليات حرفيًا.
- * طباعة PDF/Excel المكتبية ⇒ تصدير CSV خادمي بنفس الصفوف (PDF خادميًا في المرحلة 8).
+ * طباعة المكتبية ⇒ تصدير CSV/XLSX خادمي بنفس الصفوف (xlsx حقيقي من المرحلة 8).
  */
 
 import * as React from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Download } from "lucide-react";
+import { Download, FileSpreadsheet, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,6 +36,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ApiError, getStoredToken } from "./api";
 import type { CustodyAccountItem } from "./contrack-types";
 import { errMessage } from "./contrack-types";
+import { fetchBlobDownload } from "@/lib/download-blob";
 import { fmtDate } from "@/lib/format";
 
 type ReportKind = "summary" | "balances" | "employee" | "detailed" | "monthly" | "handovers" | "open";
@@ -163,6 +164,26 @@ export function CustodyReports({ accounts, onAuthError }: CustodyReportsProps) {
     }
   };
 
+  // ===== المرحلة 8: xlsx حقيقي بنفس الصفوف (الترويسة عريضة بيضاء والأرقام بأرقام) =====
+  const [downloadingX, setDownloadingX] = React.useState(false);
+  const downloadXlsx = async () => {
+    setDownloadingX(true);
+    try {
+      await fetchBlobDownload({
+        url: `/api/custody/reports?${params.toString()}&format=xlsx`,
+        token: getStoredToken(),
+        filename: `تقرير-العهد-${sub}-${todayLocal()}.xlsx`,
+      });
+    } catch (e) {
+      if ((e as { status?: number }).status === 401) {
+        onAuthError();
+        return;
+      }
+    } finally {
+      setDownloadingX(false);
+    }
+  };
+
   const accOptions = React.useMemo(
     () => accounts.map((a) => ({ id: a.id, name: a.fullPath || a.name })),
     [accounts]
@@ -230,6 +251,10 @@ export function CustodyReports({ accounts, onAuthError }: CustodyReportsProps) {
             </div>
           ) : null}
           <div className="grow" />
+          <Button size="sm" variant="outline" onClick={downloadXlsx} disabled={downloadingX} className="gap-1.5">
+            {downloadingX ? <Loader2 className="size-4 animate-spin" /> : <FileSpreadsheet className="size-4" />}
+            ⬇ Excel
+          </Button>
           <Button size="sm" variant="outline" onClick={downloadCsv} disabled={downloading} className="gap-1.5">
             <Download className="size-4" />
             تصدير CSV

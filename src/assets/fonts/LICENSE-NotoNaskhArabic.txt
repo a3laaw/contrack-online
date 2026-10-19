@@ -1,0 +1,4 @@
+NotoNaskhArabic[wght].ttf — Noto Naskh Arabic (variable) Regular
+Source: https://github.com/google/fonts/raw/main/ofl/notonaskharabic/
+Licensed under the SIL Open Font License 1.1 (OFL-1.1): https://openfontlicense.org/
+Bundled here (base64) for server-side PDF rendering; no modifications made.

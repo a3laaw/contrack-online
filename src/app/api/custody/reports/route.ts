@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authGuard, jsonError, ok, parseDay, todayStr } from "@/lib/api-utils";
 import { intOr } from "@/lib/contrack-server";
+import { buildXlsxBuffer, XLSX_MIME, type XlsxSheet } from "@/lib/xlsx-core";
 import {
   custodyBalancesReport,
   custodyDetailedReport,
@@ -52,7 +53,8 @@ export async function GET(req: NextRequest) {
   const accountId = sp.get("accountId") ? intOr(sp.get("accountId"), 0) || null : null;
   const asOf = parseDay(sp.get("asOf") || "") || "";
   const q = (sp.get("q") || "").trim();
-  const csv = (sp.get("format") || "").trim() === "csv";
+  const csv = (sp.get("format") || "").trim().toLowerCase() === "csv";
+  const xlsx = (sp.get("format") || "").trim().toLowerCase() === "xlsx";
 
   let title = "";
   let heads: string[] = [];
@@ -179,6 +181,30 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
+  // المرحلة 8: xlsx حقيقي — أرقام بأرقام بتنسيق المكتبي #,##0.000 في أعمدة القيم
+  if (xlsx) {
+    const numberCols = heads
+      .map((_, i) => (rows.some((r) => typeof r[i] === "number") ? i : -1))
+      .filter((i) => i >= 0);
+    const sheet: XlsxSheet = {
+      name: title.slice(0, 28) || "تقرير العهد",
+      columns: heads.map((h) => ({ header: h })),
+      rows,
+      numberCols,
+      totalsRow: totalsRow ?? null,
+    };
+    const buf = await buildXlsxBuffer({ sheets: [sheet] });
+    const filename = `custody-report-${kind}-${todayStr()}.xlsx`;
+    return new NextResponse(new Uint8Array(buf), {
+      status: 200,
+      headers: {
+        "Content-Type": XLSX_MIME,
         "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "no-store",
       },
