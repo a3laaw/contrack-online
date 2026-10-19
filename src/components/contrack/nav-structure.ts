@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 
 import type { ViewName } from "./contrack-types";
+import { REPORTS } from "./reports-list";
 
 /** معرّف الوحدات المعتمدة (توجيه المستخدم — تبويبات علوية) */
 export type ModuleId = "clients" | "subs" | "accounting" | "reports" | "settings";
@@ -43,6 +44,8 @@ export interface NavChild {
   mode?: "receipt" | "payment";
   /** قسم داخل شاشة الإعدادات أو إدارة البيانات */
   section?: string;
+  /** مفتاح التقرير داخل شاشة مركز التقارير (view=reports) */
+  report?: string;
   adminOnly?: boolean;
   /** مفتاح الميزة (feature_flags) الذي يخفي البند عند تعطيله — كالشجرة المكتبية */
   flag?: string;
@@ -53,8 +56,6 @@ export interface NavModule {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   children: NavChild[];
-  /** وحدة مباشرة: تُفتح بالضغط على التاب العلوي ولا تعرض قائمة جانبية (للبند الوحيد المكرر) */
-  direct?: boolean;
 }
 
 /**
@@ -62,7 +63,7 @@ export interface NavModule {
  *   1. العقود: اللوحة، المستحقات، العملاء، العقود، المهام، الزيارات، التعليقات، المتابعة
  *   2. الباطن: مقاولو الباطن (ملف المقاول: العقود والدفعات والأوامر)
  *   3. المحاسبة: سندات القبض/الصرف، كشف الحساب، العُهد، السلف، البوابة، الشركة الأخرى، المطالبات، الفواتير
- *   4. التقارير (وحدة مباشرة — تاب علوي يفتح مركز التقارير فوراً بلا قائمة جانبية): مركز التقارير
+ *   4. التقارير: التقارير الـ11 بنودًا حقيقية في القائمة الجانبية الرسمية كالمحاسبة (توجيه المستخدم — الخيار 2)
  *   5. الإعدادات: الشركة، الطباعة، الأمان، المستخدمون، الأنواع، المصروفات، المراحل، الزيارات، النسخ، أدوات المطور
  * خارج النطاق (لا يُضاف): مركز النماذج، المشاريع، عروض الأسعار، مجموعات العقود، الأرشيف، الواتساب، الاستيراد من Excel.
  */
@@ -110,11 +111,15 @@ export const NAV_MODULES: NavModule[] = [
     id: "reports",
     label: "التقارير",
     icon: BarChart3,
-    /** وحدة مباشرة (توجيه المستخدم 2026-10-19): البند الوحيد «مركز التقارير» مكرر لاسم التاب — لا قائمة جانبية */
-    direct: true,
-    children: [
-      { id: "reports", label: "مركز التقارير", icon: BarChart3, view: "reports", flag: "reports" },
-    ],
+    /** التقارير الـ11 بنودًا حقيقية — القائمة الجانبية الرسمية كالمحاسبة (توجيه المستخدم — الخيار 2) */
+    children: REPORTS.map((r) => ({
+      id: `report-${r.key}`,
+      label: r.label,
+      icon: r.icon,
+      view: "reports" as ViewName,
+      report: r.key,
+      flag: "reports",
+    })),
   },
   {
     id: "settings",

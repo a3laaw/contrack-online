@@ -164,8 +164,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
       </header>
 
       <div className="flex flex-1 w-full">
-        {/* ===== القائمة الجانبية للوحدة — قابلة للطي إلى أيقونات — تُخفى للوحدات المباشرة ===== */}
-        {!currentModule.module.direct && (
+        {/* ===== القائمة الجانبية للوحدة — قابلة للطي إلى أيقونات (التقارير الـ11 منها كالمحاسبة) ===== */}
         <aside
           className={cn(
             "hidden lg:flex sticky top-14 h-[calc(100vh-3.5rem)] shrink-0 flex-col border-l bg-card transition-[width] duration-200",
@@ -216,7 +215,6 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
             </ul>
           </nav>
         </aside>
-        )}
 
         {/* ===== المحتوى ===== */}
         <main className="min-w-0 flex-1">
@@ -243,38 +241,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
             </SheetTitle>
           </SheetHeader>
           <nav aria-label="التنقل" className="p-2">
-            {modules.map(({ module, children: kids }) => {
-              // وحدة مباشرة: زر واحد للوحدة كاملة بدل ترويسة + بند وحيد مكرر
-              if (module.direct) {
-                const only = kids[0];
-                if (!only) return null;
-                const Icon = module.icon;
-                const isActive = only.id === activeNav;
-                return (
-                  <div key={module.id} className="mb-2">
-                    <ul className="space-y-0.5">
-                      <li>
-                        <button
-                          type="button"
-                          onClick={() => pick(only)}
-                          aria-current={isActive ? "page" : undefined}
-                          className={cn(
-                            "flex min-h-10 w-full items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors",
-                            isActive
-                              ? "bg-primary-soft text-primary-soft-foreground"
-                              : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                          )}
-                        >
-                          <Icon className={cn("size-4 shrink-0", isActive && "text-primary")} />
-                          <span className="truncate">{module.label}</span>
-                          {isActive && <ChevronLeft className="ms-auto size-3.5 shrink-0" />}
-                        </button>
-                      </li>
-                    </ul>
-                  </div>
-                );
-              }
-              return (
+            {modules.map(({ module, children: kids }) => (
               <div key={module.id} className="mb-2">
                 <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-muted-foreground">
                   <module.icon className="size-3.5" />
@@ -306,8 +273,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
                   })}
                 </ul>
               </div>
-              );
-            })}
+            ))}
           </nav>
           <div className="border-t p-3">
             <button

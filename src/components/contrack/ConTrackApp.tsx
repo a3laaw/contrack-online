@@ -25,6 +25,7 @@ import { GatewayView } from "./GatewayView";
 import { OtherCompanyView } from "./OtherCompanyView";
 import { SubcontractorsView } from "./SubcontractorsView";
 import { ReportsView } from "./ReportsView";
+import { DEFAULT_REPORT_KEY } from "./reports-list";
 import { StatementView } from "./StatementView";
 import { FollowupView } from "./FollowupView";
 import { ClaimsView } from "./ClaimsView";
@@ -89,10 +90,11 @@ function AppRoot() {
   const [statementTarget, setStatementTarget] = React.useState<StatementTarget | null>(null);
   const [vouchersPresetQ, setVouchersPresetQ] = React.useState<string | null>(null);
 
-  // ===== وضع السندات وأقسام الإعدادات وإدارة البيانات (هيكل التنقل المعتمد) =====
+  // ===== وضع السندات وأقسام الإعدادات وإدارة البيانات والتقارير (هيكل التنقل المعتمد) =====
   const [vouchersMode, setVouchersMode] = React.useState<"receipt" | "payment">("receipt");
   const [settingsSection, setSettingsSection] = React.useState<string>("company");
   const [dmSection, setDmSection] = React.useState<string>("backup");
+  const [reportsKey, setReportsKey] = React.useState<string>(DEFAULT_REPORT_KEY);
 
   // معرّف البند النشط في القائمة الجانبية (يحدد الوحدة والبند المُبرز)
   const activeNav =
@@ -100,7 +102,9 @@ function AppRoot() {
       ? vouchersMode === "payment"
         ? "vouchers-payment"
         : "vouchers-receipt"
-      : view === "settings"
+      : view === "reports"
+        ? `report-${reportsKey}`
+        : view === "settings"
         ? (NAV_MODULES.flatMap((m) => m.children).find((c) => c.view === "settings" && c.section === settingsSection)?.id ??
           "settings-printing")
         : view === "data-mgmt"
@@ -114,6 +118,7 @@ function AppRoot() {
     if (child.view === "vouchers" && child.mode) setVouchersMode(child.mode);
     if (child.view === "settings" && child.section) setSettingsSection(child.section);
     if (child.view === "data-mgmt" && child.section) setDmSection(child.section);
+    if (child.view === "reports" && child.report) setReportsKey(child.report);
     setView(child.view);
     if (child.view !== "contract") setContractId(null);
     if (child.view !== "customer-file") setCustomerFileId(null);
@@ -149,6 +154,7 @@ function AppRoot() {
     setContractId(null);
     setCustomerFileId(null);
     setNewContractCustomerId(null);
+    setReportsKey(DEFAULT_REPORT_KEY);
   }, [qc]);
 
   const openContract = React.useCallback((id: number) => {
@@ -260,7 +266,9 @@ function AppRoot() {
       {view === "gateway" && <GatewayView user={user} onAuthError={onAuthError} />}
       {view === "other-company" && <OtherCompanyView user={user} onAuthError={onAuthError} />}
       {view === "subcontractors" && <SubcontractorsView user={user} onAuthError={onAuthError} />}
-      {view === "reports" && <ReportsView user={user} onAuthError={onAuthError} />}
+      {view === "reports" && (
+        <ReportsView user={user} onAuthError={onAuthError} selected={reportsKey} onSelect={setReportsKey} />
+      )}
       {view === "statement" && (
         <StatementView
           user={user}

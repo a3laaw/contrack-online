@@ -3,21 +3,10 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Banknote,
   BarChart3,
-  BookOpenText,
   Download,
-  FileText,
-  Gauge,
-  HardHat,
-  Layers,
   ListFilter,
-  Receipt,
   ScrollText,
-  Target,
-  Timer,
-  Users as UsersIcon,
-  Wallet,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -45,163 +34,16 @@ import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, getStoredToken } from "./api";
 import type { ReportCellValue, ReportResponse, User } from "./contrack-types";
 import { errMessage } from "./contrack-types";
+import { REPORTS } from "./reports-list";
 import { formatKWD } from "@/lib/format";
 
 interface ReportsViewProps {
   user: User;
   onAuthError: () => void;
+  /** التقرير المحدد — محكوم من الأعلى ليشاركه بند القائمة الجانبية الرسمية */
+  selected: string;
+  onSelect: (key: string) => void;
 }
-
-interface ReportOption {
-  value: string;
-  label: string;
-}
-
-interface ReportDef {
-  key: string; // مفتاح المسار /api/reports/{key}
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  desc: string;
-  period?: boolean; // from/to
-  selectParam?: string; // اسم باراميتر القائمة المنسدلة
-  selectLabel?: string;
-  options?: ReportOption[]; // أول خيار = «الكل» (قيمة فارغة لا تُرسل)
-}
-
-const REPORTS: ReportDef[] = [
-  {
-    key: "customers-balances",
-    label: "العملاء والأرصدة",
-    icon: UsersIcon,
-    desc: "أرصدة العملاء والمحصّل والمستحق الآن",
-    period: true,
-    selectParam: "option",
-    selectLabel: "العرض",
-    options: [
-      { value: "", label: "الكل" },
-      { value: "with_balance", label: "من عليهم أرصدة" },
-      { value: "no_balance", label: "بلا أرصدة" },
-      { value: "due_only", label: "المستحق الآن فقط" },
-      { value: "by_stages", label: "بالمراحل" },
-    ],
-  },
-  {
-    key: "stage-dues",
-    label: "مستحقات المراحل",
-    icon: Layers,
-    desc: "المستحق لكل مرحلة بحالاتها الصارمة",
-    selectParam: "option",
-    selectLabel: "العرض",
-    options: [
-      { value: "", label: "الكل" },
-      { value: "due_only", label: "المستحق الآن" },
-      { value: "overdue_only", label: "المتأخر فقط" },
-    ],
-  },
-  {
-    key: "supervision-delays",
-    label: "تأخير الإشراف",
-    icon: Timer,
-    desc: "شهور وأيام وأموال التأخير الإشرافي",
-    selectParam: "option",
-    selectLabel: "العرض",
-    options: [
-      { value: "unpaid", label: "غير المسددة (افتراضي)" },
-      { value: "all", label: "الكل" },
-    ],
-  },
-  {
-    key: "subcontractors",
-    label: "المقاولون",
-    icon: HardHat,
-    desc: "تقرير مقاولي الباطن الشامل بالدفعات",
-  },
-  {
-    key: "vouchers",
-    label: "الإيرادات والمصروفات",
-    icon: Receipt,
-    desc: "سندات الفترة مقسمة إيرادًا ومصروفًا",
-    period: true,
-    selectParam: "vtype",
-    selectLabel: "نوع السند",
-    options: [
-      { value: "", label: "الكل" },
-      { value: "receipt", label: "قبض" },
-      { value: "payment", label: "صرف" },
-      { value: "custody_return", label: "إرجاع عهدة" },
-      { value: "salary_deduction", label: "خصم راتب" },
-    ],
-  },
-  {
-    key: "expenses",
-    label: "تفصيل المصروفات",
-    icon: Wallet,
-    desc: "المصروفات بتفصيل حساباتها",
-    period: true,
-  },
-  {
-    key: "cashflow",
-    label: "التدفق النقدي",
-    icon: Banknote,
-    desc: "الوارد والمنصرف وصافي الحركة",
-    period: true,
-    selectParam: "mode",
-    selectLabel: "العرض",
-    options: [
-      { value: "detail", label: "تفصيلي" },
-      { value: "summary", label: "ملخص" },
-      { value: "daily", label: "يومي" },
-      { value: "monthly", label: "شهري" },
-      { value: "yearly", label: "سنوي" },
-    ],
-  },
-  {
-    key: "contracts",
-    label: "تقارير العقود",
-    icon: FileText,
-    desc: "نظرة شاملة وربحية وانتهاء",
-    period: true,
-    selectParam: "option",
-    selectLabel: "الخيار",
-    options: [
-      { value: "", label: "كل العقود" },
-      { value: "profitability", label: "الربحية الفعلية" },
-      { value: "profit_by_type", label: "الربحية حسب النوع" },
-      { value: "by_type", label: "حسب نوع العقد" },
-      { value: "expiring", label: "العقود المنتهية قريبًا" },
-    ],
-  },
-  {
-    key: "execution",
-    label: "مراحل التنفيذ",
-    icon: Gauge,
-    desc: "الإشغال الزمني للمراحل الجارية",
-    selectParam: "option",
-    selectLabel: "العرض",
-    options: [
-      { value: "", label: "الكل" },
-      { value: "current", label: "الجارية" },
-      { value: "delayed", label: "المتأخرة" },
-      { value: "near", label: "قاربت الانتهاء" },
-      { value: "ok", label: "ضمن الوقت" },
-      { value: "no_stage", label: "بلا مراحل" },
-    ],
-  },
-  {
-    key: "leads",
-    label: "الفرص البيعية",
-    icon: Target,
-    desc: "العملاء المسجلون بلا أي عقد بعد · فرصك البيعية القادمة للتواصل والمتابعة",
-    period: true,
-  },
-  {
-    key: "journal",
-    label: "دفتر اليومية",
-    icon: BookOpenText,
-    desc: "قيود اليومية المزدوجة",
-    period: true,
-  },
-];
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
@@ -256,10 +98,9 @@ async function downloadCsv(report: string, params: Record<string, string>, title
   URL.revokeObjectURL(url);
 }
 
-export function ReportsView({ user: _user, onAuthError }: ReportsViewProps) {
+export function ReportsView({ user: _user, onAuthError, selected, onSelect }: ReportsViewProps) {
   const { toast } = useToast();
 
-  const [selected, setSelected] = React.useState(REPORTS[0].key);
   const [from, setFrom] = React.useState("");
   const [to, setTo] = React.useState("");
   const [option, setOption] = React.useState("");
@@ -331,36 +172,11 @@ export function ReportsView({ user: _user, onAuthError }: ReportsViewProps) {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 md:flex-row">
-        {/* القائمة الجانبية — سطح المكتب */}
-        <aside className="hidden w-56 shrink-0 md:block">
-          <nav className="sticky top-20 space-y-1 rounded-lg border bg-card p-1.5">
-            {REPORTS.map((r) => {
-              const Icon = r.icon;
-              const active = r.key === selected;
-              return (
-                <button
-                  key={r.key}
-                  type="button"
-                  onClick={() => setSelected(r.key)}
-                  className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-start text-sm transition-colors ${
-                    active
-                      ? "bg-primary/10 font-semibold text-primary"
-                      : "text-foreground/80 hover:bg-accent hover:text-accent-foreground"
-                  }`}
-                >
-                  <Icon className="size-4 shrink-0" />
-                  <span className="truncate">{r.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </aside>
-
-        {/* اختيار التقرير — موبايل */}
-        <div className="md:hidden">
+      <div className="space-y-3">
+        {/* اختيار التقرير — أقل من lg (القائمة الجانبية الرسمية تظهر من lg وما فوق) */}
+        <div className="lg:hidden">
           <Label className="mb-1.5 block text-xs text-muted-foreground">اختر التقرير</Label>
-          <Select value={selected} onValueChange={setSelected}>
+          <Select value={selected} onValueChange={onSelect}>
             <SelectTrigger className="h-10 w-full gap-2">
               <ListFilter className="size-4 shrink-0 text-muted-foreground" />
               <SelectValue />
@@ -375,9 +191,7 @@ export function ReportsView({ user: _user, onAuthError }: ReportsViewProps) {
           </Select>
         </div>
 
-        {/* منطقة التقرير */}
-        <div className="min-w-0 flex-1 space-y-3">
-          {/* الفلاتر */}
+        {/* الفلاتر */}
           <Card>
             <CardContent className="flex flex-wrap items-end gap-3 p-3">
               <div className="min-w-0 flex-1">
@@ -531,7 +345,6 @@ export function ReportsView({ user: _user, onAuthError }: ReportsViewProps) {
               )}
             </CardContent>
           </Card>
-        </div>
       </div>
     </div>
   );
