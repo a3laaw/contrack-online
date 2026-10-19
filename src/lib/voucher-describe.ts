@@ -3,12 +3,15 @@ import { isSupervision, type ComputedPlanLine, type ReceiptLike } from "@/lib/co
 import type { ContractCore } from "@/lib/contrack-server";
 
 /**
- * محرّك «البيان التلقائي» — ترحيل أمين للنسخة المكتبية V9.15.18:
+ * محرّك «البيان التلقائي» — ترحيل أمين للنسخة المكتبية (V9.15.18 + بنود V9.15.19):
  * - extras_service.smart_receipt_description (صيغ ق1–ق12 + ق9–ق11 بلا خطة)
  * - supervision_service.supervision_receipt_description (عقود الإشراف — القرار 5/ب)
  * - extras_service.smart_receipt_stage_note (ملاحظة «مرحلة العمل: …»)
  * - voucher_payment_link_service.describe_items/_alloc_core/_PART_ORD (صياغة الدفعات)
- * - extras_service.apply_description_prefix (بادئات الإعدادات desc_prefix_*)
+ * - voucher_payment_link_service._ordinal_i (V9.15.19: «الدفعة الأولى…العاشرة» ثم «الدفعة رقم 11»)
+ * - voucher_payment_link_service.partial_tail (V9.15.19: « ومتبقي منها X د.ك» للدفع الجزئي)
+ * - extras_service.allocated_description (القبض المخصّص لأمر تغييري/عقد إضافي)
+ * - extras_service.apply_description_prefix (بادئات الإعدادات + إزالة تكرار «سداد»)
  * القاعدة: البيان المكتوب يدويًا لا يُستبدل — التعبئة فقط عندما يُرسل الحقل فارغًا (V6.1/V9.15.2).
  */
 
@@ -40,7 +43,10 @@ export async function applyDescriptionPrefix(db: DbLike, kind: PrefixKind, text:
   const s = await db.setting.findUnique({ where: { id: 1 } });
   const raw = s ? String((s as unknown as Record<string, unknown>)[field] ?? "") : "";
   const prefix = raw.trim().replace(/[:：]+\s*$/, "").trim();
-  return prefix ? `${prefix}: ${text}` : text;
+  // V9.15.19: إذا احتوت البادئة «سداد» وبدأ النص بـ«سداد » يُحذف من النص (منع التكرار)
+  let body = text;
+  if (prefix.includes("سداد") && body.startsWith("سداد ")) body = body.slice("سداد ".length);
+  return prefix ? `${prefix}: ${body}` : text;
 }
 
 /** اسم العقد للبيان فقط (بلا رقم ولا مبلغ) — الاسم العام يُستبدل بالوصف ثم بالرقم */
@@ -57,6 +63,22 @@ export function contractTail(name: string): string {
   return n.startsWith("عقد") ? ` — ${n}` : ` — عقد ${n}`;
 }
 
+/** الترقيم الترتيبي — مرآة _ordinal_i: «الأولى…العاشرة» ثم «رقم 11» وما بعدها (V9.15.19) */
+const ORDINAL_I_WORDS = [
+  "الأولى", "الثانية", "الثالثة", "الرابعة", "الخامسة",
+  "السادسة", "السابعة", "الثامنة", "التاسعة", "العاشرة",
+];
+export function ordinalI(n: number): string {
+  const i = Math.trunc(Number(n) || 0);
+  return i >= 1 && i <= ORDINAL_I_WORDS.length ? ORDINAL_I_WORDS[i - 1] : `رقم ${i}`;
+}
+
+/** ذيل الدفع الجزئي — مرآة partial_tail: « ومتبقي منها {X:,.3f} د.ك» (المتبقي فقط بعد السند) */
+export function partialTail(remainingAfter: number): string {
+  const x = Number(remainingAfter) || 0;
+  return x > 0.001 ? ` ومتبقي منها ${fmt3(x)} د.ك` : "";
+}
+
 /** أسماء مراحل العقد (لصيغة «وهي عن أعمال …») */
 export async function stageNameMap(db: DbLike, contractId: number): Promise<Map<number, string>> {
   const rows = await db.contractStage.findMany({ where: { contractId }, select: { id: true, name: true } });
@@ -71,6 +93,9 @@ export interface DescribeItem {
   full: boolean;
   continuation?: boolean;
   part_ordinal?: string | null;
+  /** المتبقي على الخط قبل هذا السند والمبلغ المسحوب منه — لذيل الدفع الجزئي (V9.15.19) */
+  remaining?: number;
+  amount?: number;
   /** نص جاهز (لأوامر التغيير) يُستخدم كما هو */
   core?: string;
 }
@@ -78,8 +103,13 @@ export interface DescribeItem {
 function allocCore(a: DescribeItem): string {
   if (a.core) return a.core;
   const stage = (a.stage || "").trim();
-  let t = stage ? `الدفعة رقم ${a.number} وهي عن أعمال ${stage}` : `الدفعة رقم ${a.number}`;
+  const ord = ordinalI(Number(a.number) || 0);
+  let t = stage ? `الدفعة ${ord} وهي عن أعمال ${stage}` : `الدفعة ${ord}`;
   if (!a.full) t = a.part_ordinal ? `الجزء ${a.part_ordinal} من ${t}` : `جزء من ${t}`;
+  // V9.15.19: ذيل المتبقي للدفع الجزئي — عند وجود remaining وamount
+  if (a.remaining !== undefined && a.amount !== undefined) {
+    t += partialTail(r3(Number(a.remaining) - Number(a.amount)));
+  }
   return t;
 }
 
@@ -301,7 +331,10 @@ export async function smartReceiptDescription(db: DbLike, core: NonNullable<Cont
     } else {
       const prev = full ? 0 : await partsPaidCount(core.receipts, pStart, pEnd);
       const ordinal = !full && prev > 0 && prev < PART_ORD.length ? PART_ORD[prev] : null;
-      items.push({ number: seg.number, stage: seg.stage, full, continuation: cont, part_ordinal: ordinal });
+      items.push({
+        number: seg.number, stage: seg.stage, full, continuation: cont, part_ordinal: ordinal,
+        remaining: r3(segAmt - (coverFrom - pStart)), amount: r3(cover),
+      });
     }
     remaining -= cover;
     cursor = pStart + after;
@@ -337,6 +370,69 @@ export async function smartReceiptStageNote(db: DbLike, core: NonNullable<Contra
   }
   if (names.length) return applyDescriptionPrefix(db, "stage_note", "مرحلة العمل: " + names.join(" + "));
   return "";
+}
+
+// ==================== القبض المخصّص لعقد إضافي/أمر تغييري ====================
+
+/**
+ * بيان سند قبض مخصّص لعقد إضافي/أمر تغييري — مرآة allocated_description + allocation_options.
+ * ق8: «سداد الأمر التغييري ADD-001 (السبب)» · الجزئي: «سداد جزء من…» / «سداد الجزء الثاني من…»
+ * والاستكمال: «استكمال…» — والغير معروف: «سداد مقابل بند إضافي».
+ */
+export async function allocatedDescription(
+  db: DbLike,
+  contractId: number,
+  amount: number,
+  allocation: string,
+  contractName: string,
+  excludeVoucherId?: number
+): Promise<string> {
+  const alloc = (allocation || "").trim();
+  const [addendums, allocRows] = await Promise.all([
+    db.addendum.findMany({
+      where: { contractId, status: "معتمد" },
+      orderBy: { id: "asc" },
+      select: { addendumNumber: true, addendumType: true, reason: true, amountAdd: true, amountDeduct: true },
+    }),
+    db.voucher.groupBy({
+      by: ["allocation"],
+      where: {
+        contractId, vtype: "receipt", cancelled: false, allocation: { not: "" },
+        ...(excludeVoucherId ? { id: { not: excludeVoucherId } } : {}),
+      },
+      _sum: { amount: true },
+    }),
+  ]);
+  const allocatedMap = new Map(allocRows.map((r) => [r.allocation, Number(r._sum.amount || 0)]));
+  const opt = addendums
+    .map((a) => {
+      const net = Number(a.amountAdd) - Number(a.amountDeduct);
+      const baseT = (a.addendumType || "أمر تغييري") === "عقد إضافي" ? "العقد الإضافي" : "الأمر التغييري";
+      const reason = (a.reason || "").trim();
+      const label = reason ? `${baseT} ${a.addendumNumber} (${reason})` : `${baseT} ${a.addendumNumber}`;
+      return { number: a.addendumNumber, label, amount: net, paid: allocatedMap.get(a.addendumNumber) ?? 0 };
+    })
+    .filter((o) => o.amount > 0.001)
+    .find((o) => o.number === alloc);
+  if (!opt) {
+    return applyDescriptionPrefix(db, "receipt", "سداد مقابل بند إضافي" + contractTail(contractName));
+  }
+  const after = opt.paid + amount;
+  let head: string;
+  if (Math.abs(after - opt.amount) < 0.001) {
+    head = opt.paid > 0.001 ? `استكمال ${opt.label}` : `سداد ${opt.label}`;
+  } else {
+    const prev = await db.voucher.count({
+      where: {
+        contractId, vtype: "receipt", cancelled: false, allocation: alloc,
+        ...(excludeVoucherId ? { id: { not: excludeVoucherId } } : {}),
+      },
+    });
+    head = prev === 0 ? `سداد جزء من ${opt.label}`
+      : prev > 0 && prev < PART_ORD.length ? `سداد الجزء ${PART_ORD[prev]} من ${opt.label}`
+      : `سداد جزء من ${opt.label}`;
+  }
+  return applyDescriptionPrefix(db, "receipt", head + contractTail(contractName));
 }
 
 // ==================== الروابط الصريحة (قبض/صرف مربوط بدفعات) ====================
@@ -403,6 +499,8 @@ export async function describeForLinks(
       full,
       continuation: Boolean(full && prev > 0),
       part_ordinal: !full && prev > 0 && prev < PART_ORD.length ? PART_ORD[prev] : null,
+      remaining: rem,
+      amount: amt,
     });
   }
   const advance = Math.max(0, left);

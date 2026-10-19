@@ -1325,3 +1325,25 @@ Stage Summary:
 - تاب «التقارير» صار بنيويًا كأي وحدة: قائمة جانبية رسمية كاملة الارتفاع ملاصقة لليمين تحوي التقارير الـ11، والمحتوى يملأ كامل العرض — اختفى العمود الفارغ نهائيًا.
 - مصدر واحد للحقيقة (reports-list.ts) يغذي التنقل والشاشة معًا؛ خاصية direct أُزيلت من المنظومة.
 - الملاحظة الوحيدة: النقر على تاب التقارير العلوي يفتح أول تقرير (كbehavior بقية التابات مع أول بند).
+
+---
+Task ID: 34 (المرحلة 1 من 9 — برومبت مطابقة المكتبي V9.15.19)
+Agent: Z.ai Code (مطابقة بيان السند التلقائي)
+Task: المرحلة 1 — بيان السند التلقائي: الترقيم الترتيبي + ذيل الدفع الجزئي + بادئة «سداد» + دالة القبض المخصّص (أمر تغييري/عقد إضافي)
+
+Work Log:
+- موافقة المستخدم على الخيار (أ): العمل بالمرجع المحلي contrack_v9.15.18 + النص الحرفي للبرومبت لبنود V9.15.19؛ المرحلة 6 مؤجلة حتى توفر نسخة 9.15.19.
+- قراءة مرجعية كاملة: voucher_payment_link_service.py (619 سطرًا — _ordinal_i@53 / _alloc_core@565 / describe_items@604 / contract_tail@596)، extras_service.py (apply_description_prefix@62 / allocated_description@488 / allocation_options@454 / smart_receipt_stage_note@550 / smart_payment_description@594 / smart_receipt_description@618)، supervision_service.py (supervision_receipt_description@357)، ui/vouchers.py (_auto_description — ترتيب الأولوية: روابط ← تخصيص ← بيان ذكي)، voucher-describe.ts (410 أسطر)، مسارات الإنشاء/التعديل في voucher-server.ts.
+- اكتشاف فجوة إضافية مؤكدة: الويب لا ينفّذ allocated_description إطلاقًا (سند قبض مخصّص لعقد إضافي/أمر تغييري كان يأخذ بيانًا من مسار الخطة) — أُضيفت المنظومة كاملة.
+- voucher-describe.ts: ordinalI (مرآة _ordinal_i حرفيًا: «الأولى…العاشرة» ثم «رقم N»)؛ partialTail (مرآة partial_tail: « ومتبقي منها {X:,.3f} د.ك» بعتبة 0.001)؛ allocCore يستخدم الترتيبي ويضيف الذيل عند وجود remaining/amount؛ DescribeItem حقلا remaining/amount؛ applyDescriptionPrefix يمنع تكرار «سداد» (بادئة تحوي «سداد» + نص يبدأ «سداد » ⇒ حذف)؛ allocatedDescription جديدة (مرآة allocated_description + allocation_options: سداد/جزء/الجزء {ثاني…}/استكمال/سداد مقابل بند إضافي، مع excludeVoucherId لمسار التعديل).
+- مواضع البناء: smartReceiptDescription items تمرر remaining=segAmt−(coverFrom−pStart) وamount=cover؛ describeForLinks items تمرر remaining=rem وamount=amt — فيظهر الذيل في المسارين (المربوط وغير المربوط) بذات دلالة المكتبي (المتبقي بعد السند).
+- voucher-server.ts: استيراد allocatedDescription؛ مسار الإنشاء: أولوية روابط ← تخصيص (input.allocation) ← بيان ذكي (نفس ترتيب _auto_description المكتبي)؛ مسار التعديل: فرع تخصيص من v.allocation مع استبعاد السند نفسه.
+- الإشراف والملاحظة: supervisionReceiptDescription وsmartReceiptStageNote مطابقان أصلًا للمرجع المحلي (قُفل سلوكهما باختبار)؛ fallback ملاحظة المرحلة إلى workflow_service مؤجل (يعتمد نظام المعاملات — المرحلة 9/12).
+- اختبار المصفوفة tests/voucher-describe-matrix.test.ts (bun test): 34 اختبارًا / 44 تأكيدًا — الأمثلة الذهبية التسع حرفيًا + مصفوفة قبض/صرف × كامل/جزئي/زيادة × مربوط/غير مربوط + منع التكرار + نهاية-إلى-نهاية describeForLinks + قفل الإشراف. النتيجة: 34/34 pass.
+- فحوص: tsc --noEmit = 0 أخطاء (استُثني tests من tsconfig كنمط scripts لأن bun يشغّلها بلا فحص أنواع)، eslint = 0، dev server يعمل، فحص متصفح: صفحة الدخول تصير بلا أخطاء كونسول/صفحة.
+- لم يُغيّر: fmt3 (en-US بفواصل الآلاف — مطابق لـ{X:,.3f})، صيغ الإشراف بلا «د.ك» (كالمكتبي حرفيًا).
+
+Stage Summary:
+- بيان السند التلقائي في الويب صار يطابق المكتبي: «الدفعة الأولى…العاشرة» ثم «الدفعة رقم 11»، الجزئي يذكر المتبقي «ومتبقي منها 2,000.000 د.ك»، الجزء الثاني ترتيبيًا، البادئة لا تكرر «سداد»، والقبض المخصص لأوامر التغيير/العقود الإضافية يعمل بالصيغ المكتبية الخمس كاملة (سداد/جزء/الجزء الثاني/استكمال/بند إضافي غير معروف).
+- الملفات: src/lib/voucher-describe.ts (+139/−12)، src/lib/voucher-server.ts (+17/−3)، tests/voucher-describe-matrix.test.ts (جديد 306 أسطر)، tsconfig.json (استثناء tests)، worklog.md.
+- تبقى من المرحلة 1: لا شيء جوهري — الملاحظة المؤجلة الوحيدة: fallback ملاحظة المرحلة إلى المرحلة الحالية من نظام المعاملات (يُنفذ مع المرحلة 9/12).

@@ -25,6 +25,7 @@ import {
 } from "@/lib/contrack-server";
 import { nextNumber, parseDay, audit } from "@/lib/api-utils";
 import {
+  allocatedDescription,
   applyDescriptionPrefix,
   contractDisplayName,
   describeForLinks,
@@ -885,6 +886,11 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
           if (!base.notes.trim() && d.stages.length) {
             base.notes = await applyDescriptionPrefix(db, "stage_note", "مرحلة العمل: " + d.stages.join(" + "));
           }
+        } else if (String(input.allocation || "").trim()) {
+          // قبض مخصّص لعقد إضافي/أمر تغييري — مرآة allocated_description
+          base.description = await allocatedDescription(
+            db, base.contractId!, amount, String(input.allocation || "").trim(),
+            contractDisplayName(core.contract));
         } else {
           base.description = await smartReceiptDescription(db, core, amount);
           if (!base.notes.trim()) base.notes = await smartReceiptStageNote(db, core, amount);
@@ -1335,7 +1341,16 @@ export async function updateVoucher(
   if (body.description !== undefined && !newDescription.trim()) {
     if (v.vtype === "receipt" && v.contractId) {
       const core = await loadContractCore(v.contractId, { excludeVoucherId: v.id });
-      if (core) finalDescription = await smartReceiptDescription(db, core, newAmount);
+      if (core) {
+        const alloc = String(v.allocation || "").trim();
+        if (alloc) {
+          finalDescription = await allocatedDescription(
+            db, v.contractId, newAmount, alloc,
+            contractDisplayName(core.contract), v.id);
+        } else {
+          finalDescription = await smartReceiptDescription(db, core, newAmount);
+        }
+      }
     } else if (v.vtype === "payment" && v.subContractId) {
       const subPlan = await computeSubPlan(v.subContractId, { excludeVoucherId: v.id });
       if (subPlan) {
