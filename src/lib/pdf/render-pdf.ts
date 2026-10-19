@@ -33,15 +33,16 @@ const BASE_ARGS = [
   "--font-render-hinting=none",
 ];
 
-async function resolveExecutablePath(): Promise<{ path: string; sparticuz: boolean }> {
+async function resolveChromium(): Promise<{ path: string; args: string[] }> {
   const envPath = process.env.PDF_EXECUTABLE_PATH;
-  if (envPath && existsSync(envPath)) return { path: envPath, sparticuz: false };
+  if (envPath && existsSync(envPath)) return { path: envPath, args: BASE_ARGS };
 
   let sparticuzError = "";
   try {
     const chromium = (await import("@sparticuz/chromium")).default;
     const p = await chromium.executablePath();
-    if (p && existsSync(p)) return { path: p, sparticuz: true };
+    if (p && existsSync(p))
+      return { path: p, args: [...chromium.args] }; // أعلامهم إلزامية لبنائهم (--single-process --no-zygote...)
     sparticuzError = `أعاد مسارًا غير موجود: ${p}`;
     console.error("[pdf] @sparticuz/chromium", sparticuzError);
   } catch (e) {
@@ -60,7 +61,7 @@ async function resolveExecutablePath(): Promise<{ path: string; sparticuz: boole
       for (const dir of dirs) {
         for (const sub of ["chrome-linux64", "chrome-linux"]) {
           const candidate = path.join(cache, dir, sub, "chrome");
-          if (existsSync(candidate)) return { path: candidate, sparticuz: false };
+          if (existsSync(candidate)) return { path: candidate, args: BASE_ARGS };
         }
       }
     } catch {
@@ -75,14 +76,15 @@ async function resolveExecutablePath(): Promise<{ path: string; sparticuz: boole
 /** يطبع HTML مستقل (بـ@page كامل) إلى PDF A4 — الهوامش تأتي من CSS لا من الخيار */
 export async function renderHtmlToPdf(html: string): Promise<Buffer> {
   let executablePath: string;
+  let args: string[];
   try {
-    executablePath = (await resolveExecutablePath()).path;
+    ({ path: executablePath, args } = await resolveChromium());
   } catch (e) {
     console.error("[pdf] لا كروميوم:", e instanceof Error ? e.message : e);
     throw e;
   }
   const browser = await puppeteer.launch({
-    args: BASE_ARGS,
+    args,
     executablePath,
     headless: true,
   });
