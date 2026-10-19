@@ -1209,3 +1209,21 @@ Stage Summary:
 - gh-x مغلق: GitHub محدَّث بالكامل — أبرز ما رُفع: ميزة «البيان التلقائي» (63c4207) وسجلات المهام 29/29-b/30-b.
 - توصية أمنية: الرمز مرّ عبر محادثة نصية ⇒ يُنصح المستخدم بحذفه (Revoke) من GitHub بعد انتهاء حاجته إليه في الجلسات القادمة.
 - المعلق الوحيد المتبقي للمزامنة الكاملة: ربط Vercel بGitHub (Settings → Git) أو VERCEL_TOKEN — عندها يُنشر main الحالي تلقائياً (4 تبويبات + البيان التلقائي) على الإنتاج.
+
+---
+Task ID: 30-d
+Agent: Z.ai Code (منسق — تتبع نشر Vercel بعد ربط GitHub)
+Task: التحقق من أن ربط GitHub أطلق نشراً فعلياً للبنية الجديدة على الإنتاج
+
+Work Log:
+- فحص خارجي (بلا تسجيل دخول): bundles الإنتاج تحتوي علامات نصية للبنية الحالية لكنها ليست حاسمة (تسميات قد تسبق Task 28) ⇒ اعتمدت بروب API حاسم: DELETE /api/gateway/ops/1 (أُضيف بTask 28) يرد 404 وGET /api/custody يرد 404 HTML (الجديدة ترد 401 JSON) ⇒ الإنتاج ما زال البنية القديمة (buildId ثابت ouieJ36L8qrXMhGcvOUMr).
+- راقبت الإنتاج ~14 دقيقة بمعدل probe كل دقيقة: صفر تغيير.
+- عبر GitHub API برمز المستخدم: commit statuses على 0fe82a2 وa575ad4 و63c4207 كلها من Vercel بحالة failure ووصف "Deployment was blocked" (أُنشئت 2026-10-19T04:20:56Z = 07:20 بتوقيت الكويت) ⇒ Vercel استلم طلب النشر عند الربط لكنه حجبه، ولا deployments entries على GitHub.
+- target_url للحجب: https://vercel.com/alaa-waheebs-projects/contrack-online/Hq4DRyWWLQ6nxs9KZsUQd9KgSkto — سبب الحجب وعملية الموافقة لا تظهران إلا لمالك الحساب.
+- لا vercel.json في المستودع؛ البناء عبر إعدادات المشروع الافتراضية (next build).
+
+Stage Summary:
+- gh-6 تقدّم جزئي: الربط تم وحالة النشر تصل GitHub، لكن Vercel يحجب نشر الإنتاج من Git على كل الـcommits الحديثة.
+- المطلوب من المستخدم: فتح رابط الحجب من لوحته (أو تبويب Deployments) لقراءة السبب — الأرجح: اشتراط موافقة على نشر الإنتاج (Approve and Deploy)، أو تعطيل "Deployments from Git"، أو حد استخدام/فوترة.
+- بديل فوري: زر Redeploy يدوياً من آخر نشر ناجح في تبويب Deployments.
+- بعد أي مسار نجاح أعيد التحقق الخارجي: تغيّر buildId + gateway/ops ترد 401/403 + custody ترد 401 JSON.
