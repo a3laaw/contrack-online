@@ -73,6 +73,7 @@ export const VIEW_PERMS: Partial<Record<ViewName, string>> = {
   "customer-file": "screen_customers",
   contracts: "screen_customers",
   "contract-groups": "screen_customers",
+  forms: "screen_forms",
   contract: "screen_customers",
   comments: "screen_customers",
   tasks: "screen_tasks",

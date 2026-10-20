@@ -1042,6 +1042,8 @@ model FormTemplate {
   fields        FormField[]
   documents     FormDocument[]
   createdAt     DateTime       @default(now())
+  // إضافة ويب (بند 56): عمود «آخر تعديل» لعرضه في عمود المكتبي «آخر تعديل»
+  updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at")
 
   @@map("form_templates")
 }
@@ -1081,6 +1083,9 @@ model FormDocument {
   template        FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   templateVersion Int          @default(1) @map("template_version")
   title           String       @default("")
+  // إضافة ويب (بند 56): رقم المستند المولد FD-%04d — المكتبي يخزنه ضمن مسار الملف
+  // والويب يخزن المستند base64 في wordPath فلا يمكن اشتقاق الرقم من المسار
+  docNumber       String       @default("") @map("doc_number")
   valuesJson      String       @default("{}") @map("values_json")
   pdfPath         String       @default("") @map("pdf_path")
   wordPath        String       @default("") @map("word_path")

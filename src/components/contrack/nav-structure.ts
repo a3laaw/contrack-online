@@ -15,6 +15,7 @@ import {
   HardHat,
   Layers,
   LayoutDashboard,
+  LayoutTemplate,
   ListTodo,
   MessageSquareText,
   Receipt,
@@ -81,12 +82,12 @@ export interface NavModule {
 
 /**
  * هيكل التنقل المعتمد (5 تبويبات — توجيه المستخدم 2026-10-19: مركز التقارير تاب علوي):
- *   1. العقود: اللوحة، المستحقات، العملاء، العقود، المهام، الزيارات، التعليقات، المتابعة
+ *   1. العقود: اللوحة، المستحقات، العملاء، العقود، مجموعات العقود، مركز النماذج، المهام، الزيارات، التعليقات، المتابعة
  *   2. الباطن: مقاولو الباطن (ملف المقاول: العقود والدفعات والأوامر)
  *   3. المحاسبة: سندات القبض/الصرف، كشف الحساب، العُهد، السلف، البوابة، الشركة الأخرى، المطالبات، الفواتير
  *   4. التقارير: التقارير الـ11 بنودًا حقيقية في القائمة الجانبية الرسمية كالمحاسبة (توجيه المستخدم — الخيار 2)
  *   5. الإعدادات: الشركة، الطباعة، الأمان، المستخدمون، الأنواع، المصروفات، المراحل، الزيارات، النسخ، أدوات المطور
- * خارج النطاق (لا يُضاف): مركز النماذج، المشاريع، عروض الأسعار، الأرشيف، الواتساب، الاستيراد من Excel.
+ * خارج النطاق (لا يُضاف): المشاريع، عروض الأسعار، الأرشيف، الواتساب، الاستيراد من Excel.
  */
 export const NAV_MODULES: NavModule[] = [
   {
@@ -99,6 +100,9 @@ export const NAV_MODULES: NavModule[] = [
       { id: "customers", label: "العملاء", icon: UsersIcon, view: "customers", perm: "screen_customers" },
       { id: "contracts", label: "العقود", icon: FileText, view: "contracts", perm: "screen_customers" },
       { id: "contract-groups", label: "مجموعات العقود", icon: Layers, view: "contract-groups", perm: "screen_customers" },
+      // بند 56: موضع المكتبي بند شل مشروط بمفتاح المزايا «forms_center» وصلاحية
+      // screen_forms معًا (main_window.py:812-814) — والبند تحت وحدة العقود كشاشة العمل
+      { id: "forms", label: "مركز النماذج", icon: LayoutTemplate, view: "forms", flag: "forms_center", perm: "screen_forms" },
       { id: "tasks", label: "المهام", icon: ListTodo, view: "tasks", flag: "tasks", perm: "screen_tasks" },
       { id: "visits", label: "جدول الزيارات", icon: CalendarDays, view: "visits", flag: "visits", perm: "screen_visits" },
       { id: "comments", label: "التعليقات", icon: MessageSquareText, view: "comments", flag: "comments", perm: "screen_customers" },

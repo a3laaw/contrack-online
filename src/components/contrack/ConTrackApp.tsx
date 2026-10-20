@@ -20,6 +20,7 @@ import { CustomersView } from "./CustomersView";
 import { CustomerFilePage } from "./CustomerFilePage";
 import { ContractsView } from "./ContractsView";
 import { ContractGroupsView } from "./ContractGroupsView";
+import { FormsCenterView } from "./FormsCenterView";
 import { ContractDetailView } from "./ContractDetailView";
 import { VouchersView } from "./VouchersView";
 import { CustodyView } from "./CustodyView";
@@ -303,6 +304,7 @@ function AppRoot() {
         />
       )}
       {view === "contract-groups" && <ContractGroupsView user={user} onAuthError={onAuthError} />}
+      {view === "forms" && <FormsCenterView user={user} onAuthError={onAuthError} />}
       {view === "contract" && contractId !== null && (
         <ContractDetailView
           contractId={contractId}
