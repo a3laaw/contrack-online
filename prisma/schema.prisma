@@ -20,6 +20,7 @@ model User {
   jobTitle     String           @default("") @map("job_title")
   active       Boolean          @default(true)
   permissions  UserPermission[]
+  dismissedAlerts DismissedAlert[]
   createdAt    DateTime         @default(now())
 
   @@map("users")
@@ -1022,6 +1023,20 @@ model StageNote {
 
   @@index([txType, txId])
   @@map("stage_notes")
+}
+
+/**
+ * تنبيهات نظامية مخفاة لكل مستخدم (V9.15.6 مكتبية — workflow_service._ensure_dismissed_table).
+ * المفتاح = بصمة sha1 لنص التنبيه — إذا تغيّرت بياناته (مبلغ/تاريخ/حالة) يعود ظاهرًا.
+ */
+model DismissedAlert {
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alertKey  String   @map("alert_key")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([userId, alertKey])
+  @@map("dismissed_alerts")
 }
 
 /** رسالة محادثة المعاملة — شات FollowupPanel المكتبي */

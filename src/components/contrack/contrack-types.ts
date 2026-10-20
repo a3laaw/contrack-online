@@ -772,41 +772,64 @@ export interface SettingsResponse {
 
 // ==================== المؤشرات ====================
 
-export interface DashboardStats {
+// ==================== الرئيسية الكاملة (بند 7 — مطابقة المكتبي DashboardPage) ====================
+
+/** تنبيه النظام — اللون والنص والعمر كما المكتبي حرفيًا */
+export interface DashboardAlertRow {
+  /** بصمة sha1 لنص التنبيه — تستخدم للإخفاء (alert_key المكتبي) */
+  key: string;
+  color: "danger" | "warn" | "info" | "purple" | "amber";
+  text: string;
+  age: number;
+  noConvert?: boolean;
+}
+
+/** صف نشاط — أحداث العقود والسندات السارية (recent_activity المكتبي) */
+export interface DashboardActivityRow {
+  when: string;
+  kind: string;
+  text: string;
+  amount: number;
+  sign: number; // 1 وارد | -1 منصرف | 0 حدث
+  contractId: number | null;
+  customerId: number | null;
+  customerName: string;
+  contractLabel: string;
+}
+
+/** مهمة لوحة الرئيسية المضمّنة — أعمدة المهمة/الموعد/المتبقي (TasksPage compact) */
+export interface DashboardTaskRow {
+  id: number;
+  title: string;
+  details: string;
+  dueAt: string; // YYYY-MM-DD HH:mm
+  remindMinutes: number;
+  taskType: string; // تذكير | موعد
+  status: string; // مفتوحة | منجزة
+  doneAt: string;
+  minutesLeft: number;
+  overdue: boolean;
+  customerId: number | null;
+  customerName: string | null;
+  contractId: number | null;
+  contractNumber: string | null;
+}
+
+export interface DashboardResponse {
+  generatedAt: string;
+  today: string;
   counts: {
     customers: number;
-    contractsActive: number;
-    contractsTotal: number;
+    contracts: number;
+    vouchers: number;
+    projects: number;
   };
-  totals: {
-    contractsValue: number;
-    collected: number;
-    paidOut: number;
-    subAmount: number;
-  };
-  dueNow: {
-    total: number;
-    byCustomer: { customerId: number; customerName: string; dueNow: number }[];
-  };
-  recentEvents: {
-    id: number;
-    contractId: number;
-    contractNumber: string;
-    eventTime: string;
-    eventType: string;
-    description: string;
-    username?: string;
-  }[];
-  overdueCollections: {
-    contractId: number;
-    contractNumber: string;
-    contractName: string;
-    customerId: number;
-    customerName: string;
-    remaining: number;
-    baseDate: string;
-    daysSince: number;
-  }[];
+  alerts: DashboardAlertRow[];
+  alertsHidden: number;
+  /** عدد التنبيهات المخفاة حاليًا للمستخدم (لبند «إظهار التنبيهات المخفية» في القائمة) */
+  dismissedCount: number;
+  activity: DashboardActivityRow[];
+  tasks: DashboardTaskRow[];
 }
 
 // ==================== كشوف الحساب ====================

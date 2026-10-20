@@ -15,7 +15,7 @@ import { DueItemsView } from "./DueItemsView";
 import { FeatureFlagsProvider } from "./FeatureFlagsProvider";
 import { AppShell } from "./AppShell";
 import { LoginView } from "./LoginView";
-import { DashboardView } from "./DashboardView";
+import { DashboardView, type DashboardQuickAction } from "./DashboardView";
 import { CustomersView } from "./CustomersView";
 import { CustomerFilePage } from "./CustomerFilePage";
 import { ContractsView } from "./ContractsView";
@@ -208,6 +208,22 @@ function AppRoot() {
     [navigate]
   );
 
+  // إجراءات الرئيسية السريعة — تفتح الشاشة المقابلة بوضعها (المحروس بنفس حرس navigate)
+  const handleDashboardQuickAction = React.useCallback(
+    (action: DashboardQuickAction) => {
+      if (action === "new_customer") navigate("customers");
+      else if (action === "new_contract") navigate("contracts");
+      else if (action === "new_receipt") {
+        setVouchersMode("receipt");
+        navigate("vouchers");
+      } else if (action === "new_payment") {
+        setVouchersMode("payment");
+        navigate("vouchers");
+      } else if (action === "new_subcontractor") navigate("subcontractors");
+    },
+    [navigate]
+  );
+
   // فتح شاشة الكشوفات بهدف مسبق (من تبويب كشف الحساب بتفاصيل العقد)
   const openStatement = React.useCallback(
     (target: StatementTarget) => {
@@ -253,7 +269,7 @@ function AppRoot() {
       perms={perms}
     >
       {view === "dashboard" && (
-        <DashboardView user={user} onAuthError={onAuthError} onNavigate={navigate} />
+        <DashboardView user={user} onAuthError={onAuthError} perms={perms} onQuickAction={handleDashboardQuickAction} onOpenContract={openContract} onOpenCustomerFile={openCustomerFile} />
       )}
       {view === "due" && (
         <DueItemsView user={user} onAuthError={onAuthError} onOpenContract={openContract} />

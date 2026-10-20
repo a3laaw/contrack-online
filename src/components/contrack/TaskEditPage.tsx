@@ -52,6 +52,8 @@ function defaultDueLocal(): string {
 interface TaskEditPageProps {
   /** مهمة للتعديل — null لإضافة مهمة جديدة */
   editing: TaskItem | null;
+  /** تعبئة مسبقة لمهمة جديدة (تحويل تنبيه الرئيسية — main_window.py:1537) */
+  preset?: { title?: string; details?: string } | null;
   onAuthError: () => void;
   /** بعد الحفظ الناجح (إبطال القوائم) */
   onSaved: () => void;
@@ -59,13 +61,13 @@ interface TaskEditPageProps {
   onClose: () => void;
 }
 
-export function TaskEditPage({ editing, onAuthError, onSaved, onClose }: TaskEditPageProps) {
+export function TaskEditPage({ editing, preset, onAuthError, onSaved, onClose }: TaskEditPageProps) {
   const { toast } = useToast();
   const qc = useQueryClient();
 
   // الصفحة تُركَّب عند الفتح فقط — التهيئة مباشرة (تعديل → بيانات المهمة، إضافة → افتراضيات)
-  const [title, setTitle] = React.useState(editing?.title || "");
-  const [details, setDetails] = React.useState(editing?.details || "");
+  const [title, setTitle] = React.useState(editing?.title || preset?.title || "");
+  const [details, setDetails] = React.useState(editing?.details || preset?.details || "");
   const [due, setDue] = React.useState(editing ? toLocalInput(editing.dueAt) : defaultDueLocal());
   const [remind, setRemind] = React.useState(String(editing?.remindMinutes ?? 30));
   const [taskType, setTaskType] = React.useState<string>(editing?.taskType || "تذكير");
