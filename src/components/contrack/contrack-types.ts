@@ -9,6 +9,7 @@ export type ViewName =
   | "customers"
   | "customer-file"
   | "contracts"
+  | "contract-groups"
   | "contract"
   | "vouchers"
   | "custody"

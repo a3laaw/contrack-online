@@ -1628,3 +1628,61 @@ export async function cancelVoucherTx(
   });
   return { voucherNumber: v.voucherNumber, reopened };
 }
+
+// ==================== استعادة سلفة ملغاة (V8.4) ====================
+
+/**
+ * استعادة سلفة موظف ملغاة داخل معاملة (V8.4 — سلف الموظفين فقط، مطابق للمكتبي):
+ * إعادة ترحيل القيود الأصلية كما هي (بدون عكس) بنوع voucher_restore —
+ * فتصبح الشبكة المحاسبية: أصلي + عكس الإلغاء (voucher_cancel) + الاستعادة = أصلي.
+ * ثم رفع الإلغاء (cancelled=false) — أرصدة السلف تُحسب من صفوف cancelled=false فتعود تلقائيًا.
+ * ملاحظة: أبناء الرسوم البنكية الملغون مع الأب لا يُعادون تلقائيًا (سلوك المكتبي).
+ */
+export async function restoreVoucherTx(
+  tx: Tx,
+  voucherId: number,
+  username: string,
+  reason = ""
+): Promise<{ voucherNumber: string; amount: number }> {
+  const v = await tx.voucher.findUnique({ where: { id: voucherId } });
+  if (!v) throw new VoucherError("السند غير موجود", 404);
+  if (!v.cancelled) throw new VoucherError("السند غير ملغى");
+  if (!v.advanceEmployeeId) throw new VoucherError("هذا الإجراء مخصص لسلف الموظفين.");
+
+  // القيود الأصلية للسند (بنوع voucher) — تُنسخ بنفس الحسابات مدينًا/دائنًا دون عكس
+  const originals = await tx.journalEntry.findMany({
+    where: { sourceType: "voucher", sourceId: voucherId },
+  });
+  const desc = `استعادة قيد السند ${v.voucherNumber}${reason ? ` — ${reason}` : ""}`;
+  for (const r of originals) {
+    await tx.journalEntry.create({
+      data: {
+        entryDate: todayStr(),
+        description: desc,
+        debitAccount: r.debitAccount,
+        creditAccount: r.creditAccount,
+        amount: r.amount,
+        contractId: r.contractId,
+        subContractId: r.subContractId,
+        sourceType: "voucher_restore",
+        sourceId: voucherId,
+      },
+    });
+  }
+
+  await tx.voucher.update({
+    where: { id: v.id },
+    data: { cancelled: false, cancelReason: "", cancelledAt: "" },
+  });
+
+  await audit(tx, {
+    username,
+    action: "استعادة",
+    entityType: "voucher",
+    entityId: v.id,
+    entityName: v.voucherNumber,
+    reason: reason || "استعادة سلفة موظف",
+  });
+
+  return { voucherNumber: v.voucherNumber, amount: Number(v.amount) };
+}

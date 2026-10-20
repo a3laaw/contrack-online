@@ -13,6 +13,7 @@ import {
   FileText,
   HandCoins,
   HardHat,
+  Layers,
   LayoutDashboard,
   ListTodo,
   MessageSquareText,
@@ -85,7 +86,7 @@ export interface NavModule {
  *   3. المحاسبة: سندات القبض/الصرف، كشف الحساب، العُهد، السلف، البوابة، الشركة الأخرى، المطالبات، الفواتير
  *   4. التقارير: التقارير الـ11 بنودًا حقيقية في القائمة الجانبية الرسمية كالمحاسبة (توجيه المستخدم — الخيار 2)
  *   5. الإعدادات: الشركة، الطباعة، الأمان، المستخدمون، الأنواع، المصروفات، المراحل، الزيارات، النسخ، أدوات المطور
- * خارج النطاق (لا يُضاف): مركز النماذج، المشاريع، عروض الأسعار، مجموعات العقود، الأرشيف، الواتساب، الاستيراد من Excel.
+ * خارج النطاق (لا يُضاف): مركز النماذج، المشاريع، عروض الأسعار، الأرشيف، الواتساب، الاستيراد من Excel.
  */
 export const NAV_MODULES: NavModule[] = [
   {
@@ -97,6 +98,7 @@ export const NAV_MODULES: NavModule[] = [
       { id: "due", label: "المهام المستحقة", icon: CalendarClock, view: "due", perm: "screen_customers" },
       { id: "customers", label: "العملاء", icon: UsersIcon, view: "customers", perm: "screen_customers" },
       { id: "contracts", label: "العقود", icon: FileText, view: "contracts", perm: "screen_customers" },
+      { id: "contract-groups", label: "مجموعات العقود", icon: Layers, view: "contract-groups", perm: "screen_customers" },
       { id: "tasks", label: "المهام", icon: ListTodo, view: "tasks", flag: "tasks", perm: "screen_tasks" },
       { id: "visits", label: "جدول الزيارات", icon: CalendarDays, view: "visits", flag: "visits", perm: "screen_visits" },
       { id: "comments", label: "التعليقات", icon: MessageSquareText, view: "comments", flag: "comments", perm: "screen_customers" },

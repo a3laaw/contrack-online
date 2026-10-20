@@ -7,6 +7,7 @@ import {
   Download,
   HandCoins,
   Pencil,
+  Recycle,
   Scissors,
   Undo2,
   UserPlus,
@@ -162,6 +163,7 @@ export function AdvancesView({ user: _user, onAuthError }: AdvancesViewProps) {
   const [empDialogOpen, setEmpDialogOpen] = React.useState(false);
   const [editEmployee, setEditEmployee] = React.useState<EmployeeRow | null>(null);
   const [moveKind, setMoveKind] = React.useState<"grant" | "return" | "deduction" | null>(null);
+  const [restoreOpen, setRestoreOpen] = React.useState(false);
 
   const fail = React.useCallback(
     (e: unknown, title: string) => {
@@ -213,6 +215,15 @@ export function AdvancesView({ user: _user, onAuthError }: AdvancesViewProps) {
       return;
     }
     setMoveKind(kind);
+  };
+
+  // استعادة سلفة ملغاة (V8.4) — تتطلب موظفًا مختارًا
+  const openRestore = () => {
+    if (!employeeId) {
+      toast({ variant: "destructive", title: "تنبيه", description: "أضف موظفًا أولًا." });
+      return;
+    }
+    setRestoreOpen(true);
   };
 
   const onEmployeeSaved = (id: number) => {
@@ -291,6 +302,10 @@ export function AdvancesView({ user: _user, onAuthError }: AdvancesViewProps) {
         <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => openMove("deduction")}>
           <Scissors className="size-4" />
           ✂ خصم من راتب
+        </Button>
+        <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={openRestore}>
+          <Recycle className="size-4" />
+          ♻️ استعادة سلفة
         </Button>
       </div>
 
@@ -384,6 +399,16 @@ export function AdvancesView({ user: _user, onAuthError }: AdvancesViewProps) {
         onClose={() => setMoveKind(null)}
         employees={employees}
         presetEmployeeId={employeeId}
+        onSaved={refreshAll}
+        onAuthError={onAuthError}
+      />
+
+      {/* نافذة استعادة سلفة ملغاة (V8.4) */}
+      <RestoreDialog
+        open={restoreOpen}
+        onOpenChange={setRestoreOpen}
+        employeeId={employeeId}
+        employeeName={current?.name || ""}
         onSaved={refreshAll}
         onAuthError={onAuthError}
       />
@@ -973,6 +998,188 @@ function MoveDialog({
             {saveMutation.isPending ? "جارٍ الحفظ…" : "حفظ"}
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ==================== نافذة استعادة سلفة ملغاة (V8.4) ====================
+
+interface VoucherListRow {
+  id: number;
+  voucherNumber: string;
+  vtype: string;
+  vtypeLabel: string;
+  kind: string;
+  kindLabel: string;
+  vdate: string;
+  amount: number;
+  employeeId: number | null;
+  employeeName: string;
+  description: string;
+  cancelled: boolean;
+  cancelReason: string;
+  cancelledAt: string;
+}
+
+interface VouchersListResponse {
+  vouchers: VoucherListRow[];
+}
+
+function RestoreDialog({
+  open,
+  onOpenChange,
+  employeeId,
+  employeeName,
+  onSaved,
+  onAuthError,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  employeeId: string;
+  employeeName: string;
+  onSaved: () => void;
+  onAuthError: () => void;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [target, setTarget] = React.useState<VoucherListRow | null>(null);
+
+  // العودة لوضع القائمة عند كل فتح
+  React.useEffect(() => {
+    if (open) setTarget(null);
+  }, [open]);
+
+  // قائمة سندات الموظف شاملة الملغى — تُرشَّح للملغى محليًا (أحدث 20)
+  const query = useQuery<VouchersListResponse>({
+    queryKey: ["advances-cancelled", employeeId],
+    queryFn: () =>
+      apiGet<VouchersListResponse>(`/api/employees/advances?employeeId=${employeeId}&includeCancelled=1`),
+    enabled: open && !!employeeId,
+  });
+
+  React.useEffect(() => {
+    if (query.error instanceof ApiError && query.error.status === 401) onAuthError();
+  }, [query.error, onAuthError]);
+
+  const cancelled = React.useMemo(
+    () => (query.data?.vouchers ?? []).filter((v) => v.cancelled).slice(0, 20),
+    [query.data]
+  );
+
+  const restoreMutation = useMutation({
+    mutationFn: (voucherId: number) =>
+      apiPost<{ restored: boolean; voucherNumber: string; amount: number }>(
+        "/api/employees/advances/restore",
+        { voucherId }
+      ),
+    onSuccess: () => {
+      toast({ title: "تمت استعادة السلفة ✅" });
+      onOpenChange(false);
+      onSaved();
+      qc.invalidateQueries({ queryKey: ["advances-cancelled"] });
+    },
+    onError: (e) => {
+      if (e instanceof ApiError && e.status === 401) onAuthError();
+      toast({ variant: "destructive", title: "تعذر الاستعادة", description: errMessage(e) });
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg" dir="rtl">
+        {target ? (
+          // ===== خطوة التأكيد داخل النافذة نفسها =====
+          <>
+            <DialogHeader>
+              <DialogTitle className="text-base">♻️ استعادة سلفة ملغاة</DialogTitle>
+              <DialogDescription>
+                ستُعاد قيود السند الأصلية ويُرفع الإلغاء — وتعود السلفة إلى رصيد الموظف.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-1.5 py-2 text-sm">
+              <p className="font-bold">هل تريد استعادة السلفة {target.voucherNumber}؟</p>
+              <p>
+                المبلغ: {formatKWD(target.amount)} د.ك
+              </p>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                className="h-9"
+                onClick={() => setTarget(null)}
+                disabled={restoreMutation.isPending}
+              >
+                رجوع
+              </Button>
+              <Button
+                className="h-9"
+                disabled={restoreMutation.isPending}
+                onClick={() => restoreMutation.mutate(target.id)}
+              >
+                {restoreMutation.isPending ? "جارٍ الاستعادة…" : "تأكيد الاستعادة"}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          // ===== قائمة السلف الملغاة =====
+          <>
+            <DialogHeader>
+              <DialogTitle className="text-base">♻️ استعادة سلفة ملغاة</DialogTitle>
+              <DialogDescription>
+                سلف {employeeName || "—"} الملغاة (أحدث 20) — الاستعادة تعيد القيود الأصلية وتُحدّث الأرصدة تلقائيًا.
+              </DialogDescription>
+            </DialogHeader>
+            {query.isLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-8 w-full" />
+                ))}
+              </div>
+            ) : cancelled.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">لا توجد سلف ملغاة لهذا الموظف.</p>
+            ) : (
+              <div className="max-h-96 overflow-auto rounded-md border">
+                <Table>
+                  <TableHeader className="sticky top-0 z-10 bg-muted">
+                    <TableRow>
+                      <TableHead className="whitespace-nowrap">المرجع</TableHead>
+                      <TableHead className="whitespace-nowrap">التاريخ</TableHead>
+                      <TableHead className="whitespace-nowrap text-start">المبلغ</TableHead>
+                      <TableHead className="whitespace-nowrap">سبب الإلغاء</TableHead>
+                      <TableHead className="w-24" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {cancelled.map((v) => (
+                      <TableRow key={v.id}>
+                        <TableCell className="whitespace-nowrap" dir="ltr">{v.voucherNumber}</TableCell>
+                        <TableCell className="whitespace-nowrap">{v.vdate}</TableCell>
+                        <TableCell className="whitespace-nowrap text-start tabular-nums">
+                          {formatKWD(v.amount)} د.ك
+                        </TableCell>
+                        <TableCell className="max-w-40 truncate whitespace-nowrap" title={v.cancelReason}>
+                          {v.cancelReason || "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8"
+                            disabled={restoreMutation.isPending}
+                            onClick={() => setTarget(v)}
+                          >
+                            استعادة
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

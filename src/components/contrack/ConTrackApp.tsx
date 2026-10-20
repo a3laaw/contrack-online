@@ -16,6 +16,7 @@ import { DashboardView } from "./DashboardView";
 import { CustomersView } from "./CustomersView";
 import { CustomerFilePage } from "./CustomerFilePage";
 import { ContractsView } from "./ContractsView";
+import { ContractGroupsView } from "./ContractGroupsView";
 import { ContractDetailView } from "./ContractDetailView";
 import { VouchersView } from "./VouchersView";
 import { CustodyView } from "./CustodyView";
@@ -242,6 +243,7 @@ function AppRoot() {
           onConsumePreset={() => setNewContractCustomerId(null)}
         />
       )}
+      {view === "contract-groups" && <ContractGroupsView user={user} onAuthError={onAuthError} />}
       {view === "contract" && contractId !== null && (
         <ContractDetailView
           contractId={contractId}
