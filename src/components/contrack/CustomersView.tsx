@@ -38,6 +38,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet } from "./api";
 import { CustomerEditPage } from "./CustomerEditPage";
 import { ProjectsManagerDialog } from "./ProjectsManagerDialog";
+import { QuotesManagerDialog } from "./QuotesManagerDialog";
 import { useFeatureFlags } from "./FeatureFlagsProvider";
 import type { Customer, CustomersResponse, User } from "./contrack-types";
 import { errMessage } from "./contrack-types";
@@ -63,6 +64,8 @@ export function CustomersView({
   // مفتاح المزايا «المشاريع» — كما تتبع بطاقة العداد المكتبية (main_window.py:154)
   const projectsOn = flags.enabled("projects");
   const [projectsOpen, setProjectsOpen] = React.useState(false);
+  // عروض الأسعار — بند 12: بلا مفتاح مزايا (لا مفتاح للعروض بالمكتبي ولا بالكتالوج)
+  const [quotesOpen, setQuotesOpen] = React.useState(false);
 
   const [searchInput, setSearchInput] = React.useState("");
   const [q, setQ] = React.useState("");
@@ -138,6 +141,10 @@ export function CustomersView({
               المشاريع
             </Button>
           )}
+          <Button variant="outline" className="h-9 gap-1.5" onClick={() => setQuotesOpen(true)}>
+            <span aria-hidden>🧾</span>
+            عروض الأسعار
+          </Button>
           {manager && (
             <Button className="h-9 gap-1.5" onClick={openAdd}>
               <Plus className="size-4" />
@@ -288,6 +295,14 @@ export function CustomersView({
           onOpenChange={setProjectsOpen}
         />
       )}
+
+      {/* حوار إدارة عروض الأسعار — بند 12 داخل الشاشة الحاضنة (بلا بند شل ولا مفتاح مزايا) */}
+      <QuotesManagerDialog
+        user={user}
+        onAuthError={onAuthError}
+        open={quotesOpen}
+        onOpenChange={setQuotesOpen}
+      />
 
       {/* تأكيد الحذف */}
       <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
