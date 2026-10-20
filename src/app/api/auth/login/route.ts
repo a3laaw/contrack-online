@@ -17,6 +17,7 @@ import {
 } from "@/lib/login-rate-limit";
 import { audit, jsonError, ok } from "@/lib/api-utils";
 import { ensureSeedData } from "@/lib/seed-defaults";
+import { permsForUser } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as { username?: string; password?: string };
@@ -101,6 +102,8 @@ export async function POST(req: NextRequest) {
   clearAttempts(key);
 
   const token = issueToken(user.id);
+  // بند 5 (مواءمة PAGE_PERMS): الصلاحيات تعاد مع الدخول فتُصيَّر الشل مفلترة من أول لحظة
+  const perms = await permsForUser(user.id, user.role);
   const res = ok({
     user: {
       id: user.id,
@@ -110,6 +113,7 @@ export async function POST(req: NextRequest) {
       jobTitle: user.jobTitle || "",
     },
     token,
+    perms,
   });
   res.cookies.set(SESSION_COOKIE, token, sessionCookieOptionsFor(req));
   await audit(db, {

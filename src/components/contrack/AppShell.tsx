@@ -10,7 +10,8 @@ import { cn } from "@/lib/utils";
 import type { User } from "./contrack-types";
 import { ROLE_LABEL, isManagerRole } from "./contrack-types";
 import { useFeatureFlags } from "./FeatureFlagsProvider";
-import { NAV_MODULES, findNavChild, type NavChild, type NavModule } from "./nav-structure";
+import { NAV_MODULES, findNavChild, type NavChild } from "./nav-structure";
+import { permAllows, visibleChildren } from "./nav-perms";
 
 interface AppShellProps {
   user: User;
@@ -24,30 +25,21 @@ interface AppShellProps {
   children?: React.ReactNode;
 }
 
-/** بنود وحدة معروصة بالصلاحيات والمزايا */
-function visibleChildren(
-  module: NavModule,
-  isAdmin: boolean,
-  flagOn: (f: string) => boolean,
-  permOn: (k: string) => boolean
-): NavChild[] {
-  return module.children.filter(
-    (c) => (!c.adminOnly || isAdmin) && (!c.flag || flagOn(c.flag)) && (!c.perm || permOn(c.perm))
-  );
-}
-
 /**
  * الهيكل المعتمد (المرحلة 3): شريط علوي للوحدات الأربع + قائمة جانبية داخل كل وحدة
  * قابلة للطي إلى أيقونات + درج منزلق على الشاشات الصغيرة. بلا شريط سفلي.
+ * بند 5 (المرحلة 2/ب): الفلترة بالصلاحيات visibleChildren نُقلت إلى nav-perms.ts النقي.
  */
 export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearch, perms, children }: AppShellProps) {
   const manager = isManagerRole(user.role);
   const { enabled: featureEnabled } = useFeatureFlags();
   const flagOn = React.useCallback((f: string) => featureEnabled(f), [featureEnabled]);
-  // المرحلة 2/ب: إخفاء البنود حسب الصلاحيات (المدير والمطور الكل — كالمكتبي)
+  // بند 5 (المرحلة 2/ب): إخفاء البنود حسب الصلاحيات — مرآة has_permission المكتبي:
+  // الدور أولًا (المدير والمطور يريان كل شيء دائمًا) ثم الخريطة (الممنوع=false فقط يُخفى)
+  // والمفتاح المجهول/الخريطة غير المحمّلة لا يقيّدان (لا وميض أخفاء قبل جلب /api/auth/me)
   const permOn = React.useCallback(
-    (k: string) => (perms ? perms[k] !== false : true),
-    [perms]
+    (k: string) => permAllows(perms, k, manager),
+    [perms, manager]
   );
 
   const [drawerOpen, setDrawerOpen] = React.useState(false);
@@ -123,14 +115,15 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
 
           {/* الوحدات — الحاسوب */}
           <nav aria-label="الوحدات" className="hidden md:flex items-center gap-0.5 overflow-x-auto">
-            {modules.map(({ module }) => {
+            {modules.map(({ module, children: kids }) => {
               const Icon = module.icon;
               const isActiveModule = module.id === activeModuleId;
               return (
                 <button
                   key={module.id}
                   type="button"
-                  onClick={() => pick(module.children[0])}
+                  // بند 5: أول بند مرئي بعد الفلترة — لا أول بند خام (قد يكون محجوبًا بالصلاحية)
+                  onClick={() => kids[0] && pick(kids[0])}
                   aria-current={isActiveModule ? "page" : undefined}
                   className={cn(
                     "flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors",

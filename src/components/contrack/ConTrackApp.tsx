@@ -6,8 +6,11 @@ import { Loader2 } from "lucide-react";
 
 import { apiGet, apiPost, setStoredToken, clearStoredToken, ApiError } from "./api";
 import type { StatementTarget, User, ViewName } from "./contrack-types";
+import { isManagerRole } from "./contrack-types";
 import type { NavChild } from "./nav-structure";
 import { NAV_MODULES } from "./nav-structure";
+import { NAVIGATE_DENIED_MSG, canOpenView, isChildVisible, permAllows, type PermsMap } from "./nav-perms";
+import { useToast } from "@/hooks/use-toast";
 import { DueItemsView } from "./DueItemsView";
 import { FeatureFlagsProvider } from "./FeatureFlagsProvider";
 import { AppShell } from "./AppShell";
@@ -63,19 +66,21 @@ export default function ConTrackApp() {
   );
 }
 
-type AuthData = { user: User | null };
+type AuthData = { user: User | null; perms: PermsMap };
 
 function AppRoot() {
+  const { toast } = useToast();
   const qc = useQueryClient();
 
   const authQuery = useQuery<AuthData>({
     queryKey: ["auth", "me"],
     queryFn: async () => {
       try {
-        const res = await apiGet<{ user: User }>("/api/auth/me");
-        return { user: res.user };
+        // /api/auth/me يعيد أصلًا { user, perms } — بند 5: نستغل الاستجابة نفسها بلا نداء إضافي
+        const res = await apiGet<{ user: User; perms: Record<string, boolean> }>("/api/auth/me");
+        return { user: res.user, perms: res.perms ?? null };
       } catch (e) {
-        if (e instanceof ApiError && e.status === 401) return { user: null };
+        if (e instanceof ApiError && e.status === 401) return { user: null, perms: null };
         throw e;
       }
     },
@@ -114,18 +119,31 @@ function AppRoot() {
             : "backup"
           : view;
 
-  // اختيار بند من القائمة الجانبية — يضبط العرض والأوضاع المرافقة
-  const selectChild = React.useCallback((child: NavChild) => {
-    if (child.view === "vouchers" && child.mode) setVouchersMode(child.mode);
-    if (child.view === "settings" && child.section) setSettingsSection(child.section);
-    if (child.view === "data-mgmt" && child.section) setDmSection(child.section);
-    if (child.view === "reports" && child.report) setReportsKey(child.report);
-    setView(child.view);
-    if (child.view !== "contract") setContractId(null);
-    if (child.view !== "customer-file") setCustomerFileId(null);
-  }, []);
-
   const user = authQuery.data?.user ?? null;
+  const perms = authQuery.data?.perms ?? null;
+  const manager = isManagerRole(user?.role);
+  // بند 5: مرآة has_permission المكتبي — الدور أولًا (المدير/المطور الكل دائمًا) ثم
+  // الخريطة (الممنوع=false فقط يُرفض) والمفتاح المجهول/غير المحمّل لا يقيّد
+  const permOn = React.useCallback((k: string) => permAllows(perms, k, manager), [perms, manager]);
+
+  // اختيار بند من القائمة الجانبية — حرس التنقل الحرفي أولًا (مرآة _navigate: main_window.py:1984-1988):
+  // بند شل بلا صلاحية لا يُفتح ويظهر توست المكتبي الحرفي — والميزات لا تمنع الفتح (تخفي الزر فقط)
+  const selectChild = React.useCallback(
+    (child: NavChild) => {
+      if (!isChildVisible(child, { isAdmin: manager, flagOn: () => true, permOn })) {
+        toast({ title: NAVIGATE_DENIED_MSG });
+        return;
+      }
+      if (child.view === "vouchers" && child.mode) setVouchersMode(child.mode);
+      if (child.view === "settings" && child.section) setSettingsSection(child.section);
+      if (child.view === "data-mgmt" && child.section) setDmSection(child.section);
+      if (child.view === "reports" && child.report) setReportsKey(child.report);
+      setView(child.view);
+      if (child.view !== "contract") setContractId(null);
+      if (child.view !== "customer-file") setCustomerFileId(null);
+    },
+    [manager, permOn, toast]
+  );
 
   // أي 401 في أي شاشة ⇒ إعادة فحص الجلسة ⇒ عرض شاشة الدخول
   const onAuthError = React.useCallback(() => {
@@ -133,9 +151,10 @@ function AppRoot() {
   }, [qc]);
 
   const handleLoggedIn = React.useCallback(
-    (u: User, token: string) => {
+    (u: User, token: string, userPerms?: Record<string, boolean>) => {
       setStoredToken(token);
-      qc.setQueryData<AuthData>(["auth", "me"], { user: u });
+      // الدخول يعيد الصلاحيات معه (بند 5) — فتُعرض الشل مفلترة من أول لحظة بلا وميض
+      qc.setQueryData<AuthData>(["auth", "me"], { user: u, perms: userPerms ?? null });
       setView("dashboard");
       setContractId(null);
     },
@@ -150,7 +169,7 @@ function AppRoot() {
     }
     clearStoredToken();
     qc.clear();
-    qc.setQueryData<AuthData>(["auth", "me"], { user: null });
+    qc.setQueryData<AuthData>(["auth", "me"], { user: null, perms: null });
     setView("dashboard");
     setContractId(null);
     setCustomerFileId(null);
@@ -158,43 +177,66 @@ function AppRoot() {
     setReportsKey(DEFAULT_REPORT_KEY);
   }, [qc]);
 
-  const openContract = React.useCallback((id: number) => {
-    setContractId(id);
-    setView("contract");
-  }, []);
+  // حرس فتح الـviews مباشرة (مسارات جانبية: بحث/رجوع/فتح كشف من عقد) — كحرس _navigate المكتبي
+  const navigate = React.useCallback(
+    (v: ViewName) => {
+      if (!canOpenView(v, { isAdmin: manager, permOn })) {
+        toast({ title: NAVIGATE_DENIED_MSG });
+        return;
+      }
+      setView(v);
+      if (v !== "contract") setContractId(null);
+      if (v !== "customer-file") setCustomerFileId(null);
+    },
+    [manager, permOn, toast]
+  );
+
+  const openContract = React.useCallback(
+    (id: number) => {
+      setContractId(id);
+      navigate("contract");
+    },
+    [navigate]
+  );
 
   // فتح ملف العميل كصفحة داخلية (كالمكتبي dealings._open_customer — استبدال المحتوى لا تكدس نوافذ)
-  const openCustomerFile = React.useCallback((id: number) => {
-    setCustomerFileId(id);
-    setView("customer-file");
-  }, []);
-
-  const navigate = React.useCallback((v: ViewName) => {
-    setView(v);
-    if (v !== "contract") setContractId(null);
-    if (v !== "customer-file") setCustomerFileId(null);
-  }, []);
+  const openCustomerFile = React.useCallback(
+    (id: number) => {
+      setCustomerFileId(id);
+      navigate("customer-file");
+    },
+    [navigate]
+  );
 
   // فتح شاشة الكشوفات بهدف مسبق (من تبويب كشف الحساب بتفاصيل العقد)
-  const openStatement = React.useCallback((target: StatementTarget) => {
-    setStatementTarget(target);
-    setView("statement");
-  }, []);
+  const openStatement = React.useCallback(
+    (target: StatementTarget) => {
+      setStatementTarget(target);
+      navigate("statement");
+    },
+    [navigate]
+  );
 
   // نتيجة بحث: عميل ⇒ فتح ملف العميل مباشرة (صفحة داخلية كالمكتبي)
   const openCustomerDetail = openCustomerFile;
 
   // نتيجة بحث: سند ⇒ شاشة السندات مع فلتر q
-  const openVouchersWithQ = React.useCallback((q: string) => {
-    setVouchersPresetQ(q);
-    setView("vouchers");
-  }, []);
+  const openVouchersWithQ = React.useCallback(
+    (q: string) => {
+      setVouchersPresetQ(q);
+      navigate("vouchers");
+    },
+    [navigate]
+  );
 
   // زر «عقد جديد» من شاشة العملاء ⇒ فتح معالج العقد مع العميل محددًا مسبقًا
-  const startNewContractForCustomer = React.useCallback((customerId: number) => {
-    setNewContractCustomerId(customerId);
-    setView("contracts");
-  }, []);
+  const startNewContractForCustomer = React.useCallback(
+    (customerId: number) => {
+      setNewContractCustomerId(customerId);
+      navigate("contracts");
+    },
+    [navigate]
+  );
 
   if (authQuery.isLoading) return <AuthSplash />;
   if (authQuery.isError) return <AuthSplash error />;
@@ -208,6 +250,7 @@ function AppRoot() {
       onSelectChild={selectChild}
       onLogout={handleLogout}
       onOpenSearch={() => setSearchOpen(true)}
+      perms={perms}
     >
       {view === "dashboard" && (
         <DashboardView user={user} onAuthError={onAuthError} onNavigate={navigate} />

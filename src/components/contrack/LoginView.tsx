@@ -12,7 +12,7 @@ import type { User } from "./contrack-types";
 import { errMessage } from "./contrack-types";
 
 interface LoginViewProps {
-  onLoggedIn: (user: User, token: string) => void;
+  onLoggedIn: (user: User, token: string, perms?: Record<string, boolean>) => void;
 }
 
 export function LoginView({ onLoggedIn }: LoginViewProps) {
@@ -30,11 +30,11 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
     setError("");
     setLoading(true);
     try {
-      const res = await apiPost<{ user: User; token: string }>("/api/auth/login", {
+      const res = await apiPost<{ user: User; token: string; perms?: Record<string, boolean> }>("/api/auth/login", {
         username: username.trim(),
         password,
       });
-      onLoggedIn(res.user, res.token);
+      onLoggedIn(res.user, res.token, res.perms);
     } catch (err) {
       const msg = errMessage(err);
       setError(

@@ -118,8 +118,11 @@ export const NAV_MODULES: NavModule[] = [
     label: "المحاسبة",
     icon: Wallet,
     children: [
-      { id: "vouchers-receipt", label: "سندات القبض", icon: HandCoins, view: "vouchers", mode: "receipt", perm: "screen_vouchers" },
-      { id: "vouchers-payment", label: "سندات الصرف", icon: Receipt, view: "vouchers", mode: "payment", perm: "screen_vouchers" },
+      // بند 5 مواءمة PAGE_PERMS: مفتاحان منفصلان كالمكتبي حرفيًا (main_window.py:782-787
+      // سندات القبض ← screen_receipts · سندات الصرف ← screen_payments) —
+      // بوابة الـAPI تبقى screen_vouchers (الدمج المكتبي الموثق) فلا تغيير بأي حارس مسار
+      { id: "vouchers-receipt", label: "سندات القبض", icon: HandCoins, view: "vouchers", mode: "receipt", perm: "screen_receipts" },
+      { id: "vouchers-payment", label: "سندات الصرف", icon: Receipt, view: "vouchers", mode: "payment", perm: "screen_payments" },
       { id: "statement", label: "كشف الحساب", icon: FileSpreadsheet, view: "statement", flag: "statement", perm: "screen_statement" },
       { id: "custody", label: "العُهد", icon: Wallet, view: "custody", flag: "custody", perm: "screen_custody" },
       { id: "advances", label: "سلف الموظفين", icon: UsersRound, view: "advances", flag: "custody", perm: "screen_custody" },
