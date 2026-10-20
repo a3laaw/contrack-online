@@ -37,6 +37,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet } from "./api";
 import { CustomerEditPage } from "./CustomerEditPage";
+import { ProjectsManagerDialog } from "./ProjectsManagerDialog";
+import { useFeatureFlags } from "./FeatureFlagsProvider";
 import type { Customer, CustomersResponse, User } from "./contrack-types";
 import { errMessage } from "./contrack-types";
 
@@ -57,6 +59,10 @@ export function CustomersView({
   const { toast } = useToast();
   const qc = useQueryClient();
   const manager = user.role === "admin" || user.role === "developer";
+  const flags = useFeatureFlags();
+  // مفتاح المزايا «المشاريع» — كما تتبع بطاقة العداد المكتبية (main_window.py:154)
+  const projectsOn = flags.enabled("projects");
+  const [projectsOpen, setProjectsOpen] = React.useState(false);
 
   const [searchInput, setSearchInput] = React.useState("");
   const [q, setQ] = React.useState("");
@@ -126,6 +132,12 @@ export function CustomersView({
           <Button variant="outline" size="icon" className="size-9" onClick={() => listQuery.refetch()} aria-label="تحديث">
             <RefreshCw className={listQuery.isFetching ? "size-4 animate-spin" : "size-4"} />
           </Button>
+          {projectsOn && (
+            <Button variant="outline" className="h-9 gap-1.5" onClick={() => setProjectsOpen(true)}>
+              <span aria-hidden>🏗</span>
+              المشاريع
+            </Button>
+          )}
           {manager && (
             <Button className="h-9 gap-1.5" onClick={openAdd}>
               <Plus className="size-4" />
@@ -265,6 +277,16 @@ export function CustomersView({
             ))}
           </div>
         </>
+      )}
+
+      {/* حوار إدارة المشاريع — بند 11 داخل الشاشة الحاضنة (بلا بند شل كالمكتبي) */}
+      {projectsOn && (
+        <ProjectsManagerDialog
+          user={user}
+          onAuthError={onAuthError}
+          open={projectsOpen}
+          onOpenChange={setProjectsOpen}
+        />
       )}
 
       {/* تأكيد الحذف */}

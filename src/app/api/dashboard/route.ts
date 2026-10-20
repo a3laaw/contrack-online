@@ -58,12 +58,12 @@ export async function GET(req: NextRequest) {
   ];
 
   // ===== 1) العدادات الخام (contract_service.dashboard_stats + ui_data.dashboard_counts) =====
-  // ملاحظة: «عدد المشاريع» المكتبية من جدول projects — لا نموذج مشاريع في الويب بعد
-  // (بند 11 من قائمة المرحلة 9) فتعود صفرًا والبطاقة تتبع مفتاح المزايا.
-  const [customersCount, contractsCount, vouchersCount, flagRows] = await Promise.all([
+  // «عدد المشاريع» المكتبية من جدول projects (بند 11 مكتمل) — والبطاقة تتبع مفتاح المزايا.
+  const [customersCount, contractsCount, vouchersCount, projectsCount, flagRows] = await Promise.all([
     db.customer.count(),
     db.contract.count(),
     db.voucher.count(),
+    db.project.count(),
     db.featureFlag.findMany({ where: { key: { in: ["comments", "followup"] } } }),
   ]);
   const storedFlags: Record<string, boolean> = {};
@@ -396,7 +396,7 @@ export async function GET(req: NextRequest) {
       customers: customersCount,
       contracts: contractsCount,
       vouchers: vouchersCount,
-      projects: 0, // لا نموذج مشاريع في الويب بعد — البطاقة تتبع مفتاح المزايا
+      projects: projectsCount, // مرآة ui_data.dashboard_counts — والبطاقة تتبع مفتاح «المشاريع»
     },
     alerts: fresh,
     alertsHidden: hiddenCount,
