@@ -5,9 +5,10 @@
  * • النسخ الاحتياطي والاستعادة (الويب): /api/backup تنزيل JSON كامل +
  *   /api/backups قائمة النسخ المحفوظة على الخادم + /api/backups/restore
  *   استعادة مع نسخة أمان تلقائية — بتأكيد مزدوج (اختيار النسخة ثم نافذة تأكيد).
- * • «استيراد البيانات القديمة (Excel)» بنصوصه الحرفية — المعالج «قريباً»
- *   (بند 8 من المرحلة 9)، ويُخفى الكارت حين يكون مفتاح import_old مطفأً
- *   كما يفعل المكتبي (settings.py:1203-1206 V4.5.13).
+ * • «استيراد البيانات القديمة (Excel)» بنصوصه الحرفية — معالج بند 8 من المرحلة 9
+ *   (import_wizard.py): قوالب الأوراق الثماني ← فحص بمعاينة وأخطاء برقم الصف ←
+ *   تنفيذ بترتيب التبعية داخل معاملات ← تقرير النتائج، ويُخفى الكارت حين يكون
+ *   مفتاح import_old مطفأً كما يفعل المكتبي (settings.py:1203-1206 V4.5.13).
  * • «تهيئة مراحل التنفيذ للعقود القديمة» أداة مكتبية لقواعد SQLite القديمة —
  *   تُعرض بنصوصها الحرفية ومؤشر «خاص بنسخة سطح المكتب».
  */
@@ -45,6 +46,7 @@ import {
   type BackupsResponse,
 } from "../../contrack-types";
 import { DesktopOnlyCard } from "../shared";
+import { ImportWizard } from "./import-wizard";
 
 export function MigrationSection({ importOldEnabled, onAuthError }: { importOldEnabled: boolean; onAuthError: () => void }) {
   const { toast } = useToast();
@@ -191,21 +193,23 @@ export function MigrationSection({ importOldEnabled, onAuthError }: { importOldE
 
       {/* استيراد البيانات القديمة — يُخفى حين يكون المفتاح مطفأً كالمكتبي V4.5.13 */}
       {importOldEnabled && (
-        <Card className="border-dashed">
+        <Card data-testid="import-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">استيراد البيانات القديمة (Excel)</CardTitle>
+            <CardTitle className="text-base">📥 استيراد البيانات القديمة</CardTitle>
             <p className="text-xs text-muted-foreground">نزّل القالب، املأه، ثم افحصه قبل الاستيراد.</p>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex items-start justify-between gap-3 rounded-lg border border-dashed p-3 opacity-70">
-              <div>
-                <div className="text-sm font-medium">📥 فتح معالج الاستيراد</div>
-                <div className="text-xs text-muted-foreground">استيراد البيانات القديمة من قالب Excel بعد فحصه.</div>
-              </div>
-              <span className="shrink-0 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">قريباً — بند 8 من المرحلة 9</span>
-            </div>
+          <CardContent>
+            <ImportWizard onAuthError={onAuthError} />
           </CardContent>
         </Card>
+      )}
+
+      {/* الخطوة صفر المكتبية (types_setup_service) — تأسيس الأنواع قبل رفع البيانات — خارج نطاق بند 8 */}
+      {importOldEnabled && (
+        <DesktopOnlyCard title="الخطوة صفر — رفع أنواع العقود والمراحل والدفعات من Excel">
+          <p>الخطوة صفر (تُنفَّذ أولاً): أسّس أنواع العقود ومراحلها ودفعاتها · بدونها تدخل العقود تحت «غير محدد» بمراحل غير صحيحة</p>
+          <p>أزرار «⬇ تنزيل قالب الأنواع والمراحل والدفعات» و«رفع أنواع العقود والمراحل والدفعات من Excel» و«🔧 إصلاح عقود غير محدد» من المعالج المكتبي.</p>
+        </DesktopOnlyCard>
       )}
 
       {/* أداة الترحيل المكتبية للقواعد القديمة — تُعرض ولا تُحذف (قاعدة المرحلة 9) */}
