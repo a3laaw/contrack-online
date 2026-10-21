@@ -4,6 +4,8 @@ import { audit, authGuard, jsonError, ok, parseDay, todayStr } from "@/lib/api-u
 import { ACTIVE_CLAIM_STATUSES, intOr, loadContractCore } from "@/lib/contrack-server";
 import { r3 } from "@/lib/contrack-core";
 import { closeAmountSuffix } from "@/lib/contract-types-admin";
+import { canTransition, transitionError } from "@/lib/lifecycle-transitions";
+import { createEntityBackup } from "@/lib/backup-server";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -110,6 +112,10 @@ export async function PATCH(req: NextRequest, { params }: P) {
   if (body.status !== undefined && String(body.status) !== core.contract.status) {
     const status = String(body.status);
     if (!CONTRACT_STATUSES.includes(status)) return jsonError("حالة العقد غير صحيحة.");
+    // G7 — حرس الانتقالات الموحدة (المكتبي TRANSITIONS): المسموح فقط، والملغى يُسترجع إلى نشط
+    if (!canTransition("contract", oldStatus, status)) {
+      return jsonError(transitionError("contract", oldStatus, status));
+    }
     data.status = status;
     if (status === "ملغى") {
       data.cancelledAt = todayStr();
@@ -186,6 +192,10 @@ export async function PATCH(req: NextRequest, { params }: P) {
   }
 
   const updated = await db.$transaction(async (tx) => {
+    // G7 — نسخة احتياطية كاملة قبل الإلغاء (المكتبي _create_backup) — الأرشفة لا تحذف
+    if (statusChanged && String(data.status) === "ملغى") {
+      await createEntityBackup(tx, "contract", id, guard.user.username);
+    }
     const contract = await tx.contract.update({ where: { id }, data });
     if (statusChanged) {
       const newStatus = String(data.status);

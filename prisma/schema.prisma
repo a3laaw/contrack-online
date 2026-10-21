@@ -684,6 +684,19 @@ model ContractComponent {
   @@map("contract_components")
 }
 
+// G7 — نسخة احتياطية قبل الإلغاء (المكتبي entity_backups 290–326) — لا حذف أبدًا
+model EntityBackup {
+  id         Int      @id @default(autoincrement())
+  entityType String   @map("entity_type") // contract | sub_contract | claim | custody
+  entityId   Int      @map("entity_id")
+  backupData String   @map("backup_data") // JSON كامل للسجل قبل الإلغاء
+  createdBy  String   @default("") @map("created_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@map("entity_backups")
+}
+
 model WorkflowStage {
   id                      Int                   @id @default(autoincrement())
   transactionType         String                @map("transaction_type") // contract|payment|subcontract|customer

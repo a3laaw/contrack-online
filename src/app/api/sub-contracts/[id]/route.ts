@@ -9,6 +9,8 @@ import {
   subPaymentCap,
   computeSubPlan,
 } from "@/lib/voucher-server";
+import { canTransition, transitionError } from "@/lib/lifecycle-transitions";
+import { createEntityBackup } from "@/lib/backup-server";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -107,6 +109,10 @@ export async function PATCH(req: NextRequest, { params }: P) {
   if (body.status !== undefined) {
     const status = String(body.status || "");
     if (!["نشط", "متوقف", "منتهي", "ملغى"].includes(status)) return jsonError("حالة عقد الباطن غير صالحة (نشط/متوقف/منتهي/ملغى)");
+    // G7 — حرس الانتقالات الموحدة (المكتبي TRANSITIONS)
+    if (!canTransition("sub_contract", sc.status, status)) {
+      return jsonError(transitionError("sub_contract", sc.status, status));
+    }
     if (status === "ملغى") {
       const reason = String(body.cancelReason || body.reason || "").trim();
       if (!reason) return jsonError("سبب الإلغاء مطلوب — استخدم الحذف الموثق بوضع contract");
@@ -128,6 +134,10 @@ export async function PATCH(req: NextRequest, { params }: P) {
   }
 
   await db.$transaction(async (tx) => {
+    // G7 — نسخة احتياطية كاملة قبل الإلغاء (المكتبي _create_backup)
+    if (String(data.status || "") === "ملغى") {
+      await createEntityBackup(tx, "sub_contract", id, guard.user.username);
+    }
     await tx.subContract.update({ where: { id }, data });
     if (Object.keys(data).length > 0) {
       await tx.contractEvent.create({
