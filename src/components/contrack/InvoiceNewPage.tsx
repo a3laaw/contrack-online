@@ -25,6 +25,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, apiPost } from "./api";
+import { SearchableSelect } from "./SearchableSelect";
 import type {
   ContractDetailResponse,
   CustomerDetailResponse,
@@ -165,24 +166,17 @@ export function InvoiceNewPage({
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
               <Label className="text-xs">العميل *</Label>
-              <Select
+              <SearchableSelect
                 value={nCustomerId}
                 onValueChange={(v) => {
                   setNCustomerId(v);
                   setNContractId("none");
                 }}
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="اختر العميل" />
-                </SelectTrigger>
-                <SelectContent>
-                  {nCustomers.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={nCustomers.map((c) => ({ value: String(c.id), label: c.name }))}
+                placeholder="اختر العميل"
+                searchPlaceholder="ابحث بالاسم…"
+                emptyText="لا نتائج مطابقة"
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">العقد *</Label>

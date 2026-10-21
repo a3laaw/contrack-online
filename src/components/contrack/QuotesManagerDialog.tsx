@@ -41,6 +41,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet, apiPost, apiPut } from "./api";
+import { SearchableSelect } from "./SearchableSelect";
 import { errMessage, isManagerRole, type User } from "./contrack-types";
 import { formatKWD, round3 } from "@/lib/format";
 import {
@@ -450,21 +451,14 @@ export function QuotesManagerDialog({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label>العميل *</Label>
-                  <Select
+                  <SearchableSelect
                     value={form.customerId}
                     onValueChange={(v) => setForm({ ...form, customerId: v, projectId: "" })}
-                  >
-                    <SelectTrigger className="h-9 w-full">
-                      <SelectValue placeholder="اختر العميل" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customers.map((c) => (
-                        <SelectItem key={c.id} value={String(c.id)}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    options={customers.map((c) => ({ value: String(c.id), label: c.name }))}
+                    placeholder="اختر العميل"
+                    searchPlaceholder="ابحث بالاسم…"
+                    emptyText="لا نتائج مطابقة"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>المشروع</Label>

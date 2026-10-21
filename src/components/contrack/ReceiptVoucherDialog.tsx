@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import { SearchableSelect } from './SearchableSelect'
 import { api } from './api'
 import { formatDate, formatKWD, PAYMENT_METHODS, round3, todayStr } from '@/lib/format'
 import type { VoucherLinkInput } from '@/lib/contrack-types'
@@ -166,14 +167,15 @@ function ReceiptVoucherForm({ lockedContract, onOpenChange, onCreated }: {
           {lockedContract ? (
             <div className="h-11 flex items-center px-3 rounded-md border bg-muted/50 text-sm font-semibold">{lockedContract.customerName}</div>
           ) : (
-            <Select value={customerId} onValueChange={(v) => { setCustomerId(v); setContractId(''); setLines([]); setLinesFor(null); setAmountOverride(null) }}>
-              <SelectTrigger className="h-11 w-full"><SelectValue placeholder="اختر العميل" /></SelectTrigger>
-              <SelectContent>
-                {customers.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>{c.name} ({c.customerCode})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={customerId}
+              onValueChange={(v) => { setCustomerId(v); setContractId(''); setLines([]); setLinesFor(null); setAmountOverride(null) }}
+              options={customers.map((c) => ({ value: String(c.id), label: `${c.name} (${c.customerCode})` }))}
+              placeholder="اختر العميل"
+              searchPlaceholder="ابحث بالاسم أو الكود…"
+              emptyText="لا نتائج مطابقة"
+              triggerClassName="h-11"
+            />
           )}
         </div>
 

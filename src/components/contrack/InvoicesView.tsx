@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet } from "./api";
+import { SearchableSelect } from "./SearchableSelect";
 import type {
   InvoiceItem,
   InvoicesResponse,
@@ -250,25 +251,20 @@ export function InvoicesView({ user, onAuthError }: InvoicesViewProps) {
 
       {/* الفلاتر */}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <Select
+        <SearchableSelect
           value={customerFilter}
           onValueChange={(v) => {
             setCustomerFilter(v);
             setContractFilter("all");
           }}
-        >
-          <SelectTrigger className="h-9">
-            <SelectValue placeholder="العميل" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">كل العملاء</SelectItem>
-            {customerOptions.map(([id, name]) => (
-              <SelectItem key={id} value={String(id)}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          options={[
+            { value: "all", label: "كل العملاء" },
+            ...customerOptions.map(([id, name]) => ({ value: String(id), label: name })),
+          ]}
+          placeholder="العميل"
+          searchPlaceholder="ابحث بالاسم…"
+          emptyText="لا نتائج مطابقة"
+        />
         <Select value={contractFilter} onValueChange={setContractFilter}>
           <SelectTrigger className="h-9">
             <SelectValue placeholder="العقد" />

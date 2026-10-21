@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, apiPost } from "./api";
+import { SearchableSelect } from "./SearchableSelect";
 import type {
   ClaimRow,
   ContractsResponse,
@@ -197,7 +198,7 @@ export function ClaimNewPage({ initialDir, onAuthError, onSaved, onCancel }: Cla
               <>
                 <div className="space-y-1.5">
                   <Label>العميل *</Label>
-                  <Select
+                  <SearchableSelect
                     value={customerId}
                     onValueChange={(v) => {
                       setCustomerId(v);
@@ -205,19 +206,14 @@ export function ClaimNewPage({ initialDir, onAuthError, onSaved, onCancel }: Cla
                       setCustLineId("none");
                       setVoucherId("none");
                     }}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="اختر العميل" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">— اختر —</SelectItem>
-                      {(customersQuery.data?.customers ?? []).map((cu) => (
-                        <SelectItem key={cu.id} value={String(cu.id)}>
-                          {cu.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    options={[
+                      { value: "none", label: "— اختر —" },
+                      ...(customersQuery.data?.customers ?? []).map((cu) => ({ value: String(cu.id), label: cu.name })),
+                    ]}
+                    placeholder="اختر العميل"
+                    searchPlaceholder="ابحث بالاسم…"
+                    emptyText="لا نتائج مطابقة"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>العقد *</Label>

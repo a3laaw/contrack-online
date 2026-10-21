@@ -33,6 +33,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet, apiPost, apiPut } from "./api";
+import { SearchableSelect } from "./SearchableSelect";
 import { errMessage, isManagerRole, type User } from "./contrack-types";
 import { statusBadgeClass } from "@/lib/format";
 import {
@@ -336,22 +337,17 @@ export function ProjectsManagerDialog({
                 </div>
                 <div className="space-y-1.5">
                   <Label>العميل</Label>
-                  <Select
+                  <SearchableSelect
                     value={form.customerId}
                     onValueChange={(v) => setForm({ ...form, customerId: v === "none" ? "" : v })}
-                  >
-                    <SelectTrigger className="h-9 w-full">
-                      <SelectValue placeholder="— بدون عميل —" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">— بدون عميل —</SelectItem>
-                      {customers.map((c) => (
-                        <SelectItem key={c.id} value={String(c.id)}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    options={[
+                      { value: "none", label: "— بدون عميل —" },
+                      ...customers.map((c) => ({ value: String(c.id), label: c.name })),
+                    ]}
+                    placeholder="— بدون عميل —"
+                    searchPlaceholder="ابحث بالاسم…"
+                    emptyText="لا نتائج مطابقة"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>الموقع</Label>

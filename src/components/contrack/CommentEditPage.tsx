@@ -26,6 +26,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, apiPatch, apiPost } from "./api";
+import { SearchableSelect } from "./SearchableSelect";
 import type { CommentItem, CustomerDetailResponse } from "./contrack-types";
 import {
   COMMENT_KINDS,
@@ -180,24 +181,17 @@ export function CommentEditPage({ mode, target, onAuthError, onSaved, onClose }:
               <>
                 <div className="space-y-1.5">
                   <Label className="text-xs">العميل *</Label>
-                  <Select
+                  <SearchableSelect
                     value={customerId}
                     onValueChange={(v) => {
                       setCustomerId(v);
                       setContractId(NONE);
                     }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="اختر العميل" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(customersQuery.data?.customers ?? []).map((c) => (
-                        <SelectItem key={c.id} value={String(c.id)}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    options={(customersQuery.data?.customers ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
+                    placeholder="اختر العميل"
+                    searchPlaceholder="ابحث بالاسم…"
+                    emptyText="لا نتائج مطابقة"
+                  />
                 </div>
 
                 <div className="space-y-1.5">

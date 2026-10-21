@@ -36,6 +36,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet, apiPost } from "./api";
+import { SearchableSelect } from "./SearchableSelect";
 import { errMessage, isManagerRole, type User } from "./contrack-types";
 import { formatKWD, statusBadgeClass } from "@/lib/format";
 
@@ -423,24 +424,22 @@ function CreateGroupDialog({
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label>العميل *</Label>
-            <Select
-              value={customerId || undefined}
+            <SearchableSelect
+              value={customerId || ""}
               onValueChange={(v) => {
                 setCustomerId(v);
                 setSelected(new Set());
               }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="اختر العميل" />
-              </SelectTrigger>
-              <SelectContent className="max-h-72">
-                {(customersQuery.data?.customers ?? []).map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.name} — {c.customerCode}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              options={(customersQuery.data?.customers ?? []).map((c) => ({
+                value: String(c.id),
+                label: `${c.name} — ${c.customerCode}`,
+              }))}
+              placeholder="اختر العميل"
+              searchPlaceholder="ابحث بالاسم أو الكود…"
+              emptyText="لا نتائج مطابقة"
+              allowClear
+              clearLabel="إلغاء تحديد العميل"
+            />
           </div>
 
           <div className="space-y-1.5">

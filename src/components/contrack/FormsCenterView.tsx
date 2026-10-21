@@ -48,6 +48,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiDelete, apiGet, apiPost, apiPut, getStoredToken } from "./api";
+import { SearchableSelect } from "./SearchableSelect";
 import { errMessage, isManagerRole, type User } from "./contrack-types";
 import { fmtDateTime } from "@/lib/format";
 import {
@@ -1067,19 +1068,20 @@ function FillDialog({
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label>العميل</Label>
-                <Select value={customerId} onValueChange={(v) => { setCustomerId(v); setContractId("none"); setQuotationId("none"); }}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— بدون عميل —</SelectItem>
-                    {(customersQuery.data?.customers ?? []).map((c) => (
-                      <SelectItem key={c.id} value={String(c.id)}>
-                        {c.name} · {c.customerCode}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={customerId}
+                  onValueChange={(v) => { setCustomerId(v); setContractId("none"); setQuotationId("none"); }}
+                  options={[
+                    { value: "none", label: "— بدون عميل —" },
+                    ...(customersQuery.data?.customers ?? []).map((c) => ({
+                      value: String(c.id),
+                      label: `${c.name} · ${c.customerCode}`,
+                    })),
+                  ]}
+                  placeholder="— بدون عميل —"
+                  searchPlaceholder="ابحث بالاسم أو الكود…"
+                  emptyText="لا نتائج مطابقة"
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label>العقد</Label>

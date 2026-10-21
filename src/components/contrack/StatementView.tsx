@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, getStoredToken } from "./api";
+import { SearchableSelect } from "./SearchableSelect";
 import { StatementTable } from "./StatementTable";
 import { fetchBlobDownload } from "@/lib/download-blob";
 import type {
@@ -349,28 +350,22 @@ export function StatementView({ user: _user, onAuthError, presetTarget, onConsum
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">العميل</Label>
-                <Select
+                <SearchableSelect
                   value={customerId}
                   onValueChange={(v) => {
                     setCustomerId(v);
                     setContractId("all");
                   }}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder={customersQuery.isLoading ? "جارٍ التحميل…" : "اختر العميل"} />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    {(customersQuery.data?.customers ?? []).map((c) => (
-                      <SelectItem key={c.id} value={String(c.id)}>
-                        {c.name}
-                        {c.customerCode ? ` — ${c.customerCode}` : ""}
-                      </SelectItem>
-                    ))}
-                    {(customersQuery.data?.customers ?? []).length === 0 && (
-                      <div className="px-3 py-4 text-center text-xs text-muted-foreground">لا نتائج مطابقة</div>
-                    )}
-                  </SelectContent>
-                </Select>
+                  options={(customersQuery.data?.customers ?? []).map((c) => ({
+                    value: String(c.id),
+                    label: `${c.name}${c.customerCode ? ` — ${c.customerCode}` : ""}`,
+                  }))}
+                  placeholder={customersQuery.isLoading ? "جارٍ التحميل…" : "اختر العميل"}
+                  searchPlaceholder="ابحث بالاسم أو الكود…"
+                  emptyText="لا نتائج مطابقة"
+                  allowClear
+                  clearLabel="إلغاء التحديد — كشف شامل"
+                />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">العقد</Label>

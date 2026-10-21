@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost, apiPut } from "./api";
+import { SearchableSelect } from "./SearchableSelect";
 import type {
   CustomerDetailResponse,
   User,
@@ -206,19 +207,17 @@ function SlotDialog({ open, onOpenChange, context, existing, onAuthError, onSave
         <div className="grid gap-3">
           <div className="grid gap-1.5">
             <Label>العميل (اختياري)</Label>
-            <Select value={customerId} onValueChange={setCustomerId}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="بدون عميل" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>بدون عميل (خانة حجز عام)</SelectItem>
-                {(customersQuery.data?.customers ?? []).map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={customerId}
+              onValueChange={setCustomerId}
+              options={[
+                { value: NONE, label: "بدون عميل (خانة حجز عام)" },
+                ...(customersQuery.data?.customers ?? []).map((c) => ({ value: String(c.id), label: c.name })),
+              ]}
+              placeholder="بدون عميل"
+              searchPlaceholder="ابحث بالاسم…"
+              emptyText="لا نتائج مطابقة"
+            />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="visit-note">ملاحظة</Label>

@@ -37,6 +37,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, apiPost } from "./api";
 import { useFeatureFlags } from "./FeatureFlagsProvider";
+import { SearchableSelect } from "./SearchableSelect";
 import type { ContractTypesResponse, CustomersResponse } from "./contrack-types";
 import { errMessage } from "./contrack-types";
 import { amountGuardProblems, type AmountGuardProblem } from "@/lib/contract-create";
@@ -248,18 +249,18 @@ export function ContractNewPage({
               </div>
               <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
                 <Label className="text-xs">العميل *</Label>
-                <Select value={fCustomerId} onValueChange={setFCustomerId}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="اختر العميل" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    {(customersQuery.data?.customers ?? []).map((c) => (
-                      <SelectItem key={c.id} value={String(c.id)}>
-                        {c.name} ({c.customerCode})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={fCustomerId}
+                  onValueChange={setFCustomerId}
+                  options={(customersQuery.data?.customers ?? []).map((c) => ({
+                    value: String(c.id),
+                    label: `${c.name} (${c.customerCode})`,
+                  }))}
+                  placeholder="اختر العميل"
+                  searchPlaceholder="ابحث بالاسم أو الكود…"
+                  emptyText="لا نتائج مطابقة"
+                  loading={customersQuery.isLoading}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">نوع العقد</Label>

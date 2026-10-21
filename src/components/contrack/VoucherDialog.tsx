@@ -28,6 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, apiPost } from "./api";
 import { errMessage, isManagerRole } from "./contrack-types";
+import { SearchableSelect } from "./SearchableSelect";
 import { round3 } from "@/lib/format";
 import type {
   ContractListItem,
@@ -442,25 +443,21 @@ export function VoucherDialog({ open, onOpenChange, user, onAuthError, preset, o
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label>العميل (اختياري)</Label>
-                      <Select
+                      <SearchableSelect
                         value={customerId}
                         onValueChange={(v) => {
                           setCustomerId(v);
                           setContractId("none");
                         }}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="بدون عميل" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">بدون عميل</SelectItem>
-                          {(customersQuery.data?.customers ?? []).map((c) => (
-                            <SelectItem key={c.id} value={String(c.id)}>
-                              {c.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        options={[
+                          { value: "none", label: "بدون عميل" },
+                          ...(customersQuery.data?.customers ?? []).map((c) => ({ value: String(c.id), label: c.name })),
+                        ]}
+                        placeholder="بدون عميل"
+                        searchPlaceholder="ابحث بالاسم…"
+                        emptyText="لا نتائج مطابقة"
+                        loading={customersQuery.isLoading}
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label>العقد</Label>

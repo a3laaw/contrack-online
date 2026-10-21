@@ -25,6 +25,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, apiPatch, apiPost } from "./api";
+import { SearchableSelect } from "./SearchableSelect";
 import type { CustomerDetailResponse, TaskItem } from "./contrack-types";
 import { REMIND_OPTIONS, TASK_TYPES, errMessage } from "./contrack-types";
 
@@ -227,25 +228,20 @@ export function TaskEditPage({ editing, preset, onAuthError, onSaved, onClose }:
 
             <div className="space-y-1.5">
               <Label className="text-xs">العميل (اختياري)</Label>
-              <Select
+              <SearchableSelect
                 value={customerId}
                 onValueChange={(v) => {
                   setCustomerId(v);
                   setContractId(NONE);
                 }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="بدون عميل" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>بدون عميل</SelectItem>
-                  {(customersQuery.data?.customers ?? []).map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={[
+                  { value: NONE, label: "بدون عميل" },
+                  ...(customersQuery.data?.customers ?? []).map((c) => ({ value: String(c.id), label: c.name })),
+                ]}
+                placeholder="بدون عميل"
+                searchPlaceholder="ابحث بالاسم…"
+                emptyText="لا نتائج مطابقة"
+              />
             </div>
 
             <div className="space-y-1.5 md:col-span-2">

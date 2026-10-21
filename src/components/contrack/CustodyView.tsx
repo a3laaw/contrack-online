@@ -50,6 +50,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiFetch, apiGet, apiPost } from "./api";
+import { SearchableSelect } from "./SearchableSelect";
 import type {
   CustodyAccountItem,
   CustodyAccountsResponse,
@@ -246,22 +247,17 @@ function SettleLineRow({
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="space-y-1">
           <Label className="text-[11px]">العميل (اختياري)</Label>
-          <Select
+          <SearchableSelect
             value={line.customerId}
             onValueChange={(v) => onChange({ customerId: v, contractId: "none" })}
-          >
-            <SelectTrigger className="h-9">
-              <SelectValue placeholder="بلا عميل" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">بلا عميل</SelectItem>
-              {customers.map((c) => (
-                <SelectItem key={c.id} value={String(c.id)}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            options={[
+              { value: "none", label: "بلا عميل" },
+              ...customers.map((c) => ({ value: String(c.id), label: c.name })),
+            ]}
+            placeholder="بلا عميل"
+            searchPlaceholder="ابحث بالاسم…"
+            emptyText="لا نتائج مطابقة"
+          />
         </div>
         <div className="space-y-1">
           <Label className="text-[11px]">العقد (اختياري)</Label>
