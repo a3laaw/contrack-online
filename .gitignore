@@ -65,3 +65,9 @@ db/
 # ملفات تشغيلية متغيرة (PID وغيرها) لا معنى لتتبعها
 .zscripts/dev.pid
 *.pid
+
+# G13 — بقايا بايثون وملفات استرجاع (المكتبي المرجعي يبقى مصدره فقط بلا كاش)
+**/__pycache__/
+*.pyc
+restore_report.json
+restore_source.py
