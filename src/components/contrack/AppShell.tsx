@@ -229,7 +229,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
 
         {/* ===== المحتوى ===== */}
         <main className="min-w-0 flex-1">
-          <div className="mx-auto w-full max-w-6xl space-y-4 px-3 py-4 sm:px-4">{children}</div>
+          <div className="w-full space-y-4 px-3 py-4 sm:px-4 lg:px-6">{children}</div>
         </main>
       </div>
 

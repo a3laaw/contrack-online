@@ -16,7 +16,6 @@ import {
   Download,
   FileText,
   FolderOpen,
-  Link2,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -408,7 +407,6 @@ export function CustomerFilePage({
                 onSaved={() => {
                   qc.invalidateQueries({ queryKey: ["customer-file", customerId, "attachments"] });
                 }}
-                onCustomerChanged={refreshFile}
                 onError={handleError}
               />
 
@@ -552,7 +550,7 @@ export function CustomerFilePage({
                 <DropdownMenuItem
                   onClick={() => {
                     switchPage("overview");
-                    // تمرير إلى بطاقة الملفات والمستندات (بديل فتح مجلد الأرشيف في الويب)
+                    // تمرير إلى بطاقة الملفات والمستندات
                     requestAnimationFrame(() => {
                       document.getElementById("customer-docs-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
                     });
@@ -592,7 +590,6 @@ function DocsCard({
   attachmentsQuery,
   onAuthError,
   onSaved,
-  onCustomerChanged,
   onError,
 }: {
   customerId: number;
@@ -602,46 +599,11 @@ function DocsCard({
   attachmentsQuery: { data?: { attachments: CustomerAttachment[] }; isLoading: boolean };
   onAuthError: () => void;
   onSaved: () => void;
-  onCustomerChanged: () => void;
   onError: (e: unknown, fallback: string) => void;
 }) {
   const { toast } = useToast();
-  const path = (customer.folderPath || "").trim();
-  const [shareOpen, setShareOpen] = React.useState(false);
-  const [sharePath, setSharePath] = React.useState(path);
-  const [clearOpen, setClearOpen] = React.useState(false);
   const [addOpen, setAddOpen] = React.useState(false);
   const [listOpen, setListOpen] = React.useState(false);
-
-  React.useEffect(() => {
-    if (shareOpen) setSharePath(path);
-  }, [shareOpen, path]);
-
-  const saveShare = useMutation({
-    mutationFn: () => apiPatch(`/api/customers/${customerId}`, { folderPath: sharePath.trim() }),
-    onSuccess: () => {
-      toast({ title: "تم حفظ المسار" });
-      setShareOpen(false);
-      onCustomerChanged();
-    },
-    onError: (e) => {
-      if (e instanceof ApiError && e.status === 401) onAuthError();
-      toast({ variant: "destructive", title: "خطأ", description: errMessage(e) || "تعذر حفظ المسار" });
-    },
-  });
-
-  const clearShare = useMutation({
-    mutationFn: () => apiPatch(`/api/customers/${customerId}`, { folderPath: "" }),
-    onSuccess: () => {
-      toast({ title: "تم حذف مسار مجلد الشبكة من العميل" });
-      setClearOpen(false);
-      onCustomerChanged();
-    },
-    onError: (e) => {
-      if (e instanceof ApiError && e.status === 401) onAuthError();
-      toast({ variant: "destructive", title: "خطأ", description: errMessage(e) || "تعذر حذف المسار" });
-    },
-  });
 
   const deleteAttachment = useMutation({
     mutationFn: (id: number) => apiDelete(`/api/attachments?id=${id}`),
@@ -652,51 +614,15 @@ function DocsCard({
     onError: (e) => onError(e, "تعذر حذف المرفق"),
   });
 
-  const openShareFolder = async () => {
-    // الويب لا يفتح مسارات شبكة من المتصفح — ننسخ المسار ليُلصق في مستكشف الملفات
-    try {
-      await navigator.clipboard.writeText(path);
-      toast({ title: "نُسخ المسار للحافظة", description: "الصقه في شريط عنوان مستكشف الملفات لفتح المجلد." });
-    } catch {
-      toast({ variant: "destructive", title: "تعذر نسخ المسار" });
-    }
-  };
-
   const attachments = attachmentsQuery.data?.attachments ?? [];
 
   return (
     <Card id="customer-docs-card">
       <CardContent className="p-4">
         <h3 className="text-sm font-bold">نماذج ومرفقات العميل</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">اختيار نموذج أو مرفق ومجلد الشبكة.</p>
-
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-          <span className="shrink-0 font-medium">مجلد الشبكة:</span>
-          <span className={`min-w-0 flex-1 truncate text-xs ${path ? "text-foreground" : "text-muted-foreground"}`} dir={path ? "ltr" : undefined} title={path || undefined}>
-            {path || "غير مضبوط، اضغط «تعيين / تغيير» لربط مجلد المهندس على الشبكة"}
-          </span>
-        </div>
+        <p className="mt-0.5 text-xs text-muted-foreground">اختيار نموذج وإرفاق ملفات على عقود العميل.</p>
 
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <Button variant="outline" size="sm" className="h-9 gap-1.5" disabled={!path} onClick={openShareFolder} title="المتصفح لا يفتح مسارات الشبكة — يُنسخ المسار للصقه في مستكشف الملفات">
-            <FolderOpen className="size-4" />
-            فتح مجلد الشبكة
-          </Button>
-          <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => setShareOpen(true)}>
-            <Link2 className="size-4" />
-            تعيين / تغيير
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 gap-1.5 text-destructive hover:text-destructive"
-            disabled={!path}
-            onClick={() => setClearOpen(true)}
-            title="يمسح مسار مجلد الشبكة من بطاقة العميل فقط ولا يحذف أي ملفات"
-          >
-            <Trash2 className="size-4" />
-            حذف المسار
-          </Button>
           <Button
             size="sm"
             className="h-9 gap-1.5"
@@ -766,59 +692,6 @@ function DocsCard({
           </div>
         )}
 
-        {/* حوار تعيين مجلد الشبكة */}
-        <Dialog open={shareOpen} onOpenChange={setShareOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>اختر مجلد العميل على الشبكة</DialogTitle>
-              <DialogDescription>اكتب مسار مجلد العميل على الشبكة (مثل \\PC\Share\عملاء\...)</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-1.5">
-              <Label htmlFor="share-path">مسار مجلد الشبكة</Label>
-              <Input id="share-path" dir="ltr" value={sharePath} onChange={(e) => setSharePath(e.target.value)} placeholder="\\PC\Share\Customers" />
-            </div>
-            <DialogFooter className="gap-2">
-              <Button variant="outline" className="h-9" onClick={() => setShareOpen(false)} disabled={saveShare.isPending}>
-                إلغاء
-              </Button>
-              <Button className="h-9" onClick={() => saveShare.mutate()} disabled={saveShare.isPending}>
-                {saveShare.isPending ? "جارٍ الحفظ…" : "حفظ"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* تأكيد حذف مسار الشبكة — نص المكتبي حرفيًا */}
-        <Dialog open={clearOpen} onOpenChange={setClearOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>حذف مسار الشبكة</DialogTitle>
-              <DialogDescription asChild>
-                <div className="space-y-1 text-sm">
-                  <p>حذف مسار مجلد الشبكة من بطاقة هذا العميل؟</p>
-                  <p className="break-all text-xs" dir="ltr">
-                    {path}
-                  </p>
-                  <p>لن يتم حذف أي ملف من الجهاز أو الشبكة؛ سيتم فقط إلغاء الربط.</p>
-                </div>
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="gap-2">
-              <Button variant="outline" className="h-9" onClick={() => setClearOpen(false)} disabled={clearShare.isPending}>
-                إلغاء
-              </Button>
-              <Button
-                variant="destructive"
-                className="h-9 border-0 bg-status-danger-bg text-status-danger hover:bg-status-danger-bg/80"
-                onClick={() => clearShare.mutate()}
-                disabled={clearShare.isPending}
-              >
-                {clearShare.isPending ? "جارٍ الحذف…" : "حذف المسار"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
         <AddAttachmentDialog
           open={addOpen}
           onOpenChange={setAddOpen}
@@ -873,7 +746,7 @@ function AddAttachmentDialog({
       return apiPost("/api/attachments", { contractId: Number(contractId), fileName: file.name, dataBase64: b64 });
     },
     onSuccess: () => {
-      toast({ title: "تمت إضافة 1 ملف إلى الأرشيف." });
+      toast({ title: "تمت إضافة الملف." });
       onSaved();
       onOpenChange(false);
     },
@@ -888,7 +761,7 @@ function AddAttachmentDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>إضافة مرفق</DialogTitle>
-          <DialogDescription>المرفقات في الويب تُربط بعقد للعميل (الأرشيف المكتبي بمجلد قرص غير متاح على النشر السحابي).</DialogDescription>
+          <DialogDescription>المرفقات تُربط بعقد للعميل وتُحفظ في النظام بأمان.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
