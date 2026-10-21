@@ -5,13 +5,14 @@
 // 1) «الأنواع» — بطاقات الأنواع مع مراحلها وخطة الدفعات (العرض الأصلي)
 // 2) «شجرة المراحل» — WorkflowEditor لكل نوع (إضافة/تعديل/حذف)
 // 3) «قوالب الدفع» — قالب دفعات النوع (نسبة/ثابت/مرن + المرحلة المحفزة)
+// 4) «إصلاح غير المحدد» — G5: تحليل وتطبيق بإذن مزدوج
 // القواعد الحرفية: «المرحلة↔دفعة واحدة» و«مرحلة واحدة = هي المحفزة تلقائيًا»
 // ============================================================
 
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  AlertTriangle, BadgeDollarSign, ListTree, Loader2, Pencil, Plus, Trash2, Wallet,
+  AlertTriangle, BadgeDollarSign, ListTree, Loader2, Pencil, Plus, Trash2, Wallet, Wand2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -37,6 +38,7 @@ import {
 } from '@/components/ui/table'
 import { api, apiGet, type ContractTypeLite } from './api'
 import { WorkflowEditor } from './WorkflowEditor'
+import { FixUnspecifiedPanel } from './FixUnspecifiedPanel'
 import { adminApi } from '@/lib/admin-api'
 import type { PaymentTemplateDTO, PaymentTemplateInput } from '@/lib/admin-types'
 import { formatKWD } from '@/lib/format'
@@ -189,6 +191,10 @@ export function TypesView() {
             <ListTree className="size-4" aria-hidden />
             شجرة المراحل
           </TabsTrigger>
+          <TabsTrigger value="fix" className="px-4 gap-1.5">
+            <Wand2 className="size-4" aria-hidden />
+            إصلاح غير المحدد
+          </TabsTrigger>
           <TabsTrigger value="payments" className="px-4 gap-1.5">
             <BadgeDollarSign className="size-4" aria-hidden />
             قوالب الدفع
@@ -227,6 +233,9 @@ export function TypesView() {
         </TabsContent>
 
         {/* 3) قوالب الدفع */}
+        <TabsContent value="fix" className="mt-4">
+          <FixUnspecifiedPanel />
+        </TabsContent>
         <TabsContent value="payments" className="mt-4">
           <div className="space-y-4">
             {typeSelector}

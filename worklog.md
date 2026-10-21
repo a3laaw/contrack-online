@@ -2059,3 +2059,21 @@ Work Log:
 
 Stage Summary:
 - G9 مكتمل: المرشحات الأربعة معالجة بلا أي تغيير ألوان/محتوى. الفحوص: bun test 421/421 · tsc 0 · lint 0. رُفع: 143e0f9.
+
+---
+Task ID: 70 (G6 — مكوّنات العقد ونمط التسعير لكل عقد)
+Agent: Z.ai Code (منسق)
+Task: نموذج ContractComponent + resolvePricingMode بالترتيب الخمسي + مسارات القراءة/الحفظ + وسم النمط في التفاصيل — موافقة ضمن الخطة
+
+Work Log:
+- **ترحيل مُختبر أولًا**: CREATE TABLE contract_components (FK Cascade + فهرس فريد contract_id+comp_key، كسور 18,3) — طُبّق بلا أي تعديل على جداول قائمة.
+- النموذج: compKey/label/kind(qty|months)/enabled/qty/months/monthly — كامل أعمدة المكتبي التي ينقصها TypeBundleComponent في الويب.
+- src/lib/contract-mode.ts (نقي بلا server-only): resolvePricingMode بالترتيب المقصود — شامل ← بنود ← تاريخ إشراف ← سعر وحدة>0 ← نمط النوع ← مقطوعية + PRICING_MODE_LABEL.
+- src/lib/contract-components-server.ts: getContractComponents (تهيئة من افتراضيات النوع عند أول قراءة — bundleParents فقط، وغير الشامل يبقى فارغًا كالمكتبي) · saveContractComponents (استبدال كامل داخل معاملة) · getContractMode (بنود boqItem غير المحذوفة + النوع + بيانات العقد).
+- المسارات: GET/PUT /api/contracts/[id]/components (قراءة بحارس screen_contracts وحفظ action_edit_contract) + pricingMode أُضيف لاستجابة overview.
+- الواجهة: شارة «نمط التسعير: …» في ترويسة تفاصيل العقد (info tokens) توضح نمط هذا العقد تحديدًا.
+- اختبارات tests/contract-mode.test.ts — 11 فحصًا للترتيب الخمسي وحالات الحدود (نمط مجهول→lump، سعر صفر لا يحسم، إشراف وحده يكفي).
+- تحقق حي: العقد 1 (إشراف) → unit · العقد 253 CON-0241 (عليه بنود) → **items رغم نوعه** (بيانات العقد تسبق النوع) · مكونات غير الشامل فارغة [] · شارة «نمط التسعير: بنود» ظاهرة في DOM.
+
+Stage Summary:
+- G6 مكتمل: النمط الآن يُحسم لكل عقد بالترتيب الخمسي لا من النوع وحده، واللقطة جاهزة للشامل. الفحوص: bun test 432/432 (11 جديد) · tsc 0 · lint 0. رُفع: 66555e2.
