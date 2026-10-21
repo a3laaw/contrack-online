@@ -4,6 +4,7 @@ import { EPS, daysBetween, r3, todayStr } from "@/lib/contrack-core";
 import { getSettingsRow } from "@/lib/contrack-server";
 import { db } from "@/lib/db";
 import { STATUS_CANCELLED, STATUS_CLOSED, loadContractsFinance } from "@/lib/report-server";
+import { canViewAllOf, participantTxIds, TX_CONTRACT } from "@/lib/participants-server";
 import {
   buildExecutionAlertRows,
   expiryLevelsOrDefault,
@@ -30,6 +31,11 @@ export async function GET(req: NextRequest) {
   const expiryWindow = expiryLevels[expiryLevels.length - 1];
   const today = todayStr();
 
+  // G2 — الرؤية على المتابعة: المدير/المطور/مالك شاشة العقود يرى الكل، وغيره يرى ما يشارك فيه فقط
+  const seesAll = await canViewAllOf(guard.user, TX_CONTRACT);
+  const visibleIds = seesAll ? null : await participantTxIds(guard.user.id, TX_CONTRACT);
+  const vf = (contractId: number) => !visibleIds || visibleIds.has(contractId);
+
   const finances = await loadContractsFinance({ excludeStatuses: STATUS_CANCELLED });
 
   // 1) المستحق الآن — صفوف مسطّحة لكل خط متأخر (FollowupDueRow[]) مع تفاصيل الخطوط
@@ -37,14 +43,12 @@ export async function GET(req: NextRequest) {
     contractId: number; contractNumber: string; customerName: string;
     remaining: number; daysDiff: number; title?: string;
   }[] = [];
-  let dueTotal = 0;
   for (const f of finances) {
     if (STATUS_CLOSED.includes(f.status)) continue;
     if (f.dueNow <= EPS) continue;
     const lateLines = f.planLines
       .filter((l) => l.remaining > EPS && l.state !== "skipped" && l.state !== "awaiting_stage" && l.daysDiff <= 0)
       .sort((a, b) => a.daysDiff - b.daysDiff || b.remaining - a.remaining);
-    dueTotal = r3(dueTotal + f.dueNow);
     if (lateLines.length === 0) {
       // أمان: عقد عليه مستحق دون خطوط متأخرة مفصّلة
       dueNowRows.push({
@@ -176,12 +180,12 @@ export async function GET(req: NextRequest) {
     generatedAt: new Date().toISOString(),
     today,
     settings: { collectionAlertDays: alertDays, expiryWindow },
-    dueNowTotal: dueTotal,
-    dueNow: dueNowRows,
-    overdueCollections,
-    expiring,
-    nearBaseEnd,
-    extension,
-    execution,
+    dueNowTotal: r3(dueNowRows.filter((x) => vf(x.contractId)).reduce((s, x) => s + x.remaining, 0)),
+    dueNow: dueNowRows.filter((x) => vf(x.contractId)),
+    overdueCollections: overdueCollections.filter((x) => vf(x.contractId)),
+    expiring: expiring.filter((x) => vf(x.contractId)),
+    nearBaseEnd: nearBaseEnd.filter((x) => vf(x.contractId)),
+    extension: extension.filter((x) => vf(x.contractId)),
+    execution: execution.filter((x) => vf(x.contractId)),
   });
 }

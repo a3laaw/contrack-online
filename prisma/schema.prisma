@@ -22,10 +22,23 @@ model User {
   permissions  UserPermission[]
   dismissedAlerts DismissedAlert[]
   notifications AppNotification[]
+  participations TransactionParticipant[]
   createdQuotations Quotation[] @relation("quotationCreatedBy")
   createdAt    DateTime         @default(now())
 
   @@map("users")
+}
+
+// G2 — المشاركون في المعاملة (المكتبي transaction_visibility 574–580): المشاركة = الرؤية
+model TransactionParticipant {
+  id              Int    @id @default(autoincrement())
+  transactionType String @map("transaction_type") // contract | payment | subcontract | customer
+  transactionId   Int    @map("transaction_id")
+  userId          Int    @map("user_id")
+  user            User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([transactionType, transactionId, userId])
+  @@map("transaction_participants")
 }
 
 // G3 — إشعارات التطبيق (المكتبي notifications 561–573): معاملة + نوع + نص + مقروء

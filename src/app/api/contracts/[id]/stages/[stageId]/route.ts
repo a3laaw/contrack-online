@@ -4,6 +4,7 @@ import { adminGuard, audit, authGuard, jsonError, ok, parseDay, todayStr } from 
 import { r3 } from "@/lib/contrack-core";
 import { triggerDuePayments } from "@/lib/contrack-server";
 import { NOTIF_STAGE, notifyTransaction } from "@/lib/notification-server";
+import { autoAddParticipant, TX_CONTRACT } from "@/lib/participants-server";
 
 type P = { params: Promise<{ id: string; stageId: string }> };
 
@@ -172,6 +173,8 @@ export async function PATCH(req: NextRequest, { params }: P) {
   // ===== الإجراءات الأصلية (بدء/إنهاء/تخطي/إعادة فتح/تعديل بيانات) =====
   const body = bodyRaw;
   const data: Record<string, unknown> = {};
+  // G2 — تفاعل مع العقد يجعل المنفِّذ مشاركًا (المكتبي auto_add_participant في move_to_stage)
+  await autoAddParticipant(guard.user.id, TX_CONTRACT, contractId);
   if (body.name !== undefined) {
     const name = String(body.name).trim();
     if (!name) return jsonError("اسم المرحلة مطلوب");

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { authGuard, jsonError, ok } from "@/lib/api-utils";
 import { NOTIF_MESSAGE, notifyTransaction } from "@/lib/notification-server";
+import { autoAddParticipant, canUserView, TX_CONTRACT } from "@/lib/participants-server";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -11,7 +12,8 @@ type P = { params: Promise<{ id: string }> };
  * POST: {body} — الكاتب من الجلسة.
  */
 export async function GET(req: NextRequest, { params }: P) {
-  const guard = await authGuard(req, "screen_contracts");
+  // G2 — الرؤية: المدير/مالك شاشة العقود/المشارك — وفتح المحادثة يجعل المستخدم مشاركًا
+  const guard = await authGuard(req);
   if ("response" in guard) return guard.response;
   const { id: idStr } = await params;
   const contractId = Number(idStr);
@@ -19,6 +21,11 @@ export async function GET(req: NextRequest, { params }: P) {
 
   const contract = await db.contract.findUnique({ where: { id: contractId } });
   if (!contract) return jsonError("العقد غير موجود", 404);
+
+  if (!(await canUserView(guard.user, TX_CONTRACT, contractId))) {
+    return jsonError("لا تملك رؤية محادثة هذا العقد", 403);
+  }
+  await autoAddParticipant(guard.user.id, TX_CONTRACT, contractId);
 
   const messages = await db.txMessage.findMany({
     where: { contractId },
@@ -44,6 +51,12 @@ export async function POST(req: NextRequest, { params }: P) {
 
   const contract = await db.contract.findUnique({ where: { id: contractId } });
   if (!contract) return jsonError("العقد غير موجود", 404);
+
+  // G2 — إرسال رسالة بصرية نفس قاعدة الرؤية، والكاتب يصير مشاركًا
+  if (!(await canUserView(guard.user, TX_CONTRACT, contractId))) {
+    return jsonError("لا تملك رؤية محادثة هذا العقد", 403);
+  }
+  await autoAddParticipant(guard.user.id, TX_CONTRACT, contractId);
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const text = String(body.body ?? "").trim();

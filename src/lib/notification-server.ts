@@ -1,6 +1,7 @@
 import "server-only";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { db } from "@/lib/db";
+import { participantsOf } from "./participants-server";
 
 /**
  * G3 — إشعارات التطبيق (المكتبي workflow_service.py):
@@ -19,15 +20,18 @@ export const NOTIF_TYPES = ["contract", "payment", "subcontract", "customer"] as
 export type NotifTransactionType = (typeof NOTIF_TYPES)[number];
 
 /**
- * المستهدفون: كل المديرين والمطورين النشطين + المشاركون (تُضاف في G2).
- * المكتبي _notify_targets: participants ∪ admins − المنفِّذ.
+ * المستهدفون: كل المديرين والمطورين النشطين + كل المشاركين في المعاملة (G2)،
+ * بلا المنفِّذ — المكتبي _notify_targets: participants ∪ admins − المنفِّذ.
  */
-export async function notifyTargets(excludeUserId = 0): Promise<number[]> {
+export async function notifyTargets(excludeUserId = 0, transactionType = "", transactionId = 0): Promise<number[]> {
   const admins = await db.user.findMany({
     where: { role: { in: ["admin", "developer"] }, active: true },
     select: { id: true },
   });
   const ids = new Set<number>(admins.map((a) => a.id));
+  if (transactionType && Number.isFinite(transactionId) && transactionId > 0) {
+    for (const pid of await participantsOf(transactionType, transactionId)) ids.add(pid);
+  }
   ids.delete(Number(excludeUserId || 0));
   return [...ids].sort((a, b) => a - b);
 }
@@ -60,7 +64,8 @@ export async function notifyTransaction(opts: {
   excludeUserId?: number;
   targets?: number[];
 }): Promise<number> {
-  const targets = opts.targets ?? (await notifyTargets(opts.excludeUserId));
+  const targets =
+    opts.targets ?? (await notifyTargets(opts.excludeUserId, opts.transactionType, opts.transactionId));
   return pushNotifications(db, { ...opts, targets });
 }
 
