@@ -2008,3 +2008,20 @@ Work Log:
 
 Stage Summary:
 - G3 مكتمل: صندوق إشعارات كامل بالجرس والعدّاد والإطلاق من 4 نقاط، والترحيل على الإنتاج مُعايَن SQL قبل التطبيق. الفحوص: bun test 421/421 · tsc 0 · lint 0. رُفع: 2a7ac6c.
+
+---
+Task ID: 67 (G2 — المشاركون في المعاملة والرؤية على الرسائل والمتابعة)
+Agent: Z.ai Code (منسق)
+Task: نموذج TransactionParticipant + canUserView + autoAddParticipant على الرسائل والمتابعة (النطاق المعتمد بقرار 1) — وإكمال مستهدفي الإشعارات بالمشاركين
+
+Work Log:
+- **ترحيل مُختبر أولًا**: migrate diff أظهر CREATE TABLE transaction_participants + فهرس فريد (نوع، معرف، مستخدم) + FK — طُبّق والبيانات سليمة (163/243).
+- src/lib/participants-server.ts: autoAddParticipant (createMany skipDuplicates = INSERT OR IGNORE) · participantsOf · canUserView (مدير/مطور ← الكل · مالك شاشة النوع ← مسارها · غيره ← مشارك) · canViewAllOf · participantTxIds — المكتبي 1262–1342.
+- الرسائل GET/POST: الحارس صار authGuard (دخول) ثم canUserView (403 لغير المرئي) — وفتح المحادثة أو الإرسال يجعل المستخدم مشاركًا تلقائيًا. (كان الحارس screen_contracts فقط بلا مشاركين).
+- المتابعة /api/followup: seesAll = مدير/مطور/مالك screen_contracts، وإلا فلترة كل القوائم السبع (dueNow/overdueCollections/expiring/nearBaseEnd/extension/execution + dueNowTotal يُحسب من المرئي فقط) على مشاركات المستخدم. حُذف مراكم dueTotal الميت.
+- notifyTargets أصبح participants ∪ admins − المنفِّذ (توقيع جديد بنوع المعاملة ومعرفها) — مكتملة الآن مع G3.
+- مشاركة تلقائية عند تفاعل المرحلة (PATCH) كما المكتبي move_to_stage.
+- تحقق حي: canUserView على القاعدة (مطور true · سكرتير false) → GET رسائل كمطور = 200 + صف مشاركة تلقائي {1، عقد 1} → أُضيف مشارك سكرتير للعقد 1 → POST رسالة ⇒ إشعار واحد فقط للمستخدم 2 (المشارك) ولا شيء للمنفِّذ — القاعدة المكتبية مطابقة حرفيًا → تنظيف التجارب (بقيت مشاركة المطور الحقيقية). متابعة المطور = كل الصفوف (18050 مستحق).
+
+Stage Summary:
+- G2 مكتمل على النطاق المعتمد: الرسائل والمتابعة يحترمان المشاركة=الرؤية، والإشعارات تصيب المشاركين. الفحوص: bun test 421/421 · tsc 0 · lint 0. رُفع: f887ce9.

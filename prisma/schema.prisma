@@ -23,6 +23,7 @@ model User {
   dismissedAlerts DismissedAlert[]
   notifications AppNotification[]
   participations TransactionParticipant[]
+  stageMoves StageMove[] @relation("stageMoves")
   createdQuotations Quotation[] @relation("quotationCreatedBy")
   createdAt    DateTime         @default(now())
 
@@ -55,6 +56,24 @@ model AppNotification {
 
   @@index([userId, isRead])
   @@map("notifications")
+}
+
+// G4 — سجل نقل المراحل بالمنفِّذ والملاحظة (المكتبي transaction_stage_log)
+model StageMove {
+  id              Int      @id @default(autoincrement())
+  transactionType String   @map("transaction_type") // contract | payment | subcontract | customer
+  transactionId   Int      @map("transaction_id")
+  stageId         Int?     @map("stage_id")
+  movedById       Int?     @map("moved_by_id")
+  movedBy         User?    @relation("stageMoves", fields: [movedById], references: [id], onDelete: SetNull)
+  movedAt         DateTime @default(now()) @map("moved_at")
+  action          String   @default("move") // move | finish | revert | skip | reopen
+  note            String   @default("")
+  startDate       String   @default("") @map("start_date")
+  endDate         String   @default("") @map("end_date")
+
+  @@index([transactionType, transactionId])
+  @@map("stage_moves")
 }
 
 model UserPermission {

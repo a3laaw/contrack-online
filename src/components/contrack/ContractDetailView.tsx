@@ -1442,6 +1442,86 @@ interface StageHistoryRow {
   username: string;
 }
 
+/** G4 — صف سجل نقل المراحل — GET /api/stage-moves?type=contract&id= */
+interface StageMoveRow {
+  id: number;
+  action: string; // move | finish | revert | skip | reopen
+  stageName: string;
+  movedByName: string;
+  note: string;
+  startDate: string;
+  endDate: string;
+  movedAt: string;
+}
+
+const STAGE_MOVE_ACTION: Record<string, { label: string; cls: string }> = {
+  move: { label: "نقل", cls: "bg-status-info-bg text-status-info" },
+  finish: { label: "إنهاء", cls: "bg-slate-200 text-slate-700" },
+  revert: { label: "تراجع", cls: "bg-status-warn-bg text-status-warn" },
+  skip: { label: "تخطٍ", cls: "bg-status-danger-bg text-status-danger" },
+  reopen: { label: "إعادة فتح", cls: "bg-status-info-bg text-status-info" },
+};
+
+/** سجل نقل المراحل الكامل بترقيم صفحات — المنفِّذ والملاحظة (G4) */
+function StageMovesLog({ contractId }: { contractId: number }) {
+  const [page, setPage] = React.useState(1);
+  const pageSize = 10;
+  const movesQuery = useQuery<{ total: number; page: number; pageSize: number; rows: StageMoveRow[] }>({
+    queryKey: ["contract", contractId, "stage-moves", page],
+    queryFn: () => apiGet(`/api/stage-moves?type=contract&id=${contractId}&page=${page}&pageSize=${pageSize}`),
+  });
+  const rows = movesQuery.data?.rows ?? [];
+  const total = movesQuery.data?.total ?? 0;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+
+  if (movesQuery.isLoading) return <Skeleton className="mt-3 h-10 rounded-lg" />;
+  if (total === 0) return null;
+
+  return (
+    <div className="mt-4 border-t pt-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h4 className="text-xs font-bold text-muted-foreground">سجل نقل المراحل ({total})</h4>
+        {pages > 1 && (
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" className="h-7 px-2 text-[11px]" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+              السابق
+            </Button>
+            <span className="text-[11px] text-muted-foreground tabular-nums">
+              {page} / {pages}
+            </span>
+            <Button variant="outline" size="sm" className="h-7 px-2 text-[11px]" disabled={page >= pages} onClick={() => setPage((p) => Math.min(pages, p + 1))}>
+              التالي
+            </Button>
+          </div>
+        )}
+      </div>
+      <ul className="max-h-56 space-y-1.5 overflow-y-auto pe-1 text-xs leading-5">
+        {rows.map((m) => {
+          const kind = STAGE_MOVE_ACTION[m.action] ?? STAGE_MOVE_ACTION.move;
+          return (
+            <li key={m.id} className="rounded-md border px-2.5 py-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge className={`h-5 border-0 px-1.5 text-[10px] ${kind.cls}`}>{kind.label}</Badge>
+                {m.stageName && <span className="font-medium">{m.stageName}</span>}
+                <span className="text-muted-foreground">· {m.movedByName}</span>
+                <span className="ms-auto text-[10px] text-muted-foreground tabular-nums">
+                  {m.movedAt.slice(0, 16).replace("T", " ")}
+                </span>
+              </div>
+              {(m.startDate || m.endDate) && (
+                <div className="mt-0.5 text-[10px] text-muted-foreground">
+                  {m.startDate ? `من ${m.startDate}` : ""}{m.endDate ? ` · أُغلقت ${m.endDate}` : ""}
+                </div>
+              )}
+              {m.note && <div className="mt-0.5 text-muted-foreground">{m.note}</div>}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function FollowupPanelCompact({
   stages,
   stagePath,
@@ -2043,6 +2123,9 @@ function FollowupPanelCompact({
               ))}
             </ul>
           )}
+
+          {/* G4 — سجل نقل المراحل الكامل: المنفِّذ والملاحظة بترقيم صفحات */}
+          <StageMovesLog contractId={contractId} />
         </CardContent>
       </Card>
 

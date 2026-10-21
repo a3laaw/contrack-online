@@ -5,6 +5,7 @@ import { r3 } from "@/lib/contrack-core";
 import { triggerDuePayments } from "@/lib/contrack-server";
 import { NOTIF_STAGE, notifyTransaction } from "@/lib/notification-server";
 import { autoAddParticipant, TX_CONTRACT } from "@/lib/participants-server";
+import { recordStageMove } from "@/lib/stage-move-server";
 
 type P = { params: Promise<{ id: string; stageId: string }> };
 
@@ -85,6 +86,16 @@ export async function PATCH(req: NextRequest, { params }: P) {
           description: `تم التراجع من «${stage.name}» إلى «${target.name}»${reason ? ` · ${reason}` : ""}`,
           username: guard.user.username,
         },
+      });
+      // G4 — سجل النقل: تراجع بالسبب كملاحظة
+      await recordStageMove(tx, {
+        transactionType: "contract",
+        transactionId: contractId,
+        stageId: target.id,
+        movedById: guard.user.id,
+        action: "revert",
+        note: reason || `تراجع من «${stage.name}»`,
+        startDate: target.startDate || "",
       });
       await audit(tx, {
         username: guard.user.username,
@@ -240,6 +251,7 @@ export async function PATCH(req: NextRequest, { params }: P) {
           username: guard.user.username,
         },
       });
+      await recordStageMove(tx, { transactionType: "contract", transactionId: contractId, stageId, movedById: guard.user.id, action: "skip", startDate: stage.startDate });
     }
     if (unskipping) {
       await tx.paymentPlanItem.updateMany({
@@ -265,6 +277,7 @@ export async function PATCH(req: NextRequest, { params }: P) {
           username: guard.user.username,
         },
       });
+      await recordStageMove(tx, { transactionType: "contract", transactionId: contractId, stageId, movedById: guard.user.id, action: "finish", startDate: stage.startDate, note: `أنهيت بتاريخ ${finishDate}` });
     }
     if (reopened) {
       await tx.paymentPlanItem.updateMany({
@@ -279,8 +292,28 @@ export async function PATCH(req: NextRequest, { params }: P) {
           username: guard.user.username,
         },
       });
+      await recordStageMove(tx, { transactionType: "contract", transactionId: contractId, stageId, movedById: guard.user.id, action: "reopen", startDate: stage.startDate });
     }
   });
+
+  // G4 — سجل النقل: بدء مرحلة (move) — يغلق النقلة المفتوحة السابقة
+  if (typeof data.startDate === "string" && data.startDate) {
+    try {
+      await db.$transaction(async (tx) => {
+        await recordStageMove(tx, {
+          transactionType: "contract",
+          transactionId: contractId,
+          stageId,
+          movedById: guard.user.id,
+          action: "move",
+          note: String((bodyRaw.note as string) || "").trim(),
+          startDate: data.startDate as string,
+        });
+      });
+    } catch {
+      /* سجل النقل لا يعطل العملية */
+    }
+  }
 
   // G3 — إشعار بدء/إنهاء مرحلة العقد (المنفِّذ مستبعد) — المكتبي move_to_stage/إنهاء مرحلة
   try {
