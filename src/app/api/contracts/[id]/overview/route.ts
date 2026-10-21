@@ -4,6 +4,7 @@ import { authGuard, jsonError, ok } from "@/lib/api-utils";
 import { EPS, r3 } from "@/lib/contrack-core";
 import { loadContractCore } from "@/lib/contrack-server";
 import { computeSubPlan } from "@/lib/voucher-server";
+import { getContractMode } from "@/lib/contract-components-server";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -123,8 +124,12 @@ export async function GET(req: NextRequest, { params }: P) {
 
   const timeline = contractTimeline(c.startDate || "", c.endDate || "");
 
+  // G6 — نمط تسعير هذا العقد تحديدًا (الترتيب الخمسي — لا نمط النوع وحده)
+  const pricing = await getContractMode(contractId);
+
   return ok({
     contract: { id: c.id, contractNumber: c.contractNumber, status: c.status, currency: c.currency },
+    pricingMode: pricing.mode,
     // المبالغ (dash)
     originalValue: r3(Number(c.amount)),
     addendumsNet: r3(

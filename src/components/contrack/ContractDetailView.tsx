@@ -2,6 +2,14 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
+
+/** G6 — عربي أنماط التسعير (مرآة PRICING_MODE_LABEL الخلفية بلا استيراد خادمي) */
+const PRICING_MODE_AR: Record<string, string> = {
+  bundle: "شامل (مكونات)",
+  items: "بنود",
+  unit: "وحدة × سعر",
+  lump: "مقطوعية",
+};
 import {
   ArrowRight,
   Pencil,
@@ -545,6 +553,12 @@ export function ContractDetailView({
                 <Badge variant="secondary" className="gap-1 bg-status-done-bg text-status-done">
                   <Building2 className="size-3" />
                   إشراف هندسي
+                </Badge>
+              )}
+              {/* G6 — نمط تسعير هذا العقد تحديدًا (يحسم من بيانات العقد قبل النوع) */}
+              {overview?.pricingMode && (
+                <Badge variant="secondary" className="gap-1 bg-status-info-bg text-status-info" title="نمط التسعير المحدود لهذا العقد — يحسم من بيانات العقد قبل إعدادات النوع">
+                  نمط التسعير: {PRICING_MODE_AR[overview.pricingMode] || overview.pricingMode}
                 </Badge>
               )}
             </div>

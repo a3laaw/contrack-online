@@ -544,6 +544,8 @@ export interface ContractSettlementResponse {
 /** لوحة «نظرة عامة» — GET /api/contracts/[id]/overview (contract_dashboard المكتبية) */
 export interface ContractOverviewResponse {
   contract: { id: number; contractNumber: string; status: string; currency: string };
+  /** G6 — نمط تسعير هذا العقد تحديدًا (bundle|items|unit|lump) */
+  pricingMode?: string;
   originalValue: number;
   addendumsNet: number;
   supExtension: number;

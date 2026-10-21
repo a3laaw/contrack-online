@@ -190,6 +190,7 @@ model Contract {
   vouchers          Voucher[]
   addendums         Addendum[]
   boqItems          BoqItem[]
+  components        ContractComponent[]
   events            ContractEvent[]
   attachments       ContractAttachment[]
   invoices          Invoice[]
@@ -664,6 +665,23 @@ model TypeBundleComponent {
 
   @@index([parentTypeId])
   @@map("type_bundle_components")
+}
+
+// G6 — لقطة مكوّنات العقد الشامل لكل عقد (المكتبي contract_components 1795–1808)
+model ContractComponent {
+  id         Int      @id @default(autoincrement())
+  contractId Int      @map("contract_id")
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  compKey    String   @map("comp_key")
+  label      String   @default("")
+  kind       String   @default("qty") // qty | months
+  enabled    Boolean  @default(true)
+  qty        Decimal  @default(1) @db.Decimal(18, 3)
+  months     Int      @default(0)
+  monthly    Decimal  @default(0) @db.Decimal(18, 3)
+
+  @@unique([contractId, compKey])
+  @@map("contract_components")
 }
 
 model WorkflowStage {
