@@ -21,10 +21,27 @@ model User {
   active       Boolean          @default(true)
   permissions  UserPermission[]
   dismissedAlerts DismissedAlert[]
+  notifications AppNotification[]
   createdQuotations Quotation[] @relation("quotationCreatedBy")
   createdAt    DateTime         @default(now())
 
   @@map("users")
+}
+
+// G3 — إشعارات التطبيق (المكتبي notifications 561–573): معاملة + نوع + نص + مقروء
+model AppNotification {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @map("user_id")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactionType String   @map("transaction_type") // contract | payment | subcontract | customer
+  transactionId   Int      @map("transaction_id")
+  type            String   // stage_change | new_message
+  text            String
+  isRead          Boolean  @default(false) @map("is_read")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([userId, isRead])
+  @@map("notifications")
 }
 
 model UserPermission {

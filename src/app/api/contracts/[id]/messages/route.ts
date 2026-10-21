@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { authGuard, jsonError, ok } from "@/lib/api-utils";
+import { NOTIF_MESSAGE, notifyTransaction } from "@/lib/notification-server";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -51,6 +52,18 @@ export async function POST(req: NextRequest, { params }: P) {
   const created = await db.txMessage.create({
     data: { contractId, username: guard.user.username, body: text },
   });
+  // G3 — إشعار رسالة جديدة لكل مستهدف (مديرون/مشاركون لاحقًا) بلا الكاتب نفسه
+  try {
+    await notifyTransaction({
+      transactionType: "contract",
+      transactionId: contractId,
+      type: NOTIF_MESSAGE,
+      text: `${guard.user.fullName || guard.user.username}: ${text.slice(0, 120)}`,
+      excludeUserId: guard.user.id,
+    });
+  } catch {
+    /* الإشعار لا يعطل الرسالة */
+  }
   return ok(
     {
       message: {

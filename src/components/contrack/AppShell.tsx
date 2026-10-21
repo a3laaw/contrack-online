@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import type { User } from "./contrack-types";
 import { ROLE_LABEL, isManagerRole } from "./contrack-types";
 import { useFeatureFlags } from "./FeatureFlagsProvider";
+import { NotificationBell } from "./NotificationBell";
 import { NAV_MODULES, findNavChild, type NavChild } from "./nav-structure";
 import { permAllows, visibleChildren } from "./nav-perms";
 
@@ -22,6 +23,8 @@ interface AppShellProps {
   onOpenSearch?: () => void;
   /** خريطة صلاحيات المستخدم (من /api/auth/me) — غير محمّلة = السماح مؤقتًا منعًا للوميض */
   perms?: Record<string, boolean> | null;
+  /** G3 — فتح معاملة من إشعار (contract ⇒ تفاصيل العقد) */
+  onOpenTransaction?: (transactionType: string, transactionId: number) => void;
   children?: React.ReactNode;
 }
 
@@ -30,7 +33,7 @@ interface AppShellProps {
  * قابلة للطي إلى أيقونات + درج منزلق على الشاشات الصغيرة. بلا شريط سفلي.
  * بند 5 (المرحلة 2/ب): الفلترة بالصلاحيات visibleChildren نُقلت إلى nav-perms.ts النقي.
  */
-export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearch, perms, children }: AppShellProps) {
+export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearch, perms, onOpenTransaction, children }: AppShellProps) {
   const manager = isManagerRole(user.role);
   const { enabled: featureEnabled } = useFeatureFlags();
   const flagOn = React.useCallback((f: string) => featureEnabled(f), [featureEnabled]);
@@ -139,7 +142,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
             })}
           </nav>
 
-          {/* البحث والمستخدم والخروج */}
+          {/* البحث والإشعارات والمستخدم والخروج */}
           <div className="ms-auto flex items-center gap-2">
             <Button
               variant="ghost"
@@ -151,6 +154,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
             >
               <Search className="size-4" />
             </Button>
+            <NotificationBell onOpenTransaction={onOpenTransaction} />
             <div className="hidden sm:flex flex-col items-end leading-tight">
               <span className="text-sm font-medium">{user.fullName || user.username}</span>
               <Badge variant="secondary" className="h-5 px-1.5 text-xs">

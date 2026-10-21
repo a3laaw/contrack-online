@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { adminGuard, audit, authGuard, jsonError, ok, parseDay, todayStr } from "@/lib/api-utils";
 import { r3 } from "@/lib/contrack-core";
 import { triggerDuePayments } from "@/lib/contrack-server";
+import { NOTIF_STAGE, notifyTransaction } from "@/lib/notification-server";
 
 type P = { params: Promise<{ id: string; stageId: string }> };
 
@@ -93,6 +94,19 @@ export async function PATCH(req: NextRequest, { params }: P) {
         reason,
       });
     });
+
+  // G3 — إشعار تراجع المرحلة (المدير المنفِّذ مستبعد)
+  try {
+    await notifyTransaction({
+      transactionType: "contract",
+      transactionId: contractId,
+      type: NOTIF_STAGE,
+      text: `${guard.user.fullName || guard.user.username} أرجع العقد ${contract.contractNumber} من «${stage.name}» إلى «${target.name}»`,
+      excludeUserId: guard.user.id,
+    });
+  } catch {
+    /* الإشعار لا يعطل العملية */
+  }
 
     return ok({ from: stage.name, to: target.name });
   }
@@ -264,6 +278,28 @@ export async function PATCH(req: NextRequest, { params }: P) {
       });
     }
   });
+
+  // G3 — إشعار بدء/إنهاء مرحلة العقد (المنفِّذ مستبعد) — المكتبي move_to_stage/إنهاء مرحلة
+  try {
+    const who = guard.user.fullName || guard.user.username;
+    let notifText = "";
+    if (finishDate) {
+      notifText = `${who} أنهى مرحلة «${stage.name}» في العقد ${contract.contractNumber}`;
+    } else if (typeof data.startDate === "string" && data.startDate && !stage.startDate) {
+      notifText = `${who} نقل العقد ${contract.contractNumber} إلى مرحلة «${stage.name}»`;
+    }
+    if (notifText) {
+      await notifyTransaction({
+        transactionType: "contract",
+        transactionId: contractId,
+        type: NOTIF_STAGE,
+        text: notifText,
+        excludeUserId: guard.user.id,
+      });
+    }
+  } catch {
+    /* الإشعار لا يعطل العملية */
+  }
 
   return ok({ message: "تم تحديث المرحلة" });
 }

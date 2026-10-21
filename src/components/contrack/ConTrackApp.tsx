@@ -268,6 +268,9 @@ function AppRoot() {
       onLogout={handleLogout}
       onOpenSearch={() => setSearchOpen(true)}
       perms={perms}
+      onOpenTransaction={(txType, txId) => {
+        if (txType === "contract") openContract(txId);
+      }}
     >
       {view === "dashboard" && (
         <DashboardView user={user} onAuthError={onAuthError} perms={perms} onQuickAction={handleDashboardQuickAction} onOpenContract={openContract} onOpenCustomerFile={openCustomerFile} />
