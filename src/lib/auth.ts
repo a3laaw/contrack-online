@@ -22,15 +22,16 @@ export interface SessionUser {
   jobTitle: string;
 }
 
-// ===== كلمات المرور: PBKDF2-SHA256 بـ 200,000 دورة (كالمصدر) =====
+// ===== كلمات المرور: PBKDF2-SHA256 بـ 200,000 دورة — الملح بايتاته الخام bytes.fromhex(salt) كما المكتبي حرفيًا =====
+// (مواءمة Task 60: المكتبي auth_service.py يمرر bytes.fromhex(salt) وليس نص hex — بلا هذا لا تُتحقق كلمات مرور المستخدمين المنقولين)
 export function hashPassword(password: string, salt?: string) {
   const s = salt || crypto.randomBytes(16).toString("hex");
-  const hash = crypto.pbkdf2Sync(password, s, 200000, 32, "sha256").toString("hex");
+  const hash = crypto.pbkdf2Sync(password, Buffer.from(s, "hex"), 200000, 32, "sha256").toString("hex");
   return { salt: s, hash };
 }
 
 export function verifyPassword(password: string, salt: string, hash: string) {
-  const candidate = crypto.pbkdf2Sync(password, salt, 200000, 32, "sha256").toString("hex");
+  const candidate = crypto.pbkdf2Sync(password, Buffer.from(salt, "hex"), 200000, 32, "sha256").toString("hex");
   return crypto.timingSafeEqual(Buffer.from(candidate), Buffer.from(hash));
 }
 
