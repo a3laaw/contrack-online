@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "./SearchableSelect";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -426,19 +427,18 @@ export function ClaimsView({ onAuthError }: ClaimsViewProps) {
             ))}
           </SelectContent>
         </Select>
-        <Select value={contractFilter} onValueChange={setContractFilter}>
-          <SelectTrigger className="h-9">
-            <SelectValue placeholder="العقد" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">كل العقود</SelectItem>
-            {contractOptions.map(([id, num]) => (
-              <SelectItem key={id} value={String(id)}>
-                {num}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          value={contractFilter}
+          onValueChange={setContractFilter}
+          className="w-44"
+          options={[
+            { value: "all", label: "كل العقود" },
+            ...contractOptions.map(([id, num]) => ({ value: String(id), label: num })),
+          ]}
+          placeholder="العقد"
+          searchPlaceholder="ابحث برقم العقد…"
+          emptyText="لا نتائج مطابقة"
+        />
         <Input
           className="h-9"
           placeholder="بحث برقم المطالبة/العنوان/العميل…"

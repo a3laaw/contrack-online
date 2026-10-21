@@ -33,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "./SearchableSelect";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, apiPost } from "./api";
@@ -164,18 +165,15 @@ export function SubContractNewPage({ contractId, contractNumber, user, onAuthErr
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
                 <Label>المقاول *</Label>
-                <Select value={form.subcontractorId} onValueChange={(v) => setForm((f) => ({ ...f, subcontractorId: v }))}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder={contractorsQuery.isLoading ? "جارٍ التحميل…" : "اختر المقاول"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {((contractorsQuery.data?.subcontractors ?? contractorsQuery.data?.items ?? [])).map((c) => (
-                      <SelectItem key={c.id} value={String(c.id)}>
-                        {c.name} ({c.subCode})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={form.subcontractorId}
+                  onValueChange={(v) => setForm((f) => ({ ...f, subcontractorId: v }))}
+                  options={((contractorsQuery.data?.subcontractors ?? contractorsQuery.data?.items ?? [])).map((c) => ({ value: String(c.id), label: `${c.name} (${c.subCode})` }))}
+                  placeholder={contractorsQuery.isLoading ? "جارٍ التحميل…" : "اختر المقاول"}
+                  loading={contractorsQuery.isLoading}
+                  searchPlaceholder="ابحث بالاسم أو الكود…"
+                  emptyText="لا نتائج مطابقة"
+                />
                 {((contractorsQuery.data?.subcontractors ?? contractorsQuery.data?.items ?? [])).length === 0 && contractorsQuery.isSuccess && (
                   <p className="text-xs text-muted-foreground">لا مقاولين — أضف مقاولًا أولًا من شاشة «المقاولون».</p>
                 )}

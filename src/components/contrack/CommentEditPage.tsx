@@ -196,19 +196,18 @@ export function CommentEditPage({ mode, target, onAuthError, onSaved, onClose }:
 
                 <div className="space-y-1.5">
                   <Label className="text-xs">العقد (اختياري)</Label>
-                  <Select value={contractId} onValueChange={setContractId} disabled={customerId === NONE}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder={customerId === NONE ? "اختر عميلًا أولًا" : "بدون عقد"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>بدون عقد</SelectItem>
-                      {contractOptions.map((c) => (
-                        <SelectItem key={c.id} value={String(c.id)}>
-                          {c.contractNumber} — {c.contractName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={contractId}
+                    onValueChange={setContractId}
+                    disabled={customerId === NONE}
+                    options={[
+                      { value: NONE, label: "بدون عقد" },
+                      ...contractOptions.map((c) => ({ value: String(c.id), label: `${c.contractNumber} — ${c.contractName}` })),
+                    ]}
+                    placeholder={customerId === NONE ? "اختر عميلًا أولًا" : "بدون عقد"}
+                    searchPlaceholder="ابحث برقم/اسم العقد…"
+                    emptyText="لا نتائج مطابقة"
+                  />
                 </div>
 
                 <div className="space-y-1.5 md:col-span-2 lg:col-span-3">

@@ -436,19 +436,18 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
                   </div>
                   <div className="space-y-1.5">
                     <Label>العقد</Label>
-                    <Select value={contractId} onValueChange={setContractId} disabled={customerId === "none"}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder={customerId === "none" ? "بدون عقد" : "اختر العقد"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">بدون عقد</SelectItem>
-                        {receiptContracts.map((c) => (
-                          <SelectItem key={c.id} value={String(c.id)}>
-                            {c.contractNumber} — {c.contractName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      value={contractId}
+                      onValueChange={setContractId}
+                      disabled={customerId === "none"}
+                      options={[
+                        { value: "none", label: "بدون عقد" },
+                        ...receiptContracts.map((c) => ({ value: String(c.id), label: `${c.contractNumber} — ${c.contractName}` })),
+                      ]}
+                      placeholder={customerId === "none" ? "بدون عقد" : "اختر العقد"}
+                      searchPlaceholder="ابحث برقم/اسم العقد…"
+                      emptyText="لا نتائج مطابقة"
+                    />
                   </div>
                 </div>
                 {customerId !== "none" && custContractsQuery.isLoading && (
@@ -550,41 +549,35 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
                         <div className="space-y-1.5">
                           <Label>حساب رئيسي</Label>
-                          <Select
+                          <SearchableSelect
                             value={expParent}
                             onValueChange={(v) => {
                               setExpParent(v);
                               setExpChild("none");
                             }}
-                          >
-                            <SelectTrigger className="h-9">
-                              <SelectValue placeholder="اختر" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">—</SelectItem>
-                              {expRoots.map((a) => (
-                                <SelectItem key={a.id} value={String(a.id)}>
-                                  {a.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            options={[
+                              { value: "none", label: "—" },
+                              ...expRoots.map((a) => ({ value: String(a.id), label: a.name })),
+                            ]}
+                            placeholder="اختر"
+                            searchPlaceholder="ابحث باسم الحساب…"
+                            emptyText="لا نتائج مطابقة"
+                          />
                         </div>
                         <div className="space-y-1.5">
                           <Label>حساب فرعي</Label>
-                          <Select value={expChild} onValueChange={setExpChild} disabled={expParent === "none"}>
-                            <SelectTrigger className="h-9">
-                              <SelectValue placeholder={expParent === "none" ? "—" : "اختر"} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">—</SelectItem>
-                              {expChildrenOf(Number(expParent)).map((a) => (
-                                <SelectItem key={a.id} value={String(a.id)}>
-                                  {a.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <SearchableSelect
+                            value={expChild}
+                            onValueChange={setExpChild}
+                            disabled={expParent === "none"}
+                            options={[
+                              { value: "none", label: "—" },
+                              ...expChildrenOf(Number(expParent)).map((a) => ({ value: String(a.id), label: a.name })),
+                            ]}
+                            placeholder={expParent === "none" ? "—" : "اختر"}
+                            searchPlaceholder="ابحث باسم الحساب…"
+                            emptyText="لا نتائج مطابقة"
+                          />
                         </div>
                       </div>
                     ) : (
@@ -596,35 +589,31 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
                       <div className="space-y-1.5">
                         <Label>عميل تعرضية (اختياري)</Label>
-                        <Select value={expCustomerId} onValueChange={setExpCustomerId}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="—" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">—</SelectItem>
-                            {(customersQuery.data?.customers ?? []).map((c) => (
-                              <SelectItem key={c.id} value={String(c.id)}>
-                                {c.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <SearchableSelect
+                          value={expCustomerId}
+                          onValueChange={setExpCustomerId}
+                          options={[
+                            { value: "none", label: "—" },
+                            ...(customersQuery.data?.customers ?? []).map((c) => ({ value: String(c.id), label: c.name })),
+                          ]}
+                          placeholder="—"
+                          searchPlaceholder="ابحث بالاسم…"
+                          emptyText="لا نتائج مطابقة"
+                        />
                       </div>
                       <div className="space-y-1.5">
                         <Label>عقد اختياري</Label>
-                        <Select value={expContractId} onValueChange={setExpContractId}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="—" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">—</SelectItem>
-                            {(contractsQuery.data?.contracts ?? []).map((c) => (
-                              <SelectItem key={c.id} value={String(c.id)}>
-                                {c.contractNumber}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <SearchableSelect
+                          value={expContractId}
+                          onValueChange={setExpContractId}
+                          options={[
+                            { value: "none", label: "—" },
+                            ...(contractsQuery.data?.contracts ?? []).map((c) => ({ value: String(c.id), label: c.contractNumber })),
+                          ]}
+                          placeholder="—"
+                          searchPlaceholder="ابحث برقم العقد…"
+                          emptyText="لا نتائج مطابقة"
+                        />
                       </div>
                     </div>
                   </div>
@@ -661,36 +650,30 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
                   <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
                     <div className="space-y-1.5">
                       <Label>عقد العميل</Label>
-                      <Select value={contractId} onValueChange={(v) => { setContractId(v); setSubContractId(""); }}>
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="اختر العقد" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(contractsQuery.data?.contracts ?? [])
-                            .filter((c) => !["ملغى", "مغلق"].includes(c.status))
-                            .map((c: ContractListItem) => (
-                              <SelectItem key={c.id} value={String(c.id)}>
-                                {c.contractNumber} — {c.contractName}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        value={contractId}
+                        onValueChange={(v) => { setContractId(v); setSubContractId(""); }}
+                        options={(contractsQuery.data?.contracts ?? [])
+                          .filter((c) => !["ملغى", "مغلق"].includes(c.status))
+                          .map((c: ContractListItem) => ({ value: String(c.id), label: `${c.contractNumber} — ${c.contractName}` }))}
+                        placeholder="اختر العقد"
+                        searchPlaceholder="ابحث برقم/اسم العقد…"
+                        emptyText="لا نتائج مطابقة"
+                      />
                     </div>
                     {contractId !== "none" && (
                       <div className="space-y-1.5">
                         <Label>عقد الباطن</Label>
-                        <Select value={subContractId} onValueChange={setSubContractId} disabled={subContractsQuery.isLoading}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder={subContractsQuery.isLoading ? "جارٍ التحميل…" : "اختر"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {subContracts.map((s) => (
-                              <SelectItem key={s.id} value={String(s.id)}>
-                                {s.subcontractor.name} — متبقٍ {formatKWD(s.remaining)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <SearchableSelect
+                          value={subContractId}
+                          onValueChange={setSubContractId}
+                          disabled={subContractsQuery.isLoading}
+                          options={subContracts.map((s) => ({ value: String(s.id), label: `${s.subcontractor.name} — متبقٍ ${formatKWD(s.remaining)}` }))}
+                          placeholder={subContractsQuery.isLoading ? "جارٍ التحميل…" : "اختر"}
+                          loading={subContractsQuery.isLoading}
+                          searchPlaceholder="ابحث باسم المقاول…"
+                          emptyText="لا نتائج مطابقة"
+                        />
                       </div>
                     )}
                     {subContractId && subCapRemaining !== null && Number(amount) > subCapRemaining && (
@@ -799,18 +782,14 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
                 {employees.length > 0 ? (
                   <div className="space-y-1.5">
                     <Label>الموظف</Label>
-                    <Select value={employeeId} onValueChange={setEmployeeId}>
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="اختر الموظف" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {employees.map((e) => (
-                          <SelectItem key={e.id} value={String(e.id)}>
-                            {e.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      value={employeeId}
+                      onValueChange={setEmployeeId}
+                      options={employees.map((e) => ({ value: String(e.id), label: e.name }))}
+                      placeholder="اختر الموظف"
+                      searchPlaceholder="ابحث باسم الموظف…"
+                      emptyText="لا نتائج مطابقة"
+                    />
                   </div>
                 ) : (
                   <div className="space-y-1.5">

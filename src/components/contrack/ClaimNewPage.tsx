@@ -217,7 +217,7 @@ export function ClaimNewPage({ initialDir, onAuthError, onSaved, onCancel }: Cla
                 </div>
                 <div className="space-y-1.5">
                   <Label>العقد *</Label>
-                  <Select
+                  <SearchableSelect
                     value={contractId}
                     disabled={customerId === "none"}
                     onValueChange={(v) => {
@@ -225,21 +225,16 @@ export function ClaimNewPage({ initialDir, onAuthError, onSaved, onCancel }: Cla
                       setCustLineId("none");
                       setVoucherId("none");
                     }}
-                  >
-                    <SelectTrigger className="h-9">
-                      <SelectValue placeholder="اختر العقد" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">— اختر —</SelectItem>
-                      {(custContractsQuery.data?.contracts ?? [])
+                    options={[
+                      { value: "none", label: "— اختر —" },
+                      ...(custContractsQuery.data?.contracts ?? [])
                         .filter((ct) => !["ملغى", "مغلق"].includes(ct.status))
-                        .map((ct) => (
-                          <SelectItem key={ct.id} value={String(ct.id)}>
-                            {ct.contractNumber} — {ct.contractName}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                        .map((ct) => ({ value: String(ct.id), label: `${ct.contractNumber} — ${ct.contractName}` })),
+                    ]}
+                    placeholder="اختر العقد"
+                    searchPlaceholder="ابحث برقم/اسم العقد…"
+                    emptyText="لا نتائج مطابقة"
+                  />
                 </div>
               </>
             )}
@@ -248,28 +243,23 @@ export function ClaimNewPage({ initialDir, onAuthError, onSaved, onCancel }: Cla
             {dir === "in" && (
               <div className="space-y-1.5">
                 <Label>العقد *</Label>
-                <Select
+                <SearchableSelect
                   value={contractId}
                   onValueChange={(v) => {
                     setContractId(v);
                     setSubContractId("none");
                     setCustLineId("none");
                   }}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="اختر العقد" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— اختر —</SelectItem>
-                    {(allContractsQuery.data?.contracts ?? [])
+                  options={[
+                    { value: "none", label: "— اختر —" },
+                    ...(allContractsQuery.data?.contracts ?? [])
                       .filter((ct) => !["ملغى", "مغلق"].includes(ct.status))
-                      .map((ct) => (
-                        <SelectItem key={ct.id} value={String(ct.id)}>
-                          {ct.contractNumber} — {ct.customerName}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                      .map((ct) => ({ value: String(ct.id), label: `${ct.contractNumber} — ${ct.customerName}` })),
+                  ]}
+                  placeholder="اختر العقد"
+                  searchPlaceholder="ابحث برقم العقد أو العميل…"
+                  emptyText="لا نتائج مطابقة"
+                />
               </div>
             )}
 
@@ -277,42 +267,36 @@ export function ClaimNewPage({ initialDir, onAuthError, onSaved, onCancel }: Cla
             {dir === "in" && (
               <div className="space-y-1.5">
                 <Label>العقد الباطن *</Label>
-                <Select
+                <SearchableSelect
                   value={subContractId}
                   disabled={contractId === "none"}
                   onValueChange={setSubContractId}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="اختر العقد الباطن" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— اختر —</SelectItem>
-                    {(subContractsQuery.data?.items ?? []).map((s) => (
-                      <SelectItem key={s.id} value={String(s.id)}>
-                        {s.subcontractor.name} — {formatKWD(s.amount)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={[
+                    { value: "none", label: "— اختر —" },
+                    ...(subContractsQuery.data?.items ?? []).map((s) => ({ value: String(s.id), label: `${s.subcontractor.name} — ${formatKWD(s.amount)}` })),
+                  ]}
+                  placeholder="اختر العقد الباطن"
+                  searchPlaceholder="ابحث باسم المقاول…"
+                  emptyText="لا نتائج مطابقة"
+                />
               </div>
             )}
 
             {/* بند خطة مُثار اختياري */}
             <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
               <Label>بند الخطة المثار (اختياري)</Label>
-              <Select value={custLineId} onValueChange={setCustLineId} disabled={contractId === "none"}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="بلا ربط ببند خطة" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">بلا ربط ببند خطة</SelectItem>
-                  {triggeredLines.map((l) => (
-                    <SelectItem key={l.id} value={String(l.id)}>
-                      {l.title} — {formatKWD(l.amountN)} — استحقاق {fmtDate(l.dueDate)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={custLineId}
+                onValueChange={setCustLineId}
+                disabled={contractId === "none"}
+                options={[
+                  { value: "none", label: "بلا ربط ببند خطة" },
+                  ...triggeredLines.map((l) => ({ value: String(l.id), label: `${l.title} — ${formatKWD(l.amountN)} — استحقاق ${fmtDate(l.dueDate)}` })),
+                ]}
+                placeholder="بلا ربط ببند خطة"
+                searchPlaceholder="ابحث بعنوان البند…"
+                emptyText="لا نتائج مطابقة"
+              />
               {contractId !== "none" && planQuery.isSuccess && triggeredLines.length === 0 && (
                 <p className="text-xs text-muted-foreground">لا بنود مثارة في خطة هذا العقد (الاستحقاق لم يُفعّل بعد).</p>
               )}
@@ -322,19 +306,18 @@ export function ClaimNewPage({ initialDir, onAuthError, onSaved, onCancel }: Cla
             {dir === "out" && (
               <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
                 <Label>سند القبض المرتبط (اختياري)</Label>
-                <Select value={voucherId} onValueChange={setVoucherId} disabled={contractId === "none"}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="بلا سند مرتبط" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">بلا سند مرتبط</SelectItem>
-                    {receiptVouchers.map((v) => (
-                      <SelectItem key={v.id} value={String(v.id)}>
-                        {v.voucherNumber} — {formatKWD(v.amount)} — {fmtDate(v.vdate)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={voucherId}
+                  onValueChange={setVoucherId}
+                  disabled={contractId === "none"}
+                  options={[
+                    { value: "none", label: "بلا سند مرتبط" },
+                    ...receiptVouchers.map((v) => ({ value: String(v.id), label: `${v.voucherNumber} — ${formatKWD(v.amount)} — ${fmtDate(v.vdate)}` })),
+                  ]}
+                  placeholder="بلا سند مرتبط"
+                  searchPlaceholder="ابحث برقم السند…"
+                  emptyText="لا نتائج مطابقة"
+                />
                 {selectedVoucher && (
                   <p className="text-xs text-muted-foreground">
                     سقف السند: {formatKWD(selectedVoucher.amount)} — لا يجوز أن يتجاوز مبلغ المطالبة سقف السند غير المطالب به.

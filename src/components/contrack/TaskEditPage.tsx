@@ -246,23 +246,18 @@ export function TaskEditPage({ editing, preset, onAuthError, onSaved, onClose }:
 
             <div className="space-y-1.5 md:col-span-2">
               <Label className="text-xs">العقد (اختياري)</Label>
-              <Select
+              <SearchableSelect
                 value={contractId}
                 onValueChange={setContractId}
                 disabled={customerId === NONE}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={customerId === NONE ? "اختر عميلًا أولًا" : "بدون عقد"} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>بدون عقد</SelectItem>
-                  {contractOptions.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.contractNumber} — {c.contractName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={[
+                  { value: NONE, label: "بدون عقد" },
+                  ...contractOptions.map((c) => ({ value: String(c.id), label: `${c.contractNumber} — ${c.contractName}` })),
+                ]}
+                placeholder={customerId === NONE ? "اختر عميلًا أولًا" : "بدون عقد"}
+                searchPlaceholder="ابحث برقم/اسم العقد…"
+                emptyText="لا نتائج مطابقة"
+              />
             </div>
 
             {formError && (

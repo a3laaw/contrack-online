@@ -42,6 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "./SearchableSelect";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -399,19 +400,19 @@ export function SubItemsEditor({
     <>
       <div className="flex flex-wrap items-center gap-2">
         {boqItems.length > 0 && (
-          <Select onValueChange={(v) => v !== "none" && onAddFromBoq(v)} value="none">
-            <SelectTrigger className="h-9 w-52">
-              <SelectValue placeholder="إضافة من بنود الكميات…" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">إضافة من بنود الكميات…</SelectItem>
-              {boqItems.map((b) => (
-                <SelectItem key={b.id} value={String(b.id)}>
-                  {b.description}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            value="none"
+            onValueChange={(v) => v !== "none" && onAddFromBoq(v)}
+            options={[
+              { value: "none", label: "إضافة من بنود الكميات…" },
+              ...boqItems.map((b) => ({ value: String(b.id), label: b.description })),
+            ]}
+            placeholder="إضافة من بنود الكميات…"
+            searchPlaceholder="ابحث في بنود الكميات…"
+            emptyText="لا نتائج مطابقة"
+            triggerClassName="h-9 w-52"
+            className="w-52"
+          />
         )}
         <Button
           variant="outline"

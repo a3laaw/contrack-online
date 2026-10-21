@@ -369,41 +369,33 @@ export function StatementView({ user: _user, onAuthError, presetTarget, onConsum
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">العقد</Label>
-                <Select
+                <SearchableSelect
                   value={contractId}
                   onValueChange={setContractId}
                   disabled={customerId === "" || directContractId !== null}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="اختر العقد" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    <SelectItem value="all">كل العقود (كشف شامل)</SelectItem>
-                    {(customerDetailQuery.data?.contracts ?? []).map((ct) => (
-                      <SelectItem key={ct.id} value={String(ct.id)}>
-                        {ct.contractNumber} — {ct.contractName || "بدون اسم"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={[
+                    { value: "all", label: "كل العقود (كشف شامل)" },
+                    ...(customerDetailQuery.data?.contracts ?? []).map((ct) => ({ value: String(ct.id), label: `${ct.contractNumber} — ${ct.contractName || "بدون اسم"}` })),
+                  ]}
+                  placeholder="اختر العقد"
+                  searchPlaceholder="ابحث برقم/اسم العقد…"
+                  emptyText="لا نتائج مطابقة"
+                />
               </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">المقاول</Label>
-                <Select value={subId} onValueChange={setSubId}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder={subsQuery.isLoading ? "جارٍ التحميل…" : "اختر المقاول"} />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    {((subsQuery.data?.subcontractors ?? subsQuery.data?.items ?? [])).map((s) => (
-                      <SelectItem key={s.id} value={String(s.id)}>
-                        {s.name} — {s.subCode}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={subId}
+                  onValueChange={setSubId}
+                  options={((subsQuery.data?.subcontractors ?? subsQuery.data?.items ?? [])).map((s) => ({ value: String(s.id), label: `${s.name} — ${s.subCode}` }))}
+                  placeholder={subsQuery.isLoading ? "جارٍ التحميل…" : "اختر المقاول"}
+                  loading={subsQuery.isLoading}
+                  searchPlaceholder="ابحث باسم/كود المقاول…"
+                  emptyText="لا نتائج مطابقة"
+                />
               </div>
             </div>
           )}

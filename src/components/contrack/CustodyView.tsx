@@ -261,25 +261,18 @@ function SettleLineRow({
         </div>
         <div className="space-y-1">
           <Label className="text-[11px]">العقد (اختياري)</Label>
-          <Select
+          <SearchableSelect
             value={line.contractId}
             onValueChange={(v) => onChange({ contractId: v })}
             disabled={line.customerId === "none"}
-          >
-            <SelectTrigger className="h-9">
-              <SelectValue
-                placeholder={line.customerId === "none" ? "اختر عميلًا أولًا" : "بلا عقد"}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">بلا عقد</SelectItem>
-              {custContracts.map((c) => (
-                <SelectItem key={c.id} value={String(c.id)}>
-                  {c.contractNumber} — {c.contractName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            options={[
+              { value: "none", label: "بلا عقد" },
+              ...custContracts.map((c) => ({ value: String(c.id), label: `${c.contractNumber} — ${c.contractName}` })),
+            ]}
+            placeholder={line.customerId === "none" ? "اختر عميلًا أولًا" : "بلا عقد"}
+            searchPlaceholder="ابحث برقم/اسم العقد…"
+            emptyText="لا نتائج مطابقة"
+          />
         </div>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

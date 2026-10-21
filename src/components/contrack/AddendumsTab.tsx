@@ -46,6 +46,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "./SearchableSelect";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
@@ -704,23 +705,18 @@ export function AddendumsTab({ contract, user, onAuthError }: AddendumsTabProps)
                 {form.side === "sub" && (
                   <div className="space-y-1.5 sm:col-span-2">
                     <Label>عقد الباطن</Label>
-                    <Select
+                    <SearchableSelect
                       value={form.subContractId}
                       disabled={!canEditStep1}
                       onValueChange={(v) => setForm((f) => ({ ...f, subContractId: v }))}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="اختر العقد الباطن" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">— اختر —</SelectItem>
-                        {(subContractsQuery.data?.items ?? []).map((s) => (
-                          <SelectItem key={s.id} value={String(s.id)}>
-                            {s.subcontractor.name} — {formatKWD(s.amount)} (متبقي {formatKWD(s.remaining)})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      options={[
+                        { value: "none", label: "— اختر —" },
+                        ...(subContractsQuery.data?.items ?? []).map((s) => ({ value: String(s.id), label: `${s.subcontractor.name} — ${formatKWD(s.amount)} (متبقي ${formatKWD(s.remaining)})` })),
+                      ]}
+                      placeholder="اختر العقد الباطن"
+                      searchPlaceholder="ابحث باسم المقاول…"
+                      emptyText="لا نتائج مطابقة"
+                    />
                     {form.side === "sub" && subContractsQuery.isSuccess && (subContractsQuery.data?.items ?? []).length === 0 && (
                       <p className="text-xs text-destructive">لا عقود باطنة على هذا العقد — أنشئ عقدًا باطنًا أولًا.</p>
                     )}

@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "./SearchableSelect";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, apiPost } from "./api";
 import type {
@@ -268,19 +269,17 @@ export function AddendumPartPage({
             {pAction === "delete" && pRefKind === "boq" && (
               <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
                 <Label>البند المحذوف *</Label>
-                <Select value={pRefId} onValueChange={setPRefId}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="اختر بند الكميات" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— اختر —</SelectItem>
-                    {boqItems.map((b) => (
-                      <SelectItem key={b.id} value={String(b.id)}>
-                        {b.description} — {formatKWD(b.qty)} {b.unit} × {formatKWD(b.unitPrice)} = {formatKWD(b.amount)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={pRefId}
+                  onValueChange={setPRefId}
+                  options={[
+                    { value: "none", label: "— اختر —" },
+                    ...boqItems.map((b) => ({ value: String(b.id), label: `${b.description} — ${formatKWD(b.qty)} ${b.unit} × ${formatKWD(b.unitPrice)} = ${formatKWD(b.amount)}` })),
+                  ]}
+                  placeholder="اختر بند الكميات"
+                  searchPlaceholder="ابحث في بنود الكميات…"
+                  emptyText="لا نتائج مطابقة"
+                />
                 {boqItems.length === 0 && boqQuery.isSuccess && (
                   <p className="text-xs text-muted-foreground">لا بنود كميات على هذا العقد.</p>
                 )}
@@ -290,19 +289,17 @@ export function AddendumPartPage({
             {pAction === "delete" && pRefKind === "plan" && (
               <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
                 <Label>الدفعة المحذوفة *</Label>
-                <Select value={pRefId} onValueChange={setPRefId}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="اختر الدفعة" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— اختر —</SelectItem>
-                    {planLines.map((l) => (
-                      <SelectItem key={l.id} value={String(l.id)}>
-                        {l.title} — {formatKWD(l.amount)} — استحقاق {fmtDate(l.dueDate)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={pRefId}
+                  onValueChange={setPRefId}
+                  options={[
+                    { value: "none", label: "— اختر —" },
+                    ...planLines.map((l) => ({ value: String(l.id), label: `${l.title} — ${formatKWD(l.amount)} — استحقاق ${fmtDate(l.dueDate)}` })),
+                  ]}
+                  placeholder="اختر الدفعة"
+                  searchPlaceholder="ابحث بعنوان الدفعة…"
+                  emptyText="لا نتائج مطابقة"
+                />
                 {planLines.length === 0 && (
                   <p className="text-xs text-muted-foreground">لا دفعات في خطة هذا العقد.</p>
                 )}

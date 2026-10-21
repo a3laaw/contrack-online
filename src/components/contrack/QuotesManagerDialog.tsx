@@ -462,22 +462,17 @@ export function QuotesManagerDialog({
                 </div>
                 <div className="space-y-1.5">
                   <Label>المشروع</Label>
-                  <Select
+                  <SearchableSelect
                     value={form.projectId || "none"}
                     onValueChange={(v) => setForm({ ...form, projectId: v === "none" ? "" : v })}
-                  >
-                    <SelectTrigger className="h-9 w-full">
-                      <SelectValue placeholder="— بدون مشروع —" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">— بدون مشروع —</SelectItem>
-                      {projects.map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    options={[
+                      { value: "none", label: "— بدون مشروع —" },
+                      ...projects.map((p) => ({ value: String(p.id), label: p.name })),
+                    ]}
+                    placeholder="— بدون مشروع —"
+                    searchPlaceholder="ابحث باسم المشروع…"
+                    emptyText="لا نتائج مطابقة"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>وصف العرض</Label>

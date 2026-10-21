@@ -1085,35 +1085,31 @@ function FillDialog({
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label>العقد</Label>
-                <Select value={contractId} onValueChange={setContractId}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— بدون عقد —</SelectItem>
-                    {(contractsQuery.data?.contracts ?? []).map((k) => (
-                      <SelectItem key={k.id} value={String(k.id)}>
-                        {k.contractNumber} · {k.contractName || k.contractNumber}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={contractId}
+                  onValueChange={setContractId}
+                  options={[
+                    { value: "none", label: "— بدون عقد —" },
+                    ...(contractsQuery.data?.contracts ?? []).map((k) => ({ value: String(k.id), label: `${k.contractNumber} · ${k.contractName || k.contractNumber}` })),
+                  ]}
+                  placeholder="— بدون عقد —"
+                  searchPlaceholder="ابحث برقم/اسم العقد…"
+                  emptyText="لا نتائج مطابقة"
+                />
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <Label>عرض السعر</Label>
-                <Select value={quotationId} onValueChange={setQuotationId}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— بدون عرض —</SelectItem>
-                    {(quotationsQuery.data?.quotations ?? []).map((q) => (
-                      <SelectItem key={q.id} value={String(q.id)}>
-                        {q.quotationNumber} · {q.description || q.quotationNumber}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={quotationId}
+                  onValueChange={setQuotationId}
+                  options={[
+                    { value: "none", label: "— بدون عرض —" },
+                    ...(quotationsQuery.data?.quotations ?? []).map((q) => ({ value: String(q.id), label: `${q.quotationNumber} · ${q.description || q.quotationNumber}` })),
+                  ]}
+                  placeholder="— بدون عرض —"
+                  searchPlaceholder="ابحث برقم/وصف العرض…"
+                  emptyText="لا نتائج مطابقة"
+                />
               </div>
             </div>
 

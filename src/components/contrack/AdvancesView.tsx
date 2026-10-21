@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "./SearchableSelect";
 import {
   Table,
   TableBody,
@@ -251,19 +252,15 @@ export function AdvancesView({ user: _user, onAuthError }: AdvancesViewProps) {
       {/* شريط الأدوات: الموظف + الأزرار */}
       <div className="flex flex-wrap items-center gap-2">
         <Label className="text-sm">الموظف</Label>
-        <Select value={employeeId || undefined} onValueChange={setEmployeeId}>
-          <SelectTrigger className="h-9 w-full max-w-64 gap-2 sm:w-64">
-            <SelectValue placeholder="اختر الموظف" />
-          </SelectTrigger>
-          <SelectContent className="max-h-72">
-            {employees.map((e) => (
-              <SelectItem key={e.id} value={String(e.id)}>
-                {e.name}
-                {e.phone ? ` — ${e.phone}` : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          value={employeeId || "none"}
+          onValueChange={setEmployeeId}
+          options={employees.map((e) => ({ value: String(e.id), label: `${e.name}${e.phone ? ` — ${e.phone}` : ""}` }))}
+          placeholder="اختر الموظف"
+          searchPlaceholder="ابحث باسم/هاتف الموظف…"
+          emptyText="لا نتائج مطابقة"
+          className="w-full max-w-64 sm:w-64"
+        />
         <Button
           variant="outline"
           size="sm"
@@ -923,19 +920,14 @@ function MoveDialog({
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label>الموظف:</Label>
-            <Select value={empId || undefined} onValueChange={setEmpId}>
-              <SelectTrigger className="h-9">
-                <SelectValue placeholder="اختر الموظف" />
-              </SelectTrigger>
-              <SelectContent className="max-h-72">
-                {employees.map((e) => (
-                  <SelectItem key={e.id} value={String(e.id)}>
-                    {e.name}
-                    {e.phone ? ` — ${e.phone}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={empId || "none"}
+              onValueChange={setEmpId}
+              options={employees.map((e) => ({ value: String(e.id), label: `${e.name}${e.phone ? ` — ${e.phone}` : ""}` }))}
+              placeholder="اختر الموظف"
+              searchPlaceholder="ابحث باسم/هاتف الموظف…"
+              emptyText="لا نتائج مطابقة"
+            />
           </div>
           <p className="text-sm font-extrabold text-status-info">
             المتبقي الحالي: {formatKWD(balance)} د.ك
