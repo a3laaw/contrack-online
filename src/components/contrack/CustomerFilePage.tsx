@@ -347,7 +347,7 @@ export function CustomerFilePage({
 
       {/* ===== شريط التنقل (تبويبان فقط كالمصدر) ===== */}
       <Tabs value={page} onValueChange={(v) => switchPage(v as PageKey)}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-md grid-cols-2 sm:w-fit sm:max-w-none">
           <TabsTrigger value="overview" className="h-9">
             عام
           </TabsTrigger>
@@ -480,14 +480,16 @@ export function CustomerFilePage({
               </Card>
             </div>
 
-            {/* لوحة التعليقات الجانبية (مدمجة في «عام» كالمصدر) */}
-            <CommentsPanel
-              customerId={customerId}
-              contracts={contracts.map((c) => ({ id: c.id, name: c.name || c.contractNumber, contractNumber: c.contractNumber }))}
-              user={user}
-              onAuthError={onAuthError}
-              onError={handleError}
-            />
+            {/* لوحة التعليقات الجانبية (مدمجة في «عام» كالمصدر) — لاصقة على الشاشات العريضة كي لا يبقى فراغ تحتها */}
+            <div className="min-w-0 xl:sticky xl:top-[4.25rem]">
+              <CommentsPanel
+                customerId={customerId}
+                contracts={contracts.map((c) => ({ id: c.id, name: c.name || c.contractNumber, contractNumber: c.contractNumber }))}
+                user={user}
+                onAuthError={onAuthError}
+                onError={handleError}
+              />
+            </div>
           </div>
         </TabsContent>
 
@@ -1303,7 +1305,7 @@ function ContractsMasterDetail({
           </Select>
           <p className="text-xs text-muted-foreground">المعروض: {items.length} عقد · المتبقي {formatKWD(total - collected)}</p>
 
-          <div className="max-h-[420px] min-h-[160px] space-y-1.5 overflow-y-auto lg:max-h-[560px]">
+          <div className="max-h-[420px] space-y-1.5 overflow-y-auto lg:max-h-[560px]">
             {items.length === 0 ? (
               <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">لا توجد عقود مطابقة.</p>
             ) : (
@@ -1358,9 +1360,53 @@ function ContractsMasterDetail({
               onOpenStatement={onOpenStatement}
             />
           </div>
+        ) : items.length === 0 ? (
+          <Card className="flex h-40 items-center justify-center">
+            <CardContent className="p-6 text-center text-sm text-muted-foreground">لا عقود لهذا العميل بعد.</CardContent>
+          </Card>
         ) : (
-          <Card className="flex h-64 items-center justify-center">
-            <CardContent className="p-6 text-center text-sm text-muted-foreground">اختر عقدًا من القائمة لعرض تفاصيله هنا.</CardContent>
+          /* G9 — قبل اختيار عقد: جدول مختصر بكل عقود العميل يتيح الاختيار بالنقر بدل بطاقة فارغة */
+          <Card>
+            <CardContent className="p-0">
+              <p className="border-b px-4 py-2.5 text-xs text-muted-foreground">اختر عقدًا من القائمة أو من الجدول لعرض تفاصيله هنا.</p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-start">العقد</TableHead>
+                    <TableHead className="text-start">الحالة</TableHead>
+                    <TableHead className="text-start">القيمة الحالية</TableHead>
+                    <TableHead className="text-start">المتبقي</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map((c) => (
+                    <TableRow
+                      key={c.id}
+                      className="cursor-pointer transition-colors hover:bg-primary/5"
+                      onClick={() => onSelectContract(c.id)}
+                    >
+                      <TableCell>
+                        <div className="text-sm font-semibold">{c.name || "(بلا اسم)"}</div>
+                        <div className="text-[11px] text-muted-foreground" dir="ltr">
+                          {c.contractNumber}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${statusBadgeClassLite(c.status)}`}>{c.status || "نشط"}</span>
+                      </TableCell>
+                      <TableCell className="text-sm tabular-nums">{formatKWD(c.current)}</TableCell>
+                      <TableCell
+                        className={`text-sm font-bold tabular-nums ${
+                          c.remaining > 0.001 ? (c.hasOverdue ? "text-status-danger" : "text-status-warn") : "text-status-done"
+                        }`}
+                      >
+                        {formatKWD(c.remaining)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
           </Card>
         )}
       </div>
