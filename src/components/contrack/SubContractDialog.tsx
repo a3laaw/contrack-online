@@ -845,7 +845,7 @@ export function SubContractDialog({ subContractId, onOpenChange, user, onAuthErr
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>عقد باطن — {s.item?.subcontractor?.name ?? "…"}</DialogTitle>
             <DialogDescription>

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { authGuard, jsonError, ok } from "@/lib/api-utils";
 import { EPS, r3 } from "@/lib/contrack-core";
-import { loadContractCore } from "@/lib/contrack-server";
+import { loadContractCore, loadSubContractItemsMany } from "@/lib/contrack-server";
 import { computeSubPlan } from "@/lib/voucher-server";
 
 type P = { params: Promise<{ id: string }> };
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest, { params }: P) {
   // ③ كتلة لكل مقاول باطن + من يربط أي دفعة عميل
   const subs = await db.subContract.findMany({
     where: { contractId },
-    include: { subcontractor: { select: { id: true, name: true, subCode: true } }, items: { select: { id: true } } },
+    include: { subcontractor: { select: { id: true, name: true, subCode: true } } },
     orderBy: { id: "asc" },
   });
   const usedClientIds = new Set<number>();
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest, { params }: P) {
     subCode: string;
     amount: number;
     status: string;
-    itemsCount: number;
+    items: { id: number; boqItemId: number | null; description: string; unit: string; qty: number; unitPrice: number; amount: number }[];
     due: number;
     paid: number;
     remaining: number;
@@ -80,8 +80,13 @@ export async function GET(req: NextRequest, { params }: P) {
     plan: { lines: Record<string, unknown>[]; paid: number; planTotal: number; gateEnabled: boolean } | null;
   };
   const blocks: Block[] = [];
+  const itemsBySub = await loadSubContractItemsMany(subs.map((s) => s.id));
+  // ذاكرة نواة العقد للطلب كله — كتل N مقاولين على نفس العقد تشارك تحميلًا واحدًا (Task 63)
+  const coreCache = new Map<number, NonNullable<Awaited<ReturnType<typeof loadContractCore>>>>();
+  coreCache.set(contractId, core);
   for (const s of subs) {
-    const plan = await computeSubPlan(s.id);
+    const plan = await computeSubPlan(s.id, { coreCache });
+    const items = itemsBySub.get(s.id) ?? [];
     const lines = plan
       ? plan.lines.map((l) => ({
           id: l.id,
@@ -113,7 +118,7 @@ export async function GET(req: NextRequest, { params }: P) {
       subCode: s.subcontractor.subCode,
       amount: r3(Number(s.amount)),
       status: s.status,
-      itemsCount: s.items.length,
+      items,
       due,
       paid,
       remaining: r3(due - paid),

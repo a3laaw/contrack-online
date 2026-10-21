@@ -312,7 +312,7 @@ export interface SubPlanComputed {
 /** خطة دفعات الباطن: FIFO بsortOrder + روابط kind=payment + البوابة + الحالات الثمانية */
 export async function computeSubPlan(
   subContractId: number,
-  opts: { excludeVoucherId?: number } = {}
+  opts: { excludeVoucherId?: number; coreCache?: Map<number, Awaited<ReturnType<typeof loadContractCore>>> } = {}
 ): Promise<SubPlanComputed | null> {
   const sc = await db.subContract.findUnique({
     where: { id: subContractId },
@@ -344,8 +344,16 @@ export async function computeSubPlan(
     }),
   ]);
 
-  // متبقي دفعات العميل (للبوابة)
-  const core = await loadContractCore(sc.contractId);
+  // متبقي دفعات العميل (للبوابة) — مع ذاكرة اختيارية للطلب الواحد (كتل عدة مقاولين على نفس العقد)
+  let core: Awaited<ReturnType<typeof loadContractCore>> | null = null;
+  if (opts.coreCache) {
+    if (!opts.coreCache.has(sc.contractId)) {
+      opts.coreCache.set(sc.contractId, await loadContractCore(sc.contractId));
+    }
+    core = opts.coreCache.get(sc.contractId) ?? null;
+  } else {
+    core = await loadContractCore(sc.contractId);
+  }
   const clientRemainingById = new Map<number, number>();
   if (core) for (const l of core.computed.lines) clientRemainingById.set(l.id, l.remaining);
 

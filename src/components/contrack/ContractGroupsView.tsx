@@ -412,7 +412,7 @@ function CreateGroupDialog({
         onOpenChange(v);
       }}
     >
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>＋ مجموعة جديدة</DialogTitle>
           <DialogDescription>

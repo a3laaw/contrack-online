@@ -290,3 +290,78 @@ export async function triggerDuePayments(
   }
   return count;
 }
+
+// ==================== بنود عقد الباطن بوصف محسوم (Task 63 — كشف المقاول الموحّد) ====================
+
+/**
+ * بنود عقد باطن واحد مع الوصف النهائي للعرض:
+ * · بند مرتبط ببنود الكميات ⇒ وصف بند الكميات ووحدته
+ * · بند منزّل من خطة الدفعات (sourceKind=plan) ⇒ عنوان خط الخطة المصدر
+ * · بند يدوي بلا أي منهما ⇒ «بند يدوي»
+ * تُستخدم في /api/contracts/[id]/pay-view وفي /api/subcontractors/[id]/ledger — مصدر واحد للحقيقة.
+ */
+/**
+ * النسخة المجمعة — بنود عدة عقود باطنة في نداء واحد (Task 63):
+ * تجنب 2×N استعلامًا عند عرض كتل عدة مقاولين (زمن الاستجابة للقاعدة البعيدة ~300ms/استعلام).
+ */
+export async function loadSubContractItemsMany(subContractIds: number[]) {
+  const ids = [...new Set(subContractIds.filter((n) => Number.isFinite(n)))];
+  if (ids.length === 0) return new Map<number, Awaited<ReturnType<typeof loadSubContractItems>>>();
+  const [items, plans] = await Promise.all([
+    db.subContractItem.findMany({
+      where: { subContractId: { in: ids } },
+      orderBy: { id: "asc" },
+      include: { boqItem: { select: { description: true, unit: true } } },
+    }),
+    db.subPaymentPlanItem.findMany({
+      where: { subContractId: { in: ids } },
+      select: { id: true, subContractId: true, title: true },
+    }),
+  ]);
+  const planTitle = new Map<number, string>();
+  const planSub = new Map<number, number>();
+  for (const pl of plans) {
+    planTitle.set(pl.id, pl.title);
+    planSub.set(pl.id, pl.subContractId);
+  }
+  const map = new Map<number, Awaited<ReturnType<typeof loadSubContractItems>>>();
+  for (const id of ids) map.set(id, []);
+  for (const it of items) {
+    const description = it.boqItem?.description || (it.sourceKind === "plan" ? planTitle.get(it.sourceId) || "بند يدوي" : "بند يدوي");
+    map.get(it.subContractId)!.push({
+      id: it.id,
+      boqItemId: it.boqItemId,
+      description,
+      unit: it.boqItem?.unit || "",
+      qty: Number(it.qty),
+      unitPrice: Number(it.unitPrice),
+      amount: Number(it.amount),
+    });
+  }
+  void planSub;
+  return map;
+}
+
+export async function loadSubContractItems(subContractId: number) {
+  const items = await db.subContractItem.findMany({
+    where: { subContractId },
+    orderBy: { id: "asc" },
+    include: { boqItem: { select: { description: true, unit: true } } },
+  });
+  const planIds = items
+    .filter((i) => !i.boqItemId && i.sourceKind === "plan" && i.sourceId > 0)
+    .map((i) => i.sourceId);
+  const planRows = planIds.length
+    ? await db.subPaymentPlanItem.findMany({ where: { id: { in: planIds } }, select: { id: true, title: true } })
+    : [];
+  const titleMap = new Map(planRows.map((p) => [p.id, p.title] as const));
+  return items.map((it) => ({
+    id: it.id,
+    boqItemId: it.boqItemId,
+    description: it.boqItem?.description || titleMap.get(it.sourceId) || "بند يدوي",
+    unit: it.boqItem?.unit || "",
+    qty: Number(it.qty),
+    unitPrice: Number(it.unitPrice),
+    amount: Number(it.amount),
+  }));
+}

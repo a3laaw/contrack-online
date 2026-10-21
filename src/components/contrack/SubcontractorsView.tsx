@@ -37,12 +37,12 @@ import {
 } from "@/components/ui/table";
 import { ApiError, apiGet } from "./api";
 import { errMessage, isManagerRole } from "./contrack-types";
-import type { SubContractsResponse, SubContractor, SubContractorsResponse, User } from "./contrack-types";
+import type { SubContractor, SubContractorsResponse, User } from "./contrack-types";
 import { formatKWD, statusBadgeClass } from "@/lib/format";
-import { SubContractDialog } from "./SubContractDialog";
 import { VoucherPage } from "./VoucherPage";
 import { SubDeleteDialog } from "./SubDeleteDialog";
 import { ContractorEditPage } from "./ContractorEditPage";
+import { SubcontractorFilePage } from "./SubcontractorFilePage";
 
 interface SubcontractorsViewProps {
   user: User;
@@ -72,23 +72,9 @@ export function SubcontractorsView({ user, onAuthError }: SubcontractorsViewProp
 
   const contractors: SubContractor[] = (listQuery.data?.subcontractors ?? listQuery.data?.items ?? []);
 
-  // ===== تفاصيل مقاول =====
-  const [detailId, setDetailId] = React.useState<number | null>(null);
-  const detailQuery = useQuery<{ item: SubContractor } & Partial<SubContractsResponse>>({
-    queryKey: ["subcontractor", detailId],
-    queryFn: () => apiGet(`/api/subcontractors/${detailId}`),
-    enabled: detailId !== null,
-  });
+  // ===== صفحة المقاول الكاملة (كشف بنوده ودفعاته — بدل حوار التفاصيل الصغير) =====
+  const [fileId, setFileId] = React.useState<number | null>(null);
 
-  // عقود الباطن للمقاول المفتوح
-  const subsQuery = useQuery<SubContractsResponse>({
-    queryKey: ["sub-contracts", "subcontractor", detailId],
-    queryFn: () => apiGet<SubContractsResponse>(`/api/sub-contracts?subcontractorId=${detailId}`),
-    enabled: detailId !== null,
-  });
-
-  // ===== عقد باطن مفتوح =====
-  const [openSubId, setOpenSubId] = React.useState<number | null>(null);
   // الصرف على الباطن — صفحة سند كاملة (بلا نوافذ داخلية)
   const [payPage, setPayPage] = React.useState<{ subContractId: number; subLabel?: string } | null>(null);
 
@@ -132,6 +118,20 @@ export function SubcontractorsView({ user, onAuthError }: SubcontractorsViewProp
         onAuthError={onAuthError}
         onSaved={invalidateAll}
         onClose={() => setContractorPage(null)}
+      />
+    );
+  }
+
+  if (fileId !== null) {
+    return (
+      <SubcontractorFilePage
+        subcontractorId={fileId}
+        user={user}
+        onAuthError={onAuthError}
+        onClose={() => {
+          setFileId(null);
+          invalidateAll();
+        }}
       />
     );
   }
@@ -207,16 +207,16 @@ export function SubcontractorsView({ user, onAuthError }: SubcontractorsViewProp
                 </TableHeader>
                 <TableBody>
                   {contractors.map((c) => {
-                    const remaining = Number(c._total ?? 0) - Number(c._paid ?? 0);
+                    const remaining = Number(c.activeAmount ?? 0) - Number(c.paid ?? 0);
                     return (
-                      <TableRow key={c.id} className="cursor-pointer" onClick={() => setDetailId(c.id)}>
+                      <TableRow key={c.id} className="cursor-pointer" onClick={() => setFileId(c.id)}>
                         <TableCell className="tabular-nums" dir="ltr">{c.subCode}</TableCell>
                         <TableCell className="font-medium">{c.name}</TableCell>
                         <TableCell className="tabular-nums" dir="ltr">{c.phone || "—"}</TableCell>
                         <TableCell className="max-w-32 truncate text-muted-foreground">{c.activity || "—"}</TableCell>
-                        <TableCell className="text-center tabular-nums">{c._activeContracts ?? 0}</TableCell>
-                        <TableCell className="text-end tabular-nums" dir="ltr">{formatKWD(c._total)}</TableCell>
-                        <TableCell className="text-end tabular-nums" dir="ltr">{formatKWD(c._paid)}</TableCell>
+                        <TableCell className="text-center tabular-nums">{c.activeContracts ?? 0}</TableCell>
+                        <TableCell className="text-end tabular-nums" dir="ltr">{formatKWD(c.activeAmount)}</TableCell>
+                        <TableCell className="text-end tabular-nums" dir="ltr">{formatKWD(c.paid)}</TableCell>
                         <TableCell>
                           <Badge className={remaining > 0.001 ? "bg-status-warn-bg text-status-warn" : "bg-status-done-bg text-status-done"}>
                             <span className="tabular-nums" dir="ltr">{formatKWD(remaining)}</span>
@@ -224,7 +224,7 @@ export function SubcontractorsView({ user, onAuthError }: SubcontractorsViewProp
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" className="size-8" onClick={() => setDetailId(c.id)} aria-label="تفاصيل">
+                            <Button variant="ghost" size="icon" className="size-8" onClick={() => setFileId(c.id)} aria-label="كشف المقاول">
                               <Eye className="size-4" />
                             </Button>
                             {manager && (
@@ -256,9 +256,9 @@ export function SubcontractorsView({ user, onAuthError }: SubcontractorsViewProp
           {/* موبايل */}
           <div className="space-y-2 md:hidden">
             {contractors.map((c) => {
-              const remaining = Number(c._total ?? 0) - Number(c._paid ?? 0);
+              const remaining = Number(c.activeAmount ?? 0) - Number(c.paid ?? 0);
               return (
-                <Card key={c.id} className="gap-2 p-3" onClick={() => setDetailId(c.id)}>
+                <Card key={c.id} className="gap-2 p-3" onClick={() => setFileId(c.id)}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-1.5 font-semibold">
                       <HardHat className="size-4 text-primary/70" />
@@ -269,12 +269,12 @@ export function SubcontractorsView({ user, onAuthError }: SubcontractorsViewProp
                   <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
                     <span dir="ltr">{c.phone || "—"}</span>
                     <span>{c.activity || "—"}</span>
-                    <span>عقود نشطة: {c._activeContracts ?? 0}</span>
+                    <span>عقود نشطة: {c.activeContracts ?? 0}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">
-                      إجمالي <span className="tabular-nums" dir="ltr">{formatKWD(c._total)}</span> · منصرف{" "}
-                      <span className="tabular-nums" dir="ltr">{formatKWD(c._paid)}</span>
+                      إجمالي <span className="tabular-nums" dir="ltr">{formatKWD(c.activeAmount)}</span> · منصرف{" "}
+                      <span className="tabular-nums" dir="ltr">{formatKWD(c.paid)}</span>
                     </span>
                     <Badge className={remaining > 0.001 ? "bg-status-warn-bg text-status-warn" : "bg-status-done-bg text-status-done"}>
                       <span className="tabular-nums" dir="ltr">{formatKWD(remaining)}</span>
@@ -287,102 +287,6 @@ export function SubcontractorsView({ user, onAuthError }: SubcontractorsViewProp
         </>
       )}
 
-      {/* ===== تفاصيل مقاول ===== */}
-      <Dialog open={detailId !== null} onOpenChange={(o) => !o && setDetailId(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>تفاصيل المقاول</DialogTitle>
-            <DialogDescription>عقود الباطنة المرتبطة بحالاتها المالية.</DialogDescription>
-          </DialogHeader>
-          {detailQuery.isLoading || subsQuery.isLoading ? (
-            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" /> جارٍ التحميل…
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {(() => {
-                const c = detailQuery.data?.item;
-                if (!c) return <p className="text-center text-sm text-destructive">{errMessage(detailQuery.error)}</p>;
-                return (
-                  <>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div className="rounded-md border p-2">
-                        <div className="text-[11px] text-muted-foreground">الكود</div>
-                        <div className="font-medium tabular-nums" dir="ltr">{c.subCode}</div>
-                      </div>
-                      <div className="rounded-md border p-2">
-                        <div className="text-[11px] text-muted-foreground">الهاتف</div>
-                        <div className="font-medium tabular-nums" dir="ltr">{c.phone || "—"}</div>
-                      </div>
-                      <div className="rounded-md border p-2">
-                        <div className="text-[11px] text-muted-foreground">النشاط</div>
-                        <div className="font-medium">{c.activity || "—"}</div>
-                      </div>
-                      <div className="rounded-md border p-2">
-                        <div className="text-[11px] text-muted-foreground">البريد</div>
-                        <div className="font-medium break-all" dir="ltr">{c.email || "—"}</div>
-                      </div>
-                    </div>
-                    {c.notes && <p className="rounded-md bg-muted/40 p-2 text-xs text-muted-foreground">{c.notes}</p>}
-                  </>
-                );
-              })()}
-
-              <div className="space-y-2">
-                <p className="text-xs font-semibold">عقود الباطنة</p>
-                {(subsQuery.data?.items ?? []).length === 0 ? (
-                  <p className="rounded-md border p-3 text-center text-xs text-muted-foreground">
-                    لا عقود باطنة — أُنشئ من داخل تفاصيل عقد العميل.
-                  </p>
-                ) : (
-                  (subsQuery.data?.items ?? []).map((s) => (
-                    <div key={s.id} className="rounded-lg border p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-sm font-semibold" dir="ltr">{s.contract?.contractNumber}</span>
-                        <Badge className={`text-[11px] ${statusBadgeClass(s.status || "")}`}>{s.status}</Badge>
-                      </div>
-                      <div className="mt-1.5 grid grid-cols-3 gap-2 text-xs">
-                        <div>
-                          <div className="text-muted-foreground">المبلغ</div>
-                          <div className="font-bold tabular-nums" dir="ltr">{formatKWD(s.amount)}</div>
-                        </div>
-                        <div>
-                          <div className="text-muted-foreground">المدفوع</div>
-                          <div className="font-bold tabular-nums text-status-done" dir="ltr">{formatKWD(s.paid)}</div>
-                        </div>
-                        <div>
-                          <div className="text-muted-foreground">المتبقي</div>
-                          <div className="font-bold tabular-nums text-status-warn" dir="ltr">{formatKWD(s.remaining)}</div>
-                        </div>
-                      </div>
-                      <div className="mt-2 flex justify-end">
-                        <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setOpenSubId(s.id)}>
-                          <Eye className="size-3.5" />
-                          فتح تفاصيل العقد الباطن
-                        </Button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* ===== حوار تفاصيل عقد الباطن ===== */}
-      <SubContractDialog
-        subContractId={openSubId}
-        onOpenChange={(o) => !o && setOpenSubId(null)}
-        user={user}
-        onAuthError={onAuthError}
-        onPay={() => {
-          const id = openSubId;
-          setOpenSubId(null);
-          if (id !== null) setPayPage({ subContractId: id });
-        }}
-      />
-
       {/* ===== إضافة/تعديل مقاول ⇒ صفحة كاملة ContractorEditPage (تعاد من الحالة أعلاه) ===== */}
 
       {/* ===== حذف بيانات المقاول بخيارات: عقد · سند · السجل ===== */}
@@ -394,7 +298,7 @@ export function SubcontractorsView({ user, onAuthError }: SubcontractorsViewProp
         }}
         onAuthError={onAuthError}
         onDone={(info) => {
-          if (info.action === "record") setDetailId(null);
+          if (info.action === "record") setFileId(null);
           invalidateAll();
         }}
       />

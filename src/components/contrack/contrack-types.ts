@@ -186,9 +186,10 @@ export interface SubContractor {
   email?: string;
   activity?: string;
   notes?: string;
-  _activeContracts?: number;
-  _total?: number;
-  _paid?: number;
+  /** محاذاة Task 63 لأسماء /api/subcontractors الفعلية (كانت _total/_paid/_activeContracts ولا تصلك أبدًا) */
+  activeContracts?: number;
+  activeAmount?: number;
+  paid?: number;
 }
 
 export interface SubContractorsResponse {
@@ -595,7 +596,8 @@ export interface PayViewSubBlock {
   subCode: string;
   amount: number;
   status: string;
-  itemsCount: number;
+  /** بنود العقد الباطن كاملة (Task 63 — بدل itemsCount) */
+  items: SubLedgerItem[];
   due: number;
   paid: number;
   remaining: number;
@@ -620,6 +622,62 @@ export interface ContractPayViewResponse {
     subsWaiting: number;
   };
 }
+
+// ==================== كشف المقاول الموحّد (Task 63) ====================
+
+/** بند عقد باطن مع وصفه المحسوم (من بنود الكميات أو عنوان خط الخطة المنزّل منه) */
+export interface SubLedgerItem {
+  id: number;
+  boqItemId: number | null;
+  description: string;
+  unit: string;
+  qty: number;
+  unitPrice: number;
+  amount: number;
+}
+
+/** كتلة عقد باطن واحد في كشف المقاول — بنود + دفعات موحدة (مشترك بين ملف العميل وصفحة المقاول) */
+export interface SubcontractorLedgerBlock {
+  id: number;
+  contractId: number;
+  contractNumber: string;
+  customerName: string;
+  amount: number;
+  status: string;
+  startDate: string;
+  endDate: string;
+  items: SubLedgerItem[];
+  itemsTotal: number;
+  clientLines: PayViewLine[];
+  plan: { lines: PayViewSubLine[]; paid: number; planTotal: number; gateEnabled: boolean } | null;
+  due: number;
+  paid: number;
+  remaining: number;
+  waiting: number;
+}
+
+/** GET /api/subcontractors/[id]/ledger — صفحة المقاول الكاملة */
+export interface SubcontractorLedgerResponse {
+  item: {
+    id: number;
+    name: string;
+    subCode: string;
+    phone: string;
+    activity: string;
+    email: string;
+    notes: string;
+  };
+  blocks: SubcontractorLedgerBlock[];
+  totals: {
+    contractsCount: number;
+    activeCount: number;
+    totalAmount: number;
+    totalPaid: number;
+    totalRemaining: number;
+    totalWaiting: number;
+  };
+}
+
 
 // ==================== خطة الدفعات ====================
 

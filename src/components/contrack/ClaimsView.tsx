@@ -632,7 +632,7 @@ export function ClaimsView({ onAuthError }: ClaimsViewProps) {
 
       {/* ===== تفاصيل المطالبة ===== */}
       <Dialog open={detailClaim !== null} onOpenChange={(o) => !o && setDetailClaim(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex flex-wrap items-center gap-2">
               <span className="font-mono">{detailClaim?.claimNumber ?? ""}</span>

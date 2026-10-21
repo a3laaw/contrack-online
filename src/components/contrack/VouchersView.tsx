@@ -415,7 +415,7 @@ export function VouchersView({ user, onAuthError, presetQ, onConsumePresetQ, ini
 
       {/* حوار التفاصيل */}
       <Dialog open={detailId !== null} onOpenChange={(o) => !o && setDetailId(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>تفاصيل السند</DialogTitle>
             <DialogDescription>الأرقام محسوبة لحظيًا من الحركات.</DialogDescription>
