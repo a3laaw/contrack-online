@@ -507,7 +507,7 @@ export function VoucherDialog({ open, onOpenChange, user, onAuthError, preset, o
                       <Loader2 className="size-3 animate-spin" /> جارٍ تحميل خطوط الخطة…
                     </p>
                   ) : payLinkQuery.isError ? (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">تعذر تحميل خطوط الربط — سيُربط السند بالتغطية التلقائية FIFO.</p>
+                    <p className="text-xs text-status-warn">تعذر تحميل خطوط الربط — سيُربط السند بالتغطية التلقائية FIFO.</p>
                   ) : eligibleLines.length === 0 ? (
                     <p className="text-xs text-muted-foreground">لا خطوط مستحقة قابلة للربط — الفائض يُسجل دفعة مقدمة.</p>
                   ) : (
@@ -738,7 +738,7 @@ export function VoucherDialog({ open, onOpenChange, user, onAuthError, preset, o
                     </>
                   )}
                   {subContractId && subCapRemaining !== null && Number(amount) > subCapRemaining && (
-                    <p className="flex items-start gap-1.5 rounded-md bg-amber-50 p-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+                    <p className="flex items-start gap-1.5 rounded-md bg-status-warn-bg p-2 text-xs text-status-warn">
                       <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                       تحذير: المبلغ يتجاوز سقف الصرف المتبقي ({formatKWD(subCapRemaining)}) — قد يتحول الفائض لدفعة مقدمة للمقاول.
                     </p>
@@ -915,7 +915,7 @@ export function VoucherDialog({ open, onOpenChange, user, onAuthError, preset, o
 
           {/* رسوم بنكية متوقعة */}
           {vtype === "receipt" && fee > 0 && (
-            <p className="flex items-center gap-1.5 rounded-md bg-sky-50 p-2 text-xs text-sky-700 dark:bg-sky-900/20 dark:text-sky-300">
+            <p className="flex items-center gap-1.5 rounded-md bg-status-info-bg p-2 text-xs text-status-info">
               <Banknote className="size-3.5 shrink-0" />
               سيُنشئ سند رسوم بنكية: {formatKWD(fee)} (PV ابن مرتبط بالسند)
             </p>
@@ -923,8 +923,8 @@ export function VoucherDialog({ open, onOpenChange, user, onAuthError, preset, o
 
           {/* تأكيد السقف التحذيري (overpay 422) */}
           {overpay && (
-            <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-900/20">
-              <p className="flex items-start gap-1.5 font-medium text-amber-700 dark:text-amber-400">
+            <div className="space-y-2 rounded-md border border-status-warn/40 bg-status-warn-bg p-3 text-sm">
+              <p className="flex items-start gap-1.5 font-medium text-status-warn">
                 <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                 {overpay.message}
               </p>

@@ -97,7 +97,7 @@ export function WorkflowEditor({ contractTypeName }: WorkflowEditorProps) {
             شجرة مراحل «{contractTypeName}»
           </span>
           {contractsCount > 0 ? (
-            <Badge className="gap-1 bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-900">
+            <Badge className="gap-1 bg-status-warn-bg text-status-warn border border-status-warn/40">
               <ShieldCheck className="size-3" aria-hidden />
               عقود على هذا النوع: <span className="numeric">{contractsCount}</span> — المراحل المستخدمة محمية من الحذف
             </Badge>
@@ -251,7 +251,7 @@ function StageRow({
             </Badge>
           )}
           {stage.usageCount > 0 && (
-            <Badge className="text-[10px] bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-900">
+            <Badge className="text-[10px] bg-status-warn-bg text-status-warn border border-status-warn/40">
               مستخدمة في عقود
             </Badge>
           )}

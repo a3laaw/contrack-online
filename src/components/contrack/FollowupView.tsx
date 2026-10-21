@@ -217,7 +217,7 @@ export function FollowupView({ user: _user, onAuthError, onOpenContract }: Follo
       icon: TimerReset,
       count: data?.nearBaseEnd?.length ?? 0,
       badgeClass: "bg-status-info-bg text-status-info",
-      cardClass: "bg-sky-500/10 text-status-info",
+      cardClass: "bg-status-info-bg/50 text-status-info",
       empty: "لا إشراف قارب على نهاية الأساس",
       content: (data?.nearBaseEnd ?? []).map((r, i) => (
         <Row
@@ -246,8 +246,8 @@ export function FollowupView({ user: _user, onAuthError, onOpenContract }: Follo
       desc: "عقود إشراف انتهت مدتها الأساسية وعليها تمديد ساري",
       icon: Hourglass,
       count: data?.extension?.length ?? 0,
-      badgeClass: "bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300",
-      cardClass: "bg-purple-500/10 text-purple-600 dark:text-purple-300",
+      badgeClass: "bg-status-info-bg text-status-info",
+      cardClass: "bg-status-info-bg/50 text-status-info",
       empty: "لا إشراف في حالة تمديد",
       content: (data?.extension ?? []).map((r, i) => (
         <Row
@@ -262,10 +262,10 @@ export function FollowupView({ user: _user, onAuthError, onOpenContract }: Follo
             </>
           }
           badge="في التمديد"
-          badgeClass="bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300"
+          badgeClass="bg-status-info-bg text-status-info"
           trailing={
             <div>
-              <div className="text-sm font-bold tabular-nums text-purple-700 dark:text-purple-300" dir="ltr">
+              <div className="text-sm font-bold tabular-nums text-status-info" dir="ltr">
                 {formatKWD(r.supMonthly)}
               </div>
               <div className="text-[10px] text-muted-foreground">شهريًا</div>

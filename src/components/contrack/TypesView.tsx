@@ -81,7 +81,7 @@ function TypeCard({ t }: { t: ContractTypeLite }) {
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-base font-bold">{t.name}</CardTitle>
           <div className="flex gap-1.5 shrink-0">
-            {t.isSupervision && <Badge className="bg-teal-100 text-teal-800 border border-teal-200 dark:bg-teal-950 dark:text-teal-300 dark:border-teal-900">إشراف</Badge>}
+            {t.isSupervision && <Badge className="bg-status-info-bg text-status-info border border-status-info/30">إشراف</Badge>}
             {t.manualTrack && <Badge variant="secondary">بلا قالب</Badge>}
           </div>
         </div>
@@ -129,7 +129,7 @@ function TypeCard({ t }: { t: ContractTypeLite }) {
             <ol className="space-y-1.5">
               {payments.map((p, i) => (
                 <li key={`${p.payNo}-${i}`} className="flex flex-wrap items-center gap-2 text-sm border rounded-lg px-3 py-2">
-                  <span className="size-5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-[11px] font-bold flex items-center justify-center numeric shrink-0">
+                  <span className="size-5 rounded-full bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center justify-center numeric shrink-0">
                     {p.payNo}
                   </span>
                   <span className="font-medium">{p.title}</span>
@@ -242,9 +242,9 @@ export function TypesView() {
 // تاب قوالب الدفع — جدول القالب + حوار إضافة/تعديل
 // ============================================================
 const kindBadge: Record<PaymentTemplateDTO['kind'], { label: string; cls: string }> = {
-  pct: { label: 'نسبة', cls: 'bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900' },
-  fixed: { label: 'مبلغ ثابت', cls: 'bg-teal-100 text-teal-800 border border-teal-200 dark:bg-teal-950 dark:text-teal-300 dark:border-teal-900' },
-  flex: { label: 'مرن (0)', cls: 'bg-stone-100 text-stone-600 border border-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:border-stone-700' },
+  pct: { label: 'نسبة', cls: 'bg-status-info-bg text-status-info border border-status-info/30' },
+  fixed: { label: 'مبلغ ثابت', cls: 'bg-slate-200 text-slate-700 border border-slate-300' },
+  flex: { label: 'مرن (0)', cls: 'bg-slate-100 text-slate-600 border border-slate-200' },
 }
 
 function valueLabel(p: PaymentTemplateDTO): string {
@@ -632,7 +632,7 @@ function PaymentTplDialog({
           <div className="space-y-1.5 sm:col-span-2">
             <Label>مراحل الدفعة (خطوات التنفيذ — الفرعيات فقط)</Label>
             {leafStages.length === 0 ? (
-              <p className="text-xs rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-300 px-3 py-2">
+              <p className="text-xs rounded-lg bg-status-warn-bg border border-status-warn/40 text-status-warn px-3 py-2">
                 لا توجد مراحل فرعية لهذا النوع — أضفها من تاب «شجرة المراحل» أو اجعل الدفعة بالأيام
               </p>
             ) : (

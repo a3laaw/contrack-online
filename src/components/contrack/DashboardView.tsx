@@ -88,13 +88,13 @@ interface DashboardViewProps {
   onOpenCustomerFile: (id: number) => void;
 }
 
-/** حبة التنبيه — لون النص وخلفية 10% وحد 30% كما _tint المكتبي (style.py) */
+/** حبة التنبيه — ألوان لوحة الواجهة الموحّدة (info/warn/danger) · كل فئة خارجها تُساوى على أقرب لون لوحة */
 const ALERT_PILL: Record<DashboardAlertRow["color"], string> = {
-  danger: "text-[#DC2626] bg-[rgba(220,38,38,0.10)] border-[rgba(220,38,38,0.30)]",
-  warn: "text-[#D97706] bg-[rgba(217,119,6,0.10)] border-[rgba(217,119,6,0.30)]",
-  info: "text-[#4F46E5] bg-[rgba(79,70,229,0.10)] border-[rgba(79,70,229,0.30)]",
-  purple: "text-[#7C3AED] bg-[rgba(124,58,237,0.10)] border-[rgba(124,58,237,0.30)]",
-  amber: "text-[#B45309] bg-[rgba(180,83,9,0.10)] border-[rgba(180,83,9,0.30)]",
+  danger: "text-status-danger bg-status-danger-bg border-status-danger/30",
+  warn: "text-status-warn bg-status-warn-bg border-status-warn/30",
+  info: "text-status-info bg-status-info-bg border-status-info/30",
+  purple: "text-status-info bg-status-info-bg border-status-info/30",
+  amber: "text-status-warn bg-status-warn-bg border-status-warn/30",
 };
 
 type FeedItem =

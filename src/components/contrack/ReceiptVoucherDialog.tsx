@@ -278,7 +278,7 @@ function ReceiptVoucherForm({ lockedContract, onOpenChange, onCreated }: {
         )}
 
         {clientError && (
-          <div role="alert" className="sm:col-span-2 rounded-md border border-amber-300 bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900 text-sm px-3 py-2.5">
+          <div role="alert" className="sm:col-span-2 rounded-md border border-status-warn/40 bg-status-warn-bg text-status-warn text-sm px-3 py-2.5">
             {clientError}
           </div>
         )}
