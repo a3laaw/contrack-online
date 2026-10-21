@@ -294,7 +294,7 @@ export function ExpenseAccountsTab({ onAuthError }: { onAuthError: () => void })
 
       {/* إضافة حساب */}
       <Dialog open={addOpen !== null} onOpenChange={(v) => !v && setAddOpen(null)}>
-        <DialogContent className="sm:max-w-sm" dir="rtl">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-base">{addOpen === "parent" ? "إضافة حساب أب" : `إضافة حساب ابن — ${selectedParent?.name || ""}`}</DialogTitle>
             <DialogDescription>الاسم يظهر في قائمة حسابات سند الصرف.</DialogDescription>
@@ -314,7 +314,7 @@ export function ExpenseAccountsTab({ onAuthError }: { onAuthError: () => void })
 
       {/* تعديل حساب */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-sm" dir="rtl">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-base">✎ تعديل الحساب</DialogTitle>
             <DialogDescription>التعديل ينعكس على قوائم سند الصرف والربحية.</DialogDescription>

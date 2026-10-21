@@ -25,6 +25,7 @@ function Slider({
 
   return (
     <SliderPrimitive.Root
+      dir="rtl"
       data-slot="slider"
       defaultValue={defaultValue}
       value={value}

@@ -24,6 +24,7 @@ function ToggleGroup({
   VariantProps<typeof toggleVariants>) {
   return (
     <ToggleGroupPrimitive.Root
+      dir="rtl"
       data-slot="toggle-group"
       data-variant={variant}
       data-size={size}

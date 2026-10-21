@@ -216,7 +216,7 @@ export function ContractGroupsView({ user, onAuthError }: ContractGroupsViewProp
           <RefreshCw className={`size-4 ${groupsQuery.isFetching ? "animate-spin" : ""}`} />
           ↻ تحديث
         </Button>
-        <div className="flex-1" />
+        <div className="hidden flex-1 sm:block" />
         <Button size="sm" className="h-9 gap-1.5" onClick={() => setCreateOpen(true)}>
           ＋ مجموعة جديدة
         </Button>

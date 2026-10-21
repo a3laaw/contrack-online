@@ -15,6 +15,7 @@ function NavigationMenu({
 }) {
   return (
     <NavigationMenuPrimitive.Root
+      dir="rtl"
       data-slot="navigation-menu"
       data-viewport={viewport}
       className={cn(

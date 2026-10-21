@@ -131,7 +131,7 @@ export function CustomersView({
           <h1 className="text-xl font-bold">العملاء</h1>
           <p className="text-sm text-muted-foreground">إدارة ملفات العملاء وعقودهم</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Button variant="outline" size="icon" className="size-9" onClick={() => listQuery.refetch()} aria-label="تحديث">
             <RefreshCw className={listQuery.isFetching ? "size-4 animate-spin" : "size-4"} />
           </Button>

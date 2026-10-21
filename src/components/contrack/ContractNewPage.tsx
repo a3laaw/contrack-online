@@ -532,7 +532,7 @@ export function ContractNewPage({
 
       {/* ===== حوار حارس المبلغ amount_guard — مطابقة المكتبي حرفيًا (QMessageBox + 3 خيارات) ===== */}
       <AlertDialog open={guardBox !== null} onOpenChange={(o) => !o && setGuardBox(null)}>
-        <AlertDialogContent dir="rtl">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>تنبيه: فرق بين المبلغ والمجموع</AlertDialogTitle>
             <AlertDialogDescription className="whitespace-pre-line">

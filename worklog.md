@@ -1923,3 +1923,20 @@ Stage Summary:
 - **الحكم العام: اتجاه RTL راسخ على مستوى الجذر والصفحات (18 شاشة سليمة)، والخلل الوحيد الجوهري مركزي: ازدواج react-direction يُسقط RTL عن 12 مكون Radix (Tabs/Select/…) — إصلاحه سطر واحد overrides في package.json + إعادة bun install.**
 - التقرير النهائي بثلاث أولويات سُلّم للمستخدم بانتظار موافقته قبل أي تعديل كود (Task 62 مقترح للتنفيذ).
 - لقطات التدقيق: `rtl-audit/01..22-*.png` (لم تُرفع للgit — مواد إثبات محلية).
+
+---
+Task ID: 62 (تنفيذ إصلاحات تقرير RTL — بعد موافقة المستخدم «نفذ»)
+Agent: Z.ai Code (منسق)
+Task: تنفيذ إصلاحات تقرير اتجاه الصفحات المعتمد (Task 61): معالجة سبب الجذر (ازدواج react-direction) + إزالة اللصقات اليدوية + إصلاح القصّ بالموبايل — مع تحقق حي كامل.
+
+Work Log:
+- **محاولة overrides أولًا ثم التراجع عنها**: أُضيف `overrides` في package.json لتوحيد `@radix-ui/react-direction@1.2.0` — ثبت النسخة العلوية لكن bun لم يُعد حلّ النسخ المتداخلة (12 نسخة 1.1.1 بقيت). إعادة التثبيت من الصفر طبّقت overrides فعلاً (نسخة واحدة) لكنها أعادت توليد bun.lock بانحراف **127 حزمة** (next 16.1.3→16.4.2 · tailwindcss · framer-motion · eslint-plugin-react-hooks 7.0.1→7.1.1 الذي فجّر 33 خطأ lint بقاعدة set-state-in-effect الجديدة · react/react-dom تفرقا 19.2.3/19.3.1 وأسقطا السيرفر 500). **قُرر التراجع**: استرجاع bun.lock وpackage.json من git حرفيًا (صفر انحراف)، فشلت أيضًا الجراحة المباشرة على سطور bun.lock (bun يتجاهلها ويعيد من بيانات السجل).
+- **الحل المعتمد النهائي — صفر انحراف تبعيات**: `dir="rtl"` افتراضي داخل مغلّفات shadcn/ui نفسها (13 ملفًا، سطر لكل منها): tabs · select · dialog(Content) · alert-dialog(Content) · dropdown-menu · context-menu · menubar · navigation-menu · radio-group · slider · toggle-group · scroll-area · accordion — ضمان RTL لكل مكوّن Radix من الجذر مهما كانت نسخ react-direction، ولا يعتمد على lockfile أو إعادة تثبيت إطلاقًا. AppDirectionProvider بقي (يغطي popover/tooltip النسخ caret الموحّدة أصلًا).
+- **Fix B**: إزالة اللصقات اليدوية الخمس الموثقة: ContractNewPage:535 (AlertDialogContent) · visits-tab:252,278 · expense-accounts-tab:297,317 (DialogContent) — صارت زائدة بعد المُغلّفات. (بقية dir="rtl" على الأقسام الجذرية بقيَت — غير ضارة، تنظيف لاحق اختياري).
+- **Fix C**: CustomersView: مجموعة الأزرار `flex items-center` → `flex flex-wrap justify-end gap-2` — زر «عميل جديد» كان مقصوصًا 34px على 390px (btnX=-34) صار btnX=12 ظاهرًا كاملًا · ContractGroupsView: الفاصل `flex-1` صار `hidden sm:block flex-1` — «مجموعة جديدة» لم تعد تُدفع لأقصى اليسار بالموبايل (btnX=145 ظاهرًا).
+- **التحقق الحي (agent-browser، جلسة developer موقعة)**: تبويبات الإعدادات التسع rtl وأولها x=931 يمينًا · مركز النماذج «القوالب» x=951 يمينًا (كان أقصى اليسار) · Select trigger+القائمة المنبثقة (popper/listbox) rtl كلها · حوار «إضافة موظف زيارات» rtl بعد إزالة لصقته · لا أخطاء console/page · لقطات إثبات جديدة `rtl-audit/23..28-*-fix*.png`.
+- **الفحوص**: bun test **392/392** (1423 تأكيدًا) · tsc 0 · lint 0/0 (بعد استرجاع lockfile الأصلي — 33 خطأ lint كانت انحراف eslint-plugin-react-hooks فقط وليست من التعديلات).
+
+Stage Summary:
+- **كل مكوّنات Radix (تبويبات/قوائم/حوارات/منزلقات…) تُصيَّر RTL الآن بضمان من المُغلّفات نفسها — الإصلاح مقاوم لأي إعادة تثبيت مستقبلية ولا يغيّر باقة التبعيات ذرة واحدة.** الصفحات الثماني عشرة السليمة سابقًا لم تُمَس، والشاشات المعطوبة الخمس (نماذج/إعدادات/قوائم منسدلة/حوارات) أُصلحت وتحققت حيًا.
+- الرفع معلّق على PAT من المستخدم (لا يُخزَّن — والقاعدة الدائمة تمنع لمس بيانات git)؛ commit محلي جاهز، ومعه يُرفع أيضًا commit تدقيق 88bcdf2 المعلق من Task 61.

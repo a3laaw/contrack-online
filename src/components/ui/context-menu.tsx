@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 function ContextMenu({
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
-  return <ContextMenuPrimitive.Root data-slot="context-menu" {...props} />
+  return <ContextMenuPrimitive.Root data-slot="context-menu" dir="rtl" {...props} />
 }
 
 function ContextMenuTrigger({

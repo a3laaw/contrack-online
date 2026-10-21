@@ -249,7 +249,7 @@ export function VisitsTab({ onAuthError }: { onAuthError: () => void }) {
 
       {/* إضافة موظف */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="sm:max-w-sm" dir="rtl">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-base">إضافة موظف زيارات</DialogTitle>
             <DialogDescription>يظهر الموظف كعمود في جدول الزيارات.</DialogDescription>
@@ -275,7 +275,7 @@ export function VisitsTab({ onAuthError }: { onAuthError: () => void }) {
 
       {/* تعديل موظف */}
       <Dialog open={editStaff !== null} onOpenChange={(v) => !v && setEditStaff(null)}>
-        <DialogContent className="sm:max-w-sm" dir="rtl">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-base">✎ تعديل الموظف</DialogTitle>
           </DialogHeader>
