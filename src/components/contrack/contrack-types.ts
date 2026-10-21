@@ -1583,6 +1583,17 @@ export interface OtherDailySettlementResponse {
   transfersTotal?: number;
 }
 
+/** GET /api/other-company/running-statement — كشف يومي بالرصيد الجاري (G1) */
+export interface OtherRunningStatementResponse {
+  opening: number;
+  prior: number;
+  days: { day: string; in: number; out: number; balance: number }[];
+  totalIn: number;
+  totalOut: number;
+  end: number;
+  transfers: { id: number; tdate: string; amount: number; ref?: string | null; method?: string | null }[];
+}
+
 // ==================== المهام (المرحلة 7) ====================
 
 export const TASK_TYPES = ["تذكير", "موعد"] as const;

@@ -50,6 +50,7 @@ import type {
   OtherDueItem,
   OtherDueItemsResponse,
   OtherLedgerResponse,
+  OtherRunningStatementResponse,
   OtherOpeningResponse,
   OtherTransferCoverageResponse,
   OtherTransferItem,
@@ -173,6 +174,20 @@ export function OtherCompanyView({ user, onAuthError }: OtherCompanyViewProps) {
       return apiGet<OtherDailySettlementResponse>(`/api/other-company/daily-settlement${qs ? `?${qs}` : ""}`);
     },
     enabled: tab === "daily",
+  });
+
+  // G1 — الكشف الجاري: خيار عرض داخل تبويب التسوية اليومية (بلا تابع خامس)
+  const [dailyMode, setDailyMode] = React.useState<"settle" | "running">("settle");
+  const runningQuery = useQuery<OtherRunningStatementResponse>({
+    queryKey: ["other-running", { from: dFrom, to: dTo }],
+    queryFn: () => {
+      const sp = new URLSearchParams();
+      if (dFrom) sp.set("from", dFrom);
+      if (dTo) sp.set("to", dTo);
+      const qs = sp.toString();
+      return apiGet<OtherRunningStatementResponse>(`/api/other-company/running-statement${qs ? `?${qs}` : ""}`);
+    },
+    enabled: tab === "daily" && dailyMode === "running",
   });
 
   React.useEffect(() => {
@@ -809,15 +824,41 @@ export function OtherCompanyView({ user, onAuthError }: OtherCompanyViewProps) {
           )}
         </TabsContent>
 
-        {/* ===== التسوية اليومية ===== */}
+        {/* ===== التسوية اليومية + الكشف الجاري (خياران في تبويب واحد) ===== */}
         <TabsContent value="daily" className="mt-3 space-y-3">
           <Card>
-            <CardContent className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2">
-              <Input type="date" className="h-9" value={dFrom} onChange={(e) => setDFrom(e.target.value)} aria-label="من تاريخ" />
-              <Input type="date" className="h-9" value={dTo} onChange={(e) => setDTo(e.target.value)} aria-label="إلى تاريخ" />
+            <CardContent className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center">
+              <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
+                <Input type="date" className="h-9" value={dFrom} onChange={(e) => setDFrom(e.target.value)} aria-label="من تاريخ" />
+                <Input type="date" className="h-9" value={dTo} onChange={(e) => setDTo(e.target.value)} aria-label="إلى تاريخ" />
+              </div>
+              <div role="group" aria-label="نوع العرض" className="flex shrink-0 gap-1 rounded-lg border bg-muted/30 p-1">
+                <Button
+                  size="sm"
+                  variant={dailyMode === "settle" ? "default" : "ghost"}
+                  className="h-8 px-3"
+                  onClick={() => setDailyMode("settle")}
+                  aria-pressed={dailyMode === "settle"}
+                >
+                  <Scale className="size-3.5" />
+                  التسوية
+                </Button>
+                <Button
+                  size="sm"
+                  variant={dailyMode === "running" ? "default" : "ghost"}
+                  className="h-8 px-3"
+                  onClick={() => setDailyMode("running")}
+                  aria-pressed={dailyMode === "running"}
+                >
+                  <NotebookText className="size-3.5" />
+                  الكشف الجاري
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
+          {dailyMode === "settle" ? (
+          <>
           {dailyQuery.isLoading ? (
             <Skeleton className="h-24 w-full" />
           ) : dailyQuery.isError ? (
@@ -877,6 +918,75 @@ export function OtherCompanyView({ user, onAuthError }: OtherCompanyViewProps) {
                         </TableRow>
                       );
                     })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+          </>
+          ) : runningQuery.isLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : runningQuery.isError ? (
+            <Card>
+              <CardContent className="py-8 text-center text-sm text-destructive">
+                تعذر تحميل الكشف الجاري — {errMessage(runningQuery.error)}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-start">التاريخ</TableHead>
+                      <TableHead className="text-start">دخل للبوابات (صافٍ)</TableHead>
+                      <TableHead className="text-start">دفعنا (تسديد)</TableHead>
+                      <TableHead className="text-start">الرصيد الجاري</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow className="bg-muted/40 font-bold">
+                      <TableCell className="text-xs">رصيد سابق قبل الفترة</TableCell>
+                      <TableCell className="text-xs">—</TableCell>
+                      <TableCell className="text-xs">—</TableCell>
+                      <TableCell className="whitespace-nowrap text-xs font-extrabold tabular-nums">
+                        {formatKWD(runningQuery.data?.prior ?? 0)}
+                      </TableCell>
+                    </TableRow>
+                    {(runningQuery.data?.days ?? []).map((d) => (
+                      <TableRow key={d.day}>
+                        <TableCell className="whitespace-nowrap font-mono text-xs font-bold">{fmtDate(d.day)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs font-semibold tabular-nums text-status-warn">
+                          {d.in ? formatKWD(d.in) : "—"}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-xs font-semibold tabular-nums text-status-done">
+                          {d.out ? formatKWD(d.out) : "—"}
+                        </TableCell>
+                        <TableCell
+                          className={`whitespace-nowrap text-xs font-bold tabular-nums ${balanceTone(d.balance)}`}
+                        >
+                          {formatKWD(d.balance)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {(runningQuery.data?.days ?? []).length === 0 && (
+                      <TableRow>
+                        <TableCell className="py-6 text-center text-xs text-muted-foreground" colSpan={4}>
+                          لا أيام في الفترة — عدّل التاريخين أعلاه.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    <TableRow className="bg-muted/40 font-bold">
+                      <TableCell className="text-xs" colSpan={3}>
+                        الإجمالي والمتبقي (دخل {formatKWD(runningQuery.data?.totalIn ?? 0)} · دفعنا{" "}
+                        {formatKWD(runningQuery.data?.totalOut ?? 0)})
+                      </TableCell>
+                      <TableCell
+                        className={`whitespace-nowrap text-xs font-extrabold tabular-nums ${balanceTone(Number(runningQuery.data?.end ?? 0))}`}
+                      >
+                        {formatKWD(runningQuery.data?.end ?? 0)}
+                      </TableCell>
+                    </TableRow>
                   </TableBody>
                 </Table>
               </CardContent>

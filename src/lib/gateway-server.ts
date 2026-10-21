@@ -2,6 +2,7 @@ import "server-only";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { db } from "@/lib/db";
 import { EPS, r3 } from "@/lib/contrack-core";
+import { computeRunningStatement, netInByDay, sumByDay, type RunningOpRow } from "./other-running-core";
 import { audit, normalizeArabic, todayStr } from "@/lib/api-utils";
 
 /**
@@ -1921,4 +1922,57 @@ export async function wipeGatewayData(username: string): Promise<Record<string, 
     reason: `عمليات ${ops} · تسديدات ${transfers} · بنك ${bankLines} · تخصيصات ${allocs}`,
   });
   return { ops, transfers, bankLines, allocs, feeLinks };
+}
+
+// ============================================================
+// G1 — كشف الرصيد الجاري اليومي للشركة الأخرى (المكتبي other_running_statement)
+// النواة النقية تعيش في other-running-core.ts (قابلة للاختبار المباشر) — هنا إعادة تصدير + طبقة القاعدة
+// ============================================================
+
+export type { RunningOpRow, RunningStatementCore, RunningStatementResult } from "./other-running-core";
+export { computeRunningStatement, netInByDay, sumByDay };
+
+/** داخل كل يوم من كل البوابات معًا — استعلام صفوف DUES_ELIGIBLE للفترة */
+async function otherInRows(d1: string, d2: string): Promise<RunningOpRow[]> {
+  const rows = await db.gatewayOp.findMany({
+    where: { ...DUES_ELIGIBLE, opDate: { gte: d1, lte: d2 } },
+    select: { opDate: true, gateway: true, amount: true },
+  });
+  return rows.map((r) => ({ opDate: r.opDate, gateway: r.gateway, amount: Number(r.amount || 0) }));
+}
+
+/**
+ * كشف يومي بالرصيد الجاري للشركة الأخرى — لأي فترة، من كل البوابات معًا.
+ * الافتتاحي يُعرض كما هو مخزّن (بلا تصحيح) — مطابق للمكتبي حرفيًا.
+ * النهاية = الرصيد الجاري آخر الفترة (يساوي المتبقي عند date_to حقيقي).
+ */
+export async function otherRunningStatement(dateFrom = "", dateTo = ""): Promise<Record<string, unknown>> {
+  const opening = await getOtherOpening();
+  const d1 = dateFrom || "2000-01-01";
+  const d2 = dateTo || todayStr();
+
+  // داخل وخارج كل التاريخ حتى نهاية الفترة (قبل d1 يُجمَع في السابق داخل النواة)
+  const inRows = await otherInRows("2000-01-01", d2);
+  const fees = await gatewayFeeMap();
+  const inByDay = netInByDay(inRows, fees);
+
+  const transferRows = await db.otherCompanyTransfer.findMany({
+    where: { tdate: { lte: d2 } },
+    orderBy: [{ tdate: "asc" }, { id: "asc" }],
+    select: { id: true, tdate: true, amount: true, ref: true, method: true },
+  });
+  const outByDay = sumByDay(transferRows.map((t) => ({ day: t.tdate, amount: Number(t.amount || 0) })));
+
+  const core = computeRunningStatement({ openingAmount: opening.amount, d1, inByDay, outByDay });
+  const transfers = transferRows.filter((t) => t.tdate >= d1);
+
+  return {
+    opening: opening.amount,
+    prior: core.prior,
+    days: core.days,
+    totalIn: core.totalIn,
+    totalOut: core.totalOut,
+    end: core.end,
+    transfers,
+  };
 }

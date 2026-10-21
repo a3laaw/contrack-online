@@ -1959,3 +1959,18 @@ Work Log:
 Stage Summary:
 - **جدول المقاول الموحّد (بنوده + دفعاته) الآن واحد مشترك حرفيًا بين ملف العميل وصفحة المقاول — مكوّن واحد وendpointان يتبعان نفس منطق الحساب، ومقاول ثانٍ = كتلة ثانية مستقلة.** شاشة المقاول صارت صفحة كاملة بلا حوار صغير، وأُصلح خلل أصفار القائمة، وتسارع pay-view ~40% بذاكرة نواة مشتركة.
 - الفحوص: bun test **392/392** (1423 تأكيدًا) · tsc 0 · lint 0/0. المرحلة 6 تبقى مؤجلة بطلب المستخدم حتى تجربة الويب أولًا.
+
+---
+Task ID: 64 (G8 — إزالة الوضع الداكن وتوحيد الألوان على لوحة الواجهة)
+Agent: Z.ai Code (منسق)
+Task: حذف كل dark: من src/ واستبدال الألوان خارج اللوحة (بنفسجي/فيروزي/زمرد) بتوكنات اللوحة — موافقة المستخدم «1-3-4-5 نعم قم بها»
+
+Work Log:
+- فحص شامل: 18 سطرًا (40 ورودًا) dark: في 5 ملفات + بنفسجي إضافي في DashboardView وcontrack-types لم يذكره البرومبت.
+- التوحيد على التوكنات الموجودة مسبقًا (globals.css 95-100): bg-status-warn-bg/text-status-warn (#FEF3C7/#92400E)، bg-status-info-bg/text-status-info (#DBEAFE/#1D4ED8)، danger (#FEE2E2/#B91C1C).
+- الملفات: WorkflowEditor(2 شارة أمبر) · VoucherDialog(5: تحذير ربط/سقف صرف/رسوم بنكية sky→info/overpay) · TypesView(إشراف teal→info، عداد الدفعة emerald→slate-200/700، kindBadge نسبة→info وثابت/مرن→slate، صندوق المراحل) · FollowupView(بنفسجي التمديد→info + cardClass الأخت sky-500/10→info-bg/50) · ReceiptVoucherDialog(خطأ العميل أمبر→warn) · DashboardView(ALERT_PILL الخمسة→توكنات، purple→info وamber→warn مع إبقاء مفاتيح النوع).
+- حذف src/components/contrack/theme-provider.tsx (كود ميت — لا مستورد، والتطبيق فاتح هيكليًا بلا provider).
+- تُرك مفتا النوع "purple"/"amber" في contrack-types/DashboardView لأنهما قيم يرسلها الباكند — القيم البصرية وحدها وُحدت.
+
+Stage Summary:
+- صفر dark: وصفر بنفسجي/فيروزي بصري في src/ (الباقيان مفتاحا نوع خلفي مشروعة). المتابعة والأنواع مُتحقق منهما بصريًا على التوكنات. الفحوص: bun test 392/392 · tsc 0 · lint 0. رُفع: 5b3a5be.
