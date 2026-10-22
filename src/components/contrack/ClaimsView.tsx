@@ -129,7 +129,7 @@ export function ClaimsView({ onAuthError }: ClaimsViewProps) {
     queryKey: ["claims"],
     queryFn: () => apiGet<ClaimsResponse>("/api/claims"),
   });
-  const items: ClaimRow[] = listQuery.data?.items ?? [];
+  const items: ClaimRow[] = listQuery.data?.claims ?? [];
 
   React.useEffect(() => {
     const e = listQuery.error;

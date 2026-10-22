@@ -1174,8 +1174,9 @@ export interface ClaimRow {
 }
 
 export interface ClaimsResponse {
-  items: ClaimRow[];
-  counts?: Record<string, number>;
+  claims: ClaimRow[];
+  counters?: Record<string, number>;
+  totals?: { count: number; openAmount: number; doneAmount: number; overdueCount: number; overdueAmount: number };
 }
 
 // ==================== العُهد ====================
