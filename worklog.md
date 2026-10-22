@@ -2360,3 +2360,17 @@ Work Log:
 Stage Summary:
 - تكرار «المهام» انحصر في شاشة واحدة + تحويل تنبيه بمحرر مشترك؛ مصدر حساب الأقسام المشتركة أصبح واحدًا (followup-sections) بأرقام متطابقة مؤكدة قبل/بعد؛ 7 ملفات ميتة خرجت من الشجرة؛ التسمية الملتبسة أُصلحت.
 - commit محلي — ينتظر PAT للرفع مع worklog القام 83 (cca0dcd).
+
+---
+Task ID: 84- push (إكمال الرفع)
+Agent: Z.ai Code (منسق)
+Task: رفع commit الجلسة المعلقة cca0dcd (توثيق دراسة 83) + 90a6acc (تنفيذ 84) إلى GitHub بالتوكن الجديد المزوّد
+
+Work Log:
+- تأكيد أن 4669d4f (Task 82) كان مرفوعًا مسبقًا على origin/main.
+- فحوص قبل الدفع: bun test 444/444 · tsc 0.
+- push origin main: 3b3c19a..90a6acc بنجاح، ثم استعادة الرابط النظيف فورًا والتأكد من خلو .git/config من التوكن.
+- التزامن مؤكد: main...origin/main بلا فرق، وls-remote يعيد 90a6acc9a39e.
+
+Stage Summary:
+- كل ما جرى تنفيذه في 82/83/84 أصبح على GitHub (90a6acc رأس الفرع) — Vercel سيبدأ نشرًا تلقائيًا (~دقيقة) على contrack-online.vercel.app.
