@@ -156,12 +156,22 @@ export function ClaimsView({ onAuthError }: ClaimsViewProps) {
   const [dir, setDir] = React.useState<Dir>("out");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [q, setQ] = React.useState("");
+  const [customerFilter, setCustomerFilter] = React.useState("all");
   const [contractFilter, setContractFilter] = React.useState("all");
 
   const dirRows = items.filter((c) => c.direction === dir);
+  const customerOptions = (() => {
+    const map = new Map<number, string>();
+    for (const c of dirRows) {
+      const cid = c.contract?.customerId;
+      if (cid) map.set(cid, c.contract.customer?.name || c.contract.customerName || `#${cid}`);
+    }
+    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1], "ar"));
+  })();
   const contractOptions = (() => {
     const map = new Map<number, string>();
     for (const c of dirRows) {
+      if (customerFilter !== "all" && String(c.contract?.customerId ?? "") !== customerFilter) continue;
       if (c.contract?.id) map.set(c.contract.id, c.contract.contractNumber || `#${c.contract.id}`);
     }
     return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1], "ar"));
@@ -169,6 +179,7 @@ export function ClaimsView({ onAuthError }: ClaimsViewProps) {
 
   const filtered = dirRows.filter((c) => {
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
+    if (customerFilter !== "all" && String(c.contract?.customerId ?? "") !== customerFilter) return false;
     if (contractFilter !== "all" && String(c.contract?.id ?? "") !== contractFilter) return false;
     if (q.trim()) {
       const hay = normSearch(
@@ -413,7 +424,7 @@ export function ClaimsView({ onAuthError }: ClaimsViewProps) {
       </Tabs>
 
       {/* الفلاتر */}
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="h-9">
             <SelectValue placeholder="الحالة" />
@@ -428,9 +439,22 @@ export function ClaimsView({ onAuthError }: ClaimsViewProps) {
           </SelectContent>
         </Select>
         <SearchableSelect
+          value={customerFilter}
+          onValueChange={(v) => {
+            setCustomerFilter(v);
+            setContractFilter("all");
+          }}
+          options={[
+            { value: "all", label: "كل العملاء" },
+            ...customerOptions.map(([id, name]) => ({ value: String(id), label: name })),
+          ]}
+          placeholder="العميل"
+          searchPlaceholder="ابحث بالاسم…"
+          emptyText="لا نتائج مطابقة"
+        />
+        <SearchableSelect
           value={contractFilter}
           onValueChange={setContractFilter}
-          className="w-44"
           options={[
             { value: "all", label: "كل العقود" },
             ...contractOptions.map(([id, num]) => ({ value: String(id), label: num })),

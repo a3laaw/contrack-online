@@ -120,6 +120,15 @@ export function InvoicesView({ user, onAuthError }: InvoicesViewProps) {
     for (const i of items) if (i.contract?.id) map.set(i.contract.id, i.contract.contractNumber);
     return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1], "ar"));
   })();
+  // خيارات فلتر العقد: تُقيَّد بعقود العميل المختار فقط
+  const contractFilterOptions = (() => {
+    const map = new Map<number, string>();
+    for (const i of items) {
+      if (customerFilter !== "all" && String(i.customer?.id ?? "") !== customerFilter) continue;
+      if (i.contract?.id) map.set(i.contract.id, i.contract.contractNumber);
+    }
+    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1], "ar"));
+  })();
 
   const filtered = items.filter((i) => {
     if (customerFilter !== "all" && String(i.customer?.id ?? "") !== customerFilter) return false;
@@ -268,10 +277,9 @@ export function InvoicesView({ user, onAuthError }: InvoicesViewProps) {
         <SearchableSelect
           value={contractFilter}
           onValueChange={setContractFilter}
-          className="w-44"
           options={[
             { value: "all", label: "كل العقود" },
-            ...contractOptions.map(([id, num]) => ({ value: String(id), label: num })),
+            ...contractFilterOptions.map(([id, num]) => ({ value: String(id), label: num })),
           ]}
           placeholder="العقد"
           searchPlaceholder="ابحث برقم العقد…"

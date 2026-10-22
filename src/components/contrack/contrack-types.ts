@@ -1162,7 +1162,7 @@ export interface ClaimRow {
   id: number;
   claimNumber: string;
   direction: string; // out | in
-  contract: { id: number; contractNumber: string; customer: { name: string } | null };
+  contract: { id: number; contractNumber: string; contractName?: string; customerId: number; customerName?: string; customer: { id: number; name: string } | null };
   subContract?: { id: number; title?: string; amount?: number } | null;
   title: string;
   amount: number;

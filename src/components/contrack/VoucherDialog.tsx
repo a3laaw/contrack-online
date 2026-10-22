@@ -31,7 +31,6 @@ import { errMessage, isManagerRole } from "./contrack-types";
 import { SearchableSelect } from "./SearchableSelect";
 import { round3 } from "@/lib/format";
 import type {
-  ContractListItem,
   ContractsResponse,
   CustomerContractRow,
   CustomerDetailResponse,
@@ -121,6 +120,7 @@ export function VoucherDialog({ open, onOpenChange, user, onAuthError, preset, o
   const [custodyText, setCustodyText] = React.useState("");
 
   // صرف — باطن
+  const [subCustomerId, setSubCustomerId] = React.useState("none");
   const [subContractId, setSubContractId] = React.useState<string>(preset?.subContractId ? String(preset.subContractId) : "");
   const [subCapRemaining, setSubCapRemaining] = React.useState<number | null>(null);
 
@@ -147,7 +147,7 @@ export function VoucherDialog({ open, onOpenChange, user, onAuthError, preset, o
   const customersQuery = useQuery<{ customers: { id: number; name: string }[] }>({
     queryKey: ["customers", ""],
     queryFn: () => apiGet<{ customers: { id: number; name: string }[] }>("/api/customers"),
-    enabled: open && (vtype === "receipt" || (vtype === "payment" && payKind === "expense")),
+    enabled: open && (vtype === "receipt" || (vtype === "payment" && payKind === "expense") || (vtype === "payment" && payKind === "subcontract")),
   });
 
   const contractsQuery = useQuery<ContractsResponse>({
@@ -160,6 +160,13 @@ export function VoucherDialog({ open, onOpenChange, user, onAuthError, preset, o
     queryKey: ["customer", customerId],
     queryFn: () => apiGet<CustomerDetailResponse>(`/api/customers/${customerId}`),
     enabled: open && vtype === "receipt" && customerId !== "none" && !preset?.contractId,
+  });
+
+  // عقود العميل لسند الصرف ← باطن (تصفية «عقد العميل» حسب العميل المختار)
+  const subCustContractsQuery = useQuery<CustomerDetailResponse>({
+    queryKey: ["customer", subCustomerId],
+    queryFn: () => apiGet<CustomerDetailResponse>(`/api/customers/${subCustomerId}`),
+    enabled: open && vtype === "payment" && payKind === "subcontract" && subCustomerId !== "none",
   });
 
   const subContractsQuery = useQuery<SubContractsResponse>({
@@ -410,6 +417,19 @@ export function VoucherDialog({ open, onOpenChange, user, onAuthError, preset, o
 
   const subContracts = subContractsQuery.data?.items ?? [];
 
+  // خيارات «عقد العميل» في الصرف ← باطن: تُصفّى حسب العميل المختار إن وُجد
+  const subContractOptions = (subCustomerId !== "none"
+    ? (subCustContractsQuery.data?.contracts ?? [])
+    : (contractsQuery.data?.contracts ?? [])
+  )
+    .filter((c) => !["ملغى", "مغلق"].includes(c.status))
+    .map((c) => ({ value: String(c.id), label: `${c.contractNumber} — ${c.contractName}` }));
+
+  // خيارات «عقد اختياري» في الصرف ← مصروف: تُصفّى حسب «عميل تعرضية» إن اختير
+  const expContractOptions = (contractsQuery.data?.contracts ?? [])
+    .filter((c) => expCustomerId === "none" || String(c.customerId) === expCustomerId)
+    .map((c) => ({ value: String(c.id), label: c.contractNumber }));
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
@@ -626,7 +646,7 @@ export function VoucherDialog({ open, onOpenChange, user, onAuthError, preset, o
                       <Label>عميل تعرضية (اختياري)</Label>
                       <SearchableSelect
                         value={expCustomerId}
-                        onValueChange={setExpCustomerId}
+                        onValueChange={(v) => { setExpCustomerId(v); setExpContractId("none"); }}
                         options={[
                           { value: "none", label: "—" },
                           ...(customersQuery.data?.customers ?? []).map((c) => ({ value: String(c.id), label: c.name })),
@@ -643,7 +663,7 @@ export function VoucherDialog({ open, onOpenChange, user, onAuthError, preset, o
                         onValueChange={setExpContractId}
                         options={[
                           { value: "none", label: "—" },
-                          ...(contractsQuery.data?.contracts ?? []).map((c) => ({ value: String(c.id), label: c.contractNumber })),
+                          ...expContractOptions,
                         ]}
                         placeholder="—"
                         searchPlaceholder="ابحث برقم العقد…"
@@ -688,14 +708,27 @@ export function VoucherDialog({ open, onOpenChange, user, onAuthError, preset, o
                   ) : (
                     <>
                       <div className="space-y-1.5">
+                        <Label>العميل</Label>
+                        <SearchableSelect
+                          value={subCustomerId}
+                          onValueChange={(v) => { setSubCustomerId(v); setContractId("none"); setSubContractId(""); }}
+                          options={[
+                            { value: "none", label: "— أي عميل —" },
+                            ...(customersQuery.data?.customers ?? []).map((c) => ({ value: String(c.id), label: c.name })),
+                          ]}
+                          placeholder="— أي عميل —"
+                          searchPlaceholder="ابحث بالاسم…"
+                          emptyText="لا نتائج مطابقة"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
                         <Label>عقد العميل</Label>
                         <SearchableSelect
                           value={contractId}
                           onValueChange={(v) => { setContractId(v); setSubContractId(""); }}
-                          options={(contractsQuery.data?.contracts ?? [])
-                            .filter((c) => !["ملغى", "مغلق"].includes(c.status))
-                            .map((c: ContractListItem) => ({ value: String(c.id), label: `${c.contractNumber} — ${c.contractName}` }))}
-                          placeholder="اختر العقد"
+                          options={subContractOptions}
+                          placeholder={subCustomerId !== "none" && subCustContractsQuery.isLoading ? "جارٍ تحميل عقود العميل…" : "اختر العقد"}
+                          loading={subCustomerId !== "none" && subCustContractsQuery.isLoading}
                           searchPlaceholder="ابحث برقم/اسم العقد…"
                           emptyText="لا نتائج مطابقة"
                         />
