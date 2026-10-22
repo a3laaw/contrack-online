@@ -13,6 +13,7 @@
 import * as React from "react";
 import { Lock, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PAYMENT_STATUS_LABEL, fmtDate, formatKWD } from "@/lib/format";
@@ -284,7 +285,7 @@ export function PlanTable({
   readOnly,
   onAdd,
 }: {
-  lines: { id: number; title: string; dueDate: string; amountN: number; covered: number; remaining: number; state: string; stateLabel?: string; notes?: string }[];
+  lines: { id: number; title: string; dueDate: string; amountN: number; covered: number; remaining: number; state: string; stateLabel?: string; notes?: string; stageName?: string }[];
   manager: boolean;
   onDelete: (id: number) => void;
   readOnly?: boolean;
@@ -310,7 +311,14 @@ export function PlanTable({
             {lines.map((ln) => (
               <TableRow key={ln.id}>
                 <TableCell>
-                  <div className="font-medium">{ln.title}</div>
+                  <div className="font-medium">
+                    {ln.title}
+                    {ln.stageName && (
+                      <Badge variant="secondary" className="ms-2 px-1.5 py-0 text-[10px] font-normal" title="مرتبطة بمرحلة — تُستحق تلقائيًا عند إنهائها">
+                        ⚙ {ln.stageName}
+                      </Badge>
+                    )}
+                  </div>
                   {ln.notes ? <div className="text-xs text-muted-foreground">{ln.notes}</div> : null}
                 </TableCell>
                 <TableCell dir="ltr" className="tabular-nums">{fmtDate(ln.dueDate)}</TableCell>
@@ -355,7 +363,14 @@ export function PlanTable({
         {lines.map((ln) => (
           <Card key={ln.id} className="gap-1 p-3">
             <div className="flex items-start justify-between gap-2">
-              <span className="font-medium">{ln.title}</span>
+              <span className="font-medium">
+                {ln.title}
+                {ln.stageName && (
+                  <Badge variant="secondary" className="ms-1 px-1.5 py-0 text-[10px] font-normal">
+                    ⚙ {ln.stageName}
+                  </Badge>
+                )}
+              </span>
               <StatusBadge
                 status={ln.state}
                 label={ln.stateLabel || PAYMENT_STATUS_LABEL[ln.state] || ln.state}

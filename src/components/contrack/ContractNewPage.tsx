@@ -10,7 +10,7 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Banknote, ChevronLeft, ChevronRight, Layers, Trash2 } from "lucide-react";
+import { Banknote, ChevronLeft, ChevronRight, Layers, ListTree, Plus, Trash2 } from "lucide-react";
 
 import {
   AlertDialog,
@@ -22,6 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -58,6 +59,20 @@ interface StageDraft {
   name: string;
   expectedDays: string;
   payPct: string;
+  /** 1 = تصنيف رئيسي · 2 = فرعية تابعة لأقرب رئيسية قبلها */
+  level: number;
+}
+
+/** صف شجرة مراحل النوع — GET /api/workflow-stages */
+interface WorkflowStageLite {
+  id: number;
+  stageName: string;
+  stageOrder: number;
+  parentId: number | null;
+  expectedDays: number;
+  payPct: number;
+  contractType: string;
+  transactionType: string;
 }
 
 interface PaymentDraft {
@@ -100,6 +115,46 @@ export function ContractNewPage({
   const [stages, setStages] = React.useState<StageDraft[]>([]);
   const [payments, setPayments] = React.useState<PaymentDraft[]>([]);
 
+  // ===== شجرة مراحل النوع (Task 82) — تنزل للعقد كتصنيفات رئيسية وفرعياتها =====
+  const selectedTypeName = fTypeId
+    ? typesQuery.data?.types.find((t) => String(t.id) === fTypeId)?.name || ""
+    : "";
+  const wfTreeQuery = useQuery<{ stages: WorkflowStageLite[] }>({
+    queryKey: ["workflow-stages", "tree"],
+    queryFn: () => apiGet<{ stages: WorkflowStageLite[] }>("/api/workflow-stages"),
+    enabled: Boolean(selectedTypeName),
+  });
+  const typeTree = React.useMemo(() => {
+    const rows = (wfTreeQuery.data?.stages ?? [])
+      .filter((s) => s.transactionType === "contract" && s.contractType === selectedTypeName)
+      .sort((a, b) => a.stageOrder - b.stageOrder || a.id - b.id);
+    // الرئيسيات (بلا أب) أولًا بترتيبها، وتحتها فرعياتها — مطابق لترتيب الشجرة
+    const parents = rows.filter((s) => !s.parentId);
+    const byParent = new Map<number, WorkflowStageLite[]>();
+    for (const s of rows) if (s.parentId) {
+      const arr = byParent.get(s.parentId) ?? [];
+      arr.push(s);
+      byParent.set(s.parentId, arr);
+    }
+    const flat: { name: string; expectedDays: string; payPct: string; level: number }[] = [];
+    for (const p of parents) {
+      flat.push({ name: p.stageName, expectedDays: String(p.expectedDays || 0), payPct: String(Number(p.payPct) || 0), level: 1 });
+      for (const c of byParent.get(p.id) ?? []) {
+        flat.push({ name: c.stageName, expectedDays: String(c.expectedDays || 0), payPct: String(Number(c.payPct) || 0), level: 2 });
+      }
+    }
+    return flat;
+  }, [wfTreeQuery.data, selectedTypeName]);
+  const [importConfirm, setImportConfirm] = React.useState(false);
+  const importTree = () => {
+    setStages(typeTree.map((s) => ({ ...s })));
+    setImportConfirm(false);
+    toast({
+      title: "تم استيراد شجرة النوع",
+      description: `نُزّلت ${typeTree.filter((s) => s.level === 1).length} تصنيفًا و${typeTree.filter((s) => s.level === 2).length} مرحلة فرعية — عدّلها أو احذف ما لا يلزم قبل الحفظ.`,
+    });
+  };
+
   // ===== نفس إنشاء النافذة السابقة حرفيًا (نفس الـpayload والـinvalidations والـtoasts) =====
   // المرحلة 3/ج: body.amountPolicy يُرسل فقط عند فرق المبلغ مع ميزة amount_guard مفعّلة
   const createMutation = useMutation({
@@ -116,12 +171,24 @@ export function ContractNewPage({
         description: fDescription.trim(),
         stages: stages
           .filter((s) => s.name.trim())
-          .map((s, i) => ({
-            name: s.name.trim(),
-            expectedDays: Number(s.expectedDays || 0),
-            payPct: Number(s.payPct || 0),
-            sortOrder: i,
-          })),
+          .map((s, i, arr) => {
+            // parentName = أقرب تصنيف رئيسي قبلها (الاقتران بالترتيب — مطابق للعرض)
+            let parentName = "";
+            for (let j = i - 1; j >= 0; j--) {
+              if (arr[j].level === 1 && arr[j].name.trim()) {
+                parentName = arr[j].name.trim();
+                break;
+              }
+            }
+            return {
+              name: s.name.trim(),
+              expectedDays: Number(s.expectedDays || 0),
+              payPct: Number(s.payPct || 0),
+              level: s.level === 2 ? 2 : 1,
+              parentName: s.level === 2 ? parentName : "",
+              sortOrder: i,
+            };
+          }),
         plan: payments
           .filter((p) => p.title.trim() && Number(p.amount) > 0)
           .map((p, i) => ({
@@ -336,72 +403,135 @@ export function ContractNewPage({
         <Card>
           <CardContent className="space-y-3 p-4 md:p-6">
             <p className="text-xs text-muted-foreground">
-              أضف مراحل تنفيذ العقد بالترتيب — تُستخدم كبوابات استحقاق للدفعات. يمكن تركها فارغة والاعتماد على قالب النوع.
+              أضف مراحل تنفيذ العقد بالترتيب — تُستخدم كبوابات استحقاق للدفعات. يمكنك استيراد شجرة مراحل النوع
+              كاملة (تصنيفات وفرعياتها) أو الإدخال اليدوي.
             </p>
+            {selectedTypeName && (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  {wfTreeQuery.isLoading
+                    ? "جارٍ تحميل شجرة النوع…"
+                    : typeTree.length > 0
+                      ? `شجرة «${selectedTypeName}»: ${typeTree.filter((s) => s.level === 1).length} تصنيفًا و${typeTree.filter((s) => s.level === 2).length} مرحلة فرعية`
+                      : `النوع «${selectedTypeName}» بلا شجرة مراحل — استخدم الإدخال اليدوي`}
+                </p>
+                {typeTree.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 gap-1.5"
+                    onClick={() => (stages.length > 0 ? setImportConfirm(true) : importTree())}
+                  >
+                    <ListTree className="size-4" />
+                    استيراد شجرة مراحل النوع
+                  </Button>
+                )}
+              </div>
+            )}
             {stages.length === 0 && (
               <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
                 لا مراحل مضافة
               </p>
             )}
-            <ul className="max-h-64 space-y-2 overflow-y-auto">
-              {stages.map((s, i) => (
-                <li key={i} className="grid grid-cols-[1fr_5rem_5rem_2rem] items-end gap-2 rounded-md border p-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">اسم المرحلة {i + 1}</Label>
-                    <Input
-                      className="h-9"
-                      value={s.name}
-                      onChange={(e) =>
-                        setStages((arr) => arr.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">أيام</Label>
-                    <Input
-                      className="h-9"
-                      dir="ltr"
-                      type="number"
-                      min="0"
-                      value={s.expectedDays}
-                      onChange={(e) =>
-                        setStages((arr) => arr.map((x, j) => (j === i ? { ...x, expectedDays: e.target.value } : x)))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">دفع %</Label>
-                    <Input
-                      className="h-9"
-                      dir="ltr"
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={s.payPct}
-                      onChange={(e) =>
-                        setStages((arr) => arr.map((x, j) => (j === i ? { ...x, payPct: e.target.value } : x)))
-                      }
-                    />
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-9 text-destructive hover:text-destructive"
-                    onClick={() => setStages((arr) => arr.filter((_, j) => j !== i))}
-                    aria-label="حذف المرحلة"
+            <ul className="max-h-80 space-y-2 overflow-y-auto">
+              {stages.map((s, i) => {
+                const isChild = s.level === 2;
+                return (
+                  <li
+                    key={i}
+                    className={`rounded-md border p-2 ${isChild ? "ms-6 border-dashed bg-muted/30" : "border-primary/30"}`}
                   >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </li>
-              ))}
+                    <div className="grid grid-cols-[auto_1fr_5rem_5rem_auto_auto] items-end gap-2">
+                      <div className="pb-2">
+                        {isChild ? (
+                          <span className="text-xs text-muted-foreground" title="فرعية تابعة لأقرب تصنيف رئيسي قبلها">
+                            ↳
+                          </span>
+                        ) : (
+                          <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
+                            تصنيف
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">{isChild ? `مرحلة فرعية` : `التصنيف ${stages.slice(0, i + 1).filter((x) => x.level === 1).length}`}</Label>
+                        <Input
+                          className={`h-9 ${isChild ? "" : "font-semibold"}`}
+                          value={s.name}
+                          onChange={(e) =>
+                            setStages((arr) => arr.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">أيام</Label>
+                        <Input
+                          className="h-9"
+                          dir="ltr"
+                          type="number"
+                          min="0"
+                          value={s.expectedDays}
+                          onChange={(e) =>
+                            setStages((arr) => arr.map((x, j) => (j === i ? { ...x, expectedDays: e.target.value } : x)))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">دفع %</Label>
+                        <Input
+                          className="h-9"
+                          dir="ltr"
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={s.payPct}
+                          onChange={(e) =>
+                            setStages((arr) => arr.map((x, j) => (j === i ? { ...x, payPct: e.target.value } : x)))
+                          }
+                        />
+                      </div>
+                      {!isChild && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-9 gap-1 px-2"
+                          title="إضافة مرحلة فرعية تحت هذا التصنيف"
+                          onClick={() =>
+                            setStages((arr) => {
+                              const next = [...arr];
+                              // تُدرج بعد آخر فرعيات هذا التصنيف (أو بعده مباشرة)
+                              let insertAt = i + 1;
+                              while (insertAt < next.length && next[insertAt].level === 2) insertAt += 1;
+                              next.splice(insertAt, 0, { name: "", expectedDays: "", payPct: "", level: 2 });
+                              return next;
+                            })
+                          }
+                        >
+                          <Plus className="size-3.5" />
+                          فرعية
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-9 text-destructive hover:text-destructive"
+                        onClick={() => setStages((arr) => arr.filter((_, j) => j !== i))}
+                        aria-label="حذف المرحلة"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
             <Button
               variant="outline"
               className="h-9 w-full gap-1.5"
-              onClick={() => setStages((arr) => [...arr, { name: "", expectedDays: "", payPct: "" }])}
+              onClick={() => setStages((arr) => [...arr, { name: "", expectedDays: "", payPct: "", level: 1 }])}
             >
               <Layers className="size-4" />
-              إضافة مرحلة
+              إضافة تصنيف رئيسي
             </Button>
           </CardContent>
         </Card>
@@ -530,6 +660,23 @@ export function ContractNewPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* ===== تأكيد الاستيراد فوق مراحل مُدخلة يدويًا ===== */}
+      <AlertDialog open={importConfirm} onOpenChange={setImportConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>استبدال المراحل المُدخلة؟</AlertDialogTitle>
+            <AlertDialogDescription>
+              لديك {stages.length} مرحلة مُدخلة يدويًا — الاستيراد سيستبدلها كلها بشجرة النوع
+              ({typeTree.length} صفًا). لا يمكن التراجع بعد الحفظ.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>رجوع للتعديل</AlertDialogCancel>
+            <AlertDialogAction onClick={importTree}>استبدال بالشجرة</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ===== حوار حارس المبلغ amount_guard — مطابقة المكتبي حرفيًا (QMessageBox + 3 خيارات) ===== */}
       <AlertDialog open={guardBox !== null} onOpenChange={(o) => !o && setGuardBox(null)}>

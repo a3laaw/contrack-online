@@ -584,6 +584,7 @@ export interface PayViewLine {
   triggeredAt?: string;
   notes?: string;
   sortOrder?: number;
+  stageId?: number | null;
 }
 
 export interface PayViewSubLine extends PayViewLine {

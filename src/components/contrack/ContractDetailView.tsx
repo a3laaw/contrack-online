@@ -40,6 +40,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -107,6 +108,7 @@ import { formatStageHistoryLine, noteChip, pathPrefix, pctSuffix } from "@/lib/s
 import { VoucherPage } from "./VoucherPage";
 import { SubContractDialog } from "./SubContractDialog";
 import { StatusBadge } from "./StatusBadge";
+import { SearchableSelect } from "./SearchableSelect";
 import { PayBlockCard, PlanTable, UnifiedPayTable } from "./pay-tables";
 import { SubcontractorLedger } from "./SubcontractorLedger";
 import { AddendumsTab } from "./AddendumsTab";
@@ -308,28 +310,34 @@ export function ContractDetailView({
   const [skipDialog, setSkipDialog] = React.useState<{ stageId: number; name: string } | null>(null);
 
   const [addStageOpen, setAddStageOpen] = React.useState(false);
-  const [stageForm, setStageForm] = React.useState({ name: "", expectedDays: "", payPct: "" });
+  // Task 82: parentName فارغ = تصنيف رئيسي · وإلا مرحلة فرعية تابعة له
+  const [stageForm, setStageForm] = React.useState({ name: "", expectedDays: "", payPct: "", parentName: "" });
 
   const addStageMutation = useMutation({
-    mutationFn: () =>
-      apiPost(`/api/contracts/${contractId}/stages`, {
+    mutationFn: () => {
+      const parent = String(stageForm.parentName || "");
+      return apiPost(`/api/contracts/${contractId}/stages`, {
         name: stageForm.name.trim(),
         expectedDays: Number(stageForm.expectedDays || 0),
         payPct: Number(stageForm.payPct || 0),
-      }),
+        level: parent ? 2 : 1,
+        parentName: parent,
+      });
+    },
     onSuccess: () => {
       invalidateAll();
       qc.invalidateQueries({ queryKey: ["contract", contractId, "overview"] });
       toast({ title: "تمت الإضافة", description: "أُضيفت المرحلة للعقد" });
       setAddStageOpen(false);
-      setStageForm({ name: "", expectedDays: "", payPct: "" });
+      setStageForm({ name: "", expectedDays: "", payPct: "", parentName: "" });
     },
     onError: (e) => fail(e, "تعذر إضافة المرحلة"),
   });
 
   // ===== الدفعات =====
   const [addPayOpen, setAddPayOpen] = React.useState(false);
-  const [payForm, setPayForm] = React.useState({ title: "", amount: "", dueDate: todayStr() });
+  // Task 82: stageId اختياري — الدفعة المرتبطة بمرحلة تُستحق تلقائيًا عند إنهائها
+  const [payForm, setPayForm] = React.useState({ title: "", amount: "", dueDate: todayStr(), stageId: "" });
 
   // المرحلة 8: زر «تصدير Excel» في تاب الدفعات ⇒ xlsx حقيقي بتنزيل blob (كان window.open لCSV نصي)
   const [payExporting, setPayExporting] = React.useState(false);
@@ -357,13 +365,14 @@ export function ContractDetailView({
         title: payForm.title.trim(),
         amount: Number(payForm.amount || 0),
         dueDate: payForm.dueDate,
+        ...(payForm.stageId ? { stageId: Number(payForm.stageId) } : {}),
       }),
     onSuccess: () => {
       invalidateAll();
       qc.invalidateQueries({ queryKey: ["contract", contractId, "pay-view"] });
-      toast({ title: "تمت الإضافة", description: "أُضيفت الدفعة للخطة" });
+      toast({ title: "تمت الإضافة", description: payForm.stageId ? "أُضيفت الدفعة وارتبطت بالمرحلة — تُستحق تلقائيًا عند إنهائها" : "أُضيفت الدفعة للخطة" });
       setAddPayOpen(false);
-      setPayForm({ title: "", amount: "", dueDate: todayStr() });
+      setPayForm({ title: "", amount: "", dueDate: todayStr(), stageId: "" });
     },
     onError: (e) => fail(e, "رُفضت الإضافة"),
   });
@@ -532,8 +541,127 @@ export function ContractDetailView({
   const remaining = detailData.remaining;
   const stages = [...(detailData.stages ?? [])].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   const l1Stages = stages.filter((s) => (s.level ?? 1) === 1);
+
+  // ===== Task 82 — تصنيفات المسار الفني (رئيسيات وفرعياتها بالاقتران بالترتيب) =====
+  // حساب مباشر بلا useMemo — توجد early returns أعلى المكوّن (قواعد الـ hooks)
+  const stageGroups: { parent: (typeof stages)[number]; children: (typeof stages)[number][] }[] = [];
+  for (const st of stages) {
+    if ((st.level ?? 1) === 2 && stageGroups.length > 0) {
+      stageGroups[stageGroups.length - 1].children.push(st);
+    } else {
+      stageGroups.push({ parent: st, children: [] });
+    }
+  }
+  const hasStageHierarchy = stageGroups.some((g) => g.children.length > 0);
   const overview = overviewQuery.data ?? null;
   const planLines = planQuery.data?.lines ?? [];
+
+  // دفعات كل مرحلة (stageId ⇒ عدد + مجموع) — تظهر داخل صف المرحلة (Task 82)
+  const stagePayMap = new Map<number, { count: number; sum: number }>();
+  for (const l of planLines) {
+    if (l.stageId == null) continue;
+    const entry = stagePayMap.get(l.stageId) ?? { count: 0, sum: 0 };
+    entry.count += 1;
+    entry.sum = Math.round((entry.sum + l.amountN) * 1000) / 1000;
+    stagePayMap.set(l.stageId, entry);
+  }
+  const stageNameById = new Map(stages.map((s) => [s.id, s.name] as const));
+
+  // عرض صف مرحلة واحد (يُستخدم في القائمة المسطحة وفي تابات التصنيفات) — Task 82
+  const renderStageRow = (st: (typeof stages)[number], globalIdx: number, child = false) => {
+    const state: "skipped" | "done" | "active" | "pending" = st.isSkipped
+      ? "skipped"
+      : st.endDate
+        ? "done"
+        : st.startDate
+          ? "active"
+          : "pending";
+    const payInfo = stagePayMap.get(st.id);
+    return (
+      <li
+        key={st.id}
+        className={`relative rounded-lg border bg-card p-3 ${child ? "ms-6 border-dashed bg-muted/20" : ""}`}
+      >
+        <span className="absolute -start-[1.42rem] top-4 flex size-5 items-center justify-center rounded-full border bg-background text-[10px] font-bold">
+          {globalIdx + 1}
+        </span>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              {child && <span className="text-xs text-muted-foreground">↳</span>}
+              <span className={`font-semibold ${child ? "text-sm" : ""}`}>{st.name}</span>
+              {state === "skipped" && (
+                <Badge className="bg-status-done-bg text-status-done">متخطاة</Badge>
+              )}
+              {state === "done" && (
+                <Badge className="bg-status-done-bg text-status-done">منتهية</Badge>
+              )}
+              {state === "active" && (
+                <Badge className="bg-status-warn-bg text-status-warn">جارية</Badge>
+              )}
+              {state === "pending" && <Badge variant="secondary">لم تبدأ</Badge>}
+            </div>
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+              {Number(st.expectedDays) > 0 && <span>المدة المتوقعة: {st.expectedDays} يوم</span>}
+              {Number(st.payPct) > 0 && <span>نسبة الدفع: {st.payPct}%</span>}
+              <span>البدء: {fmtDate(st.startDate)}</span>
+              <span>النهاية: {fmtDate(st.endDate)}</span>
+              {(st.isSkipped || st.endDate) && st.closedBy && <span>بواسطة: {st.closedBy}</span>}
+              {payInfo && (
+                <span
+                  className="font-medium text-foreground/70"
+                  title="دفعات مرتبطة بهذه المرحلة — تُستحق تلقائيًا عند إنهائها"
+                >
+                  ⚙ دفعات مرتبطة: {payInfo.count} ({formatKWD(payInfo.sum)} {cur})
+                </span>
+              )}
+            </div>
+            {st.isSkipped && <p className="mt-1 text-xs text-muted-foreground">دفعاتها المرحلية غير مستحقة.</p>}
+          </div>
+          {manager && (
+            <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+              {!st.startDate && !st.isSkipped && (
+                <Button size="sm" className="h-9 gap-1" disabled={stageAction.isPending} onClick={() => actStart(st.id)}>
+                  <Play className="size-3.5" />
+                  بدء
+                </Button>
+              )}
+              {st.startDate && !st.endDate && !st.isSkipped && (
+                <>
+                  <Button size="sm" className="h-9 gap-1" disabled={stageAction.isPending} onClick={() => actFinish(st.id)}>
+                    <CheckCircle2 className="size-3.5" />
+                    إنهاء
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 gap-1"
+                    disabled={stageAction.isPending}
+                    onClick={() => setSkipDialog({ stageId: st.id, name: st.name })}
+                  >
+                    <SkipForward className="size-3.5" />
+                    تخطي
+                  </Button>
+                </>
+              )}
+              {(st.endDate || st.isSkipped) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-1"
+                  disabled={stageAction.isPending}
+                  onClick={() => actReopen(st.id, Boolean(st.isSkipped))}
+                >
+                  <RotateCcw className="size-3.5" />
+                  إعادة فتح
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      </li>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -696,90 +824,40 @@ export function ContractDetailView({
                 لا مراحل على هذا العقد — الاستحقاق يعتمد على تواريخ الدفعات فقط.
               </CardContent>
             </Card>
-          ) : (
+          ) : !hasStageHierarchy ? (
             <ol className="relative space-y-2 border-s-2 ps-4">
-              {stages.map((st, i) => {
-                const state: "skipped" | "done" | "active" | "pending" = st.isSkipped
-                  ? "skipped"
-                  : st.endDate
-                    ? "done"
-                    : st.startDate
-                      ? "active"
-                      : "pending";
-                return (
-                  <li key={st.id} className="relative rounded-lg border bg-card p-3">
-                    <span className="absolute -start-[1.42rem] top-4 flex size-5 items-center justify-center rounded-full border bg-background text-[10px] font-bold">
-                      {i + 1}
-                    </span>
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-semibold">{st.name}</span>
-                          {state === "skipped" && (
-                            <Badge className="bg-status-done-bg text-status-done">متخطاة</Badge>
-                          )}
-                          {state === "done" && (
-                            <Badge className="bg-status-done-bg text-status-done">منتهية</Badge>
-                          )}
-                          {state === "active" && (
-                            <Badge className="bg-status-warn-bg text-status-warn">جارية</Badge>
-                          )}
-                          {state === "pending" && <Badge variant="secondary">لم تبدأ</Badge>}
-                        </div>
-                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
-                          {Number(st.expectedDays) > 0 && <span>المدة المتوقعة: {st.expectedDays} يوم</span>}
-                          {Number(st.payPct) > 0 && <span>نسبة الدفع: {st.payPct}%</span>}
-                          <span>البدء: {fmtDate(st.startDate)}</span>
-                          <span>النهاية: {fmtDate(st.endDate)}</span>
-                          {(st.isSkipped || st.endDate) && st.closedBy && <span>بواسطة: {st.closedBy}</span>}
-                        </div>
-                        {st.isSkipped && <p className="mt-1 text-xs text-muted-foreground">دفعاتها المرحلية غير مستحقة.</p>}
-                      </div>
-                      {manager && (
-                        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                          {!st.startDate && !st.isSkipped && (
-                            <Button size="sm" className="h-9 gap-1" disabled={stageAction.isPending} onClick={() => actStart(st.id)}>
-                              <Play className="size-3.5" />
-                              بدء
-                            </Button>
-                          )}
-                          {st.startDate && !st.endDate && !st.isSkipped && (
-                            <>
-                              <Button size="sm" className="h-9 gap-1" disabled={stageAction.isPending} onClick={() => actFinish(st.id)}>
-                                <CheckCircle2 className="size-3.5" />
-                                إنهاء
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-9 gap-1"
-                                disabled={stageAction.isPending}
-                                onClick={() => setSkipDialog({ stageId: st.id, name: st.name })}
-                              >
-                                <SkipForward className="size-3.5" />
-                                تخطي
-                              </Button>
-                            </>
-                          )}
-                          {(st.endDate || st.isSkipped) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-9 gap-1"
-                              disabled={stageAction.isPending}
-                              onClick={() => actReopen(st.id, Boolean(st.isSkipped))}
-                            >
-                              <RotateCcw className="size-3.5" />
-                              إعادة فتح
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
+              {stages.map((st, i) => renderStageRow(st, i))}
             </ol>
+          ) : (
+            <Tabs defaultValue="all" dir="rtl">
+              <TabsList className="h-auto max-w-full flex-wrap justify-start gap-1 overflow-x-auto">
+                <TabsTrigger value="all" className="gap-1">
+                  الكل
+                  <span className="text-[10px] text-muted-foreground">({stages.length})</span>
+                </TabsTrigger>
+                {stageGroups.map((g, gi) => (
+                  <TabsTrigger key={g.parent.id} value={`g-${gi}`} className="gap-1">
+                    {g.parent.name}
+                    <span className="text-[10px] text-muted-foreground">({g.children.length + 1})</span>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              <TabsContent value="all">
+                <ol className="relative space-y-2 border-s-2 ps-4">
+                  {stages.map((st, i) => renderStageRow(st, i))}
+                </ol>
+              </TabsContent>
+              {stageGroups.map((g, gi) => (
+                <TabsContent key={g.parent.id} value={`g-${gi}`}>
+                  <ol className="relative space-y-2 border-s-2 ps-4">
+                    {renderStageRow(g.parent, stages.findIndex((s) => s.id === g.parent.id))}
+                    {g.children.map((c) =>
+                      renderStageRow(c, stages.findIndex((s) => s.id === c.id), true)
+                    )}
+                  </ol>
+                </TabsContent>
+              ))}
+            </Tabs>
           )}
         </div>
       )}
@@ -816,6 +894,7 @@ export function ContractDetailView({
           payView={payViewQuery.data ?? null}
           payViewLoading={payViewQuery.isLoading}
           payViewError={payViewQuery.error ? errMessage(payViewQuery.error) : ""}
+          stageNameById={stageNameById}
           boq={boqQuery.data?.items ?? []}
           boqLoading={boqQuery.isLoading}
           subs={contractSubsQuery.data?.items ?? []}
@@ -949,12 +1028,34 @@ export function ContractDetailView({
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>إضافة مرحلة</DialogTitle>
-            <DialogDescription>تُضاف في نهاية الترتيب الحالي.</DialogDescription>
+            <DialogDescription>تُضاف في نهاية الترتيب الحالي — كتصنيف رئيسي أو فرعية تابعة له.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="st-name">اسم المرحلة *</Label>
               <Input id="st-name" className="h-9" value={stageForm.name} onChange={(e) => setStageForm((f) => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>التصنيف</Label>
+              <Select
+                value={stageForm.parentName || "__root"}
+                onValueChange={(v) => setStageForm((f) => ({ ...f, parentName: v === "__root" ? "" : v }))}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="تصنيف رئيسي" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  <SelectItem value="__root">تصنيف رئيسي</SelectItem>
+                  {(detailData.stages ?? [])
+                    .filter((s) => (s.level ?? 1) === 1)
+                    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+                    .map((s) => (
+                      <SelectItem key={s.id} value={s.name}>
+                        فرعية تابعة لـ: {s.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -1006,6 +1107,30 @@ export function ContractDetailView({
                 <Input id="pay-due" className="h-9" dir="ltr" type="date" value={payForm.dueDate} onChange={(e) => setPayForm((f) => ({ ...f, dueDate: e.target.value }))} />
               </div>
             </div>
+            {(detailData.stages ?? []).length > 0 && (
+              <div className="space-y-1.5">
+                <Label>المرحلة (اختياري)</Label>
+                <SearchableSelect
+                  value={payForm.stageId}
+                  onValueChange={(v) => setPayForm((f) => ({ ...f, stageId: v }))}
+                  options={[
+                    { value: "", label: "بدون مرحلة — تستحق بالتاريخ فقط" },
+                    ...[...(detailData.stages ?? [])]
+                      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+                      .map((s, i) => ({
+                        value: String(s.id),
+                        label: `${i + 1} · ${s.name}`,
+                      })),
+                  ]}
+                  placeholder="اختر المرحلة المرتبطة"
+                  searchPlaceholder="ابحث باسم المرحلة…"
+                  emptyText="لا نتائج مطابقة"
+                />
+                <p className="text-xs text-muted-foreground">
+                  الدفعة المرتبطة بمرحلة تُستحق تلقائيًا عند إنهائها — وتولد مطالبة تلقائية إن لم تكن مغطاة.
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" className="h-9" onClick={() => setAddPayOpen(false)} disabled={addPayMutation.isPending}>
@@ -2213,6 +2338,7 @@ function PayPage({
   payView,
   payViewLoading,
   payViewError,
+  stageNameById,
   boq,
   boqLoading,
   subs,
@@ -2232,6 +2358,8 @@ function PayPage({
   payView: ContractPayViewResponse | null;
   payViewLoading: boolean;
   payViewError: string;
+  /** Task 82: stageId ⇒ اسم المرحلة — لشارة الربط على سطور الدفعات */
+  stageNameById: Map<number, string>;
   boq: BoqResponse["items"];
   boqLoading: boolean;
   subs: SubContractsResponse["items"];
@@ -2337,7 +2465,10 @@ function PayPage({
               </p>
             )}
             <PlanTable
-              lines={m.client.lines}
+              lines={m.client.lines.map((l) => ({
+                ...l,
+                stageName: l.stageId != null ? stageNameById.get(l.stageId) : undefined,
+              }))}
               manager={manager}
               onDelete={onDeletePay}
               onAdd={onAddPay}
