@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { db } from "@/lib/db";
+import { db, currentCompanyId } from "@/lib/db";
 import { authGuard, jsonError, ok, audit } from "@/lib/api-utils";
 import { intOr } from "@/lib/contrack-server";
 import { GatewayError, canonPhone, normalizeName, saveAlias } from "@/lib/gateway-server";
@@ -77,7 +77,7 @@ export async function DELETE(req: NextRequest) {
       if (!row) return jsonError("الرابط غير موجود", 404);
       await db.matchAlias.delete({ where: { id } });
     } else if (filePhone && fileName) {
-      await db.matchAlias.delete({ where: { filePhone_fileName: { filePhone, fileName } } });
+      await db.matchAlias.delete({ where: { companyId_filePhone_fileName: { companyId: await currentCompanyId() as number, filePhone, fileName } } });
     } else if (filePhone) {
       const n = await db.matchAlias.deleteMany({ where: { filePhone } });
       await audit(db, {

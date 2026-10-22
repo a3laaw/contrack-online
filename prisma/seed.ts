@@ -21,8 +21,8 @@ function hashPassword(password: string, salt?: string) {
 }
 
 async function main() {
-  // 1) صف الإعدادات الواحد
-  await db.setting.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
+  // 1) صف الإعدادات للشركة الرئيسية (1)
+  await db.setting.upsert({ where: { companyId: 1 }, create: { companyId: 1 }, update: {} });
 
   // 2) المدير الافتراضي — فقط عند تمرير كلمة مرور صريحة
   const username = process.env.SEED_ADMIN_USERNAME?.trim() || "admin";
@@ -42,7 +42,11 @@ async function main() {
   // 3) عدادات الترقيم (الأسماء كما تستهلكها الخدمات)
   const sequences = ["RV", "PV", "TV", "CV", "SD", "PRJ", "QUO", "SUB", "GRP"];
   for (const name of sequences) {
-    await db.numberSequence.upsert({ where: { name }, create: { name, lastNo: 0 }, update: {} });
+    await db.numberSequence.upsert({
+      where: { companyId_name: { companyId: 1, name } },
+      create: { companyId: 1, name, lastNo: 0 },
+      update: {},
+    });
   }
 
   // 4) طرق الدفع الافتراضية (رسوم كالمكتب: تحويل 0.150 / KNET 1.5%)
@@ -54,7 +58,11 @@ async function main() {
     { name: "أخرى", feeType: "amount", feeValue: 0 },
   ];
   for (const m of methods) {
-    await db.paymentMethod.upsert({ where: { name: m.name }, create: m, update: {} });
+    await db.paymentMethod.upsert({
+      where: { companyId_name: { companyId: 1, name: m.name } },
+      create: { companyId: 1, ...m },
+      update: {},
+    });
   }
 
   // 5) إشارات المزايا — الوحدات المعتمدة كلها مفعّلة افتراضياً

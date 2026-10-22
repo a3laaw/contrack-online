@@ -27,7 +27,7 @@ export async function PATCH(req: NextRequest, { params }: P) {
       const name = String(body.name || "").trim();
       if (!name) return jsonError("اسم البوابة إلزامي.");
       if (name !== p.name) {
-        const dup = await db.gatewayProfile.findUnique({ where: { name } });
+        const dup = await db.gatewayProfile.findFirst({ where: { name } });
         if (dup) return jsonError(`يوجد بروفايل بنفس الاسم «${name}».`);
       }
       data.name = name;

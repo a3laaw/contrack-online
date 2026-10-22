@@ -15,6 +15,8 @@ export async function PATCH(req: NextRequest, { params }: P) {
 
   const target = await db.user.findUnique({ where: { id } });
   if (!target) return jsonError("المستخدم غير موجود", 404);
+  // SaaS: لا إدارة لمستخدمي شركة أخرى
+  if (target.companyId !== guard.user.companyId) return jsonError("المستخدم خارج نطاق شركتك", 403);
 
   const body = (await req.json().catch(() => ({}))) as {
     password?: string;
@@ -49,7 +51,7 @@ export async function PATCH(req: NextRequest, { params }: P) {
     }
     // منع إزالة صلاحية آخر مدير
     if (isSuperRole(target.role) && !isSuperRole(body.role)) {
-      const supers = await db.user.count({ where: { role: { in: ["admin", "developer"] }, active: true, id: { not: target.id } } });
+      const supers = await db.user.count({ where: { role: { in: ["admin", "developer"] }, active: true, id: { not: target.id }, companyId: guard.user.companyId } });
       if (supers === 0) return jsonError("لا يمكن إزالة صلاحية آخر مدير في النظام");
     }
     data.role = body.role;
@@ -58,7 +60,7 @@ export async function PATCH(req: NextRequest, { params }: P) {
     if (!body.active && target.id === guard.user.id) return jsonError("لا يمكنك إيقاف حسابك الحالي");
     // منع إيقاف آخر مدير
     if (!body.active && isSuperRole(target.role) && target.active) {
-      const supers = await db.user.count({ where: { role: { in: ["admin", "developer"] }, active: true, id: { not: target.id } } });
+      const supers = await db.user.count({ where: { role: { in: ["admin", "developer"] }, active: true, id: { not: target.id }, companyId: guard.user.companyId } });
       if (supers === 0) return jsonError("لا يمكن إيقاف آخر مدير في النظام");
     }
     data.active = Boolean(body.active);
@@ -89,9 +91,11 @@ export async function DELETE(req: NextRequest, { params }: P) {
 
   const target = await db.user.findUnique({ where: { id } });
   if (!target) return jsonError("المستخدم غير موجود", 404);
+  // SaaS: لا حذف لمستخدمي شركة أخرى
+  if (target.companyId !== guard.user.companyId) return jsonError("المستخدم خارج نطاق شركتك", 403);
   if (target.id === guard.user.id) return jsonError("لا يمكنك حذف حسابك الحالي");
   if (isSuperRole(target.role)) {
-    const supers = await db.user.count({ where: { role: { in: ["admin", "developer"] }, active: true, id: { not: target.id } } });
+    const supers = await db.user.count({ where: { role: { in: ["admin", "developer"] }, active: true, id: { not: target.id }, companyId: guard.user.companyId } });
     if (supers === 0) return jsonError("لا يمكن حذف آخر مدير في النظام");
   }
 

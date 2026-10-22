@@ -7,12 +7,11 @@ import {
   isSuperRole,
   roleDefaultAllowed,
 } from "@/lib/permissions-catalog";
+import { parseToken, SESSION_COOKIE, issueToken } from "@/lib/session-token";
 
 export { PERMISSIONS, roleDefaultAllowed, isSuperRole } from "@/lib/permissions-catalog";
 export type { PermissionSpec } from "@/lib/permissions-catalog";
-
-export const SESSION_COOKIE = "ctrk_session";
-const AUTH_SECRET = process.env.AUTH_SECRET || "contrack-local-secret-v9";
+export { SESSION_COOKIE, issueToken } from "@/lib/session-token";
 
 export interface SessionUser {
   id: number;
@@ -20,6 +19,8 @@ export interface SessionUser {
   role: string; // admin | secretary | developer
   fullName: string;
   jobTitle: string;
+  companyId: number;
+  companyName: string;
 }
 
 // ===== كلمات المرور: PBKDF2-SHA256 بـ 200,000 دورة — الملح بايتاته الخام bytes.fromhex(salt) كما المكتبي حرفيًا =====
@@ -35,25 +36,6 @@ export function verifyPassword(password: string, salt: string, hash: string) {
   return crypto.timingSafeEqual(Buffer.from(candidate), Buffer.from(hash));
 }
 
-// ===== الرموز: id.timestamp.hmac =====
-function sign(payload: string) {
-  return crypto.createHmac("sha256", AUTH_SECRET).update(payload).digest("hex").slice(0, 32);
-}
-
-export function issueToken(userId: number) {
-  const payload = `${userId}.${Date.now()}`;
-  return `${payload}.${sign(payload)}`;
-}
-
-function parseToken(token: string): number | null {
-  const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  const payload = `${parts[0]}.${parts[1]}`;
-  if (sign(payload) !== parts[2]) return null;
-  const id = parseInt(parts[0], 10);
-  return Number.isFinite(id) ? id : null;
-}
-
 export function getBearerToken(req: NextRequest): string | null {
   const h = req.headers.get("authorization") || "";
   if (h.startsWith("Bearer ")) return h.slice(7).trim();
@@ -67,16 +49,23 @@ export function getCookieToken(req: NextRequest): string | null {
 export async function getSessionUser(req: NextRequest): Promise<SessionUser | null> {
   const token = getBearerToken(req) || getCookieToken(req);
   if (!token) return null;
-  const userId = parseToken(token);
-  if (!userId) return null;
-  const user = await db.user.findUnique({ where: { id: userId } });
+  const parsed = parseToken(token);
+  if (!parsed) return null;
+  const user = await db.user.findUnique({ where: { id: parsed.userId } });
   if (!user || !user.active) return null;
+  const company = await db.company.findUnique({ where: { id: parsed.companyId } });
+  if (!company || !company.isActive) return null;
+  // مستخدم عادي: توكنه يجب أن يطابق شركته (إبطال الجلسة بعد النقل) —
+  // المدير/المطور (أدوار فائقة) يسمح له بالتبديل عبر التوكن لأي شركة فعّالة
+  if (!isSuperRole(user.role) && user.companyId !== parsed.companyId) return null;
   return {
     id: user.id,
     username: user.username,
     role: user.role,
     fullName: user.fullName || user.username,
     jobTitle: user.jobTitle || "",
+    companyId: company.id,
+    companyName: company.name,
   };
 }
 

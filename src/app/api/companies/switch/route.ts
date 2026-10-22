@@ -1,0 +1,24 @@
+// Task 85 — SaaS: تبديل الشركة النشطة (المدير/المطور)
+// يعيد إصدار توكن الجلسة بشركة الهدف — cookie ctrk_session يُستبدل
+import { NextRequest } from "next/server";
+import { db } from "@/lib/db";
+import { adminGuard, jsonError, ok } from "@/lib/api-utils";
+import { issueToken, sessionCookieOptionsFor } from "@/lib/auth";
+
+export async function POST(req: NextRequest) {
+  const guard = await adminGuard(req);
+  if ("response" in guard) return guard.response;
+
+  const body = (await req.json().catch(() => ({}))) as { companyId?: number };
+  const companyId = Math.trunc(Number(body.companyId));
+  if (!Number.isFinite(companyId)) return jsonError("معرف الشركة غير صالح");
+
+  const company = await db.company.findUnique({ where: { id: companyId } });
+  if (!company || !company.isActive) return jsonError("الشركة غير موجودة أو معطّلة", 404);
+
+  // sysDb هنا مقصود: تحديث المستخدم نفسه ليس عملية على بيانات شركة
+  const token = issueToken(guard.user.id, company.id);
+  const res = ok({ companyId: company.id, companyName: company.name, token });
+  res.cookies.set("ctrk_session", token, sessionCookieOptionsFor(req));
+  return res;
+}

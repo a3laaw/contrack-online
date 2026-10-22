@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
   // والاستحقاق = تاريخ العقد + أيام القالب، وربط المرحلة بالاسم (V4.48) بترتيب القالب.
   let tplRows: { title: string; amount: number; dueDate: string; triggerStageId: number | null }[] = [];
   if (planIn.length === 0) {
-    const type = await db.contractType.findUnique({
+    const type = await db.contractType.findFirst({
       where: { name: contractType },
       include: { paymentTemplates: { orderBy: { payNo: "asc" as const } } },
     });

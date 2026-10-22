@@ -1,6 +1,6 @@
 import "server-only";
 import { Prisma, PrismaClient } from "@prisma/client";
-import { db } from "@/lib/db";
+import { db, currentCompanyId } from "@/lib/db";
 import { EPS, r3 } from "@/lib/contrack-core";
 import { computeRunningStatement, netInByDay, sumByDay, type RunningOpRow } from "./other-running-core";
 import { audit, normalizeArabic, todayStr } from "@/lib/api-utils";
@@ -330,8 +330,10 @@ export async function aliasHit(input: AliasHitInput): Promise<number> {
 
 export async function saveAlias(filePhone: string, fileName: string, customerId: number): Promise<void> {
   if (!customerId) throw new GatewayError("اختر سندًا بعميل صحيح.");
+  const companyId = await currentCompanyId();
+  if (companyId == null) throw new GatewayError("سياق الشركة مفقود");
   await db.matchAlias.upsert({
-    where: { filePhone_fileName: { filePhone: canonPhone(filePhone), fileName: normalizeName(fileName) } },
+    where: { companyId_filePhone_fileName: { companyId, filePhone: canonPhone(filePhone), fileName: normalizeName(fileName) } },
     update: { customerId },
     create: { filePhone: canonPhone(filePhone), fileName: normalizeName(fileName), customerId },
   });
@@ -558,9 +560,11 @@ export async function uploadSettlementFile(
     const phone = (r.phone || "").trim();
     const ref = (r.ref || "").trim();
     const ed = effectiveDate(opDate, "بوابة");
+    const cid = await currentCompanyId();
+    if (cid == null) throw new GatewayError("سياق الشركة مفقود");
     const existing = await db.gatewayOp.findUnique({
       where: {
-        gateway_opDate_phone_amount_ref: { gateway, opDate, phone, amount, ref },
+        companyId_gateway_opDate_phone_amount_ref: { companyId: cid, gateway, opDate, phone, amount, ref },
       },
     });
     const gwPaid = r.gwPaid === null || r.gwPaid === undefined ? null : Number(r.gwPaid);
@@ -1146,8 +1150,10 @@ export async function saveBankLines(
     if (!cdate || !Number.isFinite(amount)) continue;
     const bankAccount = (x.bankAccount || defaultAccount || "").trim();
     const descr = (x.descr || "").trim();
+    const bCid = await currentCompanyId();
+    if (bCid == null) throw new GatewayError("سياق الشركة مفقود");
     const existing = await db.bankLine.findUnique({
-      where: { bankAccount_cdate_amount_descr: { bankAccount, cdate, amount, descr } },
+      where: { companyId_bankAccount_cdate_amount_descr: { companyId: bCid, bankAccount, cdate, amount, descr } },
     });
     if (existing) continue;
     await db.bankLine.create({ data: { bankAccount, cdate, amount, descr, batch: batch || "" } });
@@ -1255,19 +1261,24 @@ export interface OtherOpening {
 }
 
 export async function getOtherOpening(): Promise<OtherOpening> {
-  let row = await db.otherCompanyOpening.findUnique({ where: { id: 1 } });
-  if (!row) row = await db.otherCompanyOpening.create({ data: { id: 1, amount: 0, note: "" } });
+  const cid = await currentCompanyId();
+  if (cid == null) throw new GatewayError("سياق الشركة مفقود");
+  let row = await db.otherCompanyOpening.findFirst({ where: { companyId: cid } });
+  if (!row) row = await db.otherCompanyOpening.create({ data: { amount: 0, note: "" } });
   return { amount: r3(Number(row.amount || 0)), note: row.note || "", updatedAt: row.updatedAt };
 }
 
 export async function setOtherOpening(amount: number, note: string, username: string): Promise<OtherOpening> {
   const amt = r3(Number(amount || 0));
   if (amt < 0) throw new GatewayError("الرصيد الافتتاحي لا يكون سالبًا.");
-  await db.otherCompanyOpening.upsert({
-    where: { id: 1 },
-    update: { amount: amt, note: (note || "").trim() },
-    create: { id: 1, amount: amt, note: (note || "").trim() },
-  });
+  const cid = await currentCompanyId();
+  if (cid == null) throw new GatewayError("سياق الشركة مفقود");
+  const existing = await db.otherCompanyOpening.findFirst({ where: { companyId: cid } });
+  if (existing) {
+    await db.otherCompanyOpening.update({ where: { id: existing.id }, data: { amount: amt, note: (note || "").trim() } });
+  } else {
+    await db.otherCompanyOpening.create({ data: { amount: amt, note: (note || "").trim() } });
+  }
   await audit(db, {
     username,
     action: "other_opening",

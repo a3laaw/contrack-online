@@ -254,7 +254,7 @@ async function rebuildContractStages(tx: Prisma.TransactionClient, contractId: n
 
 /** ربط خطط الدفعات بمراحل القالب بمطابقة كلمات الربط/العناوين — للخطوط ذات stageId فارغ فقط */
 async function linkPlanLinesToStages(tx: Prisma.TransactionClient, contractId: number, typeName: string): Promise<number> {
-  const type = await tx.contractType.findUnique({
+  const type = await tx.contractType.findFirst({
     where: { name: typeName },
     include: {
       paymentTemplates: {

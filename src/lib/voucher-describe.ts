@@ -40,7 +40,8 @@ export async function applyDescriptionPrefix(db: DbLike, kind: PrefixKind, text:
   if (!text) return text;
   const field = PREFIX_FIELDS[kind];
   if (!field) return text;
-  const s = await db.setting.findUnique({ where: { id: 1 } });
+  // Task 85: بلا فلترة يدوية — العميل الوارد (ملّاف) يحمل سياق الشركة بنفسه
+  const s = await db.setting.findFirst({});
   const raw = s ? String((s as unknown as Record<string, unknown>)[field] ?? "") : "";
   const prefix = raw.trim().replace(/[:：]+\s*$/, "").trim();
   // V9.15.19: إذا احتوت البادئة «سداد» وبدأ النص بـ«سداد » يُحذف من النص (منع التكرار)

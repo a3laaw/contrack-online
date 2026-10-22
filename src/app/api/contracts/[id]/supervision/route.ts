@@ -57,7 +57,7 @@ export async function POST(req: NextRequest, { params }: P) {
   if (supDiscount > gross + EPS) return jsonError("الخصم يتجاوز قيمة الإشراف");
 
   // العقد إشرافي من نوعه؟
-  const type = await db.contractType.findUnique({ where: { name: contract.contractType } });
+  const type = await db.contractType.findFirst({ where: { name: contract.contractType } });
   const touchAmount = Boolean(type?.isSupervision);
 
   const updated = await db.$transaction(async (tx) => {

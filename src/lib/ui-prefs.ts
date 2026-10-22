@@ -1,16 +1,19 @@
 // ============================================================
 // ConTrack Online — مساعد قراءة/كتابة Settings.uiPrefs (JSON)
 // (prefs_service — تفضيلات الواجهة والإعدادات الناعمة فقط)
+// Task 85 — SaaS: صف إعدادات لكل شركة (PK = company_id)
 // ============================================================
-import { db } from '@/lib/db'
+import { db, currentCompanyId } from '@/lib/db'
 
 export type UiPrefs = Record<string, unknown>
 
-/** يضمن وجود صف الإعدادات الواحد ويعيد uiPrefs مفكوكة بأمان */
+/** يضمن وجود صف الإعدادات لشركة السياق ويعيد uiPrefs مفكوكة بأمان */
 export async function getUiPrefs(): Promise<{ prefs: UiPrefs }> {
+  const companyId = await currentCompanyId()
+  if (companyId == null) return { prefs: {} }
   const s = await db.setting.upsert({
-    where: { id: 1 },
-    create: { id: 1 },
+    where: { companyId },
+    create: { companyId },
     update: {},
   })
   let prefs: UiPrefs = {}
@@ -29,8 +32,10 @@ export async function getUiPrefs(): Promise<{ prefs: UiPrefs }> {
 
 /** دمج مفاتيح فوق uiPrefs الحالية وكتابتها */
 export async function updateUiPrefs(patch: UiPrefs): Promise<UiPrefs> {
+  const companyId = await currentCompanyId()
+  if (companyId == null) throw new Error('سياق الشركة مفقود لتفضيلات الواجهة')
   const { prefs } = await getUiPrefs()
   const next = { ...prefs, ...patch }
-  await db.setting.update({ where: { id: 1 }, data: { uiPrefs: JSON.stringify(next) } })
+  await db.setting.update({ where: { companyId }, data: { uiPrefs: JSON.stringify(next) } })
   return next
 }

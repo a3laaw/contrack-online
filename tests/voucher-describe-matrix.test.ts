@@ -34,7 +34,7 @@ interface MockOpts {
 
 function mockDb(over: MockOpts = {}): Db {
   return {
-    setting: { findUnique: async () => over.settings ?? null },
+    setting: { findUnique: async () => over.settings ?? null, findFirst: async () => over.settings ?? null },
     contractStage: { findMany: async () => over.stages ?? [] },
     addendum: { findMany: async () => over.addendums ?? [] },
     voucher: {

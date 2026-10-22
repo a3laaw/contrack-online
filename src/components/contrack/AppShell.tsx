@@ -11,6 +11,7 @@ import type { User } from "./contrack-types";
 import { ROLE_LABEL, isManagerRole } from "./contrack-types";
 import { useFeatureFlags } from "./FeatureFlagsProvider";
 import { NotificationBell } from "./NotificationBell";
+import { CompanySwitcher } from "./CompanySwitcher";
 import { NAV_MODULES, findNavChild, type NavChild } from "./nav-structure";
 import { permAllows, visibleChildren } from "./nav-perms";
 
@@ -144,6 +145,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
 
           {/* البحث والإشعارات والمستخدم والخروج */}
           <div className="ms-auto flex items-center gap-2">
+            <CompanySwitcher user={user} />
             <Button
               variant="ghost"
               size="icon"

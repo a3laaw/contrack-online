@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const name = String(body.name || "").trim();
     if (!name) return jsonError("اسم البوابة إلزامي.");
-    const dup = await db.gatewayProfile.findUnique({ where: { name } });
+    const dup = await db.gatewayProfile.findFirst({ where: { name } });
     if (dup) return jsonError(`يوجد بروفايل بنفس الاسم «${name}».`);
     const tolerance =
       body.tolerance === undefined || body.tolerance === "" ? 0.005 : Number(body.tolerance) || 0;

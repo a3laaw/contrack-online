@@ -1,7 +1,7 @@
 import "server-only";
 
 import { Prisma } from "@prisma/client";
-import { db } from "@/lib/db";
+import { db, currentCompanyId } from "@/lib/db";
 import { normalizeArabic } from "@/lib/api-utils";
 import { B64_PREFIX, analyzeFields, formDocNumber, sortTemplates } from "./forms-core";
 import type { FormFieldRow, FillContext } from "./forms-core";
@@ -396,7 +396,9 @@ export interface RawFillContext {
 }
 
 export async function loadSettingsRow(): Promise<Record<string, unknown>> {
-  const s = await db.setting.findUnique({ where: { id: 1 } });
+  const companyId = await currentCompanyId();
+  if (companyId == null) return {};
+  const s = await db.setting.findFirst({ where: { companyId } });
   return (s as unknown as Record<string, unknown>) ?? {};
 }
 

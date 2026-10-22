@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (voucherRef) {
-    const v = await db.voucher.findUnique({ where: { voucherNumber: voucherRef } });
+    const v = await db.voucher.findFirst({ where: { voucherNumber: voucherRef } });
     if (!v) return jsonError("السند المرتبط غير موجود", 404);
     if (direction === DIR_OUT && amount - Number(v.amount) > 0.001) {
       return jsonError("مبلغ المطالبة يتجاوز قيمة السند المرتبط");

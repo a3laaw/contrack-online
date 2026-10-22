@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { db } from "@/lib/db";
+import { db, currentCompanyId } from "@/lib/db";
 import { adminGuard, audit, authGuard, jsonError, ok } from "@/lib/api-utils";
 
 const TX_TYPES = ["contract", "payment", "subcontract", "customer"];
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   const contractType = String(body.contractType || "");
 
   const exists = await db.workflowStage.findUnique({
-    where: { transactionType_contractType_stageName: { transactionType, contractType, stageName } },
+    where: { companyId_transactionType_contractType_stageName: { companyId: await currentCompanyId() as number, transactionType, contractType, stageName } },
   });
   if (exists) return jsonError("المرحلة موجودة مسبقًا لنفس نوع المعاملة");
 
@@ -99,7 +99,7 @@ export async function PATCH(req: NextRequest) {
   }
   if (stageName !== stage.stageName || transactionType !== stage.transactionType || contractType !== stage.contractType) {
     const exists = await db.workflowStage.findUnique({
-      where: { transactionType_contractType_stageName: { transactionType, contractType, stageName } },
+      where: { companyId_transactionType_contractType_stageName: { companyId: await currentCompanyId() as number, transactionType, contractType, stageName } },
     });
     if (exists && exists.id !== id) return jsonError("المرحلة موجودة مسبقًا لنفس نوع المعاملة");
   }

@@ -10,6 +10,7 @@ import {
   forbidden,
   SessionUser,
 } from "@/lib/auth";
+import { currentCompanyId } from "@/lib/db";
 import { isEffectivelyEnabled } from "@/lib/feature-flags";
 
 export { unauthorized, forbidden } from "@/lib/auth";
@@ -67,12 +68,14 @@ export async function featureOn(featureKey: string): Promise<boolean> {
   return isEffectivelyEnabled(featureKey, stored);
 }
 
-/** ترقيم ذري عبر number_sequences — داخل معاملة إن مُمرَّرت */
+/** ترقيم ذري عبر number_sequences لكل شركة — داخل معاملة إن مُمرَّرت */
 export async function nextNumber(prefix: string, width = 4, tx?: Prisma.TransactionClient): Promise<string> {
   const client = tx || db;
   const name = `voucher:${prefix}`;
+  const companyId = await currentCompanyId();
+  if (companyId == null) throw new Error("سياق الشركة مفقود للترقيم التسلسلي");
   const row = await client.numberSequence.upsert({
-    where: { name },
+    where: { companyId_name: { companyId, name } },
     update: { lastNo: { increment: 1 } },
     create: { name, lastNo: 1 },
   });
@@ -82,8 +85,10 @@ export async function nextNumber(prefix: string, width = 4, tx?: Prisma.Transact
 export async function nextAddendumNumber(contractId: number, tx?: Prisma.TransactionClient): Promise<string> {
   const client = tx || db;
   const name = `addendum:contract:${contractId}`;
+  const companyId = await currentCompanyId();
+  if (companyId == null) throw new Error("سياق الشركة مفقود للترقيم التسلسلي");
   const row = await client.numberSequence.upsert({
-    where: { name },
+    where: { companyId_name: { companyId, name } },
     update: { lastNo: { increment: 1 } },
     create: { name, lastNo: 1 },
   });

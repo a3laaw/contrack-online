@@ -9,9 +9,11 @@ export async function GET(req: NextRequest) {
   if ("response" in guard) return guard.response;
 
   const users = await db.user.findMany({
+    where: { companyId: guard.user.companyId },
     select: {
       id: true,
       username: true,
+      companyId: true,
       role: true,
       fullName: true,
       jobTitle: true,
@@ -55,6 +57,7 @@ export async function POST(req: NextRequest) {
       role,
       fullName: String(body.fullName || ""),
       jobTitle: String(body.jobTitle || ""),
+      companyId: guard.user.companyId, // SaaS: المستخدم الجديد داخل شركة السياق
     },
     select: { id: true, username: true, role: true, fullName: true, jobTitle: true, active: true },
   });

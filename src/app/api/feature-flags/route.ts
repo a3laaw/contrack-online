@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { db } from "@/lib/db";
+import { db, currentCompanyId } from "@/lib/db";
 import { adminGuard, audit, authGuard, jsonError, ok } from "@/lib/api-utils";
 import {
   FEATURE_CATALOG,
@@ -63,7 +63,8 @@ export async function PUT(req: NextRequest) {
     // الرسوم تُقرأ من الإعداد bankFeeEnabled في محرك السندات (receiptBankFee)
     // فحفظ المفتاح هنا يحدّثه فورًا (None = لا تغيير لبقية المفاتيح — قاعدة 15).
     if (key === "bank_fee") {
-      await tx.setting.update({ where: { id: 1 }, data: { bankFeeEnabled: enabled } });
+      const cid = await currentCompanyId();
+      if (cid != null) await tx.setting.update({ where: { companyId: cid }, data: { bankFeeEnabled: enabled } });
     }
     await audit(tx, {
       username: guard.user.username,

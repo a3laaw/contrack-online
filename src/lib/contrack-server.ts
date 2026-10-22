@@ -1,6 +1,6 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
-import { db } from "@/lib/db";
+import { db, currentCompanyId } from "@/lib/db";
 import { nextClaimNumber, normalizeArabic } from "@/lib/api-utils";
 import {
   isSupervision,
@@ -38,20 +38,24 @@ export async function nextNumberByKey(
   tx?: Tx
 ): Promise<string> {
   const client = tx || db;
+  const companyId = await currentCompanyId();
+  if (companyId == null) throw new Error("سياق الشركة مفقود للترقيم التسلسلي");
   const row = await client.numberSequence.upsert({
-    where: { name: key },
+    where: { companyId_name: { companyId, name: key } },
     update: { lastNo: { increment: 1 } },
     create: { name: key, lastNo: 1 },
   });
   return `${prefix}-${String(row.lastNo).padStart(width, "0")}`;
 }
 
-/** إعدادات النظام — ينشئ الصف الافتراضي (id=1) إن لم يوجد */
+/** إعدادات النظام — ينشئ صف شركة السياق إن لم يوجد */
 export async function getSettingsRow(tx?: Tx) {
   const client = tx || db;
-  const found = await client.setting.findUnique({ where: { id: 1 } });
+  const companyId = await currentCompanyId();
+  if (companyId == null) throw new Error("سياق الشركة مفقود للإعدادات");
+  const found = await client.setting.findUnique({ where: { companyId } });
   if (found) return found;
-  return client.setting.create({ data: { id: 1 } });
+  return client.setting.create({ data: { companyId } });
 }
 
 /** تاريخ إنهاء الإشراف الفعلي من مرحلة اسمها يحوي «انهاء اشراف» (تطبيع أ/إ/آ) */

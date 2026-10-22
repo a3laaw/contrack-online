@@ -38,7 +38,7 @@ export async function getContractComponents(contractId: number): Promise<Contrac
   // seed من افتراضيات النوع (لغير الشامل: فارغة كالمكتبي)
   const contract = await db.contract.findUnique({ where: { id: contractId }, select: { contractType: true } });
   if (!contract) return [];
-  const type = await db.contractType.findUnique({ where: { name: contract.contractType }, include: { bundleParents: { include: { componentType: { select: { name: true } } } } } });
+  const type = await db.contractType.findFirst({ where: { name: contract.contractType }, include: { bundleParents: { include: { componentType: { select: { name: true } } } } } });
   if (!type) return [];
   const seeded: ContractComponentDTO[] = type.bundleParents.map((b) => ({
     compKey: b.componentType.name,
@@ -89,7 +89,7 @@ export async function getContractMode(contractId: number): Promise<{ mode: Prici
   if (!contract) return { mode: "lump", isBundleType: false };
   const [itemsCount, typeRow] = await Promise.all([
     db.boqItem.count({ where: { contractId, deleted: false } }),
-    db.contractType.findUnique({
+    db.contractType.findFirst({
       where: { name: contract.contractType },
       select: { pricingMode: true, bundleParents: { select: { id: true } } },
     }),

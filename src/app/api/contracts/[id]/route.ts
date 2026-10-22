@@ -141,7 +141,7 @@ export async function PATCH(req: NextRequest, { params }: P) {
     const ct = String(body.contractType).trim() || "غير محدد";
     data.contractType = ct;
     if (ct !== "غير محدد") {
-      const t = await db.contractType.findUnique({ where: { name: ct }, select: { name: true } });
+      const t = await db.contractType.findFirst({ where: { name: ct }, select: { name: true } });
       if (t) data.contractName = t.name;
     }
   }

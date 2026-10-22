@@ -43,7 +43,7 @@ export async function PATCH(req: NextRequest, { params }: P) {
   if (!PRICING_MODES.some((m) => m.value === effMode)) return jsonError("نمط التسعير غير صحيح");
 
   if (body.name !== undefined && newName !== type.name) {
-    const exists = await db.contractType.findUnique({ where: { name: newName } });
+    const exists = await db.contractType.findFirst({ where: { name: newName } });
     if (exists) return jsonError(`النوع «${newName}» موجود بالفعل.`);
     data.name = newName;
   }

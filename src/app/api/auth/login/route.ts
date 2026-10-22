@@ -17,6 +17,7 @@ import {
 } from "@/lib/login-rate-limit";
 import { audit, jsonError, ok } from "@/lib/api-utils";
 import { ensureSeedData } from "@/lib/seed-defaults";
+import { forCompany } from "@/lib/db";
 import { permsForUser } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
@@ -70,13 +71,6 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // بذر البيانات المرجعية الافتراضية (أساليب دفع/حسابات/مراحل/أنواع) — عديم التكرار
-  try {
-    await ensureSeedData();
-  } catch (e) {
-    console.error("seed error", e);
-  }
-
   const user = await db.user.findUnique({ where: { username } });
   if (!user || !user.active || !verifyPassword(password, user.salt, user.passwordHash)) {
     // رسالة الفشل حرفية من المكتبي ui/login.py مع عدد المحاولات المتبقية
@@ -101,7 +95,14 @@ export async function POST(req: NextRequest) {
 
   clearAttempts(key);
 
-  const token = issueToken(user.id);
+  // بذر البيانات المرجعية الافتراضية لشركة المستخدم (أساليب دفع/حسابات/مراحل/أنواع) — عديم التكرار
+  try {
+    await ensureSeedData(forCompany(user.companyId));
+  } catch (e) {
+    console.error("seed error", e);
+  }
+
+  const token = issueToken(user.id, user.companyId);
   // بند 5 (مواءمة PAGE_PERMS): الصلاحيات تعاد مع الدخول فتُصيَّر الشل مفلترة من أول لحظة
   const perms = await permsForUser(user.id, user.role);
   const res = ok({

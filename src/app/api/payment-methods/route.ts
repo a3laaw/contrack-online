@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const name = String(body.name || "").trim();
   if (!name) return jsonError("اسم طريقة الدفع مطلوب");
-  const exists = await db.paymentMethod.findUnique({ where: { name } });
+  const exists = await db.paymentMethod.findFirst({ where: { name } });
   if (exists) return jsonError("طريقة الدفع موجودة مسبقًا");
   const feeType = String(body.feeType || "amount");
   if (feeType !== "amount" && feeType !== "percent") return jsonError("نوع الرسوم غير صحيح (amount أو percent)");
@@ -66,7 +66,7 @@ export async function PATCH(req: NextRequest) {
     const name = String(body.name).trim();
     if (!name) return jsonError("اسم طريقة الدفع مطلوب");
     if (name !== method.name) {
-      const exists = await db.paymentMethod.findUnique({ where: { name } });
+      const exists = await db.paymentMethod.findFirst({ where: { name } });
       if (exists) return jsonError("طريقة الدفع موجودة مسبقًا");
     }
     data.name = name;

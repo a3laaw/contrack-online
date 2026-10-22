@@ -33,6 +33,7 @@ describe("SETTINGS_TABS — التسع تبويبات بترتيب المكتب�
   test("تسع تبويبات: الإدارية الثمانية + أدوات المطور بترتيب _build", () => {
     expect(SETTINGS_TABS.map((t) => t.value)).toEqual([
       "company",
+      "companies",
       "appearance",
       "security",
       "contract-types",
@@ -47,6 +48,7 @@ describe("SETTINGS_TABS — التسع تبويبات بترتيب المكتب�
   test("التسميات حرفية حرفًا حرفًا (بالرمز والمسافتين من المصدر المكتبي)", () => {
     const byValue = new Map(SETTINGS_TABS.map((t) => [t.value, t.label]));
     expect(byValue.get("company")).toBe("⌂  بيانات الشركة");
+    expect(byValue.get("companies")).toBe("🏢  الشركات"); // Task 85 — SaaS
     expect(byValue.get("appearance")).toBe("▤  الطباعة والعرض");
     expect(byValue.get("security")).toBe("◆  الأمان والمستخدمون");
     expect(byValue.get("contract-types")).toBe("☰  أنواع العقود");
@@ -60,7 +62,7 @@ describe("SETTINGS_TABS — التسع تبويبات بترتيب المكتب�
   test("بوابات الأدوار: الإدارية adminOnly وأدوات المطور developerOnly", () => {
     const adminOnly = SETTINGS_TABS.filter((t) => t.adminOnly).map((t) => t.value);
     // المكتبي يحصر هذه الست خلف is_admin (settings.py:508/516/521)
-    expect(adminOnly).toEqual(["company", "contract-types", "expense-accounts", "workflow", "visits", "backup"]);
+    expect(adminOnly).toEqual(["company", "companies", "contract-types", "expense-accounts", "workflow", "visits", "backup"]);
     const devOnly = SETTINGS_TABS.filter((t) => t.developerOnly).map((t) => t.value);
     expect(devOnly).toEqual(["developer"]);
   });
@@ -71,6 +73,7 @@ describe("visibleSettingsTabs — قواعد الظهور الثلاثة كال�
     const tabs = visibleSettingsTabs(true, false);
     expect(tabs.map((t) => t.value)).toEqual([
       "company",
+      "companies",
       "appearance",
       "security",
       "contract-types",
@@ -84,7 +87,7 @@ describe("visibleSettingsTabs — قواعد الظهور الثلاثة كال�
   test("المطور: كل التسعة — is_admin يشمل المطور (auth_service.py:168)", () => {
     const tabs = visibleSettingsTabs(true, true);
     expect(tabs.map((t) => t.value)).toEqual(SETTINGS_TABS.map((t) => t.value));
-    expect(tabs.length).toBe(9);
+    expect(tabs.length).toBe(10); // Task 85: + تاب الشركات
   });
 
   test("السكرتير: الطباعة والعرض + كلمة المرور فقط بترتيب المكتبي (settings.py:510-515)", () => {

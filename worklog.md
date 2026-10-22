@@ -2374,3 +2374,25 @@ Work Log:
 
 Stage Summary:
 - كل ما جرى تنفيذه في 82/83/84 أصبح على GitHub (90a6acc رأس الفرع) — Vercel سيبدأ نشرًا تلقائيًا (~دقيقة) على contrack-online.vercel.app.
+
+---
+Task ID: 85 (SaaS — فصل بيانات الشركات + أساس مستورد الملفات)
+Agent: Z.ai Code (منسق)
+Task: نظام فصل بيانات كل شركة عن الأخرى (SaaS) — المرحلة 1 من الخطوتين المتبقيتين، ثم أساس رفع ملف SQLite/نصي لاحقًا
+
+Work Log:
+- **دراسة البنية**: 64 نموذجًا / 175 مسارًا؛ 173/175 عبر حارس موحّد (authGuard)؛ upserts 7؛ raw 2؛ nested writes ≈ صفر — فعُلّم الجداول التشغيلية (57) مقابل العامة (8: User/UserPermission/AppNotification/FeatureFlag/AuditLog/PurgeAudit/DismissedAlert/Company).
+- **قيد بيئة حرج**: Bun 1.3.14 ينهار segfault مع AsyncLocalStorage.enterWith → التصميم بلا ALS أصلًا: companyId داخل توكن الجلسة (userId.companyId.timestamp.hmac — جلسة-token.ts جديدة) + قراءته وقت الاستعلام عبر cookies()/headers() من next/headers (مُتحقق: تعمل تحت Bun).
+- **المخطط (scripts/tenant-schema.ts ثم يدوي)**: model Company + company_id على 57 جدولًا (@default(1) — باكفيل تلقائي) + قيود فريدة مركّبة [companyId, code/name] للعملاء/العقود/السندات/الأسعار/المطالبات/الباطن/المجموعات/الفواتير/الأنواع/طرق الدفع/الموظفين/بوابات/فئات النماذج + NumberSequence PK مركّب + Setting PK=companyId + 4 قيود إضافية (WorkflowStage/GatewayOp/BankLine/MatchAlias) — db:push على Supabase بعد إنشاء صف الشركة 1 «الشركة الرئيسية» (FK تحقق) — البيانات سليمة 163/243/290/2572 قبل/بعد.
+- **النواة (db.ts)**: Proxy فوق PrismaClient يحقن companyId: قراءة (mergeWhere AND) · findUnique→findFirst بتوسيع المفاتيح المركّبة · create/createMany حقن data · update/delete تحقق ملكية مسبقًا بالـ id أو حقن المفتاح المركّب · upsert حقن create · $transaction يلفّ tx بنفس الحجب · forCompany(id) بلا حالة عامة (آمن للتزامن) · currentCompanyId() تقرأ Bearer ثم الكوكي (مطابقة أولوية الجلسة — فجوة اكتُشفت بالاختبار وأُصلحت).
+- **الجلسة**: auth.ts SessionUser += companyId/companyName؛ تحقق الشركة فعّالة؛ مستخدم عادي يُرفض إن خالف التوكن شركته؛ الأدوار الفائقة يسمح لها التبديل. login: issueToken(user.id, user.companyId) + بذر لشركة المستخدم عبر ensureSeedData(forCompany(...)).
+- **ترقيع المواضع**: nextNumber×3 + ui-prefs + getSettingsRow + settings/feature-flags/voucher-describe/forms-server (الصف لكل شركة) + 12 موقعًا findUnique{name}→findFirst + مفاتيح مركّبة في gateway-server/aliases/workflow-stages + otherCompanyOpening صار لكل شركة (بلا id:1) + users API محصور بشركة السياق مع منع العبور + seed.ts للشركة 1.
+- **الواجهة**: تاب «🏢 الشركات» (admin) — قائمة/إنشاء/تعديل/تفعيل/دخول + CompanySwitcher في الشريط العلوي (يظهر مع >1 شركة) + switch يعيد إصدار التوكن (كوكي + localStorage متزامنان) + تحديث اختبار الكتالوج (10 تابات).
+- **الفحوص**: tsc 0 · lint 0 · bun test 444/444.
+- **التحقق المتصفحي (لقطات task85-*.png)**: الشركة 1 كاملة 163/243/256/290 · إنشاء «بيانات قديمة (تجريبي)» من التاب · المبدّل ظهر بالشريط · التبديل إليها ⇒ لوحة فارغة 0/0/0/0 («لا تنبيهات») · API: عميل في شركة 2 بأول كود C-0001 (ترقيم مستقل) وغير مرئي في شركة 1 (163 بلا زيادة) ثم حُذف · العودة للشركة 1 بسلامة الأرقام · dev.log بلا أخطاء (بعد إعادة تشغيل الخادم لالتقاط Prisma Client المولّد).
+
+Stage Summary:
+- فصل البيانات فعّال ومتحقق منه على كل المستويات: جلسة موقّعة HMAC لا تُزوَّر، حجب مركزي في غلاف Prisma دون تعديل 175 مسارًا، ترقيم وعدادات مستقلة لكل شركة، تبديل آمن للأدوار الفائقة فقط.
+- الشركة 1 = بياناتكم الحية («الشركة الرئيسية») — قابلة لإعادة التسمية من تاب الشركات.
+- الجلسات القديمة أُبطلت (توكن جديد بـ4 أجزاء) — إعادة دخول واحدة لكل مستخدم.
+- الخطوة 2 القادمة: صفحة رفع الملفات (SQLite/نص جدولي) فوق مستورد Excel الموجود — ستستهدف شركة معزولة مثل «بيانات قديمة (تجريبي)» الجاهزة الآن.

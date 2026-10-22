@@ -20,6 +20,9 @@ export async function GET(req: NextRequest, { params }: P) {
     select: { id: true, username: true, role: true, fullName: true },
   });
   if (!user) return jsonError("المستخدم غير موجود", 404);
+  // SaaS: صلاحيات داخل الشركة فقط
+  const owned = await db.user.findUnique({ where: { id }, select: { companyId: true } });
+  if (!owned || owned.companyId !== guard.user.companyId) return jsonError("المستخدم خارج نطاق شركتك", 403);
 
   const rows = await db.userPermission.findMany({ where: { userId: id } });
   const stateMap = new Map(rows.map((r) => [r.permKey, r.allowed]));

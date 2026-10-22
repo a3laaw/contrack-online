@@ -5,7 +5,8 @@ import { getSettingsRow, numOr } from "@/lib/contrack-server";
 
 function serialize(s: Awaited<ReturnType<typeof getSettingsRow>>) {
   return {
-    id: s.id,
+    id: s.companyId, // Task 85: PK صار company_id — أُبقي المفتاح لثبات شكل الاستجابة
+    companyId: s.companyId,
     companyName: s.companyName,
     companyAddress: s.companyAddress,
     companyPhone: s.companyPhone,
@@ -85,12 +86,12 @@ export async function PUT(req: NextRequest) {
   }
 
   const s = await getSettingsRow();
-  const updated = await db.setting.update({ where: { id: s.id }, data });
+  const updated = await db.setting.update({ where: { companyId: s.companyId }, data });
   await audit(db, {
     username: guard.user.username,
     action: "تعديل",
     entityType: "settings",
-    entityId: s.id,
+    entityId: s.companyId,
     entityName: "الإعدادات",
     reason: Object.keys(data).join("، "),
   });

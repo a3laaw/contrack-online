@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
 
   const contractType = req.nextUrl.searchParams.get('contractType')?.trim() ?? ''
   if (!contractType) return jsonError('نوع العقد مطلوب', 400)
-  const type = await db.contractType.findUnique({ where: { name: contractType } })
+  const type = await db.contractType.findFirst({ where: { name: contractType } })
   if (!type) return jsonError('نوع العقد غير موجود', 404)
   return NextResponse.json({ contractType, templates: await listTemplates(type.id) })
 }
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
   const contractType = typeof body.contractType === 'string' ? body.contractType.trim() : ''
   if (!contractType) return jsonError('نوع العقد مطلوب', 400)
 
-  const type = await db.contractType.findUnique({ where: { name: contractType } })
+  const type = await db.contractType.findFirst({ where: { name: contractType } })
   if (!type) return jsonError('نوع العقد غير موجود', 404)
 
   try {

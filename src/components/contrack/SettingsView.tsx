@@ -26,6 +26,7 @@ import type { PaymentMethodsResponse, SettingsResponse, User } from "./contrack-
 import { errMessage } from "./contrack-types";
 import { ContractTypesManager } from "./ContractTypesManager";
 import { CompanyTab } from "./settings/company-tab";
+import { CompaniesTab } from "./settings/companies-tab";
 import { AppearanceTab } from "./settings/appearance-tab";
 import { SecurityTab } from "./settings/security-tab";
 import { ExpenseAccountsTab } from "./settings/expense-accounts-tab";
@@ -115,6 +116,13 @@ export function SettingsView({ user, onAuthError, initialSection }: SettingsView
             </TabsTrigger>
           ))}
         </TabsList>
+
+        {/* ===== 0) الشركات — SaaS (مدير/مطور) ===== */}
+        {manager && (
+          <TabsContent value="companies" className="space-y-4">
+            <CompaniesTab />
+          </TabsContent>
+        )}
 
         {/* ===== 1) بيانات الشركة (مدير/مطور — is_admin) ===== */}
         {manager && (

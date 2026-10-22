@@ -10,8 +10,25 @@ datasource db {
 
 // ==================== الحوكمة ====================
 
+// ==================== SaaS — الشركات (Task 85) ====================
+// فصل بيانات الشركات: الجداول التشغيلية تحمل company_id (الافتراضي 1 = الشركة الرئيسية).
+// الفصل التطبيقي عبر غلاف Prisma في src/lib/db.ts — بلا علاقات FK على الجداول التشغيلية عمدًا.
+model Company {
+  id        Int      @id @default(autoincrement())
+  name      String
+  shortName String   @default("") @map("short_name")
+  isActive  Boolean  @default(true) @map("is_active")
+  notes     String   @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+  users     User[]
+
+  @@map("companies")
+}
+
 model User {
   id           Int              @id @default(autoincrement())
+  companyId    Int              @default(1) @map("company_id")
+  company      Company          @relation(fields: [companyId], references: [id])
   username     String           @unique
   passwordHash String           @map("password_hash")
   salt         String
@@ -32,6 +49,7 @@ model User {
 
 // G2 — المشاركون في المعاملة (المكتبي transaction_visibility 574–580): المشاركة = الرؤية
 model TransactionParticipant {
+  companyId Int @default(1) @map("company_id")
   id              Int    @id @default(autoincrement())
   transactionType String @map("transaction_type") // contract | payment | subcontract | customer
   transactionId   Int    @map("transaction_id")
@@ -60,6 +78,7 @@ model AppNotification {
 
 // G4 — سجل نقل المراحل بالمنفِّذ والملاحظة (المكتبي transaction_stage_log)
 model StageMove {
+  companyId Int @default(1) @map("company_id")
   id              Int      @id @default(autoincrement())
   transactionType String   @map("transaction_type") // contract | payment | subcontract | customer
   transactionId   Int      @map("transaction_id")
@@ -94,9 +113,11 @@ model FeatureFlag {
 }
 
 model NumberSequence {
-  name   String @id
+  companyId Int @default(1) @map("company_id")
+  name   String
   lastNo Int    @default(0) @map("last_no")
 
+  @@id([companyId, name])
   @@map("number_sequences")
 }
 
@@ -131,8 +152,9 @@ model PurgeAudit {
 // ==================== العملاء والعقود ====================
 
 model Customer {
+  companyId Int @default(1) @map("company_id")
   id             Int             @id @default(autoincrement())
-  customerCode   String          @unique @map("customer_code")
+  customerCode String @map("customer_code")
   name           String
   phone          String          @default("")
   email          String          @default("")
@@ -153,12 +175,14 @@ model Customer {
   projects       Project[]
   quotations     Quotation[]
 
+  @@unique([companyId, customerCode])
   @@map("customers")
 }
 
 model Contract {
+  companyId Int @default(1) @map("company_id")
   id                Int                  @id @default(autoincrement())
-  contractNumber    String               @unique @map("contract_number")
+  contractNumber String @map("contract_number")
   contractName      String               @default("") @map("contract_name")
   customerId        Int                  @map("customer_id")
   customer          Customer             @relation(fields: [customerId], references: [id])
@@ -206,10 +230,12 @@ model Contract {
   txMessages        TxMessage[]
 
   @@index([customerId, status])
+  @@unique([companyId, contractNumber])
   @@map("contracts")
 }
 
 model ContractStage {
+  companyId Int @default(1) @map("company_id")
   id                Int                  @id @default(autoincrement())
   contractId        Int                  @map("contract_id")
   contract          Contract             @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -241,6 +267,7 @@ model ContractStage {
 }
 
 model BoqItem {
+  companyId Int @default(1) @map("company_id")
   id                Int               @id @default(autoincrement())
   contractId        Int               @map("contract_id")
   contract          Contract          @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -263,6 +290,7 @@ model BoqItem {
 }
 
 model PaymentPlanItem {
+  companyId Int @default(1) @map("company_id")
   id                Int                @id @default(autoincrement())
   contractId        Int                @map("contract_id")
   contract          Contract           @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -285,8 +313,9 @@ model PaymentPlanItem {
 }
 
 model Voucher {
+  companyId Int @default(1) @map("company_id")
   id                     Int                  @id @default(autoincrement())
-  voucherNumber          String               @unique @map("voucher_number")
+  voucherNumber String @map("voucher_number")
   vtype                  String // payment|receipt|transfer|custody_return|salary_deduction
   vdate                  String
   party                  String               @default("")
@@ -338,6 +367,7 @@ model Voucher {
   @@index([partyType, partyId, vtype, cancelled])
   @@index([custodyAccountId, expenseGroupRef])
   @@index([advanceEmployeeId])
+  @@unique([companyId, voucherNumber])
   @@map("vouchers")
 }
 
@@ -351,6 +381,7 @@ model Voucher {
  * كيان مستقل تابع للعميل كما في المخطط المرجعي حرفيًا.
  */
 model Project {
+  companyId Int @default(1) @map("company_id")
   id          Int       @id @default(autoincrement())
   customerId  Int?      @map("customer_id")
   customer    Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -385,12 +416,13 @@ model Project {
  * المرجعي فخارج نطاق الويب). لا نموذج Word يُبنى الآن (بند 9 لاحقًا).
  */
 model Quotation {
+  companyId Int @default(1) @map("company_id")
   id              Int             @id @default(autoincrement())
   customerId      Int             @map("customer_id")
   customer        Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
   projectId       Int?            @map("project_id")
   project         Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  quotationNumber String          @unique @map("quotation_number")
+  quotationNumber String @map("quotation_number")
   description     String          @default("")
   totalAmount     Decimal         @default(0) @db.Decimal(18, 3) @map("total_amount")
   status          String          @default("جديد")
@@ -404,10 +436,12 @@ model Quotation {
 
   @@index([customerId])
   @@index([status])
+  @@unique([companyId, quotationNumber])
   @@map("quotations")
 }
 
 model QuotationItem {
+  companyId Int @default(1) @map("company_id")
   id          Int       @id @default(autoincrement())
   quotationId Int       @map("quotation_id")
   quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
@@ -423,6 +457,7 @@ model QuotationItem {
 }
 
 model VoucherPaymentLink {
+  companyId Int @default(1) @map("company_id")
   id        Int      @id @default(autoincrement())
   voucherId Int      @map("voucher_id")
   voucher   Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
@@ -437,6 +472,7 @@ model VoucherPaymentLink {
 }
 
 model Addendum {
+  companyId Int @default(1) @map("company_id")
   id             Int            @id @default(autoincrement())
   addendumNumber String         @map("addendum_number")
   contractId     Int            @map("contract_id")
@@ -465,6 +501,7 @@ model Addendum {
 }
 
 model AddendumItem {
+  companyId Int @default(1) @map("company_id")
   id               Int          @id @default(autoincrement())
   addendumId       Int          @map("addendum_id")
   addendum         Addendum     @relation(fields: [addendumId], references: [id], onDelete: Cascade)
@@ -491,8 +528,9 @@ model AddendumItem {
 }
 
 model Claim {
+  companyId Int @default(1) @map("company_id")
   id             Int                 @id @default(autoincrement())
-  claimNumber    String              @unique @map("claim_number")
+  claimNumber String @map("claim_number")
   direction      String // out|in
   contractId     Int                 @map("contract_id")
   contract       Contract            @relation(fields: [contractId], references: [id])
@@ -513,12 +551,14 @@ model Claim {
 
   @@index([contractId])
   @@index([direction, status])
+  @@unique([companyId, claimNumber])
   @@map("claims")
 }
 
 // ==================== الباطن ====================
 
 model Subcontractor {
+  companyId Int @default(1) @map("company_id")
   id               Int           @id @default(autoincrement())
   subCode          String        @unique @map("sub_code")
   name             String
@@ -534,6 +574,7 @@ model Subcontractor {
 }
 
 model SubContract {
+  companyId Int @default(1) @map("company_id")
   id                Int                  @id @default(autoincrement())
   subcontractorId   Int                  @map("subcontractor_id")
   subcontractor     Subcontractor        @relation(fields: [subcontractorId], references: [id])
@@ -560,6 +601,7 @@ model SubContract {
 }
 
 model SubContractItem {
+  companyId Int @default(1) @map("company_id")
   id            Int         @id @default(autoincrement())
   subContractId Int         @map("sub_contract_id")
   subContract   SubContract @relation(fields: [subContractId], references: [id], onDelete: Cascade)
@@ -576,6 +618,7 @@ model SubContractItem {
 }
 
 model SubPaymentPlanItem {
+  companyId Int @default(1) @map("company_id")
   id            Int                @id @default(autoincrement())
   subContractId Int                @map("sub_contract_id")
   subContract   SubContract        @relation(fields: [subContractId], references: [id], onDelete: Cascade)
@@ -596,6 +639,7 @@ model SubPaymentPlanItem {
 }
 
 model SubPaymentSource {
+  companyId Int @default(1) @map("company_id")
   id         Int                @id @default(autoincrement())
   subLineId  Int                @map("sub_line_id")
   subLine    SubPaymentPlanItem @relation(fields: [subLineId], references: [id], onDelete: Cascade)
@@ -609,8 +653,9 @@ model SubPaymentSource {
 // ==================== أنواع العقود وقوالبها ====================
 
 model ContractType {
+  companyId Int @default(1) @map("company_id")
   id               Int                   @id @default(autoincrement())
-  name             String                @unique
+  name String 
   defaultAmount    Decimal               @default(0) @map("default_amount")
   notes            String                @default("")
   active           Boolean               @default(true)
@@ -623,10 +668,12 @@ model ContractType {
   bundleParents    TypeBundleComponent[] @relation("bundleParent")
   bundleComponents TypeBundleComponent[] @relation("bundleComponent")
 
+  @@unique([companyId, name])
   @@map("contract_types")
 }
 
 model TypePaymentTemplate {
+  companyId Int @default(1) @map("company_id")
   id             Int                @id @default(autoincrement())
   contractTypeId Int                @map("contract_type_id")
   contractType   ContractType       @relation(fields: [contractTypeId], references: [id], onDelete: Cascade)
@@ -645,6 +692,7 @@ model TypePaymentTemplate {
 }
 
 model TypePaymentStage {
+  companyId Int @default(1) @map("company_id")
   id        Int                 @id @default(autoincrement())
   paymentId Int                 @map("payment_id")
   payment   TypePaymentTemplate @relation(fields: [paymentId], references: [id], onDelete: Cascade)
@@ -656,6 +704,7 @@ model TypePaymentStage {
 }
 
 model TypeBundleComponent {
+  companyId Int @default(1) @map("company_id")
   id              Int          @id @default(autoincrement())
   parentTypeId    Int          @map("parent_type_id")
   parentType      ContractType @relation("bundleParent", fields: [parentTypeId], references: [id], onDelete: Cascade)
@@ -669,6 +718,7 @@ model TypeBundleComponent {
 
 // G6 — لقطة مكوّنات العقد الشامل لكل عقد (المكتبي contract_components 1795–1808)
 model ContractComponent {
+  companyId Int @default(1) @map("company_id")
   id         Int      @id @default(autoincrement())
   contractId Int      @map("contract_id")
   contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -686,6 +736,7 @@ model ContractComponent {
 
 // G7 — نسخة احتياطية قبل الإلغاء (المكتبي entity_backups 290–326) — لا حذف أبدًا
 model EntityBackup {
+  companyId Int @default(1) @map("company_id")
   id         Int      @id @default(autoincrement())
   entityType String   @map("entity_type") // contract | sub_contract | claim | custody
   entityId   Int      @map("entity_id")
@@ -698,6 +749,7 @@ model EntityBackup {
 }
 
 model WorkflowStage {
+  companyId Int @default(1) @map("company_id")
   id                      Int                   @id @default(autoincrement())
   transactionType         String                @map("transaction_type") // contract|payment|subcontract|customer
   stageName               String                @map("stage_name")
@@ -718,11 +770,12 @@ model WorkflowStage {
   scopes                  ContractScope[]
   paymentTriggerTemplates TypePaymentTemplate[] @relation("paymentTrigger")
 
-  @@unique([transactionType, contractType, stageName])
+  @@unique([companyId, transactionType, contractType, stageName])
   @@map("workflow_stages")
 }
 
 model ContractScope {
+  companyId Int @default(1) @map("company_id")
   contractId      Int           @map("contract_id")
   contract        Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
   templateStageId Int           @map("template_stage_id")
@@ -735,7 +788,7 @@ model ContractScope {
 // ==================== الإعدادات والمراجع ====================
 
 model Setting {
-  id                    Int      @id @default(1)
+  companyId             Int      @id @default(1) @map("company_id")
   companyName           String   @default("") @map("company_name")
   companyAddress        String   @default("") @map("company_address")
   companyPhone          String   @default("") @map("company_phone")
@@ -768,16 +821,19 @@ model Setting {
 }
 
 model PaymentMethod {
+  companyId Int @default(1) @map("company_id")
   id       Int     @id @default(autoincrement())
-  name     String  @unique
+  name String 
   feeType  String  @default("amount") @map("fee_type") // amount|percent
   feeValue Decimal @default(0) @map("fee_value")
   isActive Boolean @default(true) @map("is_active")
 
+  @@unique([companyId, name])
   @@map("payment_methods")
 }
 
 model ExpenseAccount {
+  companyId Int @default(1) @map("company_id")
   id                     Int              @id @default(autoincrement())
   parentId               Int?             @map("parent_id")
   parent                 ExpenseAccount?  @relation("tree", fields: [parentId], references: [id])
@@ -796,8 +852,9 @@ model ExpenseAccount {
 }
 
 model ContractGroup {
+  companyId Int @default(1) @map("company_id")
   id          Int                 @id @default(autoincrement())
-  groupNumber String              @unique @map("group_number")
+  groupNumber String @map("group_number")
   customerId  Int                 @map("customer_id")
   customer    Customer            @relation(fields: [customerId], references: [id])
   groupName   String              @map("group_name")
@@ -807,10 +864,12 @@ model ContractGroup {
   items       ContractGroupItem[]
   createdAt   DateTime            @default(now())
 
+  @@unique([companyId, groupNumber])
   @@map("contract_groups")
 }
 
 model ContractGroupItem {
+  companyId Int @default(1) @map("company_id")
   id         Int           @id @default(autoincrement())
   groupId    Int           @map("group_id")
   group      ContractGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -824,8 +883,9 @@ model ContractGroupItem {
 // ==================== الفواتير والعهد والموظفون ====================
 
 model Invoice {
+  companyId Int @default(1) @map("company_id")
   id            Int      @id @default(autoincrement())
-  invoiceNumber String   @unique @map("invoice_number")
+  invoiceNumber String @map("invoice_number")
   customerId    Int      @map("customer_id")
   customer      Customer @relation(fields: [customerId], references: [id])
   contractId    Int      @map("contract_id")
@@ -836,23 +896,27 @@ model Invoice {
   notes         String   @default("")
   createdAt     DateTime @default(now())
 
+  @@unique([companyId, invoiceNumber])
   @@map("invoices")
 }
 
 model Employee {
+  companyId Int @default(1) @map("company_id")
   id       Int       @id @default(autoincrement())
-  name     String    @unique
+  name String 
   phone    String    @default("")
   notes    String    @default("")
   active   Boolean   @default(true)
   vouchers Voucher[]
 
+  @@unique([companyId, name])
   @@map("employees")
 }
 
 // ==================== الإنتاجية ====================
 
 model Task {
+  companyId Int @default(1) @map("company_id")
   id             Int       @id @default(autoincrement())
   title          String
   details        String    @default("")
@@ -876,6 +940,7 @@ model Task {
 }
 
 model VisitStaff {
+  companyId Int @default(1) @map("company_id")
   id     Int     @id @default(autoincrement())
   name   String
   phone  String  @default("")
@@ -887,6 +952,7 @@ model VisitStaff {
 }
 
 model Visit {
+  companyId Int @default(1) @map("company_id")
   id         Int        @id @default(autoincrement())
   visitDate  String     @map("visit_date") // YYYY-MM-DD
   hourSlot   String     @map("hour_slot") // "08:00"
@@ -905,6 +971,7 @@ model Visit {
 }
 
 model Comment {
+  companyId Int @default(1) @map("company_id")
   id           Int       @id @default(autoincrement())
   customerId   Int       @map("customer_id")
   customer     Customer  @relation(fields: [customerId], references: [id])
@@ -932,6 +999,7 @@ model Comment {
 }
 
 model ContractAttachment {
+  companyId Int @default(1) @map("company_id")
   id         Int      @id @default(autoincrement())
   contractId Int      @map("contract_id")
   contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -945,8 +1013,9 @@ model ContractAttachment {
 // ==================== البوابة المالية ====================
 
 model GatewayProfile {
+  companyId Int @default(1) @map("company_id")
   id          Int     @id @default(autoincrement())
-  name        String  @unique
+  name String 
   bankAccount String  @default("") @map("bank_account")
   methods     String  @default("KNET")
   lagDays     Int     @default(1) @map("lag_days")
@@ -955,10 +1024,12 @@ model GatewayProfile {
   lateDays    Int     @default(3) @map("late_days")
   isActive    Boolean @default(true) @map("is_active")
 
+  @@unique([companyId, name])
   @@map("gateway_profiles")
 }
 
 model GatewayOp {
+  companyId Int @default(1) @map("company_id")
   id               Int                   @id @default(autoincrement())
   gateway          String                @default("")
   opDate           String                @default("") @map("op_date")
@@ -982,12 +1053,13 @@ model GatewayOp {
   feeLinks         GatewayFeeVoucher[]
   createdAt        DateTime              @default(now())
 
-  @@unique([gateway, opDate, phone, amount, ref])
+  @@unique([companyId, gateway, opDate, phone, amount, ref])
   @@index([gateway, distributed, status])
   @@map("gateway_ops")
 }
 
 model BankLine {
+  companyId Int @default(1) @map("company_id")
   id          Int      @id @default(autoincrement())
   bankAccount String   @default("") @map("bank_account")
   cdate       String
@@ -996,11 +1068,12 @@ model BankLine {
   batch       String   @default("")
   createdAt   DateTime @default(now())
 
-  @@unique([bankAccount, cdate, amount, descr])
+  @@unique([companyId, bankAccount, cdate, amount, descr])
   @@map("bank_lines")
 }
 
 model OtherCompanyTransfer {
+  companyId Int @default(1) @map("company_id")
   id            Int               @id @default(autoincrement())
   tdate         String
   amount        Decimal           @default(0)
@@ -1017,6 +1090,7 @@ model OtherCompanyTransfer {
 }
 
 model TransferOpAlloc {
+  companyId Int @default(1) @map("company_id")
   id         Int                   @id @default(autoincrement())
   transferId Int                   @default(0) @map("transfer_id")
   transfer   OtherCompanyTransfer? @relation(fields: [transferId], references: [id])
@@ -1030,6 +1104,7 @@ model TransferOpAlloc {
 }
 
 model OtherCompanyOpening {
+  companyId Int @default(1) @map("company_id")
   id        Int      @id @default(1)
   amount    Decimal  @default(0)
   note      String   @default("")
@@ -1039,6 +1114,7 @@ model OtherCompanyOpening {
 }
 
 model GatewayFeeVoucher {
+  companyId Int @default(1) @map("company_id")
   opId       Int       @id @map("op_id")
   op         GatewayOp @relation(fields: [opId], references: [id])
   voucherId  Int       @map("voucher_id")
@@ -1050,19 +1126,21 @@ model GatewayFeeVoucher {
 }
 
 model MatchAlias {
+  companyId Int @default(1) @map("company_id")
   id         Int      @id @default(autoincrement())
   filePhone  String   @default("") @map("file_phone")
   fileName   String   @default("") @map("file_name")
   customerId Int      @default(0) @map("customer_id")
   createdAt  DateTime @default(now())
 
-  @@unique([filePhone, fileName])
+  @@unique([companyId, filePhone, fileName])
   @@map("match_aliases")
 }
 
 // ==================== القيود والأحداث والقوالب ====================
 
 model JournalEntry {
+  companyId Int @default(1) @map("company_id")
   id            Int      @id @default(autoincrement())
   entryDate     String   @map("entry_date")
   description   String   @default("")
@@ -1083,6 +1161,7 @@ model JournalEntry {
 }
 
 model ContractEvent {
+  companyId Int @default(1) @map("company_id")
   id          Int      @id @default(autoincrement())
   contractId  Int      @map("contract_id")
   contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -1096,15 +1175,18 @@ model ContractEvent {
 }
 
 model FormCategory {
+  companyId Int @default(1) @map("company_id")
   id        Int            @id @default(autoincrement())
-  name      String         @unique
+  name String 
   sort      Int            @default(0)
   templates FormTemplate[]
 
+  @@unique([companyId, name])
   @@map("form_categories")
 }
 
 model FormTemplate {
+  companyId Int @default(1) @map("company_id")
   id            Int            @id @default(autoincrement())
   baseName      String         @map("base_name")
   version       Int            @default(1)
@@ -1129,6 +1211,7 @@ model FormTemplate {
 }
 
 model FormField {
+  companyId Int @default(1) @map("company_id")
   id               Int          @id @default(autoincrement())
   templateId       Int          @map("template_id")
   template         FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
@@ -1158,6 +1241,7 @@ model FormField {
 }
 
 model FormDocument {
+  companyId Int @default(1) @map("company_id")
   id              Int          @id @default(autoincrement())
   templateId      Int          @map("template_id")
   template        FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
@@ -1181,6 +1265,7 @@ model FormDocument {
 
 /** ملاحظة على معاملة (سبب التأخير / واقفة فين) — StageNoteDialog المكتبية V5.9 */
 model StageNote {
+  companyId Int @default(1) @map("company_id")
   id         Int       @id @default(autoincrement())
   txType     String    @default("contract")
   txId       Int
@@ -1211,6 +1296,7 @@ model DismissedAlert {
 
 /** رسالة محادثة المعاملة — شات FollowupPanel المكتبي */
 model TxMessage {
+  companyId Int @default(1) @map("company_id")
   id         Int      @id @default(autoincrement())
   contractId Int      @map("contract_id")
   contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)

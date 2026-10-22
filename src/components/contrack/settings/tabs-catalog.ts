@@ -27,6 +27,7 @@ export interface SettingsTabDef {
 
 // ===== التسميات الحرفية من settings.py:509-532 =====
 export const TAB_COMPANY = "⌂  بيانات الشركة";
+export const TAB_COMPANIES = "🏢  الشركات";
 export const TAB_APPEARANCE = "▤  الطباعة والعرض";
 export const TAB_SECURITY_ADMIN = "◆  الأمان والمستخدمون";
 export const TAB_SECURITY_SECRETARY = "◆  كلمة المرور";
@@ -40,6 +41,7 @@ export const TAB_DEVELOPER = "⚙  أدوات المطور";
 /** كل التبويبات التسعة بترتيب المكتبي _build (الإدارية الثمانية + أدوات المطور) */
 export const SETTINGS_TABS: SettingsTabDef[] = [
   { value: "company", label: TAB_COMPANY, adminOnly: true, developerOnly: false },
+  { value: "companies", label: TAB_COMPANIES, adminOnly: true, developerOnly: false },
   { value: "appearance", label: TAB_APPEARANCE, adminOnly: false, developerOnly: false },
   { value: "security", label: TAB_SECURITY_ADMIN, adminOnly: false, developerOnly: false },
   { value: "contract-types", label: TAB_CONTRACT_TYPES, adminOnly: true, developerOnly: false },

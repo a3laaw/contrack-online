@@ -1,17 +1,19 @@
 import "server-only";
 import { db } from "@/lib/db";
+import type { PrismaClient } from "@prisma/client";
 
 /**
  * بذر البيانات المرجعية الافتراضية — مطابق لقيم المصدر (database.py:1532-1556
  * وأنواع العقود وشجرة الحسابات ومراحل التنفيذ من types_setup_service).
  * عديم الأثر التكراري: يبذر فقط الجداول الفارغة.
  */
-export async function ensureSeedData(): Promise<{ seeded: string[] }> {
+export async function ensureSeedData(client?: PrismaClient): Promise<{ seeded: string[] }> {
+  const d = client || db;
   const seeded: string[] = [];
 
   // ===== أساليب الدفع (كالمصدر حرفيًا) =====
-  if ((await db.paymentMethod.count()) === 0) {
-    await db.paymentMethod.createMany({
+  if ((await d.paymentMethod.count()) === 0) {
+    await d.paymentMethod.createMany({
       data: [
         { name: "نقدًا", feeType: "amount", feeValue: 0, isActive: true },
         { name: "تحويل بنكي", feeType: "amount", feeValue: 0.15, isActive: true },
@@ -24,7 +26,7 @@ export async function ensureSeedData(): Promise<{ seeded: string[] }> {
   }
 
   // ===== شجرة حسابات المصروفات والعُهد =====
-  if ((await db.expenseAccount.count()) === 0) {
+  if ((await d.expenseAccount.count()) === 0) {
     const roots = [
       { name: "مصروفات عامة", kind: "expense", posting: false, children: ["إيجارات", "كهرباء وماء", "اتصالات وإنترنت", "صيانة", "وقود", "قرطاسية ومطبوعات"] },
       { name: "عمولات بنكية", kind: "expense", posting: true, children: [] as string[] },
@@ -33,7 +35,7 @@ export async function ensureSeedData(): Promise<{ seeded: string[] }> {
     ];
     let order = 0;
     for (const r of roots) {
-      const parent = await db.expenseAccount.create({
+      const parent = await d.expenseAccount.create({
         data: {
           name: r.name,
           fullPath: r.name,
@@ -44,7 +46,7 @@ export async function ensureSeedData(): Promise<{ seeded: string[] }> {
       });
       let childOrder = 0;
       for (const c of r.children) {
-        const child = await db.expenseAccount.create({
+        const child = await d.expenseAccount.create({
           data: {
             name: c,
             fullPath: `${r.name} / ${c}`,
@@ -54,14 +56,14 @@ export async function ensureSeedData(): Promise<{ seeded: string[] }> {
             sortOrder: childOrder++,
           },
         });
-        await db.expenseAccount.update({ where: { id: child.id }, data: { fullPath: `${r.name} / ${c}` } });
+        await d.expenseAccount.update({ where: { id: child.id }, data: { fullPath: `${r.name} / ${c}` } });
       }
     }
     seeded.push("expense_accounts");
   }
 
   // ===== مراحل التنفيذ (قالب عام transactionType='contract') =====
-  if ((await db.workflowStage.count()) === 0) {
+  if ((await d.workflowStage.count()) === 0) {
     const stages: [string, number, number][] = [
       ["التعاقد والتوقيع", 1, 3],
       ["التصميم والمخططات", 2, 14],
@@ -74,7 +76,7 @@ export async function ensureSeedData(): Promise<{ seeded: string[] }> {
       ["أعمال التشطيبات", 9, 35],
       ["التسليم النهائي", 10, 5],
     ];
-    await db.workflowStage.createMany({
+    await d.workflowStage.createMany({
       data: stages.map(([name, stageOrder, expectedDays]) => ({
         transactionType: "contract",
         stageName: name,
@@ -83,7 +85,7 @@ export async function ensureSeedData(): Promise<{ seeded: string[] }> {
         color: "#3B82F6",
       })),
     });
-    await db.workflowStage.createMany({
+    await d.workflowStage.createMany({
       data: [
         { transactionType: "payment", stageName: "مقدم تحت المراجعة", stageOrder: 1, expectedDays: 2, color: "#3B82F6" },
         { transactionType: "payment", stageName: "معتمد", stageOrder: 2, expectedDays: 1, color: "#3B82F6" },
@@ -94,7 +96,7 @@ export async function ensureSeedData(): Promise<{ seeded: string[] }> {
   }
 
   // ===== أنواع العقود الافتراضية =====
-  if ((await db.contractType.count()) === 0) {
+  if ((await d.contractType.count()) === 0) {
     const types: {
       name: string;
       defaultAmount: number;
@@ -147,7 +149,7 @@ export async function ensureSeedData(): Promise<{ seeded: string[] }> {
       },
     ];
     for (const t of types) {
-      const created = await db.contractType.create({
+      const created = await d.contractType.create({
         data: {
           name: t.name,
           defaultAmount: t.defaultAmount,
@@ -161,7 +163,7 @@ export async function ensureSeedData(): Promise<{ seeded: string[] }> {
       if (t.pays && t.pays.length) {
         let payNo = 1;
         for (const [title, pct] of t.pays) {
-          await db.typePaymentTemplate.create({
+          await d.typePaymentTemplate.create({
             data: { contractTypeId: created.id, payNo, title, pct },
           });
           payNo++;

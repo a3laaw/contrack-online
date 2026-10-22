@@ -284,6 +284,9 @@ export interface User {
   fullName: string;
   jobTitle?: string;
   active?: boolean;
+  /** SaaS (Task 85) — شركة المستخدم الحالية */
+  companyId?: number;
+  companyName?: string;
 }
 
 // ==================== العملاء ====================

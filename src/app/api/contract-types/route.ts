@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   });
   if (guardError) return jsonError(guardError);
 
-  const exists = await db.contractType.findUnique({ where: { name } });
+  const exists = await db.contractType.findFirst({ where: { name } });
   if (exists) return jsonError(`النوع «${name}» موجود بالفعل.`);
 
   const pricingMode = String(body.pricingMode || "lump");
