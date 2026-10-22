@@ -369,6 +369,8 @@ export async function executeImport(
           description: row.description,
           notes: row.notes,
           allowOverpay: true,
+          // استيراد تاريخي: سندات على عقود مغلقة تُقبل (إعادة بناء التاريخ)
+          allowClosedContract: true,
         },
         user
       );
@@ -474,6 +476,8 @@ export async function executeImport(
           description: row.description,
           notes: row.notes,
           allowOverpay: true,
+          // استيراد تاريخي: صرف على عقود مغلقة/أباطن مغلقة تُقبل
+          allowClosedContract: true,
         },
         user
       );

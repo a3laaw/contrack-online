@@ -560,7 +560,7 @@ model Claim {
 model Subcontractor {
   companyId Int @default(1) @map("company_id")
   id               Int           @id @default(autoincrement())
-  subCode          String        @unique @map("sub_code")
+  subCode          String        @map("sub_code")
   name             String
   phone            String        @default("")
   email            String        @default("")
@@ -570,6 +570,9 @@ model Subcontractor {
   subContracts     SubContract[]
   createdAt        DateTime      @default(now())
 
+  // Task 86 — الترقيم لكل شركة: كان @unique عامًا فيُصطدم برقم شركة أخرى
+  // (SUB-0002 للشركة 3 يصطدم بشركة 1) — يصبح فريدًا داخل الشركة فقط.
+  @@unique([companyId, subCode])
   @@map("subcontractors")
 }
 

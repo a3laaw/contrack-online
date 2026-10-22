@@ -47,6 +47,7 @@ import {
 } from "../../contrack-types";
 import { DesktopOnlyCard } from "../shared";
 import { ImportWizard } from "./import-wizard";
+import { LegacyImport } from "./legacy-import";
 
 export function MigrationSection({ importOldEnabled, onAuthError }: { importOldEnabled: boolean; onAuthError: () => void }) {
   const { toast } = useToast();
@@ -200,6 +201,22 @@ export function MigrationSection({ importOldEnabled, onAuthError }: { importOldE
           </CardHeader>
           <CardContent>
             <ImportWizard onAuthError={onAuthError} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Task 86 — استيراد من ملف SQLite أو نص جدولي (نظام الشركات: شركة هدف معزولة) */}
+      {importOldEnabled && (
+        <Card data-testid="legacy-import-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">🗄 استيراد من ملف قاعدة بيانات (SQLite) أو نص جدولي</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              ارفع ملف المكتبية القديمة (.sqlite/.db) فتُقرأ جداوله وتُحوّل تلقائيًا إلى أوراق القالب، أو الصق
+              جدولًا نصيًا — ثم فحص بمعاينة وأخطاء قبل الإدخال في الشركة المستهدفة (معزولة افتراضيًا).
+            </p>
+          </CardHeader>
+          <CardContent>
+            <LegacyImport onAuthError={onAuthError} />
           </CardContent>
         </Card>
       )}

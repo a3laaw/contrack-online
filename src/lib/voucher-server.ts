@@ -783,6 +783,9 @@ export interface CreateVoucherInput {
   notes?: string;
   links?: { lineId: number; amount: number }[];
   allowOverpay?: boolean;
+  /** استيراد البيانات القديمة فقط: السندات التاريخية على عقد مغلق تُقبل
+   *  (إعادة بناء التاريخ — وليست حركة جديدة). الملغى يبقى ممنوعًا دائمًا. */
+  allowClosedContract?: boolean;
   chequeDueDate?: string;
   allocation?: string;
   fromAccount?: string;
@@ -866,7 +869,10 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
     if (base.contractId) {
       const core = await loadContractCore(base.contractId);
       if (!core) throw new VoucherError("العقد غير موجود", 404);
-      if (["مغلق", "ملغى"].includes(core.contract.status)) {
+      if ("مغلق" === core.contract.status && !input.allowClosedContract) {
+        throw new VoucherError(`العقد بحالة «${core.contract.status}» — لا يقبل حركات مالية`);
+      }
+      if (core.contract.status === "ملغى") {
         throw new VoucherError(`العقد بحالة «${core.contract.status}» — لا يقبل حركات مالية`);
       }
       const dueValue = r3(Math.max(core.current, core.sup ? core.sup.totalDue : 0));
@@ -925,7 +931,10 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
       });
       if (!sc) throw new VoucherError("عقد الباطن غير موجود", 404);
       if (sc.status === "ملغى") throw new VoucherError("لا يمكن الصرف على عقد باطن ملغى");
-      if (["مغلق", "ملغى"].includes(sc.contract.status)) {
+      if ("مغلق" === sc.contract.status && !input.allowClosedContract) {
+        throw new VoucherError(`العقد الأب بحالة «${sc.contract.status}» — لا يقبل حركات مالية`);
+      }
+      if (sc.contract.status === "ملغى") {
         throw new VoucherError(`العقد الأب بحالة «${sc.contract.status}» — لا يقبل حركات مالية`);
       }
       base.subContractId = sc.id;
