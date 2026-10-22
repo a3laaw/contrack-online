@@ -164,7 +164,7 @@ export const NAV_MODULES: NavModule[] = [
       { id: "contract-types", label: "أنواع العقود", icon: FileStack, view: "settings", section: "contract-types", adminOnly: true },
       { id: "expense-accounts", label: "حسابات المصروفات", icon: Wallet, view: "settings", section: "expense-accounts", adminOnly: true },
       { id: "workflow-stages", label: "مراحل المتابعة", icon: ClipboardList, view: "settings", section: "workflow", adminOnly: true },
-      { id: "visits-config", label: "جدول الزيارات", icon: CalendarDays, view: "settings", section: "visits", adminOnly: true },
+      { id: "visits-config", label: "إعدادات الزيارات", icon: CalendarDays, view: "settings", section: "visits", adminOnly: true },
       { id: "backup", label: "النسخ الاحتياطي", icon: FileSpreadsheet, view: "data-mgmt", section: "backup", adminOnly: true, flag: "full_backup" },
       { id: "devtools", label: "أدوات المطور", icon: Wrench, view: "data-mgmt", section: "devtools", adminOnly: true },
     ],

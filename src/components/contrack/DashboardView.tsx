@@ -1,10 +1,12 @@
 "use client";
 
 /**
- * الرئيسية الكاملة (بند 7 من المرحلة 9) — مرآة DashboardPage المكتبي بندًا بندًا:
- *   main_window.py:87-596 — عدادات خام · تغذية «🔔 التنبيهات والنشاطات» بألوان
- *   المكتبي ونصوصها الحرفية · «⚡ إجراءات سريعة» · لوحة المهام المضمّنة
- *   (TasksPage compact — ui/tasks.py:178) التي تختفي كليًا بمفتاح «المهام والتنبيهات».
+ * الرئيسية — مرآة DashboardPage المكتبي (main_window.py:87-596):
+ *   عدادات خام · تغذية «🔔 التنبيهات والنشاطات» بألوان المكتبي ونصوصها الحرفية
+ *   · «⚡ إجراءات سريعة».
+ * Task 84: أُزيلت «لوحة المهام المضمّنة» من الرئيسية — المهام شاشة واحدة (المهام)
+ * حتى لا تتكرر الإجراءات؛ يبقى تحويل التنبيه←مهمة (زر «مهمة» في التغذية)
+ * فيفتح محرر المهمة المشترك TaskEditPage في عمود جانبي مؤقت.
  * الإخفاء/الاستعادة عبر مسارَي dismiss/restore ببصمة sha1 لنص التنبيه
  * (مرآة جرس المكتبي workflow_service.dismiss_alerts / restore_dismissed_alerts).
  */
@@ -21,7 +23,6 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -38,7 +39,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { ApiError, apiGet, apiPatch, apiPost } from "./api";
+import { ApiError, apiGet, apiPost } from "./api";
 import type {
   DashboardActivityRow,
   DashboardAlertRow,
@@ -65,10 +66,6 @@ import {
   restoredAlertsMessage,
   shortenTaskTitle,
   stripAlertPrefix,
-  taskDueText,
-  taskLeftText,
-  taskSummaryText,
-  taskTitleDisplay,
 } from "@/lib/dashboard-core";
 import { cn } from "@/lib/utils";
 
@@ -132,7 +129,6 @@ export function DashboardView({
   const data = dashQuery.data;
   const alerts = data?.alerts ?? [];
   const activity = data?.activity ?? [];
-  const tasks = data?.tasks ?? [];
 
   // ===== التغذية المدمجة: التنبيهات أولًا ثم النشاط (8 أو 25) كالمكتبي =====
   const [expanded, setExpanded] = React.useState(false);
@@ -176,7 +172,7 @@ export function DashboardView({
     },
   });
 
-  // ===== صفحة لوحة المهام (جديدة/تعديل/تحويل تنبيه) — تستبدل محتوى اللوحة =====
+  // ===== محرر المهمة المشترك — يُفتح فقط عند تحويل تنبيه←مهمة (زر «مهمة» بالتغذية) =====
   const [taskPage, setTaskPage] = React.useState<{
     editing: DashboardTaskRow | null;
     preset?: { title?: string; details?: string } | null;
@@ -223,10 +219,7 @@ export function DashboardView({
             <Skeleton key={i} className="h-20 rounded-xl" />
           ))}
         </div>
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <Skeleton className="h-96 rounded-xl" />
-          <Skeleton className="h-96 rounded-xl" />
-        </div>
+        <Skeleton className="h-96 rounded-xl" />
       </div>
     );
   }
@@ -279,7 +272,7 @@ export function DashboardView({
         ))}
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className={cn("grid grid-cols-1 items-start gap-4", taskPage && "xl:grid-cols-[minmax(0,1fr)_340px]")}>
         {/* ===== العمود الرئيسي: التغذية + الإجراءات السريعة ===== */}
         <div className="min-w-0 space-y-4">
           {/* 🔔 التنبيهات والنشاطات */}
@@ -394,26 +387,16 @@ export function DashboardView({
           </Card>
         </div>
 
-        {/* ===== لوحة المهام المضمّنة — تختفي كليًا بمفتاح «المهام والتنبيهات» ===== */}
-        {tasksOn && (
+        {/* ===== عمود جانبي مؤقت — يظهر فقط عند تحويل تنبيه←مهمة (زر «مهمة») ===== */}
+        {taskPage && (
           <Card className="min-w-0 p-3 xl:w-[340px]">
-            {taskPage ? (
-              <TaskEditPage
-                editing={taskPage.editing as never}
-                preset={taskPage.preset ?? null}
-                onAuthError={onAuthError}
-                onSaved={invalidateTasks}
-                onClose={() => setTaskPage(null)}
-              />
-            ) : (
-              <DashboardTasksPanel
-                tasks={tasks}
-                onChanged={invalidateTasks}
-                onAuthError={onAuthError}
-                onEdit={(t) => setTaskPage({ editing: t })}
-                onAdd={() => setTaskPage({ editing: null })}
-              />
-            )}
+            <TaskEditPage
+              editing={taskPage.editing as never}
+              preset={taskPage.preset ?? null}
+              onAuthError={onAuthError}
+              onSaved={invalidateTasks}
+              onClose={() => setTaskPage(null)}
+            />
           </Card>
         )}
       </div>
@@ -525,150 +508,3 @@ function ActivityRowItem({
   );
 }
 
-// ============================================================
-// لوحة المهام المضمّنة — TasksPage(compact=True) المكتبية:
-// أعمدة المهمة/الموعد/المتبقي · إتمام/تعديل/إعادة · سطر الإجمالي
-// ============================================================
-
-interface TasksPanelProps {
-  tasks: DashboardTaskRow[];
-  onChanged: () => void;
-  onAuthError: () => void;
-  onEdit: (t: DashboardTaskRow) => void;
-  onAdd: () => void;
-}
-
-function DashboardTasksPanel({ tasks, onChanged, onAuthError, onEdit, onAdd }: TasksPanelProps) {
-  const { toast } = useToast();
-  const [showDone, setShowDone] = React.useState(false);
-  const [selectedId, setSelectedId] = React.useState<number | null>(null);
-
-  const visible = React.useMemo(
-    () => (showDone ? tasks : tasks.filter((t) => t.status !== "منجزة")),
-    [tasks, showDone]
-  );
-  const openCount = visible.filter((t) => t.status !== "منجزة").length;
-  const overdueCount = visible.filter((t) => t.overdue).length;
-  const selected = visible.find((t) => t.id === selectedId) ?? null;
-
-  const toggleMutation = useMutation({
-    mutationFn: (vars: { id: number; action: "complete" | "reopen" }) =>
-      apiPatch(`/api/tasks/${vars.id}`, { action: vars.action }),
-    onSuccess: (_res, vars) => {
-      onChanged();
-      toast({
-        title: vars.action === "complete" ? "أُنجزت المهمة" : "أُعيد فتح المهمة",
-      });
-    },
-    onError: (e) => {
-      if (e instanceof ApiError && e.status === 401) onAuthError();
-      toast({ variant: "destructive", title: "تعذر تنفيذ الإجراء", description: errMessage(e) });
-    },
-  });
-
-  /** مرآة _selected: بلا صف محدد ⇒ رسالة المكتبي الحرفية */
-  const withSelected = (fn: (t: DashboardTaskRow) => void) => {
-    if (!selected) {
-      toast({ title: "اختر مهمة من الجدول أولاً." });
-      return;
-    }
-    fn(selected);
-  };
-
-  return (
-    <div className="space-y-2.5">
-      {/* الرأس: 📌 المهام + المنجزة + جديدة */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-bold">📌 المهام</h2>
-        <div className="flex items-center gap-2">
-          <label className="flex cursor-pointer items-center gap-1.5 text-xs">
-            <Checkbox checked={showDone} onCheckedChange={(v) => setShowDone(v === true)} />
-            المنجزة
-          </label>
-          <Button variant="outline" size="sm" className="h-8" onClick={onAdd} title="مهمة جديدة">
-            + جديدة
-          </Button>
-        </div>
-      </div>
-
-      {/* الجدول: المهمة · الموعد · المتبقي */}
-      <div className="max-h-80 overflow-y-auto rounded-lg border">
-        <table className="w-full text-[13px]">
-          <thead className="sticky top-0 bg-muted/70 text-xs text-muted-foreground">
-            <tr>
-              <th className="px-2 py-2 text-start font-medium">المهمة</th>
-              <th className="px-2 py-2 text-center font-medium">الموعد</th>
-              <th className="px-2 py-2 text-center font-medium">المتبقي</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.length === 0 ? (
-              <tr>
-                <td colSpan={3} className="px-3 py-6 text-center text-xs text-muted-foreground">
-                  لا مهام بعد — أضف أول مهمة بزر «+ جديدة»
-                </td>
-              </tr>
-            ) : (
-              visible.map((t) => {
-                const done = t.status === "منجزة";
-                const isSelected = t.id === selectedId;
-                return (
-                  <tr
-                    key={t.id}
-                    className={cn(
-                      "cursor-pointer border-t transition-colors",
-                      isSelected ? "bg-primary/10" : "hover:bg-muted/50",
-                      done && "text-muted-foreground",
-                      t.overdue && !done && "text-status-danger"
-                    )}
-                    onClick={() => setSelectedId(t.id)}
-                    onDoubleClick={() => onEdit(t)}
-                  >
-                    <td className={cn("px-2 py-2 text-start leading-5", t.overdue && !done && "font-bold")}>
-                      {taskTitleDisplay(t)}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-2 text-center text-xs tabular-nums" dir="ltr">
-                      {taskDueText(t.dueAt).text}
-                    </td>
-                    <td className={cn("whitespace-nowrap px-2 py-2 text-center text-xs", t.overdue && !done && "font-bold")}>
-                      {taskLeftText(t)}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* الأزرار: إتمام · ✎ تعديل · إعادة */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Button
-          size="sm"
-          className="h-8 border-0 bg-status-done-bg text-status-done hover:bg-status-done-bg/80"
-          disabled={toggleMutation.isPending}
-          onClick={() => withSelected((t) => toggleMutation.mutate({ id: t.id, action: "complete" }))}
-          title="إتمام المهمة المحددة"
-        >
-          إتمام
-        </Button>
-        <Button variant="ghost" size="sm" className="h-8" onClick={() => withSelected(onEdit)} title="تعديل المهمة">
-          ✎ تعديل
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8"
-          disabled={toggleMutation.isPending}
-          onClick={() => withSelected((t) => toggleMutation.mutate({ id: t.id, action: "reopen" }))}
-          title="إعادة فتح مهمة منجزة"
-        >
-          إعادة
-        </Button>
-      </div>
-
-      {/* سطر الإجمالي */}
-      <p className="text-[11px] text-muted-foreground">{taskSummaryText(openCount, overdueCount)}</p>
-    </div>
-  );
-}

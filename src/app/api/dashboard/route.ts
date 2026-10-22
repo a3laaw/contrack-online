@@ -6,12 +6,6 @@ import { hasPermission } from "@/lib/auth";
 import { EPS, daysBetween, todayStr } from "@/lib/contrack-core";
 import { getSettingsRow } from "@/lib/contrack-server";
 import { loadContractsFinance, STATUS_CANCELLED, STATUS_CLOSED } from "@/lib/report-server";
-import {
-  buildExecutionAlertRows,
-  expiryLevelsOrDefault,
-  isFollowupCollection,
-  isFollowupExpiring,
-} from "@/lib/followup-alerts";
 import { isEffectivelyEnabled } from "@/lib/feature-flags";
 import { dailyClearing } from "@/lib/gateway-server";
 import {
@@ -22,6 +16,13 @@ import {
   type ActivityRow,
   type DashboardAlert,
 } from "@/lib/dashboard-core";
+import {
+  executionRows,
+  expiringContractsRows,
+  followupWindows,
+  nearBaseEndRows,
+  overdueCollectionsRows,
+} from "@/lib/followup-sections";
 
 /**
  * الرئيسية الكاملة (بند 7 من المرحلة 9) — GET /api/dashboard
@@ -29,6 +30,8 @@ import {
  * عدادات خام (عملاء/عقود/سندات) + تنبيهات النظام بالترتيب والألوان الحرفية
  * + صفوف النشاط (أحداث العقود والسندات) + مهام لوحة المهام المضمّنة.
  * أداء: استعلامات مجمعة بلا N+1 — خطة العقود والإشراف عبر loadContractsFinance لمرة واحدة.
+ * Task 84: الأقسام المشتركة مع المتابعة (تعثر التحصيل/الانتهاء/قرب نهاية الإشراف/مراحل التنفيذ)
+ * تُحسب من نواة followup-sections — مصدر الحقيقة الواحد حتى لا تتفرق أرقام الرئيسية عن المتابعة.
  */
 
 function addDays(dateStr: string, n: number): string {
@@ -52,10 +55,7 @@ export async function GET(req: NextRequest) {
 
   const today = todayStr();
   const settings = await getSettingsRow();
-  const alertDays = Math.max(7, settings.collectionAlertDays);
-  const expiryWindow = expiryLevelsOrDefault(settings.expiryAlerts)[
-    expiryLevelsOrDefault(settings.expiryAlerts).length - 1
-  ];
+  const { alertDays, expiryWindow } = followupWindows(settings);
 
   // ===== 1) العدادات الخام (contract_service.dashboard_stats + ui_data.dashboard_counts) =====
   // «عدد المشاريع» المكتبية من جدول projects (بند 11 مكتمل) — والبطاقة تتبع مفتاح المزايا.
@@ -74,22 +74,15 @@ export async function GET(req: NextRequest) {
   // ===== 2) مالية العقود — تمريرة واحدة (خطة/تحصيل/إشراف/انتهاء/متوقف) =====
   const finances = await loadContractsFinance({});
 
-  // 2-أ) عقود تنتهي قريبًا (lifecycle.expiring_contracts: يستبقي مغلق/ملغى/منتهي)
-  const expiring = finances
-    .filter((f) => {
-      if (!isFollowupExpiring(f.status) || !f.endDate) return false;
-      const left = daysBetween(today, f.endDate);
-      return left >= 0 && left <= expiryWindow;
-    })
-    .map((f) => ({
-      contractNumber: f.contractNumber,
-      customerName: f.customerName,
-      remaining: daysBetween(today, f.endDate),
-      endDate: f.endDate,
-    }))
-    .sort((a, b) => a.remaining - b.remaining);
+  // 2-أ) عقود تنتهي قريبًا — النواة المشتركة مع /api/followup (خريطة أسماء شاشة الرئيسية)
+  const expiring = expiringContractsRows(finances, today, expiryWindow, settings.expiryAlerts).map((r) => ({
+    contractNumber: r.contractNumber,
+    customerName: r.customerName,
+    remaining: r.daysLeft,
+    endDate: r.endDate,
+  }));
 
-  // 2-ب) دفعات الخطة المتأخرة أو المستحقة خلال 7 أيام (overdue_plan_items strict=False)
+  // 2-ب) دفعات الخطة المتأخرة أو المستحقة خلال 7 أيام (overdue_plan_items strict=False) — خاصة بالرئيسية
   const planItems = finances
     .filter((f) => !PLAN_EXCLUDED.includes(f.status))
     .flatMap((f) =>
@@ -112,39 +105,31 @@ export async function GET(req: NextRequest) {
     )
     .sort((a, b) => a.daysDiff - b.daysDiff);
 
-  // 2-ج) متابعة التحصيل (overdue_collections: يستبقي مغلق/ملغى/مسودة)
-  const overdueCollections = finances
-    .filter((f) => isFollowupCollection(f.status) && f.remaining > EPS)
-    .map((f) => {
-      const baseDate = f.lastReceiptDate || f.contractDate;
-      const daysSince = baseDate ? daysBetween(baseDate, today) : 0;
-      return {
-        customerName: f.customerName,
-        contractNumber: f.contractNumber,
-        remaining: f.remaining,
-        lastReceipt: f.lastReceiptDate || "",
-        daysSince,
-      };
-    })
-    .filter((o) => o.daysSince >= alertDays)
-    .sort((a, b) => b.daysSince - a.daysSince);
+  // 2-ج) متابعة التحصيل — النواة المشتركة مع /api/followup
+  const overdueCollections = overdueCollectionsRows(finances, today, alertDays).map((r) => ({
+    customerName: r.customerName,
+    contractNumber: r.contractNumber,
+    remaining: r.remaining,
+    lastReceipt: r.lastReceiptDate ?? "",
+    daysSince: r.daysSince,
+  }));
 
-  // 2-د) العقود المتوقفة (ui_data.paused_contracts)
+  // 2-د) العقود المتوقفة (ui_data.paused_contracts) — خاصة بالرئيسية
   const paused = finances
     .filter((f) => f.status === "متوقف")
     .map((f) => ({ contractNumber: f.contractNumber, name: f.customerName }));
 
-  // 2-هـ) الإشراف: قرب نهاية الأساس (30 يومًا) وتمديد قائم بمديونية
+  // 2-هـ) الإشراف: قرب نهاية الأساس من النواة المشتركة + تمديد قائم بمديونية (ميزة الرسائل النصية)
   const supLabels = new Map(
     finances.map((f) => [f.id, contractLabelFrom(f.contractName, f.description, f.contractDate)])
   );
-  const nearBaseEnd: {
-    customerName: string;
-    label: string;
-    daysLeft: number;
-    baseEnd: string;
-    monthly: number;
-  }[] = [];
+  const nearBaseEnd = nearBaseEndRows(finances, today).map((r) => ({
+    customerName: r.customerName,
+    label: supLabels.get(r.contractId) || "",
+    daysLeft: r.daysLeft,
+    baseEnd: r.baseEnd,
+    monthly: r.monthly,
+  }));
   const extensions: {
     customerName: string;
     label: string;
@@ -157,33 +142,17 @@ export async function GET(req: NextRequest) {
     if (SUP_EXCLUDED.includes(f.status)) continue;
     // مرآة supervision_status: تاريخ الحساب = النهاية الفعلية إن كانت حاضرة
     const todayC = f.actualEnd && daysBetween(f.actualEnd, today) >= 0 ? f.actualEnd : today;
-    const inExt = f.sup.baseEnd <= todayC;
-    if (inExt) {
-      // contracts_in_extension: التمديد القائم مع مديونية > 0.001 فقط
-      if (f.sup.remaining > EPS) {
-        extensions.push({
-          customerName: f.customerName,
-          label: supLabels.get(f.id) || "",
-          baseEnd: f.sup.baseEnd,
-          billableExtension: f.sup.billableExtMonths,
-          extensionValue: f.sup.extensionValue,
-        });
-      }
-    } else {
-      // contracts_near_base_end: 0 ≤ (base_end − اليوم) ≤ 30 خارج التمديد
-      const left = daysBetween(todayC, f.sup.baseEnd);
-      if (left >= 0 && left <= 30) {
-        nearBaseEnd.push({
-          customerName: f.customerName,
-          label: supLabels.get(f.id) || "",
-          daysLeft: left,
-          baseEnd: f.sup.baseEnd,
-          monthly: f.supMonthly,
-        });
-      }
+    // contracts_in_extension: التمديد القائم مع مديونية > 0.001 فقط
+    if (f.sup.baseEnd <= todayC && f.sup.remaining > EPS) {
+      extensions.push({
+        customerName: f.customerName,
+        label: supLabels.get(f.id) || "",
+        baseEnd: f.sup.baseEnd,
+        billableExtension: f.sup.billableExtMonths,
+        extensionValue: f.sup.extensionValue,
+      });
     }
   }
-  nearBaseEnd.sort((a, b) => a.daysLeft - b.daysLeft);
   extensions.sort((a, b) => b.billableExtension - a.billableExtension);
 
   // ===== 3) تعليقات مثبّتة قديمة (comment_service.stale_pinned — 14 يومًا) =====
@@ -235,33 +204,10 @@ export async function GET(req: NextRequest) {
     }));
   }
 
-  // ===== 6) مراحل التنفيذ — بمفتاح الميزة (main_window.py:349-359) =====
-  let execution: Parameters<typeof buildDashboardAlerts>[0]["execution"] = [];
-  if (followupOn) {
-    const execContracts = await db.contract.findMany({
-      where: { status: { notIn: [...STATUS_CLOSED, ...STATUS_CANCELLED, "مسودة"] } },
-      select: {
-        id: true,
-        contractNumber: true,
-        status: true,
-        customer: { select: { name: true } },
-        stages: {
-          orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
-          select: { name: true, startDate: true, endDate: true, isSkipped: true, expectedDays: true },
-        },
-      },
-    });
-    execution = buildExecutionAlertRows(
-      execContracts.map((c) => ({
-        id: c.id,
-        contractNumber: c.contractNumber,
-        customerName: c.customer.name,
-        status: c.status,
-        stages: c.stages,
-      })),
-      today
-    ).slice(0, 25);
-  }
+  // ===== 6) مراحل التنفيذ — بمفتاح الميزة (main_window.py:349-359) — النواة المشتركة =====
+  const execution: Parameters<typeof buildDashboardAlerts>[0]["execution"] = followupOn
+    ? (await executionRows()).slice(0, 25)
+    : [];
 
   // ===== 7) المهام — لوحة الرئيسية المضمّنة (task_service.list_tasks) =====
   const taskRows = await db.task.findMany({
