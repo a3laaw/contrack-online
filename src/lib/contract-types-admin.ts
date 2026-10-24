@@ -54,6 +54,50 @@ export function validateTypeInput(input: ContractTypeInput): string {
   return "";
 }
 
+// ==================== تصنيف الأنواع (Task 95) ====================
+
+/**
+ * تطبيع قيمة التصنيف القادمة من الإدخال/API: قصّ الحواف وحصر الطول بـ 60 حرفًا.
+ * الفراغ ⇒ "" (بلا تصنيف).
+ */
+export function normalizeTypeCategory(value: unknown): string {
+  const s = String(value ?? "").trim().slice(0, 60);
+  return s;
+}
+
+/** نوع بصيغة مصغّرة لاشتقاق التصنيفات */
+export interface CategorizedType {
+  category?: string | null;
+  active?: boolean;
+}
+
+/**
+ * اشتقاق قائمة التصنيفات تلقائيًا من الأنواع نفسها (أبناؤها) — بلا جدول تصنيفات مستقل
+ * وبلا كتابة حرة: التصنيف موجود لأن له أنواعًا. الفراغ/المحذوف مستبعد.
+ */
+export function deriveTypeCategories(types: CategorizedType[]): string[] {
+  const set = new Set<string>();
+  for (const t of types) {
+    const c = normalizeTypeCategory(t.category);
+    if (c) set.add(c);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b, "ar"));
+}
+
+/** تجميع الأنواع تحت تصنيفاتها للعرض الشجري في القوائم (المجموعات مرتبة والفراغ آخرًا) */
+export function groupTypesByCategory<T extends CategorizedType & { name: string }>(
+  types: T[]
+): { category: string; types: T[] }[] {
+  const withCat = types.filter((t) => normalizeTypeCategory(t.category));
+  const withoutCat = types.filter((t) => !normalizeTypeCategory(t.category));
+  const groups = deriveTypeCategories(withCat).map((category) => ({
+    category,
+    types: withCat.filter((t) => normalizeTypeCategory(t.category) === category),
+  }));
+  if (withoutCat.length > 0) groups.push({ category: "", types: withoutCat });
+  return groups;
+}
+
 // ==================== حالات العقد (lifecycle_service.CONTRACT_STATUSES) ====================
 
 /** القائمة الكاملة الثمانية بترتيب المكتبي — نافذة «تغيير حالة العقد» */

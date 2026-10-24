@@ -659,6 +659,8 @@ model ContractType {
   companyId Int @default(1) @map("company_id")
   id               Int                   @id @default(autoincrement())
   name String 
+  /** Task 95 — تصنيف النوع: يُختار من قائمة مشتقة تلقائيًا من الأنواع نفسها (بلا كتابة حرة في شاشة الإنشاء) */
+  category         String                @default("") @map("category")
   defaultAmount    Decimal               @default(0) @map("default_amount")
   notes            String                @default("")
   active           Boolean               @default(true)

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { adminGuard, audit, jsonError, ok } from "@/lib/api-utils";
 import { numOr } from "@/lib/contrack-server";
 import { r3 } from "@/lib/contrack-core";
-import { PRICING_MODES, validateTypeInput } from "@/lib/contract-types-admin";
+import { PRICING_MODES, normalizeTypeCategory, validateTypeInput } from "@/lib/contract-types-admin";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -55,6 +55,8 @@ export async function PATCH(req: NextRequest, { params }: P) {
   if (body.unitPrice !== undefined) data.unitPrice = effUnitPrice;
   if (body.pricingMode !== undefined) data.pricingMode = effMode;
   if (body.isSupervision !== undefined) data.isSupervision = effSup;
+  // Task 95 — التصنيف من القائمة المشتقة (تطبيع وحصر طول)
+  if (body.category !== undefined) data.category = normalizeTypeCategory(body.category);
 
   const updated = await db.$transaction(async (tx) => {
     const row = await tx.contractType.update({ where: { id }, data });

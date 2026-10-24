@@ -122,3 +122,64 @@ describe("closeAmountSuffix — سطر مبلغ الإغلاق في وصف ال�
     expect(closeAmountSuffix(-3)).toBe("");
   });
 });
+
+// ==================== Task 95 — تصنيف الأنواع (اشتقاق تلقائي من الأنواع نفسها) ====================
+
+import {
+  deriveTypeCategories,
+  groupTypesByCategory,
+  normalizeTypeCategory,
+} from "@/lib/contract-types-admin";
+
+describe("normalizeTypeCategory — تطبيع قيمة التصنيف", () => {
+  test("قصّ الحواف وحصر الطول بـ 60 حرفًا", () => {
+    expect(normalizeTypeCategory("  رخص  ")).toBe("رخص");
+    expect(normalizeTypeCategory("ا".repeat(80)).length).toBe(60);
+  });
+  test("الفراغ/الغائب ⇒ «بلا تصنيف» (نص فارغ)", () => {
+    expect(normalizeTypeCategory("")).toBe("");
+    expect(normalizeTypeCategory("   ")).toBe("");
+    expect(normalizeTypeCategory(undefined)).toBe("");
+    expect(normalizeTypeCategory(null)).toBe("");
+  });
+});
+
+describe("deriveTypeCategories — قائمة التصنيفات مشتقة من الأنواع (أبنائها) بلا كتابة حرة", () => {
+  test("تصنيف فريد مرتب عربيًا ومستبعدٌ الفراغ", () => {
+    const cats = deriveTypeCategories([
+      { category: "تصميم" },
+      { category: " رخص " },
+      { category: "" },
+      { category: "تصميم" },
+      { category: undefined },
+      { category: "إشراف" },
+    ]);
+    expect(cats).toEqual(["إشراف", "تصميم", "رخص"]);
+  });
+  test("لا أنواع مصنّفة ⇒ قائمة فارغة (شاشة الإنشاء تعرض كل الأنواع)", () => {
+    expect(deriveTypeCategories([{ category: "" }, {}])).toEqual([]);
+    expect(deriveTypeCategories([])).toEqual([]);
+  });
+  test("الأنواع المعطّلة تدخل الاشتقاق إن مُرّرت (الواجهة تمرر المفعّلة فقط لشاشة الإنشاء)", () => {
+    expect(deriveTypeCategories([{ category: "رخص", active: false }])).toEqual(["رخص"]);
+  });
+});
+
+describe("groupTypesByCategory — تجميع العرض الشجري (المصنّفة أولًا والفراغ أخيرًا)", () => {
+  test("مجموعات مرتبة وأنواع كل تصنيف معًا", () => {
+    const groups = groupTypesByCategory([
+      { name: "ترخيص مظلة", category: "رخص" },
+      { name: "غير محدد", category: "" },
+      { name: "عقد تصميم", category: "تصميم" },
+      { name: "اصدار رخصة بناء", category: "رخص" },
+    ]);
+    expect(groups.map((g) => g.category)).toEqual(["تصميم", "رخص", ""]);
+    expect(groups[1].types.map((t) => t.name)).toEqual(["ترخيص مظلة", "اصدار رخصة بناء"]);
+    expect(groups[2].types.map((t) => t.name)).toEqual(["غير محدد"]);
+  });
+  test("بلا فراغ ⇒ لا مجموعة «بلا تصنيف»", () => {
+    const groups = groupTypesByCategory([{ name: "عقد تصميم", category: "تصميم" }]);
+    expect(groups.length).toBe(1);
+    expect(groups[0].category).toBe("تصميم");
+  });
+});

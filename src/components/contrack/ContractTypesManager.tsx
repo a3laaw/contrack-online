@@ -58,7 +58,17 @@ import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "./api";
 import type { ContractTypeDTO, ContractTypesResponse } from "./contrack-types";
 import { errMessage } from "./contrack-types";
 import { formatKWD } from "@/lib/format";
-import { PRICING_MODES, pricingModeLabel, validateTypeInput } from "@/lib/contract-types-admin";
+import {
+  PRICING_MODES,
+  deriveTypeCategories,
+  normalizeTypeCategory,
+  pricingModeLabel,
+  validateTypeInput,
+} from "@/lib/contract-types-admin";
+
+/** قيمة خاصة في قائمة التصنيف تعني «إنشاء تصنيف جديد» — المكان الوحيد المسموح فيه بكتابة اسم تصنيف */
+const CATEGORY_NEW = "__new__";
+const CATEGORY_NONE = "__none__";
 
 interface ContractTypesManagerProps {
   /** مُركّب داخل تبويب إعدادات للمدير فقط — الصلاحية محكومة بالخادم (adminGuard) */
@@ -67,6 +77,8 @@ interface ContractTypesManagerProps {
 
 interface TypeForm {
   name: string;
+  /** Task 95 — التصنيف: قائمة مشتقة من الأنواع + خيار «تصنيف جديد» */
+  category: string;
   pricingMode: string;
   isSupervision: boolean;
   manualTrack: boolean;
@@ -78,6 +90,7 @@ interface TypeForm {
 
 const EMPTY_FORM: TypeForm = {
   name: "",
+  category: "",
   pricingMode: "lump",
   isSupervision: false,
   manualTrack: false,
@@ -90,6 +103,7 @@ const EMPTY_FORM: TypeForm = {
 function formFromRow(t: ContractTypeDTO): TypeForm {
   return {
     name: t.name,
+    category: t.category || "",
     pricingMode: t.pricingMode || "lump",
     isSupervision: Boolean(t.isSupervision),
     manualTrack: Boolean(t.manualTrack),
@@ -109,6 +123,8 @@ export function ContractTypesManager({ onAuthError }: ContractTypesManagerProps)
     queryFn: () => apiGet<ContractTypesResponse>("/api/contract-types"),
   });
   const types = typesQuery.data?.types ?? [];
+  /** قائمة التصنيفات مشتقة تلقائيًا من الأنواع نفسها (أبناؤها) — بلا جدول مستقل */
+  const existingCategories = React.useMemo(() => deriveTypeCategories(types), [types]);
 
   const invalidate = React.useCallback(() => {
     qc.invalidateQueries({ queryKey: ["contract-types"] });
@@ -126,20 +142,32 @@ export function ContractTypesManager({ onAuthError }: ContractTypesManagerProps)
   // ===== نافذة الإضافة/التعديل =====
   const [dialog, setDialog] = React.useState<{ mode: "create" | "edit"; row: ContractTypeDTO | null } | null>(null);
   const [form, setForm] = React.useState<TypeForm>(EMPTY_FORM);
+  /** Task 95 — وضع «تصنيف جديد»: يُكتب الاسم مرة واحدة هنا فقط، وخارج هذا الوضع الاختيار من القائمة المشترقة */
+  const [newCatMode, setNewCatMode] = React.useState(false);
 
   const openCreate = () => {
     setForm(EMPTY_FORM);
+    setNewCatMode(false);
     setDialog({ mode: "create", row: null });
   };
   const openEdit = (t: ContractTypeDTO) => {
     setForm(formFromRow(t));
+    setNewCatMode(Boolean(t.category) && !existingCategories.includes(t.category || ""));
     setDialog({ mode: "edit", row: t });
   };
+
+  /** قيمة قائمة التصنيف المشتقة من قيمة النموذج */
+  const catSelectValue = newCatMode
+    ? CATEGORY_NEW
+    : form.category
+      ? form.category
+      : CATEGORY_NONE;
 
   const saveMutation = useMutation({
     mutationFn: (f: TypeForm) => {
       const payload = {
         name: f.name.trim(),
+        category: normalizeTypeCategory(f.category),
         pricingMode: f.pricingMode,
         isSupervision: f.isSupervision,
         manualTrack: f.manualTrack,
@@ -165,6 +193,10 @@ export function ContractTypesManager({ onAuthError }: ContractTypesManagerProps)
 
   const submitDialog = () => {
     // حرس المكتبي قبل الإرسال — الرسائل الحرفية نفسها (validateTypeInput)
+    if (newCatMode && !normalizeTypeCategory(form.category)) {
+      toast({ variant: "destructive", title: "بيانات غير صالحة", description: "اكتب اسم التصنيف الجديد أو اختر من القائمة." });
+      return;
+    }
     const guardError = validateTypeInput({
       name: form.name,
       defaultAmount: Number(form.defaultAmount || 0),
@@ -223,10 +255,11 @@ export function ContractTypesManager({ onAuthError }: ContractTypesManagerProps)
           <p className="p-4 text-center text-sm text-muted-foreground">{errMessage(typesQuery.error)}</p>
         ) : (
           <div className="max-h-96 overflow-y-auto rounded-lg border">
-            <Table className="min-w-[900px]">
+            <Table className="min-w-[980px]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-center">النوع</TableHead>
+                  <TableHead className="text-center">التصنيف</TableHead>
                   <TableHead className="text-center">نمط التسعير</TableHead>
                   <TableHead className="text-center">المبلغ الافتراضي</TableHead>
                   <TableHead className="text-center">وحدة القياس</TableHead>
@@ -241,7 +274,7 @@ export function ContractTypesManager({ onAuthError }: ContractTypesManagerProps)
               <TableBody>
                 {types.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="p-6 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={11} className="p-6 text-center text-sm text-muted-foreground">
                       لا أنواع عقود بعد — أضف أول نوع بالزر أعلى.
                     </TableCell>
                   </TableRow>
@@ -250,6 +283,15 @@ export function ContractTypesManager({ onAuthError }: ContractTypesManagerProps)
                     <TableRow key={t.id}>
                       <TableCell className="max-w-40 truncate font-semibold" title={t.name}>
                         {t.name}
+                      </TableCell>
+                      <TableCell className="text-center text-xs">
+                        {t.category ? (
+                          <Badge variant="secondary" className="max-w-28 truncate" title={t.category}>
+                            {t.category}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-center text-xs">
                         {pricingModeLabel(t.pricingMode)}
@@ -340,6 +382,52 @@ export function ContractTypesManager({ onAuthError }: ContractTypesManagerProps)
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               />
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:col-span-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="ct-cat">التصنيف</Label>
+                <Select
+                  value={catSelectValue}
+                  onValueChange={(v) => {
+                    if (v === CATEGORY_NEW) {
+                      setNewCatMode(true);
+                      setForm((f) => ({ ...f, category: "" }));
+                    } else {
+                      setNewCatMode(false);
+                      setForm((f) => ({ ...f, category: v === CATEGORY_NONE ? "" : v }));
+                    }
+                  }}
+                >
+                  <SelectTrigger id="ct-cat" className="h-9">
+                    <SelectValue placeholder="بلا تصنيف" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value={CATEGORY_NONE}>بلا تصنيف</SelectItem>
+                    {existingCategories.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={CATEGORY_NEW}>＋ تصنيف جديد…</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  القائمة مشتقة تلقائيًا من الأنواع — تظهر في شاشة «عقد جديد» لتصفية الأنواع.
+                </p>
+              </div>
+              {newCatMode && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="ct-cat-new">اسم التصنيف الجديد</Label>
+                  <Input
+                    id="ct-cat-new"
+                    className="h-9"
+                    placeholder="مثال: رخص · تصميم · إشراف"
+                    value={form.category}
+                    onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                    autoFocus
+                  />
+                </div>
+              )}
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label>نمط التسعير</Label>

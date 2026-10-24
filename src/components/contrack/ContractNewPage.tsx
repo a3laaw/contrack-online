@@ -60,6 +60,7 @@ import type {
 } from "./contrack-types";
 import { errMessage } from "./contrack-types";
 import { amountGuardProblems, templatePlanRows, type AmountGuardProblem } from "@/lib/contract-create";
+import { deriveTypeCategories } from "@/lib/contract-types-admin";
 
 interface ContractNewPageProps {
   onAuthError: () => void;
@@ -165,6 +166,8 @@ export function ContractNewPage({
   );
   const [fName, setFName] = React.useState("");
   const [fTypeId, setFTypeId] = React.useState("");
+  /** Task 95 — التصفية بالتصنيف: القائمة مشتقة تلقائيًا من الأنواع نفسها (بلا كتابة حرة) */
+  const [fCategory, setFCategory] = React.useState("all");
   const [fAmount, setFAmount] = React.useState("");
   const [fDate, setFDate] = React.useState(() => todayStr());
   const [fDescription, setFDescription] = React.useState("");
@@ -182,6 +185,17 @@ export function ContractNewPage({
   const isBundle = selectedType?.pricingMode === "bundle";
   const isManualType = Boolean(selectedType?.manualTrack);
   const isSupervisionType = Boolean(selectedType?.isSupervision);
+
+  // Task 95 — تصنيفات الأنواع المفعّلة مشتقة تلقائيًا (من أبنائها) والقائمة تتسلسل: تصنيف ← نوع
+  const activeTypes = React.useMemo(
+    () => (typesQuery.data?.types ?? []).filter((t) => t.active !== false),
+    [typesQuery.data]
+  );
+  const typeCategories = React.useMemo(() => deriveTypeCategories(activeTypes), [activeTypes]);
+  const visibleTypes = React.useMemo(
+    () => (fCategory === "all" ? activeTypes : activeTypes.filter((t) => (t.category || "") === fCategory)),
+    [activeTypes, fCategory]
+  );
 
   /** قالب مراحل النوع: الخاص بالنوع أولًا وإلا القالب العام ('') — transactionType=contract */
   const tplStages = React.useMemo(() => {
@@ -525,7 +539,37 @@ export function ContractNewPage({
               />
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+            {/* Task 95 — التصنيف: قائمة مشتقة تلقائيًا من الأنواع نفسها (بلا كتابة حرة) */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">تصنيف الأنواع</Label>
+              <Select
+                value={fCategory}
+                onValueChange={(v) => {
+                  setFCategory(v);
+                  // النوع المختار يُصفَّر إن لم يعد ضمن تصنيفه الجديد
+                  if (v !== "all" && fTypeId) {
+                    const still = activeTypes.some((t) => String(t.id) === fTypeId && (t.category || "") === v);
+                    if (!still) {
+                      setFTypeId("");
+                      setFAmount("");
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="كل التصنيفات" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  <SelectItem value="all">كل التصنيفات</SelectItem>
+                  {typeCategories.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1.5">
               <Label className="text-xs">نوع العقد</Label>
               <Select
@@ -539,15 +583,16 @@ export function ContractNewPage({
                   <SelectValue placeholder="اختر النوع" />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
-                  {(typesQuery.data?.types ?? [])
-                    .filter((t) => t.active !== false)
-                    .map((t) => (
-                      <SelectItem key={t.id} value={String(t.id)}>
-                        {t.name}
-                      </SelectItem>
-                    ))}
+                  {visibleTypes.map((t) => (
+                    <SelectItem key={t.id} value={String(t.id)}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {fCategory !== "all" && visibleTypes.length === 0 && (
+                <p className="text-[11px] text-muted-foreground">لا أنواع بهذا التصنيف بعد.</p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="ct-amount" className="text-xs">

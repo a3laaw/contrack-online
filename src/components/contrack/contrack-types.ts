@@ -767,6 +767,8 @@ export interface SupervisionResponse {
 export interface ContractTypeDTO {
   id: number;
   name: string;
+  /** Task 95 — تصنيف النوع (مشتق تلقائيًا في القوائم من الأنواع نفسها) */
+  category?: string;
   defaultAmount?: number;
   notes?: string;
   active?: boolean;

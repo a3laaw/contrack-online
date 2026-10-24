@@ -22,7 +22,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -30,7 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, apiPatch } from "./api";
 import { errMessage } from "./contrack-types";
 import type { ContractDetailResponse, ContractTypesResponse } from "./contrack-types";
-import { derivesNameFromType } from "@/lib/contract-types-admin";
+import { derivesNameFromType, groupTypesByCategory } from "@/lib/contract-types-admin";
 
 interface ContractEditPageProps {
   contractId: number;
@@ -217,7 +219,7 @@ export function ContractEditPage({ contractId, onAuthError, onSaved, onCancel }:
                   value={derivedName}
                 />
               </div>
-              {/* نوع العقد — من الأنواع المفعّلة + «غير محدد» */}
+              {/* نوع العقد — مجموعات التصنيف (مشتقة تلقائيًا) + «غير محدد» */}
               <div className="space-y-1.5">
                 <Label>نوع العقد</Label>
                 <Select
@@ -229,13 +231,29 @@ export function ContractEditPage({ contractId, onAuthError, onSaved, onCancel }:
                   </SelectTrigger>
                   <SelectContent className="max-h-60">
                     <SelectItem value={TYPE_NONE}>غير محدد</SelectItem>
-                    {allTypes
-                      .filter((t) => t.active || t.name === form.typeName)
-                      .map((t) => (
-                        <SelectItem key={t.id} value={t.name}>
-                          {t.name}
-                        </SelectItem>
-                      ))}
+                    {groupTypesByCategory(
+                      allTypes.filter((t) => t.active || t.name === form.typeName)
+                    ).map((g) =>
+                      g.category ? (
+                        <SelectGroup key={g.category || "none"}>
+                          <SelectLabel className="text-xs text-muted-foreground">📁 {g.category}</SelectLabel>
+                          {g.types.map((t) => (
+                            <SelectItem key={t.id} value={t.name}>
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ) : (
+                        <SelectGroup key="none">
+                          <SelectLabel className="text-xs text-muted-foreground">بلا تصنيف</SelectLabel>
+                          {g.types.map((t) => (
+                            <SelectItem key={t.id} value={t.name}>
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )
+                    )}
                   </SelectContent>
                 </Select>
               </div>

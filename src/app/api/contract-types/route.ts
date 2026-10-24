@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { adminGuard, audit, authGuard, jsonError, ok } from "@/lib/api-utils";
 import { numOr } from "@/lib/contrack-server";
 import { r3 } from "@/lib/contrack-core";
-import { PRICING_MODES, validateTypeInput } from "@/lib/contract-types-admin";
+import { PRICING_MODES, normalizeTypeCategory, validateTypeInput } from "@/lib/contract-types-admin";
 
 /** أنواع العقود — لكل نوع عدد عقوده (contractsCount) وعدد قوالب دفعاته */
 export async function GET(req: NextRequest) {
@@ -39,6 +39,8 @@ export async function GET(req: NextRequest) {
     types: types.map((t) => ({
       id: t.id,
       name: t.name,
+      // Task 95 — التصنيف (يُشتق من الأنواع في الواجهة)
+      category: t.category || "",
       defaultAmount: Number(t.defaultAmount),
       notes: t.notes,
       active: t.active,
@@ -99,6 +101,8 @@ export async function POST(req: NextRequest) {
   const type = await db.contractType.create({
     data: {
       name,
+      // Task 95 — التصنيف يُرسل من القائمة (مشتقة من الأنواع) — تطبيع وحصر طول
+      category: normalizeTypeCategory(body.category),
       defaultAmount,
       notes: String(body.notes || ""),
       active: body.active !== undefined ? Boolean(body.active) : true,
