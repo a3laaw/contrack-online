@@ -125,44 +125,38 @@ export function CustomersView({
   const items = listQuery.data?.customers ?? [];
   return (
     <div className="space-y-4">
-      {/* الرأس */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold">العملاء</h1>
-          <p className="text-sm text-muted-foreground">إدارة ملفات العملاء وعقودهم</p>
+      {/* الرأس المضغوط — سطر واحد */}
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-lg font-bold whitespace-nowrap">العملاء</h1>
+        <span className="hidden xl:inline text-xs text-muted-foreground">إدارة ملفات العملاء وعقودهم</span>
+        <div className="relative order-last w-full sm:order-none sm:ms-auto sm:w-auto sm:min-w-44 sm:max-w-xs sm:flex-1">
+          <Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="h-9 ps-9"
+            placeholder="بحث بالاسم أو الكود أو الهاتف…"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+          />
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button variant="outline" size="icon" className="size-9" onClick={() => listQuery.refetch()} aria-label="تحديث">
-            <RefreshCw className={listQuery.isFetching ? "size-4 animate-spin" : "size-4"} />
+        <Button variant="outline" size="icon" className="size-9" onClick={() => listQuery.refetch()} aria-label="تحديث">
+          <RefreshCw className={listQuery.isFetching ? "size-4 animate-spin" : "size-4"} />
+        </Button>
+        {projectsOn && (
+          <Button variant="outline" className="h-9 gap-1.5" onClick={() => setProjectsOpen(true)}>
+            <span aria-hidden>🏗</span>
+            المشاريع
           </Button>
-          {projectsOn && (
-            <Button variant="outline" className="h-9 gap-1.5" onClick={() => setProjectsOpen(true)}>
-              <span aria-hidden>🏗</span>
-              المشاريع
-            </Button>
-          )}
-          <Button variant="outline" className="h-9 gap-1.5" onClick={() => setQuotesOpen(true)}>
-            <span aria-hidden>🧾</span>
-            عروض الأسعار
+        )}
+        <Button variant="outline" className="h-9 gap-1.5" onClick={() => setQuotesOpen(true)}>
+          <span aria-hidden>🧾</span>
+          عروض الأسعار
+        </Button>
+        {manager && (
+          <Button className="h-9 gap-1.5" onClick={openAdd}>
+            <Plus className="size-4" />
+            عميل جديد
           </Button>
-          {manager && (
-            <Button className="h-9 gap-1.5" onClick={openAdd}>
-              <Plus className="size-4" />
-              عميل جديد
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* البحث */}
-      <div className="relative">
-        <Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          className="h-10 ps-9"
-          placeholder="بحث بالاسم أو الكود أو الهاتف…"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-        />
+        )}
       </div>
 
       {/* الجدول — الحاسوب */}

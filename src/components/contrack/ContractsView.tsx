@@ -109,58 +109,21 @@ export function ContractsView({
         onOpenChange={setGapsOpen}
         onOpenContract={onOpenContract}
       />
-      {/* الرأس */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold">العقود</h1>
-          <p className="text-sm text-muted-foreground">متابعة العقود وقيمها الحالية وتحصيلها</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* ⚠️ الفروقات — المرجع: contract_hub.py:80–89 (مفتاح contract_gaps) */}
-          {featureEnabled("contract_gaps") && (
-            <Button
-              variant="outline"
-              className="h-9 gap-1.5"
-              title="عقود تختلف قيمتها عن خطتها/بنودها"
-              onClick={() => setGapsOpen(true)}
-            >
-              ⚠️ الفروقات
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-9"
-            onClick={() => listQuery.refetch()}
-            aria-label="تحديث"
-          >
-            <RefreshCw className={listQuery.isFetching ? "size-4 animate-spin" : "size-4"} />
-          </Button>
-          {manager && (
-            <Button
-              className="h-9 gap-1.5"
-              onClick={() => setCreatePage({})}
-            >
-              <Plus className="size-4" />
-              عقد جديد
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* الفلاتر */}
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <div className="relative flex-1">
+      {/* الرأس المضغوط — العنوان والفلاتر والأزرار في سطر واحد لتوفير أكبر مساحة للقائمة */}
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-lg font-bold whitespace-nowrap">العقود</h1>
+        <span className="hidden xl:inline text-xs text-muted-foreground">متابعة العقود وقيمها الحالية وتحصيلها</span>
+        <div className="relative order-last w-full sm:order-none sm:ms-auto sm:w-auto sm:min-w-44 sm:max-w-xs sm:flex-1">
           <Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            className="h-10 ps-9"
+            className="h-9 ps-9"
             placeholder="بحث برقم/اسم العقد أو العميل…"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />
         </div>
         <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="h-10 w-full sm:w-44">
+          <SelectTrigger className="h-9 w-full sm:w-36" aria-label="تصفية بالحالة">
             <SelectValue placeholder="الحالة" />
           </SelectTrigger>
           <SelectContent>
@@ -171,6 +134,35 @@ export function ContractsView({
             ))}
           </SelectContent>
         </Select>
+        {/* ⚠️ الفروقات — المرجع: contract_hub.py:80–89 (مفتاح contract_gaps) */}
+        {featureEnabled("contract_gaps") && (
+          <Button
+            variant="outline"
+            className="h-9 gap-1.5"
+            title="عقود تختلف قيمتها عن خطتها/بنودها"
+            onClick={() => setGapsOpen(true)}
+          >
+            ⚠️ الفروقات
+          </Button>
+        )}
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-9"
+          onClick={() => listQuery.refetch()}
+          aria-label="تحديث"
+        >
+          <RefreshCw className={listQuery.isFetching ? "size-4 animate-spin" : "size-4"} />
+        </Button>
+        {manager && (
+          <Button
+            className="h-9 gap-1.5"
+            onClick={() => setCreatePage({})}
+          >
+            <Plus className="size-4" />
+            عقد جديد
+          </Button>
+        )}
       </div>
 
       {/* القائمة */}

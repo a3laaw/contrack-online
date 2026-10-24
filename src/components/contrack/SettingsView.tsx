@@ -100,11 +100,9 @@ export function SettingsView({ user, onAuthError, initialSection }: SettingsView
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold">الإعدادات</h1>
-          <p className="text-sm text-muted-foreground">بيانات الشركة والطباعة والمستخدمون والأنواع والمراحل والنسخ — تُحفظ كل مجموعة من زرها</p>
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-lg font-bold whitespace-nowrap">الإعدادات</h1>
+        <span className="hidden xl:inline text-xs text-muted-foreground">بيانات الشركة والطباعة والمستخدمون والأنواع والمراحل والنسخ — تُحفظ كل مجموعة من زرها</span>
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="gap-4">

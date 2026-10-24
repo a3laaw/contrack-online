@@ -194,13 +194,11 @@ export function VouchersView({ user, onAuthError, presetQ, onConsumePresetQ, ini
 
   return (
     <div className="space-y-4">
-      {/* رأس الصفحة */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold">السندات</h1>
-          <p className="text-sm text-muted-foreground">قبض وصرف وتحويلات — مع الربط بالدفعات</p>
-        </div>
-        <div className="flex items-center gap-2">
+      {/* رأس الصفحة — سطر واحد مضغوط */}
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-lg font-bold whitespace-nowrap">السندات</h1>
+        <span className="hidden xl:inline text-xs text-muted-foreground">قبض وصرف وتحويلات — مع الربط بالدفعات</span>
+        <div className="ms-auto flex items-center gap-2">
           <Button variant="outline" size="icon" className="size-9" onClick={() => listQuery.refetch()} aria-label="تحديث">
             <RefreshCw className={listQuery.isFetching ? "size-4 animate-spin" : "size-4"} />
           </Button>

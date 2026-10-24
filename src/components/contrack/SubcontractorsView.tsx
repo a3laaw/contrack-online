@@ -138,29 +138,23 @@ export function SubcontractorsView({ user, onAuthError }: SubcontractorsViewProp
 
   return (
     <div className="space-y-4">
-      {/* رأس الصفحة */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold">المقاولون</h1>
-          <p className="text-sm text-muted-foreground">مقاولو الباطن وعقودهم وقيمة المنصرف عليهم</p>
+      {/* رأس الصفحة — سطر واحد مضغوط */}
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-lg font-bold whitespace-nowrap">المقاولون</h1>
+        <span className="hidden xl:inline text-xs text-muted-foreground">مقاولو الباطن وعقودهم وقيمة المنصرف عليهم</span>
+        <div className="relative order-last w-full sm:order-none sm:ms-auto sm:w-auto sm:min-w-44 sm:max-w-xs sm:flex-1">
+          <Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input className="h-9 ps-9" placeholder="ابحث بالاسم/الكود/الهاتف/النشاط…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" className="size-9" onClick={() => listQuery.refetch()} aria-label="تحديث">
-            <RefreshCw className={listQuery.isFetching ? "size-4 animate-spin" : "size-4"} />
+        <Button variant="outline" size="icon" className="size-9" onClick={() => listQuery.refetch()} aria-label="تحديث">
+          <RefreshCw className={listQuery.isFetching ? "size-4 animate-spin" : "size-4"} />
+        </Button>
+        {manager && (
+          <Button size="sm" className="h-9 gap-1.5" onClick={() => openForm()}>
+            <Plus className="size-4" />
+            مقاول جديد
           </Button>
-          {manager && (
-            <Button size="sm" className="h-9 gap-1.5" onClick={() => openForm()}>
-              <Plus className="size-4" />
-              مقاول جديد
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* البحث */}
-      <div className="relative">
-        <Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input className="h-9 ps-9" placeholder="ابحث بالاسم/الكود/الهاتف/النشاط…" value={q} onChange={(e) => setQ(e.target.value)} />
+        )}
       </div>
 
       {/* المحتوى */}

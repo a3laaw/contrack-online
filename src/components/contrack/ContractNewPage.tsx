@@ -485,17 +485,12 @@ export function ContractNewPage({
     );
 
   return (
-    <div className="space-y-4">
-      {/* ===== رأس مختصر + شارات الحالة (بدل مؤشر الخطوات) ===== */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-xs text-muted-foreground">العملاء والعقود ← العقود</p>
-          <h1 className="text-xl font-bold">عقد جديد</h1>
-        </div>
-        <div className="flex items-center gap-1.5">
-          {modeBadge}
-          {supCandidate && <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">👁 إشراف</Badge>}
-        </div>
+    <div className="space-y-3">
+      {/* ===== رأس مختصر — سطر واحد (العنوان + شارات الحالة) ===== */}
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-lg font-bold whitespace-nowrap">عقد جديد</h1>
+        {modeBadge}
+        {supCandidate && <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">👁 إشراف</Badge>}
       </div>
 
       {/* ===== ① بيانات العقد — صفّان مدمجان ===== */}

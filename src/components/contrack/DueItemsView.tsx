@@ -51,10 +51,10 @@ export function DueItemsView({ user, onAuthError, onOpenContract }: DueItemsView
 
   return (
     <div className="space-y-4">
-      {/* العنوان والمسار */}
-      <div>
-        <h1 className="text-xl font-bold">المهام المستحقة</h1>
-        <p className="text-sm text-muted-foreground">الرئيسية ← المهام المستحقة — المستحق للتحصيل والمهام المتأخرة</p>
+      {/* العنوان — سطر واحد مضغوط */}
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-lg font-bold whitespace-nowrap">المهام المستحقة</h1>
+        <span className="hidden xl:inline text-xs text-muted-foreground">المستحق للتحصيل والمهام المتأخرة</span>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

@@ -121,12 +121,10 @@ export function UsersView({ user, onAuthError }: UsersViewProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold">المستخدمون</h1>
-          <p className="text-sm text-muted-foreground">إدارة الحسابات والأدوار والصلاحيات</p>
-        </div>
-        <Button className="h-9 gap-1.5" onClick={openAdd}>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-lg font-bold whitespace-nowrap">المستخدمون</h1>
+        <span className="hidden xl:inline text-xs text-muted-foreground">إدارة الحسابات والأدوار والصلاحيات</span>
+        <Button className="ms-auto h-9 gap-1.5" onClick={openAdd}>
           <Plus className="size-4" />
           مستخدم جديد
         </Button>

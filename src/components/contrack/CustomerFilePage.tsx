@@ -280,7 +280,7 @@ export function CustomerFilePage({
   return (
     <div className="space-y-3">
       {/* ===== شريط الرجوع الثابت (خارج التمرير — شرط الاعتماد المكتبي) ===== */}
-      <div className="sticky top-14 z-30 -mx-4 border-b bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="sticky top-14 z-30 -mx-4 border-b bg-background/95 px-4 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onBack} aria-label="العودة للصفحة السابقة (أو اضغط Esc)">
             <ArrowRight className="size-4" />
@@ -396,21 +396,7 @@ export function CustomerFilePage({
                 </CardContent>
               </Card>
 
-              {/* نماذج ومرفقات العميل */}
-              <DocsCard
-                customerId={customerId}
-                customer={customer}
-                contracts={contracts}
-                manager={manager}
-                attachmentsQuery={attachmentsQuery}
-                onAuthError={onAuthError}
-                onSaved={() => {
-                  qc.invalidateQueries({ queryKey: ["customer-file", customerId, "attachments"] });
-                }}
-                onError={handleError}
-              />
-
-              {/* أهم عقود العميل */}
+              {/* أهم عقود العميل — الجدول الرئيسي يظهر فورًا دون تمرير */}
               <Card>
                 <CardContent className="p-4">
                   <h3 className="mb-3 text-sm font-bold">📌 أهم عقود العميل</h3>
@@ -449,6 +435,20 @@ export function CustomerFilePage({
                   )}
                 </CardContent>
               </Card>
+
+              {/* نماذج ومرفقات العميل */}
+              <DocsCard
+                customerId={customerId}
+                customer={customer}
+                contracts={contracts}
+                manager={manager}
+                attachmentsQuery={attachmentsQuery}
+                onAuthError={onAuthError}
+                onSaved={() => {
+                  qc.invalidateQueries({ queryKey: ["customer-file", customerId, "attachments"] });
+                }}
+                onError={handleError}
+              />
 
               {/* السجل الزمني (كالمصدر _fill_customer_timeline) */}
               <Card>

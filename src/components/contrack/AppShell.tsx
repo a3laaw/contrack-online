@@ -231,13 +231,13 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
 
         {/* ===== المحتوى ===== */}
         <main className="min-w-0 flex-1">
-          <div className="w-full space-y-4 px-3 py-4 sm:px-4 lg:px-6">{children}</div>
+          <div className="w-full space-y-3 px-3 py-3 sm:px-4 lg:px-6">{children}</div>
         </main>
       </div>
 
       {/* التذييل — يلتصق بالأسفل وينزاح طبيعيًا عند طول المحتوى */}
       <footer className="mt-auto border-t bg-muted/40">
-        <div className="px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] text-center text-xs text-muted-foreground">
+        <div className="px-4 py-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] text-center text-xs text-muted-foreground">
           ConTrack V9.15 — إدارة العقود والمحاسبة
         </div>
       </footer>
