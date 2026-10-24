@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ConTrack — مقترح ألوان النظام (تصور فقط — بلا تعديل)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{font-family:"Cairo","Segoe UI",Tahoma,sans-serif; background:#F9FAFB; color:#1F2937; line-height:1.75; padding:20px 14px 60px}
+  .wrap{max-width:1180px; margin:0 auto}
+  h1{font-size:24px; font-weight:800}
+  h2{font-size:19px; font-weight:800; margin:0 0 4px}
+  p{font-size:13.5px}
+  .muted{color:#6B7280}
+  .small{font-size:12px}
+  .card{background:#fff; border:1px solid #E5E7EB; border-radius:14px; padding:18px; margin-bottom:22px}
+  .badge{display:inline-block; font-size:11px; font-weight:700; border-radius:999px; padding:2px 10px; border:1px solid}
+  .b-green{background:#ECFDF5; color:#065F46; border-color:#A7F3D0}
+  .b-warn{background:#FEF3C7; color:#B45309; border-color:#FDE68A}
+  .b-gray{background:#F3F4F6; color:#6B7280; border-color:#E5E7EB}
+  .sec-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px}
+  .num{display:inline-flex; width:30px; height:30px; align-items:center; justify-content:center; border-radius:9px; background:#047857; color:#fff; font-weight:800; font-size:14px; flex:none}
+  table{width:100%; border-collapse:collapse; font-size:12.5px}
+  th{background:#F3F4F6; padding:8px 10px; text-align:right; border:1px solid #E5E7EB; font-size:12px; white-space:nowrap}
+  td{padding:8px 10px; border:1px solid #E5E7EB; vertical-align:top}
+  tr:nth-child(even) td{background:#FAFAFA}
+  .code{font-family:ui-monospace,monospace; font-size:11px; background:#F3F4F6; border:1px solid #E5E7EB; border-radius:6px; padding:1px 6px; direction:ltr; display:inline-block}
+
+  /* ===== عارض لوحة ألوان ===== */
+  .pal{display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:14px}
+  .pal .p{border:1.5px solid #E5E7EB; border-radius:12px; overflow:hidden; background:#fff}
+  .pal .p.reco{border-color:#047857; box-shadow:0 0 0 3px #ECFDF5}
+  .p-head{padding:10px 12px; border-bottom:1px solid #E5E7EB}
+  .p-head b{font-size:14px}
+  .p-body{padding:12px; display:flex; flex-direction:column; gap:10px}
+  .chip-row{display:flex; gap:6px; flex-wrap:wrap}
+  .chip{height:34px; flex:1; min-width:44px; border-radius:8px; border:1px solid rgba(0,0,0,.08); position:relative}
+  .chip span{position:absolute; bottom:-18px; right:0; font-size:9.5px; color:#6B7280; direction:ltr; font-family:ui-monospace,monospace}
+  .chip-row.space{margin-bottom:18px}
+
+  /* عينات واجهة مصغرة لكل لوحة */
+  .ui-sample{border:1px solid #E5E7EB; border-radius:10px; overflow:hidden; font-size:11.5px}
+  .us-top{display:flex; align-items:center; gap:6px; padding:6px 10px; background:#fff; border-bottom:1px solid #E5E7EB; font-weight:800; font-size:11.5px}
+  .us-sq{width:18px; height:18px; border-radius:5px; display:inline-flex; align-items:center; justify-content:center; color:#fff; font-size:10px}
+  .us-main{display:flex}
+  .us-nav{width:86px; flex:none; padding:6px; background:#fff; border-left:1px solid #E5E7EB}
+  .us-nav div{padding:4px 7px; border-radius:6px; color:#6B7280; margin-bottom:2px; font-size:10.5px}
+  .us-body{flex:1; padding:8px; background:#F9FAFB}
+  .us-btn{display:inline-block; border-radius:7px; padding:4px 12px; font-size:11px; font-weight:700; color:#fff}
+  .us-btn.o{background:#fff; color:#1F2937; border:1px solid #E5E7EB}
+  .us-table{width:100%; border-collapse:collapse; margin-top:6px; font-size:10.5px}
+  .us-table th{font-size:10px; padding:3px 6px}
+  .us-table td{padding:3px 6px; background:#fff}
+  .us-b{border-radius:999px; padding:1px 8px; font-size:9.5px; font-weight:700; border:1px solid}
+
+  .sw-strip{display:flex; height:22px; border-radius:7px; overflow:hidden; border:1px solid #E5E7EB; margin-top:6px}
+  .sw-strip div{flex:1}
+  .note{background:#ECFDF5; border:1px solid #A7F3D0; border-radius:10px; padding:10px 14px; font-size:13px; margin-top:10px}
+  .note-w{background:#FEF3C7; border-color:#FDE68A}
+  .opt-tag{display:inline-block; font-size:10.5px; font-weight:800; border-radius:7px; padding:2px 9px; margin-right:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- الغلاف -->
+  <div class="card" style="background:linear-gradient(135deg,#ECFDF5 0%,#fff 55%)">
+    <div style="display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap">
+      <div class="num" style="width:44px; height:44px; font-size:18px">🎨</div>
+      <div style="flex:1; min-width:260px">
+        <h1>مقترح ألوان النظام — ConTrack</h1>
+        <p class="muted">لوحات بديلة ثلاث + تطوير الوضع الحالي — مع معاينة حية لكل لوحة على عناصر واجهة حقيقية (زر، رأس جدول، شارة، قائمة جانبية)</p>
+      </div>
+      <div style="text-align:center">
+        <div style="width:52px; height:52px; border-radius:12px; background:#047857; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:20px; margin:0 auto">🐎</div>
+        <div class="small muted" style="margin-top:4px">ConTrack</div>
+      </div>
+    </div>
+    <div class="note note-w" style="margin-top:12px">
+      ✋ <b>حالة التنفيذ:</b> هذا التصور <b>لا عدّل فيه أي ملف</b>. لو اخترت لوحة، فالتطبيق كله = تعديل <span class="code">~20 متغير لون</span> في ملف واحد فقط <span class="code">src/app/globals.css</span> — كل الشاشات تتبدل تلقائياً لأنها كلها تشير للمتغيرات (bg-primary / text-primary …).
+    </div>
+  </div>
+
+  <!-- 1) الوضع الحالي -->
+  <div class="card">
+    <div class="sec-head"><span class="num">1</span><h2>الوضع الحالي (المرجع) — «الزمرد الواحد»</h2><span class="badge b-green">قائم يعمل</span></div>
+    <p class="muted small" style="margin-bottom:12px">لغة لونية موجودة أصلاً في <span class="code">globals.css</span>: أخضر زمردي واحد <span class="code">#047857</span> للهوية + شارات حالات محايدة (أزرق معلومات / عنبر تحذير / أحمر خطر / رمادي منجز) + رسوم بيانية من نفس اللوحة. هذه هي نقطة الانطلاق لأي مقترح.</p>
+    <div class="pal">
+      <!-- اللوحة الحالية -->
+      <div class="p">
+        <div class="p-head"><b>الحالي — الزمرد</b> <span class="badge b-gray" style="margin-right:6px">مرجع</span></div>
+        <div class="p-body">
+          <div class="ui-sample">
+            <div class="us-top"><span class="us-sq" style="background:#047857">🐎</span> ConTrack — العقود</div>
+            <div class="us-main">
+              <div class="us-nav"><div class="on" style="background:#ECFDF5;color:#065F46;font-weight:700">العقود</div><div>العملاء</div><div>المهام</div></div>
+              <div class="us-body">
+                <button class="us-btn" style="background:#047857">+ عقد جديد</button>
+                <button class="us-btn o" style="margin-right:4px">تصدير</button>
+                <table class="us-table"><tr style="background:#F3F4F6"><th>العقد</th><th>الحالة</th></tr><tr><td>CON-0231</td><td><span class="us-b" style="background:#DBEAFE;color:#1D4ED8;border-color:#BFDBFE">نشط</span></td></tr></table>
+              </div>
+            </div>
+          </div>
+          <div class="chip-row space">
+            <div class="chip" style="background:#047857"><span>047857</span></div>
+            <div class="chip" style="background:#ECFDF5"><span>ECFDF5</span></div>
+            <div class="chip" style="background:#065F46"><span>065F46</span></div>
+            <div class="chip" style="background:#1D4ED8"><span>1D4ED8</span></div>
+            <div class="chip" style="background:#92400E"><span>92400E</span></div>
+            <div class="chip" style="background:#B91C1C"><span>B91C1C</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- المقترح أ -->
+      <div class="p reco">
+        <div class="p-head"><b>أ — تطوير الزمرد</b> <span class="badge b-green" style="margin-right:6px">موصى به</span> <span class="opt-tag" style="background:#ECFDF5;color:#065F46">تدرج عمق أقوى</span></div>
+        <div class="p-body">
+          <div class="ui-sample">
+            <div class="us-top"><span class="us-sq" style="background:#065F46">🐎</span> ConTrack — العقود</div>
+            <div class="us-main">
+              <div class="us-nav"><div class="on" style="background:#ECFDF5;color:#065F46;font-weight:700">العقود</div><div>العملاء</div><div>المهام</div></div>
+              <div class="us-body">
+                <button class="us-btn" style="background:#065F46">+ عقد جديد</button>
+                <button class="us-btn o" style="margin-right:4px">تصدير</button>
+                <table class="us-table"><tr style="background:#F3F4F6"><th>العقد</th><th>الحالة</th></tr><tr><td>CON-0231</td><td><span class="us-b" style="background:#DBEAFE;color:#1D4ED8;border-color:#BFDBFE">نشط</span></td></tr></table>
+              </div>
+            </div>
+          </div>
+          <div class="chip-row space">
+            <div class="chip" style="background:#064E3B"><span>064E3B</span></div>
+            <div class="chip" style="background:#065F46"><span>065F46</span></div>
+            <div class="chip" style="background:#047857"><span>047857</span></div>
+            <div class="chip" style="background:#ECFDF5"><span>ECFDF5</span></div>
+            <div class="chip" style="background:#D1FAE5"><span>D1FAE5</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- المقترح ب -->
+      <div class="p">
+        <div class="p-head"><b>ب — البترولي المالي</b> <span class="badge b-warn" style="margin-right:6px">هوية أرسم</span></div>
+        <div class="p-body">
+          <div class="ui-sample">
+            <div class="us-top"><span class="us-sq" style="background:#0F766E">🐎</span> ConTrack — العقود</div>
+            <div class="us-main">
+              <div class="us-nav"><div class="on" style="background:#F0FDFA;color:#134E4A;font-weight:700">العقود</div><div>العملاء</div><div>المهام</div></div>
+              <div class="us-body">
+                <button class="us-btn" style="background:#0F766E">+ عقد جديد</button>
+                <button class="us-btn o" style="margin-right:4px">تصدير</button>
+                <table class="us-table"><tr style="background:#F3F4F6"><th>العقد</th><th>الحالة</th></tr><tr><td>CON-0231</td><td><span class="us-b" style="background:#DBEAFE;color:#1D4ED8;border-color:#BFDBFE">نشط</span></td></tr></table>
+              </div>
+            </div>
+          </div>
+          <div class="chip-row space">
+            <div class="chip" style="background:#134E4A"><span>134E4A</span></div>
+            <div class="chip" style="background:#115E59"><span>115E59</span></div>
+            <div class="chip" style="background:#0F766E"><span>0F766E</span></div>
+            <div class="chip" style="background:#F0FDFA"><span>F0FDFA</span></div>
+            <div class="chip" style="background:#CCFBF1"><span>CCFBF1</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- المقترح ج -->
+      <div class="p">
+        <div class="p-head"><b>ج — الكحلي المؤسسي</b> <span class="badge b-warn" style="margin-right:6px">ERP رسمي</span></div>
+        <div class="p-body">
+          <div class="ui-sample">
+            <div class="us-top"><span class="us-sq" style="background:#1E3A5F">🐎</span> ConTrack — العقود</div>
+            <div class="us-main">
+              <div class="us-nav"><div class="on" style="background:#EFF6FF;color:#1E3A5F;font-weight:700">العقود</div><div>العملاء</div><div>المهام</div></div>
+              <div class="us-body">
+                <button class="us-btn" style="background:#1E3A5F">+ عقد جديد</button>
+                <button class="us-btn o" style="margin-right:4px">تصدير</button>
+                <table class="us-table"><tr style="background:#F3F4F6"><th>العقد</th><th>الحالة</th></tr><tr><td>CON-0231</td><td><span class="us-b" style="background:#D1FAE5;color:#065F46;border-color:#A7F3D0">نشط</span></td></tr></table>
+              </div>
+            </div>
+          </div>
+          <div class="chip-row space">
+            <div class="chip" style="background:#152B47"><span>152B47</span></div>
+            <div class="chip" style="background:#1E3A5F"><span>1E3A5F</span></div>
+            <div class="chip" style="background:#2E5077"><span>2E5077</span></div>
+            <div class="chip" style="background:#EFF6FF"><span>EFF6FF</span></div>
+            <div class="chip" style="background:#047857"><span>047857</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2) المقارنة -->
+  <div class="card">
+    <div class="sec-head"><span class="num">2</span><h2>مقارنة اللوحات الأربع</h2></div>
+    <table>
+      <tr><th>اللوحة</th><th>الأساسي</th><th>الطابع</th><th>المزايا</th><th>الاعتبارات</th><th>تصلح لـ</th></tr>
+      <tr>
+        <td><b>الحالي — الزمرد</b></td>
+        <td><span class="code">#047857</span></td>
+        <td>حيوي/نمو</td>
+        <td>هوية قائمة ومدعومة في كل الشاشات + تباين نصي ممتاز 7.3:1</td>
+        <td>درجة واحدة فقط من الأخضر — لا عمق عند التركيبات (أزرار ثانوية داخل كارت أساسي)</td>
+        <td>الإبقاء عليها كما هي خيار مشروع تماماً</td>
+      </tr>
+      <tr style="background:#ECFDF5">
+        <td><b>أ — تطوير الزمرد</b> ⭐</td>
+        <td><span class="code">#065F46</span> + سلم 5 درجات</td>
+        <td>نفس الهوية بعمق أكبر</td>
+        <td>أزرار رئيسية أثقل حضوراً (800:1 تباعاً)، 3 مستويات soft (هوامش/خلفيات/تحديد)، عناوين جانبية أعمق — <b>أقل تغيير ممكن بأكبر إحساس بالفخامة</b></td>
+        <td>لا شيء تقريباً — نفس العائلة اللونية فلا إعادة تعويد للمستخدمين</td>
+        <td>الخيار الأمثل: تحسين بلا مخاطرة</td>
+      </tr>
+      <tr>
+        <td><b>ب — البترولي المالي</b></td>
+        <td><span class="code">#0F766E</span></td>
+        <td>مصرفي/مؤسسي</td>
+        <td>أقرب لإحساس أنظمة الإدارة المالية؛ مريح جداً للجداول الطويلة لأنه بارد أقل إشباعاً</td>
+        <td>تبدال الهوية الحالية كلياً — يحتاج إعادة توليد الشعار/الأيقونات الخضراء</td>
+        <td>لو حابب تجديد هوية شامل</td>
+      </tr>
+      <tr>
+        <td><b>ج — الكحلي المؤسسي</b></td>
+        <td><span class="code">#1E3A5F</span></td>
+        <td>ERP حكومي/رسمي</td>
+        <td>الأكثر رصانة للعروض الرسمية والجهات الكبرى؛ الأخضر يصبح لون «النجاح» فقط في الشارات — فصل أدوار نظيف</td>
+        <td>أكبر انحراف عن الهوية الحالية + أقرب للأزرق (بعض المستخدمين يربطونه بأنظمة أخرى)</td>
+        <td>لو النظام موجّه لجهات حكومية/مقاولات كبرى</td>
+      </tr>
+    </table>
+    <div class="note">
+      💡 <b>توصيتي:</b> <b>اللوحة أ</b> — نفس الهوية الخضراء التي اعتاد عليها المستخدمون، لكن بسلم أعمق (primary ← <span class="code">#065F46</span>، مع <span class="code">primary-soft-2 = D1FAE5</span> للتحديد و<span class="code">primary-soft-3 = 064E3B</span> للعناوين). تحسّن ملموس في الوزن البصري، وصفر تعويد. لوحات ب/ج جاهزتان لو قررت تجديد الهوية فيما بعد.
+    </div>
+  </div>
+
+  <!-- 3) بقايا النظام اللوني -->
+  <div class="card">
+    <div class="sec-head"><span class="num">3</span><h2>ثلاث نقاط تكميلية في النظام اللوني (لا علاقة لها باختيار اللوحة)</h2></div>
+    <table>
+      <tr><th>#</th><th>البند</th><th>الوضع الآن</th><th>المقترح</th></tr>
+      <tr>
+        <td>1</td>
+        <td><b>الوضع الداكن</b></td>
+        <td>غير موجود — <span class="code">globals.css</span> فاتح فقط، رغم أن <span class="code">next-themes</span> مثبّت</td>
+        <td>لاحقاً: إضافة كتلة <span class="code">.dark</span> بنفس المتغيرات (سطح داكن <span class="code">#0B1220</span> + زمردي فاتح <span class="code">#34D399</span>) — مفتاح تبديل في الترويسة</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><b>أشرطة التمرير</b></td>
+        <td>ملونة بالأخضر <span class="code">#A7F3D0</span> عالمياً حتى داخل النوافذ المحايدة</td>
+        <td>تحييدها لرمادي <span class="code">#D1D5DB</span> — الأخضر للعناصر التفاعلية فقط، وأشرطة التمرير ليست تفاعل هوية</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><b>شارة «منجز» خضراء؟</b></td>
+        <td>قيد موثق: حالات بلا أخضر (الأخضر للهوية وحده) — «منجز» رمادي <span class="code">334155</span></td>
+        <td>إبقاء القيد كما هو (صحيح تركيبياً) — لكن لو انتقلنا للوحة ج فالرمادي يبقى أفضل فصلاً</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- 4) خريطة التطبيق -->
+  <div class="card">
+    <div class="sec-head"><span class="num">4</span><h2>كيف يُطبَّق اختيارك؟ (عند الإذن فقط)</h2></div>
+    <table>
+      <tr><th>الخطوة</th><th>الملف</th><th>ماذا يتغير</th><th>المخاطرة</th></tr>
+      <tr><td>1</td><td><span class="code">src/app/globals.css</span></td><td>قيم ~20 متغير (primary / primary-soft / chart / sidebar …) — لا أسماء ولا بنية</td><td>صفر منطق — بصرية فقط</td></tr>
+      <tr><td>2</td><td><span class="code">docs-audit/</span></td><td>لقطات قبل/بعد لشاشتين نموذجيتين (العقود + عقد جديد)</td><td>—</td></tr>
+      <tr><td>3</td><td>تحقق متصفحي</td><td>موبايل 375 + سطح مكتب 1366 — لا تغيير أبعاد مطلقاً</td><td>—</td></tr>
+    </table>
+    <p class="small muted" style="margin-top:10px">المدة التقديرية: جلسة واحدة قصيرة. لا يمكن أن يكسر هذا التغيير أي وظيفة لأنه قيم CSS فقط.</p>
+  </div>
+
+  <div class="card" style="text-align:center; background:linear-gradient(135deg,#fff 0%,#ECFDF5 100%)">
+    <h2>✋ القرار لك</h2>
+    <p>اختر: <b>أ</b> تطوير الزمرد (موصى به) / <b>ب</b> البترولي / <b>ج</b> الكحلي / أو <b>الإبقاء على الحالي</b> — وأي نقاط تكميلية من القسم 3 تريد تضمينها. لا أنفذ شيئاً قبل إذنك الصريح.</p>
+  </div>
+
+</div>
+</body>
+</html>
