@@ -2497,3 +2497,56 @@ Work Log:
 Stage Summary:
 - شاشة «عقد جديد» أصبحت صفحة واحدة تحقق دراسة الحالات الأربع حرفيًا مع الجدولين المتقابلين كما طلب المستخدم، ومركز العقد يطبق قواعد العرض (شارة المسار/إخفاء الأوامر للإشراف/تبويبات اليدوي/بطاقة الإشراف).
 - ترقيم مستقل بالشركة (CON-0244..246 داخل الأرشيف) وبيانات الشركة الحية سليمة.
+
+---
+Task ID: 3-b
+Agent: spec-reader-B3B4B5
+Task: قراءة ملفات المواصفات 03 و04 و05 واستخراج ملخص الشاشات
+
+Work Log:
+- قراءة 03_المقاولون.md كاملاً
+- قراءة 04_السندات_والمطالبات.md كاملاً
+- قراءة 05_بوابة_الدفع_والشركة_الأخرى.md كاملاً
+- إخراج ملخص منظم لكل شاشة
+
+Stage Summary:
+- استُخرجت مواصفات 34 شاشة (B3+B4+B5) مع قواعد العمل والصلاحيات
+
+---
+Task ID: 3-c
+Agent: spec-reader-B6B7
+Task: قراءة ملفات المواصفات 06 و07 واستخراج ملخص الشاشات
+
+Work Log:
+- قراءة 06_العهد_والسلف.md كاملاً
+- قراءة 07_المتابعة_والزيارات_والتعليقات.md كاملاً
+- إخراج ملخص منظم لكل شاشة
+
+Stage Summary:
+- استُخرجت مواصفات 26 شاشة (B6+B7) مع قواعد العمل والصلاحيات
+
+---
+Task ID: 3-d
+Agent: spec-reader-B8
+Task: قراءة ملف المواصفات 08 واستخراج ملخص الشاشات
+
+Work Log:
+- قراءة 08_التقارير_والإعدادات_والإدارة.md كاملاً
+- إخراج ملخص منظم لكل شاشة
+
+Stage Summary:
+- استُخرجت مواصفات 15 شاشة (B8) مع قواعد العمل والصلاحيات وقائمة التقارير
+
+---
+Task ID: 3-a
+Agent: spec-reader-B1B2
+Task: قراءة ملفات المواصفات 01 و02 واستخراج ملخص الشاشات
+
+Work Log:
+- قراءة 01_الغلاف_والتنقل.md كاملاً (1066 سطراً — 14 شاشة: LoginDialog, MainWindow, DashboardPage, GlobalSearchDialog, FullPageHost, HoverRow, PaginationBar, SegmentedTabs, EntityHeader, ActionBar, PageNav, FilterChips, GlassBackground, _MessageDialog)
+- قراءة 02_العملاء_والعقود.md كاملاً (1056 سطراً — 17 شاشة: FollowupPanel, ChangeOrderDialog, StageBar, ContractHubPage, ContractDialog, GapsDialog, CustomerDialog, CustomerFileWidget, CustomerArchiveDialog, DealingsPage, FixUnspecifiedDialog, StageSupervisionDialog, StageNoteDialog, GlassReceiptDialog, InvoiceDialog, PaymentEditDialog, TypeWorkflowDialog)
+- استخراج قواعد العمل حرفياً لكل شاشة: محاولات الدخول الثلاث، PAGE_PERMS، مصادر التنبيهات الـ14 (إخفاء >30 يوم وسقف 25/مصدر)، بحث شامل 8 نتائج/نوع بلا تصفية صلاحيات، مركز العقد (ربح بـaction_view_financial + تصفية بثلاث حالات + 4 قطع كود ميت)، ContractDialog (مجموع 0.000 د.ك + حوار فرق يحكمه ميزة amount_guard + أوضاع _apply_mode بإحالة لتقرير الطلب 43)، GapsDialog (نسخة احتياطية pre_gaps_fix إجبارية قبل الإصلاح)، DealingsPage (حذف require_admin + منع حذف عميل له عقود وعقد عليه حركات)، تناقضات موثقة (أعمدة مالية بلا حماية مالية في العملاء، حذف التعليق/المسار بلا مدير في ملف العميل، نموذج عميل بلا بريد مع بحث يشمل البريد)
+- إخراج ملخص منظم لكل شاشة + جدول مرجعي للشاشات الـ31
+
+Stage Summary:
+- استُخرجت مواصفات 31 شاشة (B1+B2) مع قواعد العمل والصلاحيات
