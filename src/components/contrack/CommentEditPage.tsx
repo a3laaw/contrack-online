@@ -325,7 +325,7 @@ export function CommentEditPage({ mode, target, onAuthError, onSaved, onClose }:
       </Card>
 
       {/* ===== شريط الإجراءات السفلي — حفظ أساسي واحد + إلغاء outline ===== */}
-      <div className="sticky bottom-2 z-30">
+      <div className="sticky bottom-0 z-30">
         <Card className="border bg-background/95 shadow-sm backdrop-blur">
           <CardContent className="flex items-center justify-end gap-2 p-2">
             <Button variant="outline" className="h-9" onClick={onClose} disabled={pending}>

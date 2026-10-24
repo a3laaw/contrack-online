@@ -709,7 +709,7 @@ export function GatewayView({ user, onAuthError }: GatewayViewProps) {
 
           {/* شريط الإجراءات الجماعية */}
           {selected.size > 0 && (
-            <Card className="sticky bottom-20 z-30 border-primary/40 bg-primary/5">
+            <Card className="sticky bottom-0 z-30 border-primary/40 bg-primary/5">
               <CardContent className="flex flex-wrap items-center gap-2 p-2.5">
                 <span className="text-xs font-extrabold text-primary">المحدد: {selected.size}</span>
                 <Button

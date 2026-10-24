@@ -37,6 +37,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, apiPost } from "./api";
@@ -45,6 +46,7 @@ import type {
   DashboardAlertRow,
   DashboardResponse,
   DashboardTaskRow,
+  TasksResponse,
   User,
 } from "./contrack-types";
 import { isManagerRole, errMessage } from "./contrack-types";
@@ -83,6 +85,8 @@ interface DashboardViewProps {
   onQuickAction: (action: DashboardQuickAction) => void;
   onOpenContract: (id: number) => void;
   onOpenCustomerFile: (id: number) => void;
+  /** Task 92 — استعادة كارت «مهام قريبة»: الانتقال لشاشة المهام */
+  onOpenTasks?: () => void;
 }
 
 /** حبة التنبيه — ألوان لوحة الواجهة الموحّدة (info/warn/danger) · كل فئة خارجها تُساوى على أقرب لون لوحة */
@@ -105,6 +109,7 @@ export function DashboardView({
   onQuickAction,
   onOpenContract,
   onOpenCustomerFile,
+  onOpenTasks,
 }: DashboardViewProps) {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -129,6 +134,25 @@ export function DashboardView({
   const data = dashQuery.data;
   const alerts = data?.alerts ?? [];
   const activity = data?.activity ?? [];
+
+  // ===== Task 92: استعادة «مهام قريبة» في الرئيسية — نفس كاش شاشة المهام (مفتاح ["tasks"]) =====
+  const tasksQuery = useQuery<TasksResponse>({
+    queryKey: ["tasks"],
+    queryFn: () => apiGet<TasksResponse>("/api/tasks"),
+    enabled: tasksOn,
+  });
+  const openTasks = React.useMemo(() => {
+    const list = tasksQuery.data?.tasks ?? tasksQuery.data?.items ?? [];
+    // TaskItem لا يحمل overdue (حقل DashboardTaskRow فقط) — نحسبه من dueAt بمنطقة الزمن المحلية
+    const p = (x: number) => String(x).padStart(2, "0");
+    const n = new Date();
+    const nowKey = `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())} ${p(n.getHours())}:${p(n.getMinutes())}`;
+    return list
+      .filter((t) => t.status !== "منجزة")
+      .sort((a, b) => a.dueAt.localeCompare(b.dueAt))
+      .slice(0, 5)
+      .map((t) => ({ ...t, isOverdue: Boolean(t.dueAt) && t.dueAt < nowKey }));
+  }, [tasksQuery.data]);
 
   // ===== التغذية المدمجة: التنبيهات أولًا ثم النشاط (8 أو 25) كالمكتبي =====
   const [expanded, setExpanded] = React.useState(false);
@@ -272,8 +296,75 @@ export function DashboardView({
         ))}
       </div>
 
+      {/* ===== ⚡ الإجراءات السريعة — أعلى الرئيسية (Task 92: نُقلت من الأسفل) ===== */}
+      <Card className="p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-extrabold">⚡ إجراءات سريعة:</p>
+          <div className="flex flex-wrap gap-2">
+            {quickSpecs.map((q) => (
+              <Button key={q.action} variant="outline" size="sm" className="h-9" onClick={() => onQuickAction(q.action)}>
+                {q.text}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      {/* ===== 📋 مهام قريبة — استعادة اللوحة (Task 92 — كانت أزيلت في Task 84) ===== */}
+      {tasksOn && (
+        <Card className="p-3">
+          <div className="mb-2 flex items-center gap-2">
+            <h2 className="text-sm font-extrabold">📋 مهام قريبة</h2>
+            {openTasks.length > 0 ? (
+              <Badge variant="secondary" className="h-5 px-1.5 text-[11px]">{openTasks.length}</Badge>
+            ) : null}
+            {onOpenTasks && (
+              <Button variant="ghost" size="sm" className="ms-auto h-8" onClick={onOpenTasks}>
+                كل المهام ←
+              </Button>
+            )}
+          </div>
+          {tasksQuery.isLoading ? (
+            <div className="space-y-1.5">
+              <Skeleton className="h-8 rounded-md" />
+              <Skeleton className="h-8 rounded-md" />
+            </div>
+          ) : openTasks.length === 0 ? (
+            <p className="rounded-[10px] px-3 py-2 text-sm text-muted-foreground">لا مهام مفتوحة — أنشئ مهمة من شاشة «المهام».</p>
+          ) : (
+            <ul className="space-y-1">
+              {openTasks.map((t) => (
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    onClick={onOpenTasks}
+                    className="flex w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-start text-sm transition-colors hover:bg-secondary"
+                    title="فتح شاشة المهام"
+                  >
+                    <span
+                      className={cn(
+                        "size-2 shrink-0 rounded-full",
+                        t.isOverdue ? "bg-status-danger" : "bg-status-info"
+                      )}
+                      aria-hidden
+                    />
+                    <span className="min-w-0 flex-1 truncate font-medium">{t.title}</span>
+                    {t.isOverdue ? (
+                      <Badge className="bg-status-danger-bg text-status-danger hover:bg-status-danger-bg">متأخرة</Badge>
+                    ) : null}
+                    <span className="shrink-0 text-[11px] text-muted-foreground" dir="ltr">
+                      {t.dueAt}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
+
       <div className={cn("grid grid-cols-1 items-start gap-4", taskPage && "xl:grid-cols-[minmax(0,1fr)_340px]")}>
-        {/* ===== العمود الرئيسي: التغذية + الإجراءات السريعة ===== */}
+        {/* ===== العمود الرئيسي: التغذية (الإجراءات السريعة والمهام انتقلت أعلى الصفحة — Task 92) ===== */}
         <div className="min-w-0 space-y-4">
           {/* 🔔 التنبيهات والنشاطات */}
           <Card className="p-4">
@@ -316,7 +407,7 @@ export function DashboardView({
                 {EMPTY_FEED_TEXT}
               </p>
             ) : (
-              <ul className="max-h-[560px] space-y-1.5 overflow-y-auto pe-1">
+              <ul className="space-y-1.5 pe-1">
                 {pageData.chunk.map((it, idx) =>
                   it.src === "alert" ? (
                     <AlertRow
@@ -374,17 +465,6 @@ export function DashboardView({
             </div>
           </Card>
 
-          {/* ⚡ الإجراءات السريعة */}
-          <Card className="p-4">
-            <p className="mb-2 text-sm font-extrabold">⚡ إجراءات سريعة:</p>
-            <div className="flex flex-wrap gap-2">
-              {quickSpecs.map((q) => (
-                <Button key={q.action} variant="outline" size="sm" className="h-9" onClick={() => onQuickAction(q.action)}>
-                  {q.text}
-                </Button>
-              ))}
-            </div>
-          </Card>
         </div>
 
         {/* ===== عمود جانبي مؤقت — يظهر فقط عند تحويل تنبيه←مهمة (زر «مهمة») ===== */}

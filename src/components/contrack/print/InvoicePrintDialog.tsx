@@ -120,7 +120,7 @@ export function InvoicePrintDialog({ invoice, open, onOpenChange }: InvoicePrint
               </div>
               <div className="flex items-center justify-between border-t print-border pt-1">
                 <span className="text-gray-600">المبلغ المتبقي</span>
-                <span className={`font-extrabold numeric ${invoice.contractRemaining >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                <span className={`font-extrabold numeric ${invoice.contractRemaining >= 0 ? 'text-teal-700' : 'text-red-700'}`}>
                   {formatKWD(invoice.contractRemaining)}
                 </span>
               </div>

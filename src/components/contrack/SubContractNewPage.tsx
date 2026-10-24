@@ -138,9 +138,9 @@ export function SubContractNewPage({ contractId, contractNumber, user, onAuthErr
 
   return (
     <div className="space-y-4">
-      {/* ===== رأس الصفحة ===== */}
-      <header>
-        <nav aria-label="مسار التنقل" className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+      {/* ===== رأس الصفحة — سطر واحد (Task 92: توحيد مع بقية الشاشات) ===== */}
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <nav aria-label="مسار التنقل" className="flex items-center gap-1 text-xs text-muted-foreground">
           <span>العملاء والعقود</span>
           <span aria-hidden="true">←</span>
           <span>العقود</span>
@@ -149,8 +149,8 @@ export function SubContractNewPage({ contractId, contractNumber, user, onAuthErr
             {contractNumber}
           </span>
         </nav>
-        <h1 className="mt-1 text-xl font-bold">عقد باطن جديد</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-base font-bold">عقد باطن جديد</h1>
+        <p className="ms-auto hidden truncate text-xs text-muted-foreground lg:block">
           اختر المقاول وحدد القيمة — البنود والخطة تُضبط من تفاصيل العقد الباطن.
         </p>
       </header>
@@ -456,7 +456,7 @@ export function SubContractNewPage({ contractId, contractNumber, user, onAuthErr
         ))}
 
       {/* ===== شريط الإجراءات السفلي ===== */}
-      <div className="sticky bottom-2 z-30">
+      <div className="sticky bottom-0 z-30">
         <Card className="border bg-background/95 shadow-sm backdrop-blur">
           <CardContent className="flex items-center justify-end gap-2 p-2">
             {createdId ? (

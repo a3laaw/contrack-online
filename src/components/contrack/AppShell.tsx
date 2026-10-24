@@ -89,7 +89,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="flex h-dvh flex-col overflow-hidden bg-background">
       {/* ===== الشريط العلوي: الوحدات الأربع ===== */}
       <header className="sticky top-0 z-40 border-b bg-card">
         <div className="flex h-14 items-center gap-2 px-3 lg:px-4">
@@ -176,11 +176,11 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
         </div>
       </header>
 
-      <div className="flex flex-1 w-full">
+      <div className="flex flex-1 w-full min-h-0">
         {/* ===== القائمة الجانبية للوحدة — قابلة للطي إلى أيقونات (التقارير الـ11 منها كالمحاسبة) ===== */}
         <aside
           className={cn(
-            "hidden lg:flex sticky top-14 h-[calc(100vh-3.5rem)] shrink-0 flex-col border-l bg-card transition-[width] duration-200",
+            "hidden lg:flex h-full shrink-0 flex-col border-l bg-card transition-[width] duration-200",
             collapsed ? "w-14" : "w-56"
           )}
           aria-label={`أقسام ${currentModule.module.label}`}
@@ -229,14 +229,14 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
           </nav>
         </aside>
 
-        {/* ===== المحتوى ===== */}
-        <main className="min-w-0 flex-1">
+        {/* ===== المحتوى — حاوية التمرير الوحيدة: الصفحة تتمرر كسكرول واحد والشريط السفلي يثبت دائمًا فوق التذييل (Task 92) ===== */}
+        <main className="min-w-0 flex-1 overflow-y-auto">
           <div className="w-full space-y-3 px-3 py-3 sm:px-4 lg:px-6">{children}</div>
         </main>
       </div>
 
-      {/* التذييل — يلتصق بالأسفل وينزاح طبيعيًا عند طول المحتوى */}
-      <footer className="mt-auto border-t bg-muted/40">
+      {/* التذييل — مرئي دائمًا أسفل حاوية التمرير (لا ينزاح ولا يدفع الشريط السفلي) */}
+      <footer className="border-t bg-muted/40">
         <div className="px-4 py-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] text-center text-xs text-muted-foreground">
           ConTrack V9.15 — إدارة العقود والمحاسبة
         </div>

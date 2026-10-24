@@ -75,7 +75,7 @@ export function DueItemsView({ user, onAuthError, onOpenContract }: DueItemsView
             ) : dueNow.length === 0 ? (
               <p className="p-4 text-sm text-muted-foreground">لا يوجد مستحق الآن.</p>
             ) : (
-              <div className="max-h-96 overflow-y-auto">
+              <div className="">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -132,7 +132,7 @@ export function DueItemsView({ user, onAuthError, onOpenContract }: DueItemsView
             ) : overdue.length === 0 ? (
               <p className="p-4 text-sm text-muted-foreground">لا توجد متأخرات.</p>
             ) : (
-              <div className="max-h-96 overflow-y-auto">
+              <div className="">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -192,7 +192,7 @@ export function DueItemsView({ user, onAuthError, onOpenContract }: DueItemsView
           ) : lateTasks.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">لا توجد مهام متأخرة.</p>
           ) : (
-            <div className="max-h-96 overflow-y-auto">
+            <div className="">
               <Table>
                 <TableHeader>
                   <TableRow>

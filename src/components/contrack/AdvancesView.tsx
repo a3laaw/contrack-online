@@ -448,7 +448,7 @@ function StatCard({
 
 function LedgerTable({ rows }: { rows: LedgerRow[] }) {
   return (
-    <div className="max-h-96 overflow-auto rounded-md border">
+    <div className="rounded-md border">
       <Table>
         <TableHeader className="sticky top-0 z-10 bg-muted">
           <TableRow>
@@ -545,7 +545,7 @@ function IndividualReport({
           <p className="py-8 text-center text-sm text-muted-foreground">لا حركات في هذه الفترة.</p>
         ) : (
           <>
-            <div className="max-h-96 overflow-auto rounded-md border">
+            <div className="rounded-md border">
               <Table>
                 <TableHeader className="sticky top-0 z-10 bg-muted">
                   <TableRow>
@@ -663,7 +663,7 @@ function SummaryReport({ onAuthError }: { onAuthError: () => void }) {
         ) : (
           <>
             {/* جدول الأرصدة — أعمدة المكتبي الحرفية */}
-            <div className="max-h-96 overflow-auto rounded-md border">
+            <div className="rounded-md border">
               <Table>
                 <TableHeader className="sticky top-0 z-10 bg-muted">
                   <TableRow>
@@ -707,7 +707,7 @@ function SummaryReport({ onAuthError }: { onAuthError: () => void }) {
                 <h3 className="text-sm font-bold">
                   السلف القائمة عند نهاية الفترة{data.asOf ? ` (${data.asOf})` : ""} — FIFO لكل موظف
                 </h3>
-                <div className="max-h-72 overflow-auto rounded-md border">
+                <div className="rounded-md border">
                   <Table>
                     <TableHeader className="sticky top-0 z-10 bg-muted">
                       <TableRow>

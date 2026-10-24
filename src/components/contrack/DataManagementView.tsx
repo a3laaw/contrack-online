@@ -266,7 +266,7 @@ function AuditTab({ onAuthError }: { onAuthError: () => void }) {
           ) : items.length === 0 ? (
             <p className="p-8 text-center text-sm text-muted-foreground">لا توجد سجلات مطابقة</p>
           ) : (
-            <div className="max-h-[520px] overflow-y-auto">
+            <div className="">
               <Table>
                 <TableHeader className="sticky top-0 z-10 bg-card">
                   <TableRow>
@@ -448,7 +448,7 @@ function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
           ) : items.length === 0 ? (
             <p className="p-8 text-center text-sm text-muted-foreground">لا توجد نسخ محفوظة بعد — أنشئ أول نسخة من الأعلى</p>
           ) : (
-            <div className="max-h-[480px] overflow-y-auto">
+            <div className="">
               <Table>
                 <TableHeader className="sticky top-0 z-10 bg-card">
                   <TableRow>
@@ -846,7 +846,7 @@ function DataTab({ onAuthError }: { onAuthError: () => void }) {
           ) : logItems.length === 0 ? (
             <p className="p-6 text-center text-sm text-muted-foreground">لا توجد عمليات محو مسجلة</p>
           ) : (
-            <div className="max-h-80 overflow-y-auto border-t">
+            <div className="border-t">
               <Table>
                 <TableHeader className="sticky top-0 z-10 bg-card">
                   <TableRow>

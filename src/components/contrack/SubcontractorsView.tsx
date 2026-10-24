@@ -184,7 +184,7 @@ export function SubcontractorsView({ user, onAuthError }: SubcontractorsViewProp
         <>
           {/* سطح المكتب */}
           <div className="hidden overflow-hidden rounded-lg border md:block">
-            <div className="max-h-[480px] overflow-y-auto">
+            <div className="">
               <Table>
                 <TableHeader className="sticky top-0 z-10 bg-muted">
                   <TableRow>

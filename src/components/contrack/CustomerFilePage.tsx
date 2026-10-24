@@ -4,7 +4,7 @@
  * ملف العميل — صفحة داخلية مطابقة للمكتبي (archive.py CustomerFileWidget):
  * شريط رجوع ثابت + Esc · EntityHeader بالشارات · PageNav (عام / العقود والتفاصيل)
  * · نظرة عامة (ملخص، نماذج ومرفقات، أهم العقود، السجل الزمني، تعليقات العميل)
- * · العقود Master-Detail بتضمين ContractDetailView · شريط إجراءات سفلي.
+ * · العقود Master-Detail بتضمين ContractDetailView · شريط إجراءات مثبت أعلى (موضع أ — Task 92: نُقل من الأسفل).
  * النصوص العربية حرفية من المكتبي إلا حيث يقتضي الويب خلافه (موثق في worklog).
  */
 
@@ -279,14 +279,72 @@ export function CustomerFilePage({
 
   return (
     <div className="space-y-3">
-      {/* ===== شريط الرجوع الثابت (خارج التمرير — شرط الاعتماد المكتبي) ===== */}
-      <div className="sticky top-14 z-30 -mx-4 border-b bg-background/95 px-4 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="flex items-center gap-3">
+      {/* ===== الشريط العلوي المثبت: رجوع + كل الإجراءات (موضع أ — Task 92: الأزرار انتقلت من الأسفل إلى الأعلى) ===== */}
+      <div className="sticky top-0 z-30 -mx-4 border-b bg-background/95 px-4 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onBack} aria-label="العودة للصفحة السابقة (أو اضغط Esc)">
             <ArrowRight className="size-4" />
             رجوع
           </Button>
           <h1 className="truncate text-base font-bold">ملف العميل — {customer.name}</h1>
+          <div className="ms-auto flex flex-wrap items-center gap-2">
+            <Button className="h-9 gap-1.5" onClick={() => onNewContract(customerId)}>
+              <Plus className="size-4" />
+              عقد جديد
+            </Button>
+            <Button
+              variant="outline"
+              className="h-9 gap-1.5"
+              onClick={() => onOpenStatement({ kind: "customer", id: customerId })}
+              disabled={contracts.length === 0}
+              title={contracts.length === 0 ? "لا توجد عقود لهذا العميل بعد." : "كشف حساب العميل"}
+            >
+              <FileText className="size-4" />
+              كشف حساب
+            </Button>
+            <Button variant="outline" className="h-9 gap-1.5" onClick={() => window.open(`/api/customer-file/${customerId}/print`, "_blank")} title="طباعة كل المستندات">
+              🖨 طباعة
+            </Button>
+            <Button variant="outline" className="h-9 gap-1.5" onClick={() => setEditPage(true)} title="تعديل البيانات">
+              <Pencil className="size-4" />
+              تعديل
+            </Button>
+            <Button variant="outline" className="h-9 gap-1.5" onClick={openWhatsapp} disabled={!(customer.phone || "").trim()} title="إرسال ملخص الحساب واتساب">
+              💬 واتساب
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-9 gap-1.5">
+                  <MoreHorizontal className="size-4" />
+                  المزيد
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {/* قائمة «المزيد» — كالمصدر _customer_more_menu */}
+                <DropdownMenuItem onClick={() => switchPage("contracts")}>عقود العميل</DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (onOpenCommentsCenter) onOpenCommentsCenter();
+                  }}
+                  disabled={!onOpenCommentsCenter}
+                >
+                  مركز التعليقات
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => {
+                    switchPage("overview");
+                    // تمرير إلى بطاقة الملفات والمستندات
+                    requestAnimationFrame(() => {
+                      document.getElementById("customer-docs-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    });
+                  }}
+                >
+                  الملفات والمستندات
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
 
@@ -331,15 +389,6 @@ export function CustomerFilePage({
                 )}
               </div>
             </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button variant="outline" className="h-9 gap-1.5" onClick={() => setEditPage(true)}>
-              <Pencil className="size-4" />
-              تعديل البيانات
-            </Button>
-            <Button variant="outline" className="h-9 gap-1.5" onClick={openWhatsapp} disabled={!(customer.phone || "").trim()} title="إرسال ملخص الحساب واتساب">
-              💬 واتساب
-            </Button>
           </div>
         </CardContent>
       </Card>
@@ -460,7 +509,7 @@ export function CustomerFilePage({
                   {fileQuery.data.timeline.length === 0 ? (
                     <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">لا يوجد سجل زمني بعد.</p>
                   ) : (
-                    <ul className="max-h-96 space-y-1 overflow-y-auto rounded-md border bg-muted/20 p-2 text-sm leading-relaxed">
+                    <ul className="space-y-1 rounded-md border bg-muted/20 p-2 text-sm leading-relaxed">
                       {fileQuery.data.timeline.map((e, i) => {
                         const icon = EVENT_ICONS[e.eventType] || "•";
                         let txt = `${icon} ${stamp16(e.eventTime)} · ${e.contractName}: ${e.eventType}`;
@@ -479,7 +528,7 @@ export function CustomerFilePage({
             </div>
 
             {/* لوحة التعليقات الجانبية (مدمجة في «عام» كالمصدر) — لاصقة على الشاشات العريضة كي لا يبقى فراغ تحتها */}
-            <div className="min-w-0 xl:sticky xl:top-[4.25rem]">
+            <div className="min-w-0 xl:sticky xl:top-0">
               <CommentsPanel
                 customerId={customerId}
                 contracts={contracts.map((c) => ({ id: c.id, name: c.name || c.contractNumber, contractNumber: c.contractNumber }))}
@@ -505,64 +554,6 @@ export function CustomerFilePage({
         </TabsContent>
       </Tabs>
 
-      {/* ===== شريط الإجراءات السفلي (مقابل ActionBar 193–197) ===== */}
-      <div className="sticky bottom-16 z-30 md:bottom-2">
-        <Card className="border bg-background/95 shadow-sm backdrop-blur">
-          <CardContent className="flex flex-wrap items-center justify-between gap-2 p-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Button className="h-9 gap-1.5" onClick={() => onNewContract(customerId)}>
-                <Plus className="size-4" />
-                عقد جديد
-              </Button>
-              <Button
-                variant="outline"
-                className="h-9 gap-1.5"
-                onClick={() => onOpenStatement({ kind: "customer", id: customerId })}
-                disabled={contracts.length === 0}
-                title={contracts.length === 0 ? "لا توجد عقود لهذا العميل بعد." : undefined}
-              >
-                <FileText className="size-4" />
-                كشف حساب العميل
-              </Button>
-              <Button variant="outline" className="h-9 gap-1.5" onClick={() => window.open(`/api/customer-file/${customerId}/print`, "_blank")}>
-                🖨 طباعة كل المستندات
-              </Button>
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-9 gap-1.5">
-                  <MoreHorizontal className="size-4" />
-                  المزيد
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {/* قائمة «المزيد» — كالمصدر _customer_more_menu */}
-                <DropdownMenuItem onClick={() => switchPage("contracts")}>عقود العميل</DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    if (onOpenCommentsCenter) onOpenCommentsCenter();
-                  }}
-                  disabled={!onOpenCommentsCenter}
-                >
-                  مركز التعليقات
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => {
-                    switchPage("overview");
-                    // تمرير إلى بطاقة الملفات والمستندات
-                    requestAnimationFrame(() => {
-                      document.getElementById("customer-docs-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    });
-                  }}
-                >
-                  الملفات والمستندات
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }
@@ -650,7 +641,7 @@ function DocsCard({
             ) : attachments.length === 0 ? (
               <p className="p-4 text-center text-sm text-muted-foreground">لا توجد مرفقات على عقود هذا العميل بعد.</p>
             ) : (
-              <ul className="max-h-72 space-y-1 overflow-y-auto p-2">
+              <ul className="space-y-1 p-2">
                 {attachments.map((a) => (
                   <li key={a.id} className="flex items-center justify-between gap-2 rounded-md border bg-background/60 px-2 py-1.5">
                     <div className="min-w-0">
@@ -965,7 +956,7 @@ function CommentsPanel({
         </div>
 
         {/* فقاعات التعليقات */}
-        <div className="max-h-96 min-h-[200px] space-y-2 overflow-y-auto" role="list" aria-label="قائمة تعليقات العميل">
+        <div className="min-h-[200px] space-y-2" role="list" aria-label="قائمة تعليقات العميل">
           {commentsQuery.isLoading ? (
             <>
               <Skeleton className="h-20 rounded-lg" />
@@ -1178,7 +1169,7 @@ function ContractsMasterDetail({
           </Select>
           <p className="text-xs text-muted-foreground">المعروض: {items.length} عقد · المتبقي {formatKWD(total - collected)}</p>
 
-          <div className="max-h-[420px] space-y-1.5 overflow-y-auto lg:max-h-[560px]">
+          <div className="space-y-1.5">
             {items.length === 0 ? (
               <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">لا توجد عقود مطابقة.</p>
             ) : (

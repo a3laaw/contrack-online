@@ -811,7 +811,7 @@ export function ContractNewPage({
                   لا مراحل مختارة — انقل من قائمة الإعدادات أو أضف مرحلة حرة.
                 </p>
               ) : (
-                <ul className="max-h-72 space-y-1 overflow-y-auto pe-1">
+                <ul className="space-y-1 pe-1">
                   {selectedStages.map((s, i) => {
                     const blockIdx = selectedStages.slice(0, i + 1).filter((x) => x.level === 1).length - 1;
                     const isBlockStart = s.level === 1;
@@ -1127,7 +1127,7 @@ export function ContractNewPage({
       </Card>
 
       {/* ===== شريط الإجراءات السفلي — زر أساسي واحد + إلغاء ===== */}
-      <div className="sticky bottom-2 z-30">
+      <div className="sticky bottom-0 z-30">
         <Card className="border bg-background/95 shadow-sm backdrop-blur">
           <CardContent className="flex items-center justify-end gap-2 p-2">
             <Button variant="outline" className="h-9" onClick={onCancel} disabled={createMutation.isPending}>

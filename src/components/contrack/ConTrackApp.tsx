@@ -273,7 +273,7 @@ function AppRoot() {
       }}
     >
       {view === "dashboard" && (
-        <DashboardView user={user} onAuthError={onAuthError} perms={perms} onQuickAction={handleDashboardQuickAction} onOpenContract={openContract} onOpenCustomerFile={openCustomerFile} />
+        <DashboardView user={user} onAuthError={onAuthError} perms={perms} onQuickAction={handleDashboardQuickAction} onOpenContract={openContract} onOpenCustomerFile={openCustomerFile} onOpenTasks={() => navigate("tasks")} />
       )}
       {view === "due" && (
         <DueItemsView user={user} onAuthError={onAuthError} onOpenContract={openContract} />

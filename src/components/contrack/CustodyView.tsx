@@ -93,7 +93,7 @@ function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** لون الرصيد حسب الإشارة: موجب emerald / سالب أحمر تحذيري / صفر رمادي */
+/** لون الرصيد حسب الإشارة: موجب teal / سالب أحمر تحذيري / صفر رمادي */
 function balanceTone(v: number): string {
   if (v > 0.001) return "text-status-done";
   if (v < -0.001) return "text-status-danger";

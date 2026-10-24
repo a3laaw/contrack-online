@@ -511,7 +511,7 @@ export function FormsCenterView({ user, onAuthError }: FormsCenterViewProps) {
                   </AlertDescription>
                 </Alert>
               ) : (
-                <div className="max-h-96 overflow-y-auto rounded-md border" dir="rtl">
+                <div className="rounded-md border" dir="rtl">
                   <Table>
                     <TableHeader className="sticky top-0 bg-background">
                       <TableRow>
@@ -631,7 +631,7 @@ export function FormsCenterView({ user, onAuthError }: FormsCenterViewProps) {
                   <AlertDescription>لا توجد مستندات مولدة بعد — املأ قالبًا من تبويب القوالب.</AlertDescription>
                 </Alert>
               ) : (
-                <div className="max-h-96 overflow-y-auto rounded-md border" dir="rtl">
+                <div className="rounded-md border" dir="rtl">
                   <Table>
                     <TableHeader className="sticky top-0 bg-background">
                       <TableRow>
@@ -700,7 +700,7 @@ export function FormsCenterView({ user, onAuthError }: FormsCenterViewProps) {
                   <AlertDescription>لا توجد تصنيفات بعد — أضف تصنيفًا لتنظيم القوالب.</AlertDescription>
                 </Alert>
               ) : (
-                <div className="max-h-96 overflow-y-auto rounded-md border" dir="rtl">
+                <div className="rounded-md border" dir="rtl">
                   <Table>
                     <TableHeader className="sticky top-0 bg-background">
                       <TableRow>

@@ -233,7 +233,7 @@ export function CustodyAccountsPage({ onAuthError, onCancel }: CustodyAccountsPa
       </Card>
 
       {/* ===== شريط الإجراءات السفلي — لا حفظ موحد (الإجراءات فورية) فالرجوع فقط ===== */}
-      <div className="sticky bottom-2 z-30">
+      <div className="sticky bottom-0 z-30">
         <Card className="border bg-background/95 shadow-sm backdrop-blur">
           <CardContent className="flex items-center justify-end gap-2 p-2">
             <Button variant="outline" className="h-9 gap-1.5" onClick={onCancel}>

@@ -4,7 +4,7 @@
 /*
  * لوحة ConTrack الفاتحة — معتمدة من المستخدم (قيد 1 و5):
  * خلفية #F9FAFB · أسطح #FFFFFF · حدود #E5E7EB · رؤوس جداول #F3F4F6
- * أساسي #047857 (أبيض عليه 5.48:1) · فاتح الأساسي #ECFDF5/#A7F3D0/#065F46
+ * أساسي #0F766E (أبيض عليه 5.3:1) · فاتح الأساسي #F0FDFA/#99F6E4/#134E4A — لوحة «ب: البترولي المالي» (Task 92)
  * نص أساسي #1F2937 (14.05:1) · نص ثانوي #6B7280 (4.63:1)
  * لا وضع ليلي ولا أسطح داكنة إطلاقًا.
  */
@@ -69,26 +69,26 @@
   --card-foreground: #1F2937;
   --popover: #FFFFFF;
   --popover-foreground: #1F2937;
-  /* الأساسي: أزرار وتنقل نشط وتحديد وروابط — أخضر واحد فقط */
-  --primary: #047857;
+  /* الأساسي: أزرار وتنقل نشط وتحديد وروابط — بترولي واحد فقط (لوحة ب: البترولي المالي) */
+  --primary: #0F766E;
   --primary-foreground: #FFFFFF;
-  /* خلفية الأساسي الفاتحة (7.29:1 بنص #065F46) */
-  --primary-soft: #ECFDF5;
-  --primary-soft-foreground: #065F46;
-  --primary-soft-border: #A7F3D0;
+  /* خلفية الأساسي الفاتحة (تباين عالٍ بنص #134E4A) */
+  --primary-soft: #F0FDFA;
+  --primary-soft-foreground: #134E4A;
+  --primary-soft-border: #99F6E4;
   /* الثانوي = رأس الجدول #F3F4F6 */
   --secondary: #F3F4F6;
   --secondary-foreground: #1F2937;
   --muted: #F3F4F6;
   --muted-foreground: #6B7280;
-  --accent: #ECFDF5;
-  --accent-foreground: #065F46;
+  --accent: #F0FDFA;
+  --accent-foreground: #134E4A;
   /* الخطر — فاتح لا داكن (#B91C1C على #FEE2E2 بـ 5.3:1) */
   --destructive: #B91C1C;
   --destructive-soft: #FEE2E2;
   --border: #E5E7EB;
   --input: #E5E7EB;
-  --ring: #047857;
+  --ring: #0F766E;
   /* ألوان الحالات — داخل الشارات فقط، بلا أخضر (قيد 4) */
   --status-done: #334155;
   --status-done-bg: #E2E8F0;
@@ -99,7 +99,7 @@
   --status-danger: #B91C1C;
   --status-danger-bg: #FEE2E2;
   /* الرسوم البيانية — من اللوحة فقط */
-  --chart-1: #047857;
+  --chart-1: #0F766E;
   --chart-2: #1D4ED8;
   --chart-3: #92400E;
   --chart-4: #334155;
@@ -107,12 +107,12 @@
   /* القائمة الجانبية — سطح أبيض */
   --sidebar: #FFFFFF;
   --sidebar-foreground: #1F2937;
-  --sidebar-primary: #047857;
+  --sidebar-primary: #0F766E;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #ECFDF5;
-  --sidebar-accent-foreground: #065F46;
+  --sidebar-accent: #F0FDFA;
+  --sidebar-accent-foreground: #134E4A;
   --sidebar-border: #E5E7EB;
-  --sidebar-ring: #047857;
+  --sidebar-ring: #0F766E;
 }
 
 @layer base {
@@ -124,10 +124,10 @@
   }
 }
 
-/* أشرطة تمرير مخصصة للقوائم الطويلة — من اللوحة */
+/* أشرطة تمرير محايدة — الأخضر (البترولي) للعناصر التفاعلية فقط (Task 92) */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #A7F3D0 transparent;
+  scrollbar-color: #D1D5DB transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
@@ -137,9 +137,9 @@
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background: #A7F3D0;
+  background: #D1D5DB;
   border-radius: 8px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #047857;
+  background: #9CA3AF;
 }

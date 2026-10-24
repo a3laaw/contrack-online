@@ -237,7 +237,7 @@ export function ContractGroupsView({ user, onAuthError }: ContractGroupsViewProp
               لا مجموعات عقود بعد — اضغط «＋ مجموعة جديدة» لضم عقدين أو أكثر لعميل واحد.
             </p>
           ) : (
-            <div className="max-h-96 overflow-auto rounded-md border">
+            <div className="rounded-md border">
               <Table>
                 <TableHeader className="sticky top-0 z-10 bg-muted">
                   <TableRow>

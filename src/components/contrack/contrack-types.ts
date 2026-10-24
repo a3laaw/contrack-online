@@ -1127,7 +1127,7 @@ export interface PermissionsResponse {
 /** حالة الملحق حرفيًا من المخطط: مسودة|تحت المراجعة|معتمد|ملغى */
 export const ADDENDUM_STATUSES = ["مسودة", "تحت المراجعة", "معتمد", "ملغى"] as const;
 
-/** شارة نوع الملحق: «عقد إضافي» emerald / «أمر تغييري» سماوي */
+/** شارة نوع الملحق: «عقد إضافي» teal / «أمر تغييري» سماوي */
 export const ADDENDUM_TYPE_BADGE: Record<string, string> = {
   "عقد إضافي": "bg-status-info-bg text-status-info",
   "أمر تغييري": "bg-status-warn-bg text-status-warn",
@@ -1245,7 +1245,7 @@ export const CUSTODY_KIND_LABEL: Record<string, string> = {
   return: "إرجاع",
 };
 
-/** شارة لون حركة العهدة: تسليم amber / تصفية sky / إرجاع emerald */
+/** شارة لون حركة العهدة: تسليم amber / تصفية sky / إرجاع teal */
 export const CUSTODY_KIND_BADGE: Record<string, string> = {
   handover: "bg-status-warn-bg text-status-warn",
   settlement: "bg-status-info-bg text-status-info",
