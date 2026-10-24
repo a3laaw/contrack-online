@@ -806,6 +806,19 @@ export function ContractNewPage({
                   مرحلة حرة
                 </Button>
               </div>
+              {/* ترويسة أعمدة المراحل — تعريف كل خانة (Task 93: أي خانة أيام وأي خانة دفع) */}
+              {selectedStages.length > 0 && (
+                <div
+                  className="grid grid-cols-[auto_1fr_4rem_4rem_auto] gap-1.5 rounded-md border border-transparent p-1.5 text-[11px] font-medium text-muted-foreground"
+                  aria-hidden="true"
+                >
+                  <span />
+                  <span>اسم المرحلة</span>
+                  <span className="text-center">أيام</span>
+                  <span className="text-center">دفع %</span>
+                  <span />
+                </div>
+              )}
               {selectedStages.length === 0 ? (
                 <p className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
                   لا مراحل مختارة — انقل من قائمة الإعدادات أو أضف مرحلة حرة.
@@ -951,8 +964,8 @@ export function ContractNewPage({
                 <div className="grid grid-cols-[auto_1fr_5rem_6rem_auto] gap-2 px-1 text-[11px] font-medium text-muted-foreground">
                   <span />
                   <span>المكوّن</span>
-                  <span className="text-center">{""}</span>
-                  <span className="text-center">{""}</span>
+                  <span className="text-center">أشهر / كمية</span>
+                  <span className="text-center">قيمة الشهر / السعر</span>
                   <span className="w-20 text-end">الإجمالي</span>
                 </div>
                 <ul className="space-y-1">

@@ -55,6 +55,18 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
       /* التخزين غير متاح */
     }
   }, []);
+  // Task 93: عجلة الماوس (البكرة) لا تغيّر قيمة الخانات الرقمية — أي input رقمي تحت العجلة
+  // يفقد التركيز فورًا فلا تتغير قيمته، والصفحة تظل تتمرر طبيعيًا. الأرقام والمبالغ كتابة حرة بالكيبورد فقط.
+  React.useEffect(() => {
+    const onWheel = (e: WheelEvent) => {
+      const t = e.target;
+      if (t instanceof HTMLInputElement && t.type === "number" && document.activeElement === t) {
+        t.blur();
+      }
+    };
+    document.addEventListener("wheel", onWheel, { passive: true });
+    return () => document.removeEventListener("wheel", onWheel);
+  }, []);
   const toggleCollapsed = React.useCallback(() => {
     setCollapsed((prev) => {
       try {
