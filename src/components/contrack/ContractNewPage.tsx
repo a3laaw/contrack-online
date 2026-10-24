@@ -718,7 +718,7 @@ export function ContractNewPage({
                       نقل المحدد{checkedTpl.size > 0 ? ` (${checkedTpl.size})` : ""}
                     </Button>
                   </div>
-                  <ul className="max-h-72 space-y-1 overflow-y-auto pe-1">
+                  <ul className="space-y-1 pe-1">
                     {filteredTree.map((b) => (
                       <React.Fragment key={b.main.id}>
                         <li className="flex items-center gap-2 rounded-md border p-1.5">
@@ -908,7 +908,7 @@ export function ContractNewPage({
               📏 النوع «{selectedType?.name}» تلقائي — شجرة مراحل القالب ({tplStages.length} مرحلة) تُسحب كاملة تلقائيًا
               عند الإنشاء بلا اختيار يدوي (المكتبي _auto_plan_ui). المراحل الإشرافية معلّمة بـ 👁.
             </p>
-            <ol className="max-h-56 space-y-1 overflow-y-auto pe-1">
+            <ol className="space-y-1 pe-1">
               {tplTree.map((b, i) => (
                 <React.Fragment key={b.main.id}>
                   <li className="flex items-center gap-2 rounded-md border p-1.5 text-xs">
@@ -1054,7 +1054,7 @@ export function ContractNewPage({
                 <span className="text-center">الاستحقاق</span>
                 <span />
               </div>
-              <ul className="max-h-64 space-y-1 overflow-y-auto">
+              <ul className="space-y-1">
                 {payments.map((p, i) => {
                   const fixedRow = supActive || (mode === "auto" && flagOn("template_plan_mode"));
                   return (
