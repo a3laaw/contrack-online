@@ -176,6 +176,28 @@ export async function POST(req: NextRequest) {
   const qty = numOr(body.qty, 1);
   const unitPrice = numOr(body.unitPrice, 0);
 
+  // ===== Task 89b — الحالات الأربع (مطابقة المكتبي ContractDialog/_apply_mode) =====
+  // النوع يُجلب دائمًا: اليدوي (manual_path) يُشتق من علم النوع لا من العميل،
+  // والإشراف (تاريخ تعهد + أشهر × قيمة شهر − خصم) يجعل قيمة العقد الصافي المحسوب خادميًا (المبلغ مقفل)،
+  // والشامل يستقبل مكوّناته كلقطة contract_components عند الإنشاء.
+  const type = await db.contractType.findFirst({ where: { name: contractType } });
+  const manualPath = type ? type.manualTrack : Boolean(body.manualPath);
+  const supStartDate = parseDay(body.supStartDate) || "";
+  const supMonths = Math.trunc(numOr(body.supMonths, 0));
+  const supMonthly = numOr(body.supMonthly, 0);
+  const supDiscount = numOr(body.supDiscount, 0);
+  const supActive = (Boolean(type?.isSupervision) || Boolean(supStartDate)) && supMonths > 0 && supMonthly > 0;
+  if (supActive) {
+    const net = r3(supMonths * supMonthly - supDiscount);
+    if (!(net > 0)) return jsonError("صافي قيمة الإشراف (الأشهر × قيمة الشهر − الخصم) يجب أن يكون أكبر من صفر");
+    finalAmount = net;
+  }
+  const componentsIn = Array.isArray(body.components) ? (body.components as Record<string, unknown>[]) : [];
+  // الإشراف: جدول الدفعات مفرغ كالمكتبي — التحصيل عبر أشهر الإشراف وسندات القبض مباشرة
+  if (supActive && planIn.length > 0) {
+    return jsonError("عقد الإشراف لا يقبل دفعات يدوية — التحصيل يتم عبر أشهر الإشراف وسندات القبض");
+  }
+
   // ===== توليد الخطة من قالب النوع عند غياب الدفعات اليدوية (المرحلة 3/ج) =====
   // مطابقة workflow_service._generate_type_payments_from_template: بلا خطة يدوية
   // + قالب النوع فيه صفوف ⇒ تُولَّد الدفعات (النسبة من القيمة · اليدوي كما هو · المرنة تُتخطى)
@@ -237,9 +259,31 @@ export async function POST(req: NextRequest) {
             signDate,
             qty,
             unitPrice,
+            manualPath,
+            supStartDate: supActive ? supStartDate : "",
+            supMonths: supActive ? supMonths : 0,
+            supMonthly: supActive ? supMonthly : 0,
+            supDiscount: supActive ? supDiscount : 0,
             status: "نشط",
           },
         });
+        // لقطة مكوّنات الشامل (المكتبي contract_components عند الإنشاء) — compKey = اسم نوع المكوّن
+        for (const c of componentsIn) {
+          const label = String(c.label || c.compKey || "").trim();
+          if (!label) continue;
+          await tx.contractComponent.create({
+            data: {
+              contractId: contract.id,
+              compKey: label,
+              label,
+              kind: String(c.kind || "qty") === "months" ? "months" : "qty",
+              enabled: c.enabled !== false,
+              qty: numOr(c.qty, 1),
+              months: Math.trunc(numOr(c.months, 0)),
+              monthly: numOr(c.monthly, 0),
+            },
+          });
+        }
         // نسخة المراحل (snapshot)
         const stageRows: { id: number }[] = [];
         for (let i = 0; i < stagesIn.length; i++) {
@@ -254,6 +298,9 @@ export async function POST(req: NextRequest) {
               expectedDays: intOr(s.expectedDays, 0),
               payPct: numOr(s.payPct, 0),
               payKind: String(s.payKind || ""),
+              // Task 89b — طابع الإشرافي على المرحلة (من قوالب «مراحل المتابعة» الإشرافية)
+              isSupervision: Boolean(s.isSupervision),
+              supMonthly: numOr(s.supMonthly, 0),
               sortOrder: s.sortOrder !== undefined ? intOr(s.sortOrder, i) : i,
             },
             select: { id: true },

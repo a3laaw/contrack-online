@@ -12,7 +12,22 @@ export async function GET(req: NextRequest) {
 
   const [types, counts] = await Promise.all([
     db.contractType.findMany({
-      include: { _count: { select: { paymentTemplates: true } } },
+      include: {
+        _count: { select: { paymentTemplates: true } },
+        // Task 89b — شاشة الإنشاء بالحالات الأربع: قوالب الدفع (التلقائي) ومكوّنات الشامل تحتاج بياناتها هنا
+        paymentTemplates: {
+          orderBy: { payNo: "asc" as const },
+          include: { triggerStage: { select: { stageName: true } } },
+        },
+        bundleParents: {
+          orderBy: { id: "asc" as const },
+          include: {
+            componentType: {
+              select: { name: true, unitPrice: true, unitLabel: true, isSupervision: true, pricingMode: true },
+            },
+          },
+        },
+      },
       orderBy: { name: "asc" },
     }),
     // الربط بالعقود اسمي (contract.contractType نص) — تُحسب مجموعةً ثم تُطابَق بالاسم
@@ -34,6 +49,24 @@ export async function GET(req: NextRequest) {
       isSupervision: t.isSupervision,
       templatesCount: t._count.paymentTemplates,
       contractsCount: countMap.get(t.name) ?? 0,
+      // Task 89b — قوالب دفع النوع (لتوليد الدفعات في وضع التلقائي مع تعديل المبالغ)
+      paymentTemplates: t.paymentTemplates.map((p) => ({
+        title: p.title,
+        pct: Number(p.pct),
+        amountFixed: Number(p.amountFixed),
+        daysOffset: p.daysOffset,
+        triggerStageName: p.triggerStage?.stageName || "",
+      })),
+      // Task 89b — مكوّنات الشامل (kind: months للإشرافية / qty لغيرها)
+      bundleComponents: t.bundleParents.map((b) => ({
+        componentTypeId: b.componentTypeId,
+        name: b.componentType.name,
+        qty: Number(b.qty || 1),
+        unitPrice: Number(b.componentType.unitPrice || 0),
+        unitLabel: b.componentType.unitLabel || "",
+        isSupervision: b.componentType.isSupervision,
+        pricingMode: b.componentType.pricingMode,
+      })),
     })),
   });
 }

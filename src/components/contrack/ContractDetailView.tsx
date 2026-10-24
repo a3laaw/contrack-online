@@ -217,6 +217,14 @@ export function ContractDetailView({
     }
   }, [detailData]);
 
+  // تبويب «الأوامر التغييرية» مخفي لعقد الإشراف (دراسة الحالات الأربع §3) —
+  // إن كان المستخدم على صفحة الأوامر لحظة تحميل عقد إشراف نُعيده إلى «نظرة عامة»
+  React.useEffect(() => {
+    if (detailData?.isSupervision) {
+      setPage((p) => (p === "addendums" ? "info" : p));
+    }
+  }, [detailData]);
+
   // 401 ⇒ إعادة فحص الجلسة (ستظهر شاشة الدخول)
   React.useEffect(() => {
     const e = detailQuery.error;
@@ -538,6 +546,9 @@ export function ContractDetailView({
   const cur = detail.currency || "د.ك";
   const sup = detailData.sup;
   const hasSupervision = detailData.isSupervision || (detail.supMonths ?? 0) > 0;
+  // شارة المسار — الحالات الأربع من دراسة المكتبي (§3، بصياغة §4-3 المصحّحة): يدوي/إشراف/إجباري
+  const manualPath = Boolean(detail.manualPath);
+  const isSupervision = Boolean(detailData.isSupervision);
   const remaining = detailData.remaining;
   const stages = [...(detailData.stages ?? [])].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   const l1Stages = stages.filter((s) => (s.level ?? 1) === 1);
@@ -677,6 +688,18 @@ export function ContractDetailView({
                 {detail.contractNumber}
               </span>
               <StatusBadge status={detail.status} className="px-2 py-0.5 text-[11px]" />
+              {/* شارة المسار (§3): 🔧 اليدوي · 👁 الإشراف (مساره إجباري من قالب النوع) · 📏 الإجباري */}
+              {manualPath ? (
+                <Badge className="px-2 py-0.5 text-[11px] bg-status-warn-bg text-status-warn">
+                  🔧 مسار يدوي
+                </Badge>
+              ) : isSupervision ? (
+                <Badge className="px-2 py-0.5 text-[11px] bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                  👁 إشراف — مسار إجباري
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="px-2 py-0.5 text-[11px]">📏 مسار إجباري</Badge>
+              )}
               {hasSupervision && (
                 <Badge variant="secondary" className="gap-1 bg-status-done-bg text-status-done">
                   <Building2 className="size-3" />
@@ -783,7 +806,8 @@ export function ContractDetailView({
       {/* PageNav — أربع صفحات بمجموعاتها (contract_hub.py:129–135) */}
       <div className="flex flex-wrap items-stretch justify-between gap-2" role="tablist" aria-label="صفحات العقد">
         <div className="flex flex-1 flex-wrap gap-1.5">
-          {PAGE_GROUPS.map((g) => {
+          {/* تبويب «الأوامر التغييرية» مخفي لعقد الإشراف (دراسة الحالات الأربع §3) */}
+          {(isSupervision ? PAGE_GROUPS.filter((g) => g.key !== "addendums") : PAGE_GROUPS).map((g) => {
             const active = page === g.key;
             return (
               <button
@@ -912,18 +936,26 @@ export function ContractDetailView({
       )}
 
       {/* ===== الصفحة 4: الأوامر والتعديلات (_tab_addendums) ===== */}
-      {page === "addendums" && (
-        <div>
-          {detailData ? (
-            <AddendumsTab contract={detailData} user={user} onAuthError={onAuthError} />
-          ) : (
-            <div className="space-y-2">
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-32 w-full" />
-            </div>
-          )}
-        </div>
-      )}
+      {page === "addendums" &&
+        (isSupervision ? (
+          /* الأوامر التغييرية غير متاحة لعقود الإشراف (دراسة الحالات الأربع §3) */
+          <Card className="border-dashed">
+            <CardContent className="p-4 text-sm text-muted-foreground">
+              الأوامر التغييرية غير متاحة لعقود الإشراف.
+            </CardContent>
+          </Card>
+        ) : (
+          <div>
+            {detailData ? (
+              <AddendumsTab contract={detailData} user={user} onAuthError={onAuthError} />
+            ) : (
+              <div className="space-y-2">
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-32 w-full" />
+              </div>
+            )}
+          </div>
+        ))}
 
       {/* ===== نافذة تغيير الحالة ===== */}
       <Dialog open={statusOpen} onOpenChange={setStatusOpen}>

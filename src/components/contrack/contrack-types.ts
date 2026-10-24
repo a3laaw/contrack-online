@@ -779,6 +779,30 @@ export interface ContractTypeDTO {
   isSupervision?: boolean;
   /** عدد العقود المرتبطة بالنوع (الربط اسمي عبر contract.contractType) — المرحلة 7-ج */
   contractsCount?: number;
+  /** Task 89b — صفوف قالب الدفع (وضع التلقائي: توليد الدفعات مع تعديل المبالغ) */
+  paymentTemplates?: TypePaymentTemplateDTO[];
+  /** Task 89b — مكوّنات الشامل (pricing_mode=bundle) */
+  bundleComponents?: TypeBundleComponentDTO[];
+}
+
+/** صف قالب دفع النوع — triggerStageName لربط الدفعة بمرحلة العقد بالاسم (V4.48) */
+export interface TypePaymentTemplateDTO {
+  title: string;
+  pct: number;
+  amountFixed: number;
+  daysOffset: number;
+  triggerStageName: string;
+}
+
+/** مكوّن الشامل من إعدادات النوع — الإشرافي يدخل بأشهر × قيمة شهر، وغيره كمية × سعر مرجعي */
+export interface TypeBundleComponentDTO {
+  componentTypeId: number;
+  name: string;
+  qty: number;
+  unitPrice: number;
+  unitLabel: string;
+  isSupervision: boolean;
+  pricingMode: string;
 }
 
 export interface ContractTypesResponse {
@@ -795,6 +819,11 @@ export interface WorkflowStageDTO {
   expectedDays?: number;
   isPreContract?: boolean;
   contractType?: string;
+  /** Task 89b — حقل النقل إلى نسخة العقد (نسبة الدفع وطابعه الإشرافي) */
+  paymentPct?: number;
+  payKind?: string;
+  isSupervision?: boolean;
+  supMonthly?: number;
 }
 
 export interface PaymentMethodDTO {
