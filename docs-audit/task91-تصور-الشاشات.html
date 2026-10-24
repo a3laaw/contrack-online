@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ConTrack — تصور Task 91: تثبيت الأشرطة + إعادة ترتيب الشاشات + مراجعة شاملة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F9FAFB; --card:#FFFFFF; --border:#E5E7EB; --thead:#F3F4F6;
+    --primary:#047857; --primary-fg:#FFFFFF; --psoft:#ECFDF5; --psoft-fg:#065F46; --psoft-bd:#A7F3D0;
+    --text:#1F2937; --muted:#6B7280;
+    --warn:#B45309; --warn-bg:#FEF3C7; --danger:#B91C1C; --danger-bg:#FEE2E2;
+    --info:#0369A1; --info-bg:#E0F2FE; --done:#047857; --done-bg:#D1FAE5;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{font-family:"Cairo","Segoe UI",Tahoma,sans-serif; background:var(--bg); color:var(--text); line-height:1.7; padding:20px 14px 60px}
+  .wrap{max-width:1180px; margin:0 auto}
+  h1{font-size:24px; font-weight:800}
+  h2{font-size:20px; font-weight:800; margin:0 0 4px}
+  h3{font-size:15px; font-weight:700}
+  p{font-size:13.5px}
+  .muted{color:var(--muted)}
+  .small{font-size:12px}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px; margin-bottom:22px}
+  .badge{display:inline-block; font-size:11px; font-weight:700; border-radius:999px; padding:2px 10px; border:1px solid}
+  .b-green{background:var(--psoft); color:var(--psoft-fg); border-color:var(--psoft-bd)}
+  .b-warn{background:var(--warn-bg); color:var(--warn); border-color:#FDE68A}
+  .b-danger{background:var(--danger-bg); color:var(--danger); border-color:#FECACA}
+  .b-info{background:var(--info-bg); color:var(--info); border-color:#BAE6FD}
+  .b-gray{background:var(--thead); color:var(--muted); border-color:var(--border)}
+  .sec-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px}
+  .num{display:inline-flex; width:30px; height:30px; align-items:center; justify-content:center; border-radius:9px; background:var(--primary); color:#fff; font-weight:800; font-size:14px; flex:none}
+
+  /* ===== جدول المراجعة ===== */
+  table{width:100%; border-collapse:collapse; font-size:12.5px}
+  th{background:var(--thead); padding:8px 10px; text-align:right; border:1px solid var(--border); font-size:12px; white-space:nowrap}
+  td{padding:8px 10px; border:1px solid var(--border); vertical-align:top}
+  tr:nth-child(even) td{background:#FAFAFA}
+  .code{font-family:ui-monospace,monospace; font-size:11px; background:var(--thead); border:1px solid var(--border); border-radius:6px; padding:1px 6px; direction:ltr; display:inline-block}
+
+  /* ===== إطار متصفح محاكى ===== */
+  .frame{border:1.5px solid var(--border); border-radius:14px; overflow:hidden; background:var(--bg); box-shadow:0 4px 14px rgba(0,0,0,.06); margin-top:12px}
+  .frame-bar{display:flex; align-items:center; gap:6px; background:var(--thead); border-bottom:1px solid var(--border); padding:7px 12px}
+  .dot{width:10px; height:10px; border-radius:50%}
+  .frame-url{flex:1; background:#fff; border:1px solid var(--border); border-radius:8px; font-size:11px; color:var(--muted); padding:2px 10px; text-align:left; direction:ltr}
+  .frame-body{position:relative; height:430px; overflow-y:auto; scroll-behavior:smooth}
+  .frame-body::-webkit-scrollbar{width:9px}
+  .frame-body::-webkit-scrollbar-thumb{background:#D1D5DB; border-radius:8px}
+
+  /* ===== محاكاة واجهة ConTrack داخل الإطار ===== */
+  .topbar{position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:8px; background:#fff; border-bottom:1px solid var(--border); padding:8px 12px}
+  .topbar .logo{display:flex; align-items:center; gap:6px; font-weight:800; color:var(--primary); font-size:13px}
+  .topbar .sq{width:22px; height:22px; border-radius:6px; background:var(--primary); color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px}
+  .snav{width:130px; flex:none; background:#fff; border-left:1px solid var(--border); padding:8px; font-size:11px}
+  .snav div{padding:5px 8px; border-radius:7px; color:var(--muted); margin-bottom:2px}
+  .snav .on{background:var(--psoft); color:var(--psoft-fg); font-weight:700}
+  .content{padding:10px 12px 96px}
+  .wcard{background:#fff; border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:10px}
+  .wcard h4{font-size:12.5px; font-weight:700; margin-bottom:6px}
+  .field{border:1px solid var(--border); border-radius:8px; height:30px; background:#fff; display:flex; align-items:center; padding:0 8px; font-size:11px; color:var(--muted)}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+  .grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px}
+
+  /* شريط إجراءات مثبّت داخل الإطار (sticky bottom داخل حاوية التمرير) */
+  .pinned{position:sticky; bottom:0; z-index:25; padding:8px 12px}
+  .pinned .inner{display:flex; align-items:center; justify-content:flex-end; gap:8px; background:rgba(255,255,255,.96); border:1px solid var(--border); border-radius:10px; box-shadow:0 -2px 10px rgba(0,0,0,.08); padding:7px 10px; backdrop-filter:blur(4px)}
+  .btn{display:inline-flex; align-items:center; gap:5px; border-radius:8px; font-size:12px; font-weight:700; padding:6px 14px; border:1px solid transparent; cursor:pointer}
+  .btn-p{background:var(--primary); color:#fff}
+  .btn-o{background:#fff; color:var(--text); border-color:var(--border)}
+  .btn-sm{padding:4px 10px; font-size:11px}
+
+  /* جدول بنود (بدون سكرول داخلي) */
+  table.wt{font-size:11.5px}
+  table.wt th{background:var(--thead); font-size:11px; padding:5px 8px}
+  table.wt td{padding:5px 8px; background:#fff}
+  tr:nth-child(even) table.wt td{background:#fff}
+
+  /* ملف العميل — شريط علوي مثبّت يحمل الأزرار */
+  .stickyfilebar{position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:rgba(255,255,255,.96); border-bottom:1px solid var(--border); padding:7px 12px; backdrop-filter:blur(4px)}
+  .stickyfilebar .title{font-size:12.5px; font-weight:800; flex:1; min-width:120px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+
+  /* ملف المقاول — master-detail */
+  .md{display:grid; grid-template-columns:215px 1fr; gap:10px; align-items:start}
+  .mdlist{background:#fff; border:1px solid var(--border); border-radius:10px; padding:8px}
+  .mditem{border:1.5px solid var(--border); border-radius:9px; padding:7px 9px; margin-bottom:6px; font-size:11px; cursor:pointer; background:#fff}
+  .mditem.sel{border-color:var(--primary); background:var(--psoft)}
+  .mditem b{font-size:11.5px}
+
+  .cols{display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start}
+  .legend{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px}
+  .tag{font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px}
+  .tag-red{background:var(--danger-bg); color:var(--danger)}
+  .tag-green{background:var(--done-bg); color:var(--done)}
+  .arrowdown{text-align:center; font-size:22px; color:var(--primary); margin:4px 0}
+  .callout{border:1.5px dashed var(--psoft-bd); background:var(--psoft); border-radius:10px; padding:10px 14px; font-size:12.5px; margin-top:10px}
+  .callout b{color:var(--psoft-fg)}
+  ul.tight{padding-right:18px; font-size:12.5px}
+  ul.tight li{margin-bottom:4px}
+  .kbd{font-family:ui-monospace,monospace; font-size:10.5px; background:var(--thead); border:1px solid var(--border); border-bottom-width:2px; border-radius:5px; padding:0 5px; direction:ltr}
+  .qa-row{display:flex; gap:8px; flex-wrap:wrap}
+  .qa{display:inline-flex; align-items:center; gap:6px; background:#fff; border:1px solid var(--psoft-bd); color:var(--psoft-fg); border-radius:9px; padding:7px 12px; font-size:12px; font-weight:700}
+  .footer-note{margin-top:26px; text-align:center; font-size:12.5px; color:var(--muted)}
+  .footer-note b{color:var(--primary)}
+  .before{border:1.5px solid #FECACA !important}
+  .before-tag{position:absolute; top:8px; left:10px; z-index:35}
+  .fb-dim{position:relative}
+  @media (max-width:840px){ .cols{grid-template-columns:1fr} .md{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ الغلاف ============ -->
+  <div class="card" style="background:linear-gradient(135deg,#ECFDF5 0%,#FFFFFF 55%)">
+    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap">
+      <span class="num" style="width:44px; height:44px; font-size:19px; border-radius:13px">91</span>
+      <div style="flex:1; min-width:260px">
+        <h1>تصور Task 91 — تثبيت الأشرطة السفلية + نقل أزرار ملف العميل أعلى + إعادة تصميم ملف المقاول + ترتيب الرئيسية</h1>
+        <p class="muted small">مراجعة شاملة للأخطاء الشبيهة (سكرول داخلي / أشرطة متحركة) عبر كل الشاشات — مطابقة مواصفات المكتبي وقواعد Task 90/90b</p>
+      </div>
+      <span class="badge b-green" style="font-size:13px; padding:6px 14px">🖼️ تصور فقط — لم يُعدَّل أي ملف في النظام</span>
+    </div>
+    <div class="callout" style="margin-top:14px">
+      <b>حالة التنفيذ:</b> هذا الملف تصميم مقترح معزول. لن يُعدَّل أي ملف من ملفات النظام قبل موافقتك — اقرأ المقترحات، واختر ما يناسبك، ثم اكتب «<b>ابدا</b>» (أو حدّد البنود التي توافق عليها).
+    </div>
+  </div>
+
+  <!-- ============ القسم 0: المراجعة الشاملة ============ -->
+  <div class="card">
+    <div class="sec-head"><span class="num">🔍</span><div><h2>المراجعة الشاملة — كل الأخطاء الشبيهة المكتشفة (قبل أي علاج)</h2><p class="muted small">فحصت الكود سطرًا سطرًا + تحقق متصفحي فعلي — النتائج مرتبة حسب الشاشة</p></div></div>
+
+    <div class="callout" style="margin-bottom:12px; border-color:#FDE68A; background:var(--warn-bg)">
+      <b>⚠️ أصل المشكلة في الشريط السفلي (مكتشف بالقياس الفعلي):</b> أشرطة الإجراءات مبنية على <span class="code">sticky bottom-2</span> وهي تعمل تقنيًا أثناء التمرير، لكن قياسي بالمتصفح أظهر أنها <b>تنزاح لأعلى ~33px عند آخر الصفحة لأن التذييل العام «ConTrack V9.15» يدفعه</b>، وتختفي كليًا لو نما المحتوى تحت التذييل — فتشعر أنها «متحركة مع الاسكرول». العلاج الموحد: <b>حاوية تمرير مخصصة للصفحة (main) بارتفاع ثابت، والشريط مثبّت أسفلها فوق التذييل دائمًا مهما كان طول المحتوى</b> — كما في المحاكاة التالية.
+    </div>
+
+    <table>
+      <tr><th style="width:34px">#</th><th style="width:150px">الشاشة / الملف</th><th>الملاحظة المكتشفة</th><th style="width:120px">التصنيف</th><th style="width:230px">العلاج المقترح</th></tr>
+      <tr><td>1</td><td><b>عقد جديد</b><br><span class="code">ContractNewPage.tsx:814</span></td><td>قائمة «المراحل المختارة للعقد» (جدول بنود المرحلة) محدودة بـ <span class="code">max-h-72 + overflow-y-auto</span> — <b>سكرول داخلي يظهر عند تعدد المراحل</b>. فاتت تدقيق 90b لأن التحقق كان بقوائم شبه فارغة.</td><td><span class="badge b-danger">مخالفة قاعدة</span></td><td>إزالة القيد — القائمة تمتد طبيعيًا والصفحة تتمرر كسكرول واحد.</td></tr>
+      <tr><td>2</td><td><b>عقد جديد</b><br>شريط (إلغاء/إنشاء عقد)</td><td><span class="code">sticky bottom-2</span> — ينزاح عند آخر الصفحة (قياس: من 760 إلى 727 بسبب التذييل) وغير مثبّت بشكل مطلق.</td><td><span class="badge b-danger">طلب المستخدم</span></td><td>تثبيت مطلق أسفل منطقة المحتوى فوق التذييل — دائم الظهور (القسم 1).</td></tr>
+      <tr><td>3</td><td><b>عقد باطن جديد</b><br><span class="code">SubContractNewPage.tsx</span></td><td>الرأس 3 سطور (breadcrumb + عنوان + وصف) — مخالف لنمط السطر الواحد المعتمد؛ الشريط السفلي نفس ملاحظة #2. لا يوجد سكرول داخلي في جداوله ✅.</td><td><span class="badge b-warn">جزئي</span></td><td>ضغط الرأس لنمط سطر واحد (عنوان + وصف مخفي عريض + شارات) + نفس التثبيت (القسم 2).</td></tr>
+      <tr><td>4</td><td><b>ملف العميل</b><br><span class="code">CustomerFilePage.tsx:509</span></td><td>شريط أزرار سفلي (عقد جديد / كشف حساب / طباعة / المزيد) <span class="code">sticky bottom-16 md:bottom-2</span> — متحرّك مع التمرير كما في #2.</td><td><span class="badge b-danger">طلب المستخدم</span></td><td><b>نقل الأزرار إلى شريط الرجوع الثابت أعلى الصفحة</b> — دائم الظهور، وحذف الشريط السفلي (القسم 3 مع موضعين مقترحين).</td></tr>
+      <tr><td>5</td><td><b>ملف العميل</b> — لوحات مساعدة</td><td>3 سكرولات داخلية: السجل الزمني <span class="code">max-h-96</span> (463)، لوحة التعليقات <span class="code">max-h-96</span> (968)، قائمة العقود الجانبية <span class="code">max-h-[420/560px]</span> (1181).</td><td><span class="badge b-warn">تصنيف مطلوب</span></td><td>السجل الزمني: إزالة القيد (مادة الصفحة). التعليقات وقائمة العقود: لوحات جانبية مساعدة — أقترح إبقاؤها (اختر: إبقاء أو إزالة).</td></tr>
+      <tr><td>6</td><td><b>ملف المقاول (الباطن)</b><br><span class="code">SubcontractorFilePage.tsx</span></td><td>كل عقود المقاول مكدّسة عموديًا تحت بعض (لكل عقد كشف كامل) — للوصول لعقد أخير تحتاج تمريرًا كثيرًا، ولا يوجد زر تصدير إطلاقًا.</td><td><span class="badge b-danger">طلب المستخدم</span></td><td>إعادة تصميم مثل ملف العميل: عمود جانبي لعقود المقاول بأسماء العملاء + اختيار عقد يعرض جداوله + أزرار تصدير (الكل / المختار) — القسم 4.</td></tr>
+      <tr><td>7</td><td><b>قائمة المقاولين</b><br><span class="code">SubcontractorsView.tsx:187</span></td><td>الجدول الرئيسي داخل <span class="code">max-h-[480px] overflow-y-auto</span> — سكرول داخلي مخالف.</td><td><span class="badge b-danger">مخالفة قاعدة</span></td><td>إزالة القيد — الصفحة تتمرر كسكرول واحد (القائمة نفسها تبقى كما هي).</td></tr>
+      <tr><td>8</td><td><b>الرئيسية</b><br><span class="code">DashboardView.tsx:377</span></td><td>كارت «⚡ إجراءات سريعة» يأتي <b>بعد</b> كارت التغذية الكبير — في الأسفل، والمستخدم يريده أعلى.</td><td><span class="badge b-danger">طلب المستخدم</span></td><td>صف إجراءات سريعة مدمج مباشرة بعد العدادات وقبل التغذية (القسم 5).</td></tr>
+      <tr><td>9</td><td><b>الرئيسية</b> — المهام</td><td>«لوحة المهام المضمّنة» <b>أُزيلت عمدًا في Task 84</b> (التوثيق داخل الملف) بحجة أن المهام شاشة مستقلة — لكن شاشة «المهام» موجودة في الشجرة الجانبية ✅. اختفاء اللوحة من الرئيسية هو ما لاحظته.</td><td><span class="badge b-info">قرار سابق</span></td><td>استعادة كارت «📝 مهام قريبة» مدمج في الرئيسية (عمود جانبي بجوار التغذية) — اختياري (القسم 5).</td></tr>
+      <tr><td>10</td><td><b>المهام المستحقة</b><br><span class="code">DueItemsView.tsx:78/135/195</span></td><td>الأعمدة الثلاثة (الآن/قريب/متأخر) كلها <span class="code">max-h-96</span> — سكرول داخلي.</td><td><span class="badge b-danger">مخالفة قاعدة</span></td><td>إزالة القيود الثلاثة — الصفحة تتمرر.</td></tr>
+      <tr><td>11</td><td><b>السندات</b><br><span class="code">VouchersView.tsx:293</span></td><td>جدول السندات الرئيسي <span class="code">max-h-[480px]</span> — سكرول داخلي.</td><td><span class="badge b-danger">مخالفة قاعدة</span></td><td>إزالة القيد.</td></tr>
+      <tr><td>12</td><td><b>السلف</b><br><span class="code">AdvancesView.tsx ×5</span></td><td>خمسة جداول (كشف/حركة/أرصدة/ملغاة/…) كلها <span class="code">max-h-96 / max-h-72</span>.</td><td><span class="badge b-danger">مخالفة قاعدة</span></td><td>إزالة القيود الخمسة.</td></tr>
+      <tr><td>13</td><td><b>إدارة البيانات</b><br><span class="code">DataManagementView.tsx:269/451</span></td><td>جدولا السجلات والنسخ <span class="code">max-h-[520/480px]</span>.</td><td><span class="badge b-danger">مخالفة قاعدة</span></td><td>إزالة القيدين.</td></tr>
+      <tr><td>14</td><td><b>مجموعات العقود</b><br><span class="code">ContractGroupsView.tsx:240</span></td><td>جدول المجموعات <span class="code">max-h-96</span>.</td><td><span class="badge b-danger">مخالفة قاعدة</span></td><td>إزالة القيد.</td></tr>
+      <tr><td>15</td><td><b>مركز النماذج</b><br><span class="code">FormsCenterView.tsx:514/634/703</span></td><td>ثلاث قوائم (نماذج/مستندات/تصنيفات) <span class="code">max-h-96</span>.</td><td><span class="badge b-danger">مخالفة قاعدة</span></td><td>إزالة القيود الثلاثة.</td></tr>
+      <tr><td>16</td><td><b>حالات تبقى كما هي</b></td><td>قوائم الحوارات المنبثقة (المشاريع/العروض/الفجوات/البحث/الإشعارات/جداول الطباعة) و<strong>Select</strong> المنسدلة — سكرولها الداخلي سلوك قوائم طبيعي وليس جدولًا رئيسيًا.</td><td><span class="badge b-gray">سليم</span></td><td>لا تغيير.</td></tr>
+    </table>
+
+    <div class="legend">
+      <span class="tag tag-red">مخالفة قاعدة / طلب مباشر: 13</span>
+      <span class="tag tag-green">سليم: 1</span>
+      <span class="tag" style="background:var(--warn-bg);color:var(--warn)">يحتاج قرارك: 2 (بنود #5 و #9)</span>
+    </div>
+  </div>
+
+  <!-- ============ القسم 1: عقد جديد ============ -->
+  <div class="card">
+    <div class="sec-head"><span class="num">1</span><div><h2>شاشة «عقد جديد» — شريط ثابت أسفل + جدول بنود بلا سكرول داخلي</h2><p class="muted small">جرّب التمرير داخل الإطارين لترى الفرق بنفسك</p></div></div>
+
+    <div class="cols">
+      <!-- قبل -->
+      <div>
+        <h3 style="color:var(--danger)">❌ الحالي (قبل)</h3>
+        <p class="small muted">الشريط السفلي <span class="code">sticky</span> ينزاح عند آخر الصفحة (التذييل يدفعه) وقائمة «المراحل المختارة» لها سكرول داخلي <span class="code">max-h-72</span>.</p>
+        <div class="frame before fb-dim">
+          <span class="badge b-danger before-tag">قبل</span>
+          <div class="frame-bar"><span class="dot" style="background:#F87171"></span><span class="dot" style="background:#FBBF24"></span><span class="dot" style="background:#34D399"></span><span class="frame-url">ConTrack — عقد جديد</span></div>
+          <div class="frame-body">
+            <div class="topbar"><span class="logo"><span class="sq">✍</span>ConTrack</span><span class="small muted">العقود ← عقد جديد</span></div>
+            <div class="content">
+              <div class="wcard"><h4>بيانات العقد</h4><div class="grid3"><div class="field">اسم العقد…</div><div class="field">العميل…</div><div class="field">النوع…</div></div></div>
+              <div class="wcard">
+                <h4>المراحل المختارة للعقد <span class="badge b-danger">سكرول داخلي!</span></h4>
+                <div style="max-height:120px; overflow-y:auto; border:1px solid var(--border); border-radius:8px">
+                  <table class="wt"><tr><th>المرحلة</th><th>أيام</th><th>نسبة</th></tr>
+                  <tr><td>حفر وأساسات</td><td>14</td><td>20%</td></tr><tr><td>┗ نظافة الموقع</td><td>3</td><td>—</td></tr>
+                  <tr><td>هيكل خرساني</td><td>30</td><td>25%</td></tr><tr><td>┗ قوالب خشبية</td><td>10</td><td>—</td></tr>
+                  <tr><td>بلاستر خارجي</td><td>21</td><td>15%</td></tr><tr><td>أرضيات وبلاط</td><td>18</td><td>12%</td></tr>
+                  <tr><td>دهانات</td><td>15</td><td>10%</td></tr><tr><td>كهرباء</td><td>12</td><td>8%</td></tr>
+                  <tr><td>سباكة وصرف</td><td>12</td><td>6%</td></tr><tr><td>تسليم نهائي</td><td>5</td><td>4%</td></tr></table>
+                </div>
+                <p class="small" style="color:var(--danger); margin-top:4px">↑ 6 مراحل مخفية تحت السكرول الداخلي — تخالف قاعدة «لا سكرول داخلي»</p>
+              </div>
+              <div class="wcard"><h4>دفعات العقد</h4><div class="field">دفعة أولى — 30% — 2026-11-01</div></div>
+              <div style="height:56px; background:#FEF2F2; border:1.5px dashed #FECACA; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:11.5px; color:var(--danger); font-weight:700">
+                ⚠️ الشريط السفلي هنا في نهاية المحتوى — يظهر فقط بعد الوصول لآخر الصفحة وينزاح 33px فوق التذييل
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- بعد -->
+      <div>
+        <h3 style="color:var(--done)">✅ المقترح (بعد)</h3>
+        <p class="small muted">الشريط <b>مثبّت مطلقًا</b> أسفل منطقة المحتوى فوق التذييل — يُرى من أول بكسل ويلازم مكانه مهما مرّرت. جدول البنود تمتد كاملًا والصفحة تتمرر كسكرول واحد.</p>
+        <div class="frame">
+          <div class="frame-bar"><span class="dot" style="background:#F87171"></span><span class="dot" style="background:#FBBF24"></span><span class="dot" style="background:#34D399"></span><span class="frame-url">ConTrack — عقد جديد (مقترح)</span></div>
+          <div class="frame-body" id="afterFrame">
+            <div class="topbar"><span class="logo"><span class="sq">✍</span>ConTrack</span><span class="small muted">العقود ← عقد جديد</span></div>
+            <div class="content">
+              <div class="wcard"><h4>بيانات العقد <span class="badge b-green">سطر واحد مضغوط</span></h4><div class="grid3"><div class="field">اسم العقد…</div><div class="field">العميل…</div><div class="field">النوع…</div></div></div>
+              <div class="wcard">
+                <h4>المراحل المختارة للعقد <span class="badge b-green">تمتد بالكامل — لا سكرول داخلي</span></h4>
+                <table class="wt" style="border:1px solid var(--border); border-radius:8px"><tr><th>المرحلة</th><th>أيام</th><th>نسبة</th></tr>
+                <tr><td>حفر وأساسات</td><td>14</td><td>20%</td></tr><tr><td>┗ نظافة الموقع</td><td>3</td><td>—</td></tr>
+                <tr><td>هيكل خرساني</td><td>30</td><td>25%</td></tr><tr><td>┗ قوالب خشبية</td><td>10</td><td>—</td></tr>
+                <tr><td>بلاستر خارجي</td><td>21</td><td>15%</td></tr><tr><td>أرضيات وبلاط</td><td>18</td><td>12%</td></tr>
+                <tr><td>دهانات</td><td>15</td><td>10%</td></tr><tr><td>كهرباء</td><td>12</td><td>8%</td></tr>
+                <tr><td>سباكة وصرف</td><td>12</td><td>6%</td></tr><tr><td>تسليم نهائي</td><td>5</td><td>4%</td></tr></table>
+                <p class="small" style="color:var(--done); margin-top:4px">↑ الـ10 مراحل كلها ظاهرة — الصفحة نفسها هي التي تتمرر</p>
+              </div>
+              <div class="wcard"><h4>دفعات العقد</h4><div class="field">دفعة أولى — 30% — 2026-11-01</div></div>
+            </div>
+            <!-- الشريط المثبت -->
+            <div class="pinned" style="position:sticky; bottom:0">
+              <div class="inner">
+                <span class="small muted" style="margin-inline-end:auto">مثبّت دائمًا فوق التذييل — لا يتحرك أبدًا ✔</span>
+                <button class="btn btn-o">إلغاء</button>
+                <button class="btn btn-p">＋ إنشاء العقد</button>
+              </div>
+              <div style="text-align:center; font-size:9.5px; color:var(--muted); margin-top:3px">ConTrack V9.15 — التذييل تحته دائمًا</div>
+            </div>
+          </div>
+        </div>
+        <p class="small" style="margin-top:6px">💡 <b>الآلية التقنية المقترحة:</b> منطقة المحتوى (<span class="code">main</span>) تصبح حاوية تمرير بارتفاع <span class="code">calc(100vh − 56px)</span> والشريط <span class="code">sticky bottom-0</span> داخلها — فيثبت أسفلها بالضبط فوق التذييل، ولا يتحرك في أي حالة، على الحاسوب والموبايل.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ القسم 2: عقد باطن جديد ============ -->
+  <div class="card">
+    <div class="sec-head"><span class="num">2</span><div><h2>شاشة «عقد باطن جديد» — مراجعة الطلبات السابقة + ضغط الرأس</h2><p class="muted small">نفس آلية التثبيت + رأس سطر واحد بدل 3 سطور</p></div></div>
+    <div class="cols">
+      <div>
+        <h3 style="color:var(--danger)">❌ الحالي</h3>
+        <div class="frame before" style="margin-top:8px">
+          <div class="frame-bar"><span class="dot" style="background:#F87171"></span><span class="dot" style="background:#FBBF24"></span><span class="dot" style="background:#34D399"></span><span class="frame-url">عقد باطن جديد — قبل</span></div>
+          <div class="frame-body">
+            <div class="topbar"><span class="logo"><span class="sq">✍</span>ConTrack</span></div>
+            <div class="content">
+              <div style="font-size:10.5px; color:var(--muted)">العملاء والعقود ← العقود ← SC-0031</div>
+              <h4 style="font-size:16px; margin:2px 0">عقد باطن جديد</h4>
+              <p class="small muted">اختر المقاول وحدد القيمة — البنود والخطة تُضبط من تفاصيل العقد الباطن.</p>
+              <div class="wcard" style="margin-top:8px"><h4>بيانات العقد الباطن</h4><div class="grid3"><div class="field">المقاول *…</div><div class="field">القيمة *…</div><div class="field">تاريخ البدء…</div></div></div>
+              <div class="wcard"><h4>…بقية النموذج</h4><div class="grid2"><div class="field">تاريخ الانتهاء</div><div class="field">الوصف</div></div></div>
+              <div style="height:52px; background:#FEF2F2; border:1.5px dashed #FECACA; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--danger); font-weight:700">شريط (إلغاء/إنشاء) بنهاية المحتوى فقط + رأس 3 سطور يأكل 110px</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3 style="color:var(--done)">✅ المقترح</h3>
+        <div class="frame" style="margin-top:8px">
+          <div class="frame-bar"><span class="dot" style="background:#F87171"></span><span class="dot" style="background:#FBBF24"></span><span class="dot" style="background:#34D399"></span><span class="frame-url">عقد باطن جديد — بعد</span></div>
+          <div class="frame-body">
+            <div class="topbar"><span class="logo"><span class="sq">✍</span>ConTrack</span></div>
+            <div class="content">
+              <!-- رأس سطر واحد -->
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px">
+                <h4 style="font-size:15px; white-space:nowrap">عقد باطن جديد</h4>
+                <span class="small muted" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap">اختر المقاول وحدد القيمة — البنود والخطة من التفاصيل</span>
+                <span class="badge b-gray small" style="margin-inline-start:auto">SC-0031</span>
+              </div>
+              <div class="wcard"><h4>بيانات العقد الباطن <span class="badge b-green">أول حقل عند ~110px</span></h4><div class="grid3"><div class="field">المقاول *…</div><div class="field">القيمة *…</div><div class="field">تاريخ البدء…</div></div></div>
+              <div class="wcard"><h4>المزيد</h4><div class="grid2"><div class="field">تاريخ الانتهاء</div><div class="field">الوصف</div></div></div>
+              <div class="wcard"><h4>بعد الإنشاء: البنود وخطة الدفعات وكتل الدفع والسندات</h4><div class="grid2"><div class="field">جدول البنود — يمتد بلا سكرول داخلي</div><div class="field">جدول الدفعات — يمتد بلا سكرول داخلي</div></div></div>
+            </div>
+            <div class="pinned" style="position:sticky; bottom:0">
+              <div class="inner">
+                <span class="small muted" style="margin-inline-end:auto">مثبّت دائمًا ✔</span>
+                <button class="btn btn-o">إلغاء</button>
+                <button class="btn btn-p">＋ إنشاء</button>
+              </div>
+              <div style="text-align:center; font-size:9.5px; color:var(--muted); margin-top:3px">ConTrack V9.15</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ul class="tight" style="margin-top:10px">
+      <li>✅ جداول شاشة الباطن الجديد <b>سليمة أصلًا</b> من السكرول الداخلي (تحقق سطري + متصفحي).</li>
+      <li>🔧 المطلوب فقط: رأس سطر واحد (توفير ~60px) + الشريط المثبت بنفس آلية القسم 1.</li>
+      <li>🔧 الشريط بعد الإنشاء يتحول لـ«عودة لشاشة العقد» — يبقى مثبتًا بنفس المكان.</li>
+    </ul>
+  </div>
+
+  <!-- ============ القسم 3: ملف العميل ============ -->
+  <div class="card">
+    <div class="sec-head"><span class="num">3</span><div><h2>ملف العميل — نقل الأزرار من أسفل إلى أعلى (موضعان مقترحان)</h2><p class="muted small">طلبك: «الأزرار السفلية متحررة مع الاسكرول — نريدها أعلى، اقترح لي مكانًا»</p></div></div>
+
+    <div class="cols">
+      <!-- الموضع أ -->
+      <div>
+        <h3><span class="badge b-green">الموضع أ — الموصى به ⭐</span> شريط الرجوع الثابت الأعلى</h3>
+        <p class="small muted">الأزرار تُدمج في الشريط العلوي المثبت الموجود أصلًا (رجوع + العنوان) — فيصبح شريط أوامر كاملًا <b>دائم الظهور أثناء التمرير</b>، ولا يأخذ أي مساحة إضافية، ونحذف الشريط السفلي نهائيًا.</p>
+        <div class="frame" style="margin-top:8px">
+          <div class="frame-bar"><span class="dot" style="background:#F87171"></span><span class="dot" style="background:#FBBF24"></span><span class="dot" style="background:#34D399"></span><span class="frame-url">ملف العميل — الموضع أ</span></div>
+          <div class="frame-body" id="custFrame">
+            <div class="topbar"><span class="logo"><span class="sq">✍</span>ConTrack</span></div>
+            <div class="stickyfilebar">
+              <button class="btn btn-o btn-sm">→ رجوع</button>
+              <span class="title">ملف العميل — رشدي اباظة</span>
+              <button class="btn btn-p btn-sm">＋ عقد جديد</button>
+              <button class="btn btn-o btn-sm">📄 كشف حساب</button>
+              <button class="btn btn-o btn-sm">🖨 طباعة</button>
+              <button class="btn btn-o btn-sm">المزيد ▾</button>
+            </div>
+            <div class="content" style="padding-bottom:20px">
+              <div class="wcard" style="display:flex; gap:10px; align-items:center">
+                <div style="width:40px; height:40px; border-radius:10px; background:var(--psoft); display:flex; align-items:center; justify-content:center; font-size:18px">👤</div>
+                <div style="flex:1"><b style="font-size:13px">رشدي اباظة</b> <span class="small muted">CUS-0163</span><br><span class="small muted">📞 99887766 · 📍 حولي</span></div>
+                <div style="display:flex; flex-direction:column; gap:4px">
+                  <button class="btn btn-o btn-sm">✏ تعديل البيانات</button>
+                  <button class="btn btn-o btn-sm">💬 واتساب</button>
+                </div>
+              </div>
+              <div class="wcard"><h4>ملخص العميل</h4><div class="grid3"><div class="field">المتبقي: 2,000.000</div><div class="field">العقود: 4 (نشط: 3)</div><div class="field">شيكات 14 يوم: 1</div></div></div>
+              <div class="wcard"><h4>📌 أهم عقود العميل (أول كارت — كما نفّذنا في Task 90)</h4><table class="wt"><tr><th>العقد</th><th>الحالة</th><th>المتبقي</th></tr><tr><td>CON-0231 عمارة حولي</td><td>نشط</td><td>1,200.000</td></tr><tr><td>CON-0219 صيانة</td><td>نشط</td><td>500.000</td></tr><tr><td>CON-0187 إضافة دور</td><td>مغلق</td><td>0.000</td></tr><tr><td>CON-0154 ترميم</td><td>مغلق</td><td>0.000</td></tr></table></div>
+              <div class="wcard"><h4>السجل الزمني</h4><div class="field">…محتوى طويل…</div><div class="field">…</div><div class="field">…</div></div>
+            </div>
+          </div>
+        </div>
+        <p class="small" style="margin-top:6px">✔ يظل مرئيًا وأنت تتمرر لأي عمق — جرّب التمرير داخل الإطار.</p>
+      </div>
+
+      <!-- الموضع ب -->
+      <div>
+        <h3><span class="badge b-warn">الموضع ب — بديل</span> بطاقة رأس الكيان (EntityHeader)</h3>
+        <p class="small muted">الأزرار تُوضع في بطاقة التعريف العلوية بجوار «تعديل البيانات / واتساب» — مكانها طبيعي منطقيًا، لكنها <b>تختفي عند التمرير لأسفل</b> (ليست مثبتة).</p>
+        <div class="frame" style="margin-top:8px">
+          <div class="frame-bar"><span class="dot" style="background:#F87171"></span><span class="dot" style="background:#FBBF24"></span><span class="dot" style="background:#34D399"></span><span class="frame-url">ملف العميل — الموضع ب</span></div>
+          <div class="frame-body">
+            <div class="topbar"><span class="logo"><span class="sq">✍</span>ConTrack</span></div>
+            <div class="content" style="padding-bottom:20px">
+              <div class="stickyfilebar" style="position:static">
+                <button class="btn btn-o btn-sm">→ رجوع</button>
+                <span class="title">ملف العميل — رشدي اباظة</span>
+              </div>
+              <div class="wcard" style="display:flex; gap:10px; align-items:center; margin-top:10px">
+                <div style="width:40px; height:40px; border-radius:10px; background:var(--psoft); display:flex; align-items:center; justify-content:center; font-size:18px">👤</div>
+                <div style="flex:1"><b style="font-size:13px">رشدي اباظة</b> <span class="small muted">CUS-0163</span></div>
+              </div>
+              <div class="wcard" style="border-color:var(--psoft-bd); background:var(--psoft)">
+                <h4 style="color:var(--psoft-fg)">صف الأزرار هنا</h4>
+                <div class="qa-row">
+                  <span class="qa">＋ عقد جديد</span><span class="qa">📄 كشف حساب</span><span class="qa">🖨 طباعة</span><span class="qa">المزيد ▾</span>
+                  <span class="qa" style="border-color:var(--border); color:var(--text)">✏ تعديل</span><span class="qa" style="border-color:var(--border); color:var(--text)">💬 واتساب</span>
+                </div>
+              </div>
+              <div class="wcard"><h4>ملخص العميل</h4><div class="grid3"><div class="field">المتبقي</div><div class="field">العقود</div><div class="field">شيكات</div></div></div>
+              <div style="text-align:center; padding:14px 6px; border:1.5px dashed #FECACA; border-radius:10px; font-size:11px; color:var(--danger); font-weight:700">⬇ عند التمرير لأسفل… الأزرار تختفي مع البطاقة (ليست ثابتة)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <b>توصيتي:</b> الموضع <b>أ</b> — لثلاثة أسباب: (1) الأزرار الأكثر استخدامًا في الملف تبقى مرئية دائمًا مهما نزلت، (2) لا يضاف أي ارتفاع جديد للصفحة (نستفيد من شريط موجود)، (3) حذف الشريط السفلي يزيد مساحة المحتوى الرئيسي (الجداول) — وهو هدفك الأساسي من Task 90. وفي الموبايل يلتف الصف تلقائيًا تحت العنوان.
+      <br><b>ملاحظة:</b> «تعديل البيانات / واتساب» تبقىان في بطاقة التعريف (استخدامهما أقل تكرارًا)، و«المزيد ▾» يضم: عقود العميل / مركز التعليقات / الملفات والمستندات — كما هي حاليًا.
+    </div>
+  </div>
+
+  <!-- ============ القسم 4: ملف المقاول ============ -->
+  <div class="card">
+    <div class="sec-head"><span class="num">4</span><div><h2>ملف المقاول (الباطن) — إعادة تصميم مثل ملف العميل + تصدير</h2><p class="muted small">«جانب للعقود مع أسماء العملاء، ولما أختار العقد تظهر جداوله، مع زر تصدير لكل العقود أو المختار»</p></div></div>
+
+    <div class="cols">
+      <div>
+        <h3 style="color:var(--danger)">❌ الحالي</h3>
+        <p class="small muted">كل عقود المقاول مكدّسة عموديًا: كشف كامل (بنود + دفعات) لكل عقد واحد تحت الآخر — للوصول لآخر عقد تمرير طويل، ولا يوجد أي زر تصدير.</p>
+        <div class="frame before" style="margin-top:8px">
+          <div class="frame-bar"><span class="dot" style="background:#F87171"></span><span class="dot" style="background:#FBBF24"></span><span class="dot" style="background:#34D399"></span><span class="frame-url">كشف المقاول — قبل</span></div>
+          <div class="frame-body">
+            <div class="topbar"><span class="logo"><span class="sq">✍</span>ConTrack</span></div>
+            <div class="content" style="padding-bottom:14px">
+              <div class="wcard"><b>👷 شركة الوفاء للمقاولات</b> <span class="small muted">SUB-0042 · نجارة</span></div>
+              <div class="wcard" style="border-color:#FECACA">
+                <h4>CON-0231 · عميل العقد: رشدي اباظة <span class="badge b-gray">نشط</span></h4>
+                <table class="wt"><tr><th>البند</th><th>كمية</th><th>سعر</th></tr><tr><td>أبواب خشبية</td><td>12</td><td>85.000</td></tr><tr><td>دواليب مطبخ</td><td>3</td><td>220.000</td></tr></table>
+              </div>
+              <div class="wcard" style="border-color:#FECACA">
+                <h4>CON-0219 · عميل العقد: هدرس <span class="badge b-gray">نشط</span></h4>
+                <table class="wt"><tr><th>البند</th><th>كمية</th><th>سعر</th></tr><tr><td>كشي داخلي</td><td>40</td><td>12.500</td></tr></table>
+              </div>
+              <div class="wcard" style="border-color:#FECACA">
+                <h4>CON-0187 · عميل العقد: سيد كناريا <span class="badge b-gray">مغلق</span></h4>
+                <table class="wt"><tr><th>البند</th><th>كمية</th><th>سعر</th></tr><tr><td>رفوف عرض</td><td>8</td><td>45.000</td></tr></table>
+              </div>
+              <p class="small" style="color:var(--danger); font-weight:700; text-align:center">⬇ كل عقد كشف كامل مكدس تحت الآخر — عشرات الشاشات من التمرير · لا تصدير ❌</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h3 style="color:var(--done)">✅ المقترح — عمود عقود جانبي + كشف العقد المختار + تصدير</h3>
+        <div class="frame" style="margin-top:8px">
+          <div class="frame-bar"><span class="dot" style="background:#F87171"></span><span class="dot" style="background:#FBBF24"></span><span class="dot" style="background:#34D399"></span><span class="frame-url">كشف المقاول — بعد</span></div>
+          <div class="frame-body">
+            <div class="topbar">
+              <span class="logo"><span class="sq">✍</span>ConTrack</span>
+              <button class="btn btn-o btn-sm">→ رجوع</button>
+              <b style="font-size:12.5px">👷 شركة الوفاء للمقاولات</b>
+              <span class="small muted">SUB-0042</span>
+              <span style="margin-inline-start:auto"></span>
+              <button class="btn btn-o btn-sm">🖨 تصدير كل العقود</button>
+              <button class="btn btn-p btn-sm">🖨 تصدير العقد المختار</button>
+            </div>
+            <div class="content" style="padding-bottom:14px">
+              <div class="md">
+                <!-- العمود الجانبي: عقود المقاول -->
+                <div class="mdlist">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
+                    <b style="font-size:11px">عقود المقاول (3)</b>
+                    <span class="small muted">بحث…</span>
+                  </div>
+                  <div class="mditem sel"><b dir="ltr">CON-0231</b> · عمارة حولي<br><span class="muted">👤 العميل: رشدي اباظة</span><br><span class="badge b-green" style="font-size:9px">نشط</span> <span style="float:left; direction:ltr">2,000.000</span></div>
+                  <div class="mditem"><b dir="ltr">CON-0219</b> · صيانة سنوية<br><span class="muted">👤 العميل: هدرس</span><br><span class="badge b-green" style="font-size:9px">نشط</span> <span style="float:left; direction:ltr">500.000</span></div>
+                  <div class="mditem"><b dir="ltr">CON-0187</b> · إضافة دور<br><span class="muted">👤 العميل: سيد كناريا</span><br><span class="badge b-gray" style="font-size:9px">مغلق</span> <span style="float:left; direction:ltr">360.000</span></div>
+                  <p class="small muted" style="margin-top:6px; font-size:10px">كل بند: رقم العقد + اسم العميل + الحالة + القيمة — نقر = عرض كشفه</p>
+                </div>
+                <!-- التفاصيل -->
+                <div>
+                  <div class="wcard" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+                    <b style="font-size:12.5px">كشف العقد CON-0231</b>
+                    <span class="small muted">العميل: رشدي اباظة · 2026-01-10 ←</span>
+                    <span class="badge b-green">نشط</span>
+                    <span style="margin-inline-start:auto"></span>
+                    <button class="btn btn-o btn-sm">💳 صرف على الباطن</button>
+                    <button class="btn btn-o btn-sm">⚙ إدارة البنود</button>
+                  </div>
+                  <div class="grid3" style="margin-bottom:8px">
+                    <div class="field" style="justify-content:center">القيمة: 2,000.000</div>
+                    <div class="field" style="justify-content:center">المنصرف: 850.000</div>
+                    <div class="field" style="justify-content:center">المتبقي: 1,150.000</div>
+                  </div>
+                  <div class="wcard"><h4>بنود العقد الباطن</h4><table class="wt"><tr><th>البند</th><th>كمية</th><th>السعر</th><th>الإجمالي</th></tr><tr><td>أبواب خشبية</td><td>12</td><td>85.000</td><td>1,020.000</td></tr><tr><td>دواليب مطبخ</td><td>3</td><td>220.000</td><td>660.000</td></tr><tr><td>رفوف عرض</td><td>8</td><td>45.000</td><td>360.000</td></tr></table></div>
+                  <div class="wcard"><h4>دفعات العميل مقابل دفعات المقاول (الكشف الموحد كما هو)</h4><table class="wt"><tr><th>التاريخ</th><th>بيان</th><th>من العميل</th><th>للمقاول</th></tr><tr><td>2026-02-01</td><td>دفعة أولى</td><td>600.000</td><td>450.000</td></tr><tr><td>2026-04-15</td><td>دفعة ثانية</td><td>400.000</td><td>400.000</td></tr></table></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <ul class="tight" style="margin-top:10px">
+      <li>🧩 <b>نفس مكوّن الكشف الموحد الحالي</b> (SubcontractorLedger — بنود + دفعات العميل مقابل المقاول) يُعرض للعقد المختار فقط — لا يتغير أي حساب ولا مصدر بيانات، التغيير <b>عرضي فقط</b>.</li>
+      <li>📤 <b>التصدير:</b> «تصدير كل العقود» = ملف واحد بكل عقود المقاول (طباعة/PDF كما في طباعة ملف العميل) · «تصدير العقد المختار» = كشف العقد الحالي فقط. (إن أردت Excel بدل PDF أخبرني في التنفيذ).</li>
+      <li>📱 <b>الموبايل:</b> عمود العقود يتحول لصف شرائح أفقية أعلى الكشف (تمرير أفقي خفيف) — بلا كسر للتنسيق.</li>
+      <li>🔧 شاشة قائمة المقاولين نفسها تبقى كما هي، فقط تُزال حدود <span class="code">max-h-[480px]</span> (جدول المراجعة #7).</li>
+    </ul>
+  </div>
+
+  <!-- ============ القسم 5: الرئيسية ============ -->
+  <div class="card">
+    <div class="sec-head"><span class="num">5</span><div><h2>الرئيسية — الإجراءات السريعة أعلى + استعادة لوحة المهام</h2><p class="muted small">مع توضيح سبب اختفاء المهام (قرار موثق في Task 84 — قابل للاستعادة بقرارك)</p></div></div>
+
+    <div class="cols">
+      <div>
+        <h3 style="color:var(--danger)">❌ الحالي — الترتيب</h3>
+        <div class="frame before" style="margin-top:8px">
+          <div class="frame-bar"><span class="dot" style="background:#F87171"></span><span class="dot" style="background:#FBBF24"></span><span class="dot" style="background:#34D399"></span><span class="frame-url">الرئيسية — قبل</span></div>
+          <div class="frame-body">
+            <div class="topbar"><span class="logo"><span class="sq">✍</span>ConTrack</span></div>
+            <div class="content">
+              <div class="wcard"><h4>العدادات (4)</h4><div class="grid3"><div class="field" style="justify-content:center">👥 عملاء</div><div class="field" style="justify-content:center">📑 عقود</div><div class="field" style="justify-content:center">💵 سندات</div></div></div>
+              <div class="wcard" style="min-height:150px"><h4>🔔 التنبيهات والنشاطات — كارت ضخم يملأ الشاشة الأولى</h4><div class="field">تنبيه: عقد بلغ مرحلة التسليم…</div><div class="field">نشاط: سند قبض 500.000…</div><div class="field">…</div></div>
+              <div class="wcard" style="border-color:#FECACA"><h4 style="color:var(--danger)">⚡ إجراءات سريعة — في الأسفل ❌ (تحتاج تمريرًا للوصول إليها)</h4><div class="qa-row"><span class="qa">＋ عميل</span><span class="qa">＋ عقد</span><span class="qa">＋ سند قبض</span><span class="qa">＋ سند صرف</span></div></div>
+              <div class="wcard" style="border-color:#FECACA; background:#FEF2F2"><h4 style="color:var(--danger)">📝 لوحة المهام — غير موجودة ❌</h4><p class="small" style="color:var(--danger)">أُزيلت في Task 84 («المهام شاشة واحدة») — أنت لا تراها في الرئيسية الآن</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h3 style="color:var(--done)">✅ المقترح — الترتيب الجديد</h3>
+        <div class="frame" style="margin-top:8px">
+          <div class="frame-bar"><span class="dot" style="background:#F87171"></span><span class="dot" style="background:#FBBF24"></span><span class="dot" style="background:#34D399"></span><span class="frame-url">الرئيسية — بعد</span></div>
+          <div class="frame-body">
+            <div class="topbar"><span class="logo"><span class="sq">✍</span>ConTrack</span></div>
+            <div class="content">
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px"><b style="font-size:15px">الرئيسية</b><span style="margin-inline-start:auto"></span><button class="btn btn-o btn-sm">⟳</button></div>
+              <!-- سريعة أعلى -->
+              <div class="wcard" style="border-color:var(--psoft-bd); background:var(--psoft)">
+                <h4 style="color:var(--psoft-fg)">⚡ إجراءات سريعة — أول ما تقابل بعد العنوان ✅</h4>
+                <div class="qa-row"><span class="qa" style="background:#fff">＋ تسجيل عميل</span><span class="qa" style="background:#fff">＋ عقد جديد</span><span class="qa" style="background:#fff">＋ سند قبض</span><span class="qa" style="background:#fff">＋ سند صرف</span><span class="qa" style="background:#fff">＋ مقاول باطن</span></div>
+              </div>
+              <div class="wcard"><h4>العدادات</h4><div class="grid3"><div class="field" style="justify-content:center">👥 عملاء</div><div class="field" style="justify-content:center">📑 عقود</div><div class="field" style="justify-content:center">💵 سندات</div></div></div>
+              <div style="display:grid; grid-template-columns:1fr 240px; gap:10px">
+                <div class="wcard"><h4>🔔 التنبيهات والنشاطات</h4><div class="field">تنبيه: عقد بلغ مرحلة التسليم… <span style="float:left">مهمة</span></div><div class="field">نشاط: سند قبض 500.000…</div><div class="field">…</div></div>
+                <div class="wcard" style="border-color:var(--psoft-bd)">
+                  <h4 style="color:var(--psoft-fg)">📝 مهام قريبة — مستعادة ✅</h4>
+                  <div class="field">☑ متابعة دفعة — غدًا</div>
+                  <div class="field">☐ زيارة موقع — الخميس</div>
+                  <div class="field">☐ تجديد رخصة — بعد 3 أيام</div>
+                  <button class="btn btn-o btn-sm" style="width:100%; justify-content:center; margin-top:6px">＋ مهمة جديدة · كل المهام ←</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <ul class="tight" style="margin-top:10px">
+      <li>⚡ <b>الإجراءات السريعة أعلى:</b> صف مدمج مباشرة تحت العنوان (قبل العدادات) — بلا كارت ثقيل، وعلى الموبايل يلتف سطرين.</li>
+      <li>📝 <b>سبب اختفاء المهام:</b> موثق في الكود — Task 84 أزال «لوحة المهام المضمّنة» من الرئيسية عمدًا لأن المهام أصبحت شاشة مستقلة في الشجرة الجانبية («العقود ← المهام» موجودة الآن). قرارك السابق حينها. <b>الاستعادة المقترحة:</b> كارت جانبي «مهام قريبة» (5 مهام) بجوار التغذية + زر مهمة جديدة — النقر يفتح محرر المهمة الموجود أصلًا.</li>
+      <li>🔄 التغذية تبقى كما هي كاملة (تنبيهات بنصوص المكتبي + تحويل تنبيه←مهمة + إخفاء/استعادة).</li>
+    </ul>
+  </div>
+
+  <!-- ============ القسم 6: القاعدة الموحدة ============ -->
+  <div class="card">
+    <div class="sec-head"><span class="num">📐</span><div><h2>القاعدة الموحدة للتثبيت والتمرير — تُطبق على كل الشاشات دفعة واحدة</h2><p class="muted small">الآلية التي تحل شكوى «متحرر مع الاسكرول» جذريًا وليس ترقيعًا</p></div></div>
+    <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:stretch">
+      <div style="flex:1; min-width:300px; border:1px solid var(--border); border-radius:12px; overflow:hidden; background:#fff">
+        <div style="background:var(--primary); color:#fff; padding:7px 12px; font-size:12px; font-weight:700">الشريط العلوي — ثابت top-0 (كما هو)</div>
+        <div style="display:flex">
+          <div style="width:110px; background:var(--thead); border-left:1px solid var(--border); padding:8px; font-size:10.5px; color:var(--muted)">الشجرة الجانبية<br>ثابتة (كما هي)</div>
+          <div style="flex:1">
+            <div style="background:var(--info-bg); padding:6px 10px; font-size:11px; color:var(--info); font-weight:700">منطقة المحتوى = حاوية التمرير الوحيدة (ارتفاع ثابت)</div>
+            <div style="padding:8px 10px; font-size:11px">
+              <div>📄 المحتوى: الجداول/النماذج تمتد كاملًا</div>
+              <div style="color:var(--muted)">…لا max-h على أي جدول رئيسي…</div>
+              <div style="color:var(--muted)">…الصفحة تتمرر كسكرول واحد…</div>
+            </div>
+            <div style="background:var(--psoft); border-top:2px solid var(--primary); padding:7px 10px; font-size:11px; font-weight:800; color:var(--psoft-fg); display:flex; justify-content:space-between"><span>شريط الإجراءات — مثبت أسفل المحتوى دائمًا</span><span>[إلغاء] [إنشاء ✔]</span></div>
+          </div>
+        </div>
+        <div style="background:var(--thead); border-top:1px solid var(--border); padding:5px 12px; font-size:10px; color:var(--muted); text-align:center">التذييل V9.15 — تحته دائمًا ولا يدفعه شيء</div>
+      </div>
+      <div style="flex:1; min-width:280px">
+        <ul class="tight">
+          <li>1️⃣ منطقة المحتوى (<span class="code">main</span>) هي <b>حاوية التمرير الوحيدة</b> — ارتفاعها = الشاشة ناقص الشريط العلوي.</li>
+          <li>2️⃣ شريط الإجراءات <span class="code">sticky bottom-0</span> داخلها → مثبت بالحرف فوق التذييل: يُرى من أول ثانية ويلازم مكانه.</li>
+          <li>3️⃣ الجداول الرئيسية بلا <span class="code">max-h</span> إطلاقًا — تمتد والمحتوى كله يمرر معًا (قاعدة 90b معممة على 13 موضعًا من جدول المراجعة).</li>
+          <li>4️⃣ نفس الآلية تخدم: عقد جديد، عقد باطن جديد، كل صفحات التعديل (12 شريطًا قائمًا تستفيد تلقائيًا: سند/مطالبة/عهدة/تعليق/فاتورة/…) دون تعديلها واحدًا واحدًا.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ الخاتمة ============ -->
+  <div class="card" style="background:linear-gradient(135deg,#ECFDF5 0%,#FFFFFF 60%)">
+    <h2 style="margin-bottom:6px">✋ بانتظار إذنك — لن يُعدَّل أي ملف قبلها</h2>
+    <p class="small">هذا تصور معزول فقط. اكتب <b>«ابدا»</b> لتنفيذ كل البنود، أو حدد أرقامها (مثال: «ابدا بـ 1 و2 و4 و6 و8») — وبنودا تحتاج قرارك صراحة: <b>#5</b> (لوحات ملف العميل: إبقاء أم إزالة حدودها؟) و<b>#9</b> (استعادة كارت المهام في الرئيسية: نعم أم لا؟) و<b>نوع التصدير في #6</b> (PDF طباعة أم Excel).</p>
+    <div class="legend" style="margin-top:10px">
+      <span class="badge b-green">تصور Task 91</span>
+      <span class="badge b-gray">أُنشئ بدون تعديل أي ملف في النظام</span>
+      <span class="badge b-gray">القياسات في هذا الملف مأخوذة من كود اليوم + تحقق متصفحي فعلي</span>
+    </div>
+  </div>
+
+  <div class="footer-note">ConTrack — تصور Task 91 · تثبيت الأشرطة + نقل أزرار ملف العميل + ملف المقاول master-detail + ترتيب الرئيسية + مراجعة شاملة</div>
+</div>
+
+<script>
+  // تمرير تلقائي خفيف في إطار «بعد» عقد جديد عند أول ظهور — ليلاحظ المستخدم الشريط المثبت بنفسه
+  const after = document.getElementById('afterFrame');
+  if (after) {
+    let scrolled = false;
+    after.addEventListener('scroll', () => { scrolled = true; });
+    const io = new IntersectionObserver((es) => {
+      es.forEach(e => {
+        if (e.isIntersecting && !scrolled) {
+          setTimeout(() => { if (!scrolled) { after.scrollTop = 260; } }, 900);
+          setTimeout(() => { if (!scrolled) { after.scrollTop = 520; } }, 1900);
+        }
+      });
+    }, { threshold: .4 });
+    io.observe(after);
+  }
+</script>
+</body>
+</html>
