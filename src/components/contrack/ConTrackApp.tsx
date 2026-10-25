@@ -174,13 +174,18 @@ function AppRoot() {
   );
 
   const handleLogout = React.useCallback(async () => {
+    clearStoredToken(); // أولاً — أي طلب لاحق يخرج بلا توكن
     try {
       await apiPost("/api/auth/logout");
     } catch {
       /* الجلسة قد تكون منتهية أصلًا */
     }
-    clearStoredToken();
-    qc.clear();
+    // إصلاح الخروج: qc.clear() كان يفصل مراقب استعلام auth المُركَّب عن الكاش فيكتب
+    // setQueryData التالي {user:null} في مدخل لا يراقبه أحد — فتبقى الواجهة «داخل النظام»
+    // رغم موت الجلسة. الصواب: إلغاء الجلبات الجارية، إزالة كل استعلامات التطبيق عدا auth
+    // (يبقى المراقب مرتبطًا بمدخله)، ثم تصفير بيانات auth مباشرة فتتحول الشاشة للدخول فورًا.
+    qc.cancelQueries();
+    qc.removeQueries({ predicate: (q) => q.queryKey[0] !== "auth" });
     qc.setQueryData<AuthData>(["auth", "me"], { user: null, perms: null });
     setView("dashboard");
     setContractId(null);
