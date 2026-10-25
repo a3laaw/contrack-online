@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronLeft, FileSignature, LogOut, Menu, PanelRightClose, PanelRightOpen, Search, X } from "lucide-react";
+import { ChevronLeft, FileSignature, LogOut, Menu, PanelRightClose, PanelRightOpen, Search, ShieldCheck, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,10 @@ interface AppShellProps {
   perms?: Record<string, boolean> | null;
   /** G3 — فتح معاملة من إشعار (contract ⇒ تفاصيل العقد) */
   onOpenTransaction?: (transactionType: string, transactionId: number) => void;
+  /** لوحة المطور (Task 97) — زر الدرع في الشريط العلوي (مطور فقط) */
+  onOpenDevConsole?: () => void;
+  /** لوحة المطور (Task 97) — زر «رجوع للوحة» في شريط التمييز عند الدخول لشركة أخرى */
+  onReturnToDevConsole?: () => void;
   children?: React.ReactNode;
 }
 
@@ -34,8 +38,14 @@ interface AppShellProps {
  * قابلة للطي إلى أيقونات + درج منزلق على الشاشات الصغيرة. بلا شريط سفلي.
  * بند 5 (المرحلة 2/ب): الفلترة بالصلاحيات visibleChildren نُقلت إلى nav-perms.ts النقي.
  */
-export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearch, perms, onOpenTransaction, children }: AppShellProps) {
+export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearch, perms, onOpenTransaction, onOpenDevConsole, onReturnToDevConsole, children }: AppShellProps) {
   const manager = isManagerRole(user.role);
+  // لوحة المطور (Task 97): شريط التمييز يظهر حين يكون المطور داخل شركة غير شركته الأم
+  const insideForeignCompany =
+    user.role === "developer" &&
+    user.homeCompanyId != null &&
+    user.companyId != null &&
+    user.companyId !== user.homeCompanyId;
   const { enabled: featureEnabled } = useFeatureFlags();
   const flagOn = React.useCallback((f: string) => featureEnabled(f), [featureEnabled]);
   // بند 5 (المرحلة 2/ب): إخفاء البنود حسب الصلاحيات — مرآة has_permission المكتبي:
@@ -157,6 +167,18 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
 
           {/* البحث والإشعارات والمستخدم والخروج */}
           <div className="ms-auto flex items-center gap-2">
+            {user.role === "developer" && onOpenDevConsole && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-9 text-primary hover:text-primary"
+                onClick={onOpenDevConsole}
+                aria-label="لوحة تحكم المطور"
+                title="لوحة تحكم المطور"
+              >
+                <ShieldCheck className="size-4" />
+              </Button>
+            )}
             <CompanySwitcher user={user} />
             <Button
               variant="ghost"
@@ -187,6 +209,25 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
           </div>
         </div>
       </header>
+
+      {/* لوحة المطور (Task 97) — شريط تمييز: المطور داخل شركة غير شركته الأم */}
+      {insideForeignCompany && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-primary/20 bg-primary-soft px-4 py-1.5" role="status">
+          <p className="flex items-center gap-1.5 text-xs font-medium text-primary-soft-foreground">
+            <ShieldCheck className="size-3.5" />
+            أنت داخل شركة «{user.companyName}» كمطوّر — البيانات معزولة لنطاقها
+          </p>
+          {onReturnToDevConsole && (
+            <button
+              type="button"
+              onClick={onReturnToDevConsole}
+              className="rounded-md px-2 py-0.5 text-xs font-semibold text-primary underline-offset-2 hover:underline"
+            >
+              رجوع للوحة المطور
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-1 w-full min-h-0">
         {/* ===== القائمة الجانبية للوحدة — قابلة للطي إلى أيقونات (التقارير الـ11 منها كالمحاسبة) ===== */}

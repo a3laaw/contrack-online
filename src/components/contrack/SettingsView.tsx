@@ -115,8 +115,8 @@ export function SettingsView({ user, onAuthError, initialSection }: SettingsView
           ))}
         </TabsList>
 
-        {/* ===== 0) الشركات — SaaS (مدير/مطور) ===== */}
-        {manager && (
+        {/* ===== 0) الشركات — SaaS (Task 97: للمطور فقط — مدير الشركة يبقى داخل شركته) ===== */}
+        {isDeveloper && (
           <TabsContent value="companies" className="space-y-4">
             <CompaniesTab />
           </TabsContent>

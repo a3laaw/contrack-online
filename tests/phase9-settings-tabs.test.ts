@@ -63,17 +63,17 @@ describe("SETTINGS_TABS — التسع تبويبات بترتيب المكتب�
     const adminOnly = SETTINGS_TABS.filter((t) => t.adminOnly).map((t) => t.value);
     // المكتبي يحصر هذه الست خلف is_admin (settings.py:508/516/521)
     expect(adminOnly).toEqual(["company", "companies", "contract-types", "expense-accounts", "workflow", "visits", "backup"]);
+    // Task 97 — قرار معتمد: الشركات للمطور حصرًا (انحراف ويب موثق عن المكتبي)
     const devOnly = SETTINGS_TABS.filter((t) => t.developerOnly).map((t) => t.value);
-    expect(devOnly).toEqual(["developer"]);
+    expect(devOnly).toEqual(["companies", "developer"]);
   });
 });
 
 describe("visibleSettingsTabs — قواعد الظهور الثلاثة كالمكتبي", () => {
-  test("المدير: الإدارية الثمانية بلا أدوات المطور (is_developer false)", () => {
+  test("المدير: الإدارية بلا الشركات (Task 97: للمطور حصرًا) وبلا أدوات المطور", () => {
     const tabs = visibleSettingsTabs(true, false);
     expect(tabs.map((t) => t.value)).toEqual([
       "company",
-      "companies",
       "appearance",
       "security",
       "contract-types",
@@ -123,6 +123,12 @@ describe("resolveInitialSection — قسم الشل إلى تبويب صالح �
     expect(resolveInitialSection("developer", true, true)).toBe("developer");
     expect(resolveInitialSection("developer", true, false)).toBe("company"); // تبويب محجوب ⇒ الافتراضي
     expect(resolveInitialSection("developer", false, false)).toBe("appearance");
+  });
+
+  test("قسم companies يفتح للإطور فقط ويُرد للمدير (Task 97: عزل الشركات)", () => {
+    expect(resolveInitialSection("companies", true, true)).toBe("companies");
+    expect(resolveInitialSection("companies", true, false)).toBe("company"); // محجوب للمدير ⇒ الافتراضي
+    expect(resolveInitialSection("companies", false, false)).toBe("appearance");
   });
 
   test("قسم إداري لسكرتير يُرد للافتراضي (لا فتح تبويب محجوب)", () => {

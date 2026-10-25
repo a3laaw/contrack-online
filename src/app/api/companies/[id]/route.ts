@@ -1,4 +1,4 @@
-// Task 85 — SaaS: تعديل شركة (اسم/اختصار/تفعيل/ملاحظات) — المدير/المطور
+// Task 85 — SaaS: تعديل شركة (اسم/اختصار/تفعيل/ملاحظات) — (Task 97) للمطور فقط
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { adminGuard, audit, jsonError, ok } from "@/lib/api-utils";
@@ -8,6 +8,9 @@ type P = { params: Promise<{ id: string }> };
 export async function PATCH(req: NextRequest, { params }: P) {
   const guard = await adminGuard(req);
   if ("response" in guard) return guard.response;
+  if (guard.user.role !== "developer") {
+    return jsonError("تعديل الشركات للمطور فقط (Task 97)", 403);
+  }
   const { id: idStr } = await params;
   const id = Number(idStr);
   if (!Number.isFinite(id)) return jsonError("معرف غير صالح");

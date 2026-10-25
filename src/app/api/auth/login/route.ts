@@ -103,6 +103,8 @@ export async function POST(req: NextRequest) {
   }
 
   const token = issueToken(user.id, user.companyId);
+  // لوحة المطور (Task 97): الشركة الأم ضمن رد الدخول — لشاشة اختيار نقطة الدخول
+  const homeCompany = await db.company.findUnique({ where: { id: user.companyId }, select: { name: true } });
   // بند 5 (مواءمة PAGE_PERMS): الصلاحيات تعاد مع الدخول فتُصيَّر الشل مفلترة من أول لحظة
   const perms = await permsForUser(user.id, user.role);
   const res = ok({
@@ -112,6 +114,9 @@ export async function POST(req: NextRequest) {
       role: user.role,
       fullName: user.fullName || user.username,
       jobTitle: user.jobTitle || "",
+      companyId: user.companyId,
+      companyName: homeCompany?.name || "",
+      homeCompanyId: user.companyId,
     },
     token,
     perms,

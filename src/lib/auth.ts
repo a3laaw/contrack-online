@@ -21,6 +21,8 @@ export interface SessionUser {
   jobTitle: string;
   companyId: number;
   companyName: string;
+  /** لوحة المطور (Task 97): شركة المستخدم الأم من سجله — تختلف عن companyId عند الدخول لشركة أخرى */
+  homeCompanyId: number;
 }
 
 // ===== كلمات المرور: PBKDF2-SHA256 بـ 200,000 دورة — الملح بايتاته الخام bytes.fromhex(salt) كما المكتبي حرفيًا =====
@@ -66,6 +68,7 @@ export async function getSessionUser(req: NextRequest): Promise<SessionUser | nu
     jobTitle: user.jobTitle || "",
     companyId: company.id,
     companyName: company.name,
+    homeCompanyId: user.companyId,
   };
 }
 

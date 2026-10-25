@@ -28,7 +28,8 @@ export type ViewName =
   | "other-company"
   | "settings"
   | "users"
-  | "data-mgmt";
+  | "data-mgmt"
+  | "dev-console";
 
 export type UserRole = "admin" | "secretary" | "developer";
 
@@ -287,6 +288,8 @@ export interface User {
   /** SaaS (Task 85) — شركة المستخدم الحالية */
   companyId?: number;
   companyName?: string;
+  /** لوحة المطور (Task 97) — شركة المستخدم الأم (تختلف عن companyId عند الدخول لشركة أخرى) */
+  homeCompanyId?: number;
 }
 
 // ==================== العملاء ====================

@@ -9,6 +9,8 @@
  *   - «الطباعة والعرض» للجميع، و«الأمان والمستخدمون» للجميع مع اختلاف
  *     التسمية: «◆ الأمان والمستخدمون» للإدارة و«◆ كلمة المرور» للسكرتير.
  *   - «⚙ أدوات المطور» لـ developer فقط (is_developer — auth_service.py:171).
+ *   - انحراف ويب موثق (Task 97 — قرار معتمد): تاب «الشركات» للمطور حصرًا
+ *     (adminOnly+developerOnly معًا) — عزل الشركات: مدير الشركة يبقى داخل شركته.
  *   - أدوات المطور تابات داخلية خمسة (settings.py:1020-1242) بترتيبها
  *     الحرفي: المزايا · الهوية والترخيص · الترحيل والاستيراد ·
  *     الشبكة والنسخ · ✱ تنظيف البيانات.
@@ -41,7 +43,8 @@ export const TAB_DEVELOPER = "⚙  أدوات المطور";
 /** كل التبويبات التسعة بترتيب المكتبي _build (الإدارية الثمانية + أدوات المطور) */
 export const SETTINGS_TABS: SettingsTabDef[] = [
   { value: "company", label: TAB_COMPANY, adminOnly: true, developerOnly: false },
-  { value: "companies", label: TAB_COMPANIES, adminOnly: true, developerOnly: false },
+  // Task 97 — قرار معتمد: الشركات للمطور حصرًا (البابان معًا = يستثني المدير والسكرتير)
+  { value: "companies", label: TAB_COMPANIES, adminOnly: true, developerOnly: true },
   { value: "appearance", label: TAB_APPEARANCE, adminOnly: false, developerOnly: false },
   { value: "security", label: TAB_SECURITY_ADMIN, adminOnly: false, developerOnly: false },
   { value: "contract-types", label: TAB_CONTRACT_TYPES, adminOnly: true, developerOnly: false },
@@ -58,10 +61,10 @@ export function securityTabLabel(isAdmin: boolean): string {
 }
 
 /**
- * التبويبات المرئية لدور معين — بنفس ترتيب المكتبي:
+ * التبويبات المرئية لدور معين — بنفس ترتيب المكتبي مع انحراف الويب الموثق (Task 97):
  *   سكرتير  ⇒ الطباعة والعرض + كلمة المرور فقط (تعليق settings.py:510-511)
- *   مدير    ⇒ الإدارية الثمانية (بلا أدوات المطور)
- *   مطور    ⇒ الإدارية الثمانية + أدوات المطور (is_admin يشمل المطور)
+ *   مدير    ⇒ الإدارية (بلا الشركات — للمطور حصرًا Task 97) وبلا أدوات المطور
+ *   مطور    ⇒ كل التبويبات (is_admin يشمل المطور + الشركات وأدوات المطور)
  */
 export function visibleSettingsTabs(isAdmin: boolean, isDeveloper: boolean): SettingsTabDef[] {
   return SETTINGS_TABS.filter((t) => {

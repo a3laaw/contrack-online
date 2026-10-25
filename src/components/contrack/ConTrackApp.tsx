@@ -41,6 +41,7 @@ import { SearchDialog } from "./SearchDialog";
 import { SettingsView } from "./SettingsView";
 import { UsersView } from "./UsersView";
 import { DataManagementView } from "./DataManagementView";
+import { DevConsoleView } from "./DevConsoleView";
 
 /** جذر التطبيق: مزوّد React-Query فقط — الـQueryClient يُنشأ مرة واحدة */
 export default function ConTrackApp() {
@@ -87,7 +88,16 @@ function AppRoot() {
     },
   });
 
-  const [view, setView] = React.useState<ViewName>("dashboard");
+  // لوحة المطور (Task 97): علامة فتح اللوحة بعد الدخول/العودة من شركة — تُقرأ مرة ثم تُمسح
+  const [view, setView] = React.useState<ViewName>(() => {
+    if (typeof window !== "undefined" && sessionStorage.getItem("ctrk_open_view") === "dev-console") {
+      return "dev-console";
+    }
+    return "dashboard";
+  });
+  React.useEffect(() => {
+    sessionStorage.removeItem("ctrk_open_view");
+  }, []);
   const [contractId, setContractId] = React.useState<number | null>(null);
   const [customerFileId, setCustomerFileId] = React.useState<number | null>(null);
   const [newContractCustomerId, setNewContractCustomerId] = React.useState<number | null>(null);
@@ -152,11 +162,12 @@ function AppRoot() {
   }, [qc]);
 
   const handleLoggedIn = React.useCallback(
-    (u: User, token: string, userPerms?: Record<string, boolean>) => {
+    (u: User, token: string, userPerms?: Record<string, boolean>, initialView?: string) => {
       setStoredToken(token);
       // الدخول يعيد الصلاحيات معه (بند 5) — فتُعرض الشل مفلترة من أول لحظة بلا وميض
       qc.setQueryData<AuthData>(["auth", "me"], { user: u, perms: userPerms ?? null });
-      setView("dashboard");
+      // المطور الذي اختار «لوحة تحكم المطور» من شاشة الدخول يفتتح بها (Task 97)
+      setView(initialView === "dev-console" && u.role === "developer" ? "dev-console" : "dashboard");
       setContractId(null);
     },
     [qc]
@@ -181,7 +192,7 @@ function AppRoot() {
   // حرس فتح الـviews مباشرة (مسارات جانبية: بحث/رجوع/فتح كشف من عقد) — كحرس _navigate المكتبي
   const navigate = React.useCallback(
     (v: ViewName) => {
-      if (!canOpenView(v, { isAdmin: manager, permOn })) {
+      if (!canOpenView(v, { isAdmin: manager, isDeveloper: user?.role === "developer", permOn })) {
         toast({ title: NAVIGATE_DENIED_MSG });
         return;
       }
@@ -189,7 +200,7 @@ function AppRoot() {
       if (v !== "contract") setContractId(null);
       if (v !== "customer-file") setCustomerFileId(null);
     },
-    [manager, permOn, toast]
+    [manager, permOn, toast, user?.role]
   );
 
   const openContract = React.useCallback(
@@ -255,6 +266,23 @@ function AppRoot() {
     [navigate]
   );
 
+  // لوحة المطور (Task 97): «رجوع للوحة» من شريط التمييز — تبديل الجلسة للشركة الأم
+  // ثم إعادة تحميل بعلامة فتح اللوحة (إذا كنا بالفعل في الشركة الأم: فتح مباشر)
+  const returnToDevConsole = React.useCallback(() => {
+    const home = user?.homeCompanyId;
+    sessionStorage.setItem("ctrk_open_view", "dev-console");
+    if (home == null || home === user?.companyId) {
+      setView("dev-console");
+      return;
+    }
+    apiPost<{ token: string }>("/api/companies/switch", { companyId: home })
+      .then((res) => {
+        setStoredToken(res.token);
+        window.location.reload();
+      })
+      .catch(() => setView("dev-console"));
+  }, [user]);
+
   if (authQuery.isLoading) return <AuthSplash />;
   if (authQuery.isError) return <AuthSplash error />;
 
@@ -271,6 +299,8 @@ function AppRoot() {
       onOpenTransaction={(txType, txId) => {
         if (txType === "contract") openContract(txId);
       }}
+      onOpenDevConsole={user.role === "developer" ? () => navigate("dev-console") : undefined}
+      onReturnToDevConsole={returnToDevConsole}
     >
       {view === "dashboard" && (
         <DashboardView user={user} onAuthError={onAuthError} perms={perms} onQuickAction={handleDashboardQuickAction} onOpenContract={openContract} onOpenCustomerFile={openCustomerFile} onOpenTasks={() => navigate("tasks")} />
@@ -362,6 +392,9 @@ function AppRoot() {
       {view === "users" && <UsersView user={user} onAuthError={onAuthError} />}
       {view === "data-mgmt" && (
         <DataManagementView user={user} onAuthError={onAuthError} initialSection={dmSection} />
+      )}
+      {view === "dev-console" && user.role === "developer" && (
+        <DevConsoleView user={user} onAuthError={onAuthError} onBack={() => navigate("dashboard")} />
       )}
 
       {/* البحث الشامل — Ctrl+K أو زر الشريط العلوي */}

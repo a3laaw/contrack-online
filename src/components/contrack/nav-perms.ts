@@ -92,11 +92,13 @@ export const VIEW_PERMS: Partial<Record<ViewName, string>> = {
   settings: "screen_settings",
 };
 
-/** هل يفتح هذا المستخدم هذا الـview؟ — users/data-mgmt إدارة ويبية للمدير/المطور فقط */
+/** هل يفتح هذا المستخدم هذا الـview؟ — users/data-mgmt إدارة ويبية للمدير/المطور فقط،
+ *  وdev-console لوحة المطور للمطور حصرًا (Task 98) */
 export function canOpenView(
   view: ViewName,
-  gate: { isAdmin: boolean; permOn: (k: string) => boolean }
+  gate: { isAdmin: boolean; isDeveloper?: boolean; permOn: (k: string) => boolean }
 ): boolean {
+  if (view === "dev-console") return !!gate.isDeveloper;
   if (view === "users" || view === "data-mgmt") return gate.isAdmin;
   const key = VIEW_PERMS[view];
   if (!key) return true; // الرئيسية بلا باب كالمكتبي
