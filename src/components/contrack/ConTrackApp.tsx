@@ -162,12 +162,13 @@ function AppRoot() {
   }, [qc]);
 
   const handleLoggedIn = React.useCallback(
-    (u: User, token: string, userPerms?: Record<string, boolean>, initialView?: string) => {
+    (u: User, token: string, userPerms?: Record<string, boolean>) => {
       setStoredToken(token);
       // الدخول يعيد الصلاحيات معه (بند 5) — فتُعرض الشل مفلترة من أول لحظة بلا وميض
       qc.setQueryData<AuthData>(["auth", "me"], { user: u, perms: userPerms ?? null });
-      // المطور الذي اختار «لوحة تحكم المطور» من شاشة الدخول يفتتح بها (Task 97)
-      setView(initialView === "dev-console" && u.role === "developer" ? "dev-console" : "dashboard");
+      // Task 100: المطور غير مربوط بأي شركة — لوحته هي بوابة الدخول الوحيدة، يُفتتح بها مباشرة؛
+      // البقية يُفتتحون بشركتهم كالسابق
+      setView(u.role === "developer" ? "dev-console" : "dashboard");
       setContractId(null);
     },
     [qc]
@@ -271,16 +272,16 @@ function AppRoot() {
     [navigate]
   );
 
-  // لوحة المطور (Task 97): «رجوع للوحة» من شريط التمييز — تبديل الجلسة للشركة الأم
-  // ثم إعادة تحميل بعلامة فتح اللوحة (إذا كنا بالفعل في الشركة الأم: فتح مباشر)
+  // لوحة المطور (Task 97/100): «رجوع للوحة» من شريط التمييز أو زر الدرع —
+  // المطور بلا شركة: إن كان داخل شركة يُعاد إصدار التوكن بسياق 0 (بلا شركة) ثم إعادة تحميل
+  // بعلامة فتح اللوحة؛ وإن كان بلا شركة أصلًا فتح مباشر
   const returnToDevConsole = React.useCallback(() => {
-    const home = user?.homeCompanyId;
     sessionStorage.setItem("ctrk_open_view", "dev-console");
-    if (home == null || home === user?.companyId) {
+    if (!user?.companyId) {
       setView("dev-console");
       return;
     }
-    apiPost<{ token: string }>("/api/companies/switch", { companyId: home })
+    apiPost<{ token: string }>("/api/companies/switch", { companyId: 0 })
       .then((res) => {
         setStoredToken(res.token);
         window.location.reload();
@@ -304,7 +305,7 @@ function AppRoot() {
       onOpenTransaction={(txType, txId) => {
         if (txType === "contract") openContract(txId);
       }}
-      onOpenDevConsole={user.role === "developer" ? () => navigate("dev-console") : undefined}
+      onOpenDevConsole={user.role === "developer" ? returnToDevConsole : undefined}
       onReturnToDevConsole={returnToDevConsole}
     >
       {view === "dashboard" && (
@@ -399,7 +400,7 @@ function AppRoot() {
         <DataManagementView user={user} onAuthError={onAuthError} initialSection={dmSection} />
       )}
       {view === "dev-console" && user.role === "developer" && (
-        <DevConsoleView user={user} onAuthError={onAuthError} onBack={() => navigate("dashboard")} />
+        <DevConsoleView user={user} onAuthError={onAuthError} />
       )}
 
       {/* البحث الشامل — Ctrl+K أو زر الشريط العلوي */}

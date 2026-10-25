@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
       latestCompanyAt: latest?.createdAt || null,
     },
     companies: list,
+    // سياق الجلسة: 0 = بلا شركة (اللوحة) — وإلا الشركة التي داخلها المطور (شارة «الحالية»)
     currentCompanyId: guard.user.companyId,
-    homeCompanyId: guard.user.homeCompanyId,
   });
 }

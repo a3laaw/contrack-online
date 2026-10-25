@@ -30,7 +30,8 @@ export async function GET(req: NextRequest) {
         usersCount: c.users.length,
       })),
       currentCompanyId: guard.user.companyId,
-      canSwitch: true,
+      // Task 100: الدخول للشركات من لوحة المطور حصرًا (زر دخول) — لا مبدّل في الشريط
+      canSwitch: false,
     });
   }
   // غير المطور (مدير): شركته فقط — بلا تبديل (Task 97: عزل الشركات للمطور)

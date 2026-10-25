@@ -40,12 +40,12 @@ interface AppShellProps {
  */
 export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearch, perms, onOpenTransaction, onOpenDevConsole, onReturnToDevConsole, children }: AppShellProps) {
   const manager = isManagerRole(user.role);
-  // لوحة المطور (Task 97): شريط التمييز يظهر حين يكون المطور داخل شركة غير شركته الأم
+  // Task 100: اللوحة شاشة قائمة بذاتها (بلا قوائم شركة) — كل أدوات التنقل مخفية فيها،
+  // والدخول للشركات من أزرار «دخول» في جدولها حصرًا
+  const inDevConsole = activeNav === "dev-console";
+  // شريط التمييز: المطور داخل شركة (companyId>0) وخرج من اللوحة — المطور بلا شركة أم إطلاقًا
   const insideForeignCompany =
-    user.role === "developer" &&
-    user.homeCompanyId != null &&
-    user.companyId != null &&
-    user.companyId !== user.homeCompanyId;
+    user.role === "developer" && (user.companyId ?? 0) > 0 && !inDevConsole;
   const { enabled: featureEnabled } = useFeatureFlags();
   const flagOn = React.useCallback((f: string) => featureEnabled(f), [featureEnabled]);
   // بند 5 (المرحلة 2/ب): إخفاء البنود حسب الصلاحيات — مرآة has_permission المكتبي:
@@ -112,24 +112,26 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
-      {/* ===== الشريط العلوي: الوحدات الأربع ===== */}
+      {/* ===== الشريط العلوي: الوحدات الأربع (في اللوحة: أدوات اللوحة فقط) ===== */}
       <header className="sticky top-0 z-40 border-b bg-card">
         <div className="flex h-14 items-center gap-2 px-3 lg:px-4">
-          {/* زر الدرج — الشاشات الصغيرة */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="lg:hidden size-9 shrink-0"
-            onClick={() => setDrawerOpen(true)}
-            aria-label="فتح قائمة التنقل"
-          >
-            <Menu className="size-5" />
-          </Button>
+          {/* زر الدرج — الشاشات الصغيرة (مخفي في اللوحة) */}
+          {!inDevConsole && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden size-9 shrink-0"
+              onClick={() => setDrawerOpen(true)}
+              aria-label="فتح قائمة التنقل"
+            >
+              <Menu className="size-5" />
+            </Button>
+          )}
 
           {/* الشعار */}
           <button
             type="button"
-            onClick={() => pick(currentModule.children[0])}
+            onClick={inDevConsole ? undefined : () => pick(currentModule.children[0])}
             className="flex items-center gap-2 shrink-0 rounded-md px-1 py-0.5"
             aria-label="ConTrack — الصفحة الأولى"
           >
@@ -139,35 +141,37 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
             <span className="hidden sm:block text-base font-extrabold text-primary tracking-tight">ConTrack</span>
           </button>
 
-          {/* الوحدات — الحاسوب */}
-          <nav aria-label="الوحدات" className="hidden md:flex items-center gap-0.5 overflow-x-auto">
-            {modules.map(({ module, children: kids }) => {
-              const Icon = module.icon;
-              const isActiveModule = module.id === activeModuleId;
-              return (
-                <button
-                  key={module.id}
-                  type="button"
-                  // بند 5: أول بند مرئي بعد الفلترة — لا أول بند خام (قد يكون محجوبًا بالصلاحية)
-                  onClick={() => kids[0] && pick(kids[0])}
-                  aria-current={isActiveModule ? "page" : undefined}
-                  className={cn(
-                    "flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors",
-                    isActiveModule
-                      ? "bg-primary-soft text-primary-soft-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                  )}
-                >
-                  <Icon className="size-4" />
-                  {module.label}
-                </button>
-              );
-            })}
-          </nav>
+          {/* الوحدات — الحاسوب (مخفية في اللوحة) */}
+          {!inDevConsole && (
+            <nav aria-label="الوحدات" className="hidden md:flex items-center gap-0.5 overflow-x-auto">
+              {modules.map(({ module, children: kids }) => {
+                const Icon = module.icon;
+                const isActiveModule = module.id === activeModuleId;
+                return (
+                  <button
+                    key={module.id}
+                    type="button"
+                    // بند 5: أول بند مرئي بعد الفلترة — لا أول بند خام (قد يكون محجوبًا بالصلاحية)
+                    onClick={() => kids[0] && pick(kids[0])}
+                    aria-current={isActiveModule ? "page" : undefined}
+                    className={cn(
+                      "flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors",
+                      isActiveModule
+                        ? "bg-primary-soft text-primary-soft-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    )}
+                  >
+                    <Icon className="size-4" />
+                    {module.label}
+                  </button>
+                );
+              })}
+            </nav>
+          )}
 
           {/* البحث والإشعارات والمستخدم والخروج */}
           <div className="ms-auto flex items-center gap-2">
-            {user.role === "developer" && onOpenDevConsole && (
+            {user.role === "developer" && onOpenDevConsole && !inDevConsole && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -179,17 +183,19 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
                 <ShieldCheck className="size-4" />
               </Button>
             )}
-            <CompanySwitcher user={user} />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-9 text-muted-foreground"
-              onClick={onOpenSearch}
-              aria-label="بحث شامل (Ctrl+K)"
-              title="بحث شامل (Ctrl+K)"
-            >
-              <Search className="size-4" />
-            </Button>
+            {!inDevConsole && <CompanySwitcher user={user} />}
+            {!inDevConsole && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-9 text-muted-foreground"
+                onClick={onOpenSearch}
+                aria-label="بحث شامل (Ctrl+K)"
+                title="بحث شامل (Ctrl+K)"
+              >
+                <Search className="size-4" />
+              </Button>
+            )}
             <NotificationBell onOpenTransaction={onOpenTransaction} />
             <div className="hidden sm:flex flex-col items-end leading-tight">
               <span className="text-sm font-medium">{user.fullName || user.username}</span>
@@ -210,7 +216,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
         </div>
       </header>
 
-      {/* لوحة المطور (Task 97) — شريط تمييز: المطور داخل شركة غير شركته الأم */}
+      {/* لوحة المطور (Task 100) — شريط تمييز: المطور داخل شركة (جاء إليها من اللوحة) */}
       {insideForeignCompany && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-primary/20 bg-primary-soft px-4 py-1.5" role="status">
           <p className="flex items-center gap-1.5 text-xs font-medium text-primary-soft-foreground">
@@ -230,14 +236,15 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
       )}
 
       <div className="flex flex-1 w-full min-h-0">
-        {/* ===== القائمة الجانبية للوحدة — قابلة للطي إلى أيقونات (التقارير الـ11 منها كالمحاسبة) ===== */}
-        <aside
-          className={cn(
-            "hidden lg:flex h-full shrink-0 flex-col border-l bg-card transition-[width] duration-200",
-            collapsed ? "w-14" : "w-56"
-          )}
-          aria-label={`أقسام ${currentModule.module.label}`}
-        >
+        {/* ===== القائمة الجانبية للوحدة — مخفية كليًا في لوحة المطور (شاشة مستقلة) ===== */}
+        {!inDevConsole && (
+          <aside
+            className={cn(
+              "hidden lg:flex h-full shrink-0 flex-col border-l bg-card transition-[width] duration-200",
+              collapsed ? "w-14" : "w-56"
+            )}
+            aria-label={`أقسام ${currentModule.module.label}`}
+          >
           <div className={cn("flex h-11 items-center justify-between border-b px-3", collapsed && "justify-center px-0")}>
             {!collapsed && (
               <span className="text-xs font-semibold text-muted-foreground">{currentModule.module.label}</span>
@@ -280,7 +287,8 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
               })}
             </ul>
           </nav>
-        </aside>
+          </aside>
+        )}
 
         {/* ===== المحتوى — حاوية التمرير الوحيدة: الصفحة تتمرر كسكرول واحد والشريط السفلي يثبت دائمًا فوق التذييل (Task 92) ===== */}
         <main className="min-w-0 flex-1 overflow-y-auto">

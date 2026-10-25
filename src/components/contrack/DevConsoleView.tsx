@@ -9,7 +9,6 @@
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowRight,
   Building2,
   FileSignature,
   Loader2,
@@ -66,7 +65,6 @@ interface DevConsoleData {
   };
   companies: DevCompany[];
   currentCompanyId: number;
-  homeCompanyId: number;
 }
 
 const EMPTY_FORM = {
@@ -81,11 +79,9 @@ const EMPTY_FORM = {
 export function DevConsoleView({
   user,
   onAuthError,
-  onBack,
 }: {
   user: User;
   onAuthError: () => void;
-  onBack: () => void;
 }) {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -188,10 +184,6 @@ export function DevConsoleView({
             <Plus className="size-4" />
             شركة جديدة
           </Button>
-          <Button size="sm" variant="outline" onClick={onBack}>
-            <ArrowRight className="size-4" />
-            رجوع إلى النظام
-          </Button>
         </div>
       </div>
 
@@ -259,7 +251,6 @@ export function DevConsoleView({
                       <span className="font-medium">{c.name}</span>
                       {c.shortName && <span className="text-xs text-muted-foreground">({c.shortName})</span>}
                       {isCurrent && <Badge variant="secondary" className="text-[10px]">الحالية</Badge>}
-                      {c.id === data.homeCompanyId && <Badge variant="outline" className="text-[10px]">شركتك</Badge>}
                     </div>
                   </TableCell>
                   <TableCell className="text-center tabular-nums">{c.usersCount}</TableCell>

@@ -285,11 +285,11 @@ export interface User {
   fullName: string;
   jobTitle?: string;
   active?: boolean;
-  /** SaaS (Task 85) — شركة المستخدم الحالية */
+  /** SaaS (Task 85) — سياق الجلسة: 0 = بلا شركة (لوحة المطور فقط) */
   companyId?: number;
   companyName?: string;
-  /** لوحة المطور (Task 97) — شركة المستخدم الأم (تختلف عن companyId عند الدخول لشركة أخرى) */
-  homeCompanyId?: number;
+  /** Task 100 — الشركة الأم من سجل المستخدم: المطور بلا شركة (null)، البقية = شركتهم */
+  homeCompanyId?: number | null;
 }
 
 // ==================== العملاء ====================

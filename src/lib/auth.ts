@@ -19,10 +19,11 @@ export interface SessionUser {
   role: string; // admin | secretary | developer
   fullName: string;
   jobTitle: string;
+  /** سياق الجلسة: 0 = بلا شركة (لوحة المطور فقط) — وإلا معرّف الشركة داخلها */
   companyId: number;
   companyName: string;
-  /** لوحة المطور (Task 97): شركة المستخدم الأم من سجله — تختلف عن companyId عند الدخول لشركة أخرى */
-  homeCompanyId: number;
+  /** Task 100: الشركة الأم من سجل المستخدم — المطور بلا شركة (null دائمًا)، البقية = شركتهم */
+  homeCompanyId: number | null;
 }
 
 // ===== كلمات المرور: PBKDF2-SHA256 بـ 200,000 دورة — الملح بايتاته الخام bytes.fromhex(salt) كما المكتبي حرفيًا =====
@@ -55,6 +56,21 @@ export async function getSessionUser(req: NextRequest): Promise<SessionUser | nu
   if (!parsed) return null;
   const user = await db.user.findUnique({ where: { id: parsed.userId } });
   if (!user || !user.active) return null;
+  // Task 100 — سياق «بلا شركة» (companyId=0): لوحة المطور حصرًا — المطور غير مربوط بأي شركة
+  // وكل الاستعلامات التشغيلية بسياق 0 تعيد فراغًا (عزل طبيعي)، واللوحة تقرأ حوكمة عبر sysDb
+  if (parsed.companyId === 0) {
+    if (user.role !== "developer") return null;
+    return {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      fullName: user.fullName || user.username,
+      jobTitle: user.jobTitle || "",
+      companyId: 0,
+      companyName: "",
+      homeCompanyId: user.companyId,
+    };
+  }
   const company = await db.company.findUnique({ where: { id: parsed.companyId } });
   if (!company || !company.isActive) return null;
   // مستخدم عادي: توكنه يجب أن يطابق شركته (إبطال الجلسة بعد النقل) —

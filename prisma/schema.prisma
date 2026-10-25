@@ -27,8 +27,9 @@ model Company {
 
 model User {
   id           Int              @id @default(autoincrement())
-  companyId    Int              @default(1) @map("company_id")
-  company      Company          @relation(fields: [companyId], references: [id])
+  // Task 100: اختياري — المطور غير مربوط بأي شركة (بلا شركة أم)؛ بقية الأدوار لهم شركة دائمًا
+  companyId    Int?             @map("company_id")
+  company      Company?         @relation(fields: [companyId], references: [id])
   username     String           @unique
   passwordHash String           @map("password_hash")
   salt         String

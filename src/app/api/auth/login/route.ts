@@ -96,15 +96,21 @@ export async function POST(req: NextRequest) {
   clearAttempts(key);
 
   // بذر البيانات المرجعية الافتراضية لشركة المستخدم (أساليب دفع/حسابات/مراحل/أنواع) — عديم التكرار
-  try {
-    await ensureSeedData(forCompany(user.companyId));
-  } catch (e) {
-    console.error("seed error", e);
+  // (Task 100) المطور بلا شركة — لا بذر له ولا توكن بشركة
+  if (user.companyId != null) {
+    try {
+      await ensureSeedData(forCompany(user.companyId));
+    } catch (e) {
+      console.error("seed error", e);
+    }
   }
 
-  const token = issueToken(user.id, user.companyId);
-  // لوحة المطور (Task 97): الشركة الأم ضمن رد الدخول — لشاشة اختيار نقطة الدخول
-  const homeCompany = await db.company.findUnique({ where: { id: user.companyId }, select: { name: true } });
+  // Task 100: المطور غير مربوط بأي شركة — توكنه بسياق 0 (بلا شركة) يفتح لوحة المطور فقط
+  const token = issueToken(user.id, user.role === "developer" ? 0 : user.companyId ?? 0);
+  const homeCompany =
+    user.companyId != null
+      ? await db.company.findUnique({ where: { id: user.companyId }, select: { name: true } })
+      : null;
   // بند 5 (مواءمة PAGE_PERMS): الصلاحيات تعاد مع الدخول فتُصيَّر الشل مفلترة من أول لحظة
   const perms = await permsForUser(user.id, user.role);
   const res = ok({
@@ -114,7 +120,7 @@ export async function POST(req: NextRequest) {
       role: user.role,
       fullName: user.fullName || user.username,
       jobTitle: user.jobTitle || "",
-      companyId: user.companyId,
+      companyId: user.companyId ?? 0,
       companyName: homeCompany?.name || "",
       homeCompanyId: user.companyId,
     },
