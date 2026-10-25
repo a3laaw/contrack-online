@@ -11,6 +11,7 @@ import "server-only";
 import fs from "fs";
 import path from "path";
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { parseSnapshotText } from "@/lib/backup-parse";
 
 export const BACKUP_APP = "ConTrack Online";
 export const BACKUP_VERSION = "V9.15.18-web";
@@ -340,14 +341,20 @@ export async function saveSnapshotFile(fileName: string, dump: BackupDump): Prom
   return entry;
 }
 
-/** قراءة ملف نسخة (للاستعادة) مع تحقق بنية manifest/data */
+/** قراءة ملف نسخة (للاستعادة) مع تحقق بنية manifest/data — عبر المدقق المشترك */
 export function readSnapshotFile(fileName: string): BackupDump {
   const dest = path.join(BACKUPS_DIR, path.basename(fileName));
-  const parsed = JSON.parse(fs.readFileSync(dest, "utf-8")) as Partial<BackupDump>;
-  if (!parsed || typeof parsed !== "object" || !parsed.manifest || !parsed.data) {
+  const text = fs.readFileSync(dest, "utf-8");
+  try {
+    const parsed = parseSnapshotText(text);
+    return {
+      manifest: parsed.manifest as unknown as BackupManifest,
+      data: parsed.data as Record<string, Record<string, unknown>[]>,
+    };
+  } catch {
+    // عقد الأخطاء الحالي: أي ملف غير صالح ⇒ NOT_A_BACKUP (الرسائل التفصيلية في مسار الرفع)
     throw new Error("NOT_A_BACKUP");
   }
-  return { manifest: parsed.manifest, data: parsed.data };
 }
 
 /** قائمة النسخ المحفوظة: من الفهرس + التقاط ملفات غير مفهرسة + تحقق الوجود */

@@ -66,6 +66,28 @@ export const apiPut = <T = unknown>(path: string, body?: unknown) =>
   apiFetch<T>(path, { method: "PUT", body });
 export const apiDelete = <T = unknown>(path: string) => apiFetch<T>(path, { method: "DELETE" });
 
+/** رفع ملف (multipart/form-data) — المتصفح يضبط Content-Type بالحدّ تلقائيًا */
+export async function apiPostForm<T = unknown>(path: string, form: FormData): Promise<T> {
+  const headers: Record<string, string> = {};
+  const token = getStoredToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(path, { method: "POST", headers, body: form, credentials: "include" });
+  let data: unknown = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+  if (!res.ok) {
+    const msg =
+      (data as { error?: string; message?: string })?.error ||
+      (data as { message?: string })?.message ||
+      `فشل الطلب (${res.status})`;
+    throw new ApiError(msg, res.status);
+  }
+  return data as T;
+}
+
 // ============================================================
 // واجهة نطاق مبسطة تستخدمها الحوارات (السندات/الطباعة/الأنواع)
 // تلتف على نقاط النهاية الفعلية وتكشف استجاباتها

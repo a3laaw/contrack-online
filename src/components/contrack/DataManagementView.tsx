@@ -16,6 +16,7 @@ import {
   Search,
   ShieldCheck,
   Trash2,
+  Upload,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -51,7 +52,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { adminApi } from "@/lib/admin-api";
-import { ApiError, apiGet, apiPost } from "./api";
+import { parseSnapshotText, snapshotParseErrorMessage, snapshotRowsCount } from "@/lib/backup-parse";
+import { ApiError, apiGet, apiPost, apiPostForm } from "./api";
 import type {
   AuditResponse,
   BackupsResponse,
@@ -350,6 +352,9 @@ function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [restoreTarget, setRestoreTarget] = React.useState<string | null>(null);
+  // استعادة من ملف مرفوع من الجهاز (json/txt/md — المهم أن المحتوى نسخة صحيحة)
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [uploadTarget, setUploadTarget] = React.useState<{ file: File; rows: number } | null>(null);
 
   const backupsQuery = useQuery<BackupsResponse>({
     queryKey: ["backups"],
@@ -388,6 +393,43 @@ function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
     },
   });
 
+  const uploadRestoreMutation = useMutation<BackupRestoreResponse, unknown, File>({
+    mutationFn: (file) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      return apiPostForm<BackupRestoreResponse>("/api/backups/upload-restore", fd);
+    },
+    onSuccess: (res) => {
+      qc.invalidateQueries(); // كل البيانات تغيّرت بعد الاستعادة
+      setUploadTarget(null);
+      toast({ title: "تمت الاستعادة من الملف", description: res.message });
+    },
+    onError: (e) => {
+      setUploadTarget(null);
+      failToast(toast, onAuthError, "تعذرت الاستعادة من الملف")(e);
+    },
+  });
+
+  // اختيار ملف: تحقق فوري في المتصفح (نفس المدقق المشترك) ثم حوار التأكيد
+  const onUploadFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // السماح باختيار نفس الملف مرة أخرى
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const dump = parseSnapshotText(String(reader.result ?? ""));
+        setUploadTarget({ file, rows: snapshotRowsCount(dump) });
+      } catch (err) {
+        toast({ variant: "destructive", title: "الملف غير صالح", description: snapshotParseErrorMessage(err) });
+      }
+    };
+    reader.onerror = () => {
+      toast({ variant: "destructive", title: "تعذرت قراءة الملف", description: "جرّب ملفًا آخر" });
+    };
+    reader.readAsText(file);
+  };
+
   const items = (backupsQuery.data?.items ?? []) as BackupRow[];
 
   return (
@@ -399,8 +441,10 @@ function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
             إنشاء نسخة احتياطية
           </CardTitle>
           <CardDescription>
-            تُحفظ نسخ JSON كاملة على الخادم في مجلد db/backups مع فهرس، ويُحتفظ بآخر 30 نسخة تلقائيًا — والاستعادة
-            تحافظ على المعرّفات الأصلية وتعيد ضبط تسلسلات المعرّفات
+            تُحفظ نسخ JSON كاملة على الخادم في مجلد db/backups مع فهرس (الجداول العامة للنظام + بيانات الشركة
+            الحالية)، ويُحتفظ بآخر 30 نسخة تلقائيًا — والاستعادة تحافظ على المعرّفات الأصلية وتعيد ضبط تسلسلات
+            المعرّفات. ويمكن أيضًا استعادة نسخة محفوظة على جهازك بزر «استعادة من ملف» — يقبل ملف JSON أو ملف
+            نصي (نوت باد) أو MD طالما المحتوى نسخة كاملة صادرة من النظام
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-2">
@@ -421,6 +465,23 @@ function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
             {downloadMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
             تنزيل نسخة JSON
           </Button>
+          <Button
+            variant="outline"
+            className="h-10 gap-1.5"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadRestoreMutation.isPending}
+          >
+            <Upload className="size-4" />
+            استعادة من ملف
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,.txt,.md,.markdown,application/json,text/plain,text/markdown"
+            className="hidden"
+            onChange={onUploadFilePicked}
+            aria-label="اختر ملف نسخة احتياطية"
+          />
           <Button
             variant="ghost"
             size="icon"
@@ -500,6 +561,50 @@ function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
           )}
         </CardContent>
       </Card>
+
+      {/* حوار تأكيد الاستعادة من ملف مرفوع — نفس التحذيرات */}
+      <AlertDialog open={!!uploadTarget} onOpenChange={(open) => !open && setUploadTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="size-5 text-status-warn" />
+              استعادة من ملف مرفوع
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm leading-6">
+                <p>
+                  سيتم حذف بيانات قاعدة Postgres الحالية من كل الجداول وإعادة إنشائها من الملف
+                  <span className="mx-1 font-mono text-xs" dir="ltr">{uploadTarget?.file.name}</span>
+                  {uploadTarget ? (
+                    <span className="text-muted-foreground">
+                      ({uploadTarget.rows.toLocaleString("en-US")} صفًا تم التحقق منها في المتصفح)
+                    </span>
+                  ) : null}
+                  مع الحفاظ على المعرّفات الأصلية وإعادة ضبط التسلسلات.
+                </p>
+                <p className="rounded-md bg-amber-500/10 p-2 text-xs text-status-warn">
+                  سيُنشأ أولًا <strong>نسخة أمان</strong> (safety-…) من الوضع الحالي ويمكن استعادتها لاحقًا. كل خطوات
+                  الحذف والإنشاء داخل معاملة واحدة — إن فشل أي جزء تُرجع القاعدة كما كانت.
+                </p>
+                <p className="text-xs text-muted-foreground">هل تريد المتابعة؟</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                if (uploadTarget) uploadRestoreMutation.mutate(uploadTarget.file);
+              }}
+            >
+              {uploadRestoreMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+              استعادة من الملف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* حوار تأكيد الاستعادة — تحذير بذكر النسخة الأمان */}
       <AlertDialog open={!!restoreTarget} onOpenChange={(open) => !open && setRestoreTarget(null)}>
