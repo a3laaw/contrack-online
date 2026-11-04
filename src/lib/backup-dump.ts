@@ -48,6 +48,7 @@ const SELF_REF_FK: Record<string, string> = {
   workflow_stages: "parentId",
   expense_accounts: "parentId",
   vouchers: "parentVoucherId",
+  accounts: "parentId", // Task 102 — دليل الحسابات: شجرة ذاتية المرجع
 };
 
 /** حد أقصى للصفوف في كل createMany (لتجنّب تجاوز حدود المعاملات) */
@@ -66,6 +67,8 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "contractType", table: "contract_types", serial: true },
   { model: "workflowStage", table: "workflow_stages", serial: true }, // FK ذاتي
   { model: "paymentMethod", table: "payment_methods", serial: true },
+  // Task 102 — دليل الحسابات الكامل (FK ذاتي: شجرة) — قبل expense_accounts لاستعادة الرابط accountId
+  { model: "account", table: "accounts", serial: true }, // FK ذاتي
   { model: "expenseAccount", table: "expense_accounts", serial: true }, // FK ذاتي
   { model: "employee", table: "employees", serial: true },
   { model: "visitStaff", table: "visit_staff", serial: true },

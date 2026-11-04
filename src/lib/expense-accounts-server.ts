@@ -183,6 +183,7 @@ export function serializeExpenseAccount(r: {
   includeInProfitability: boolean;
   accountKind: string;
   sortOrder: number;
+  accountId?: number | null;
 }) {
   return {
     id: r.id,
@@ -194,5 +195,7 @@ export function serializeExpenseAccount(r: {
     includeInProfitability: r.includeInProfitability,
     accountKind: r.accountKind,
     sortOrder: r.sortOrder,
+    // Task 102 — جسر الهجرة: الحساب المحاسبي الموافق (اختياري)
+    accountId: r.accountId ?? null,
   };
 }

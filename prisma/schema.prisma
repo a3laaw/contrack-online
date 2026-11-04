@@ -851,10 +851,44 @@ model ExpenseAccount {
   includeInProfitability Boolean          @default(true) @map("include_in_profitability")
   accountKind            String           @default("expense") @map("account_kind") // expense|advance
   sortOrder              Int              @default(0) @map("sort_order")
+  // Task 102 — جسر الهجرة: الحساب المحاسبي الموافق في دليل الحسابات الجديد (Account)
+  // بلا علاقة FK عمدًا (قاعدة الجداول التشغيلية) — الربط عبر شاشة «جسر المصروفات»
+  accountId              Int?             @map("account_id")
   vouchersAsExpense      Voucher[]        @relation("expenseAccount")
   vouchersAsCustody      Voucher[]        @relation("custodyAccount")
 
   @@map("expense_accounts")
+}
+
+// ==================== المحاسبة الكاملة — دليل الحسابات (Task 102) ====================
+// الشجرة الكاملة لكل شركة — الأرضية للقيود المزدوجة (Task 104) والقوائم المالية
+// والتوافق مع XBRL الكويتي (هدف أساسي): كل حساب يحمل خريطته لعنصر الـtaxonomy.
+// طبيعة الرصيد الطبيعية: asset/expense = مدين، liability/equity/revenue = دائن،
+// مع استثناء الحسابات المخالفة (مجمع الإهلاك أصل بطبيعة دائنة).
+model Account {
+  companyId      Int       @default(1) @map("company_id")
+  id             Int       @id @default(autoincrement())
+  code           String               // رقم الحساب الهيكلي (فريد لكل شركة) — 1xxx أصول، 2xxx التزامات، 3xxx حقوق ملكية، 4xxx إيرادات، 5xxx مصروفات
+  name           String
+  type           String               // asset | liability | equity | revenue | expense
+  nature         String   @default("debit") @map("nature") // debit | credit — طبيعة الرصيد
+  parentId       Int?     @map("parent_id")
+  parent         Account? @relation("accTree", fields: [parentId], references: [id])
+  children       Account[] @relation("accTree")
+  isLeaf         Boolean  @default(true) @map("is_leaf") // ورقة تستقبل قيودًا أم عقدة إجمالية
+  allowPosting   Boolean  @default(true) @map("allow_posting")
+  isActive       Boolean  @default(true) @map("is_active")
+  isSystem       Boolean  @default(false) @map("is_system") // نظامي مُبذّر: لا يُحذف ولا يتغير كوده/نوعه
+  openingBalance Decimal  @default(0) @db.Decimal(18, 3) @map("opening_balance") // مدين موجب / دائن سالب (Task 103)
+  notes          String   @default("")
+  sortOrder      Int      @default(0) @map("sort_order")
+  xbrlElement    String   @default("") @map("xbrl_element") // خريطة عنصر taxonomy الكويتي/IFRS — فارغ = غير موصول
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([companyId, code])
+  @@index([companyId, type])
+  @@map("accounts")
 }
 
 model ContractGroup {

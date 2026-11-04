@@ -33,7 +33,19 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  return ok(orderExpenseAccounts(rows).map(serializeExpenseAccount));
+  // Task 102 — جسر الهجرة: أسماء الحسابات المحاسبية المربوطة (للشارة في السندات والإعدادات)
+  const linkedIds = Array.from(new Set(rows.map((r) => r.accountId).filter((v): v is number => v != null)));
+  const linkedAccounts = linkedIds.length
+    ? await db.account.findMany({ where: { id: { in: linkedIds } }, select: { id: true, code: true, name: true } })
+    : [];
+  const accLabel = new Map(linkedAccounts.map((a) => [a.id, `${a.code} — ${a.name}`]));
+
+  return ok(
+    orderExpenseAccounts(rows).map((r) => ({
+      ...serializeExpenseAccount(r),
+      accountName: r.accountId != null ? accLabel.get(r.accountId) ?? null : null,
+    }))
+  );
 }
 
 /** POST /api/expense-accounts — إضافة حساب أب أو ابن (الشجرة مستويان فقط) */

@@ -44,6 +44,8 @@ const TENANT_MODELS = new Set<string>([
   "transferOpAlloc", "otherCompanyOpening", "gatewayFeeVoucher", "matchAlias", "journalEntry",
   "contractEvent", "formCategory", "formTemplate", "formField", "formDocument",
   "stageNote", "txMessage",
+  // Task 102 — المحاسبة الكاملة: دليل الحسابات لكل شركة
+  "account",
 ]);
 
 interface Ctx { companyId: number }

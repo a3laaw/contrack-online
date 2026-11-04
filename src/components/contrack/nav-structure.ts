@@ -3,6 +3,7 @@
 import * as React from "react";
 import {
   BarChart3,
+  BookText,
   Building2,
   CalendarClock,
   CalendarDays,
@@ -122,6 +123,10 @@ export const NAV_MODULES: NavModule[] = [
     label: "المحاسبة",
     icon: Wallet,
     children: [
+      // Task 102 — المحاسبة الكاملة: دليل الحسابات أرضية البرنامج المحاسبي
+      // بخريطة XBRL الكويتي وجسر المصروفات — خلف ميزة full_accounting وصلاحية مستقلة
+      // (بلا adminOnly: صاحب العمل سكرتير هنا — الباب صلاحية screen_chart_of_accounts)
+      { id: "chart-of-accounts", label: "دليل الحسابات", icon: BookText, view: "chart-of-accounts", flag: "full_accounting", perm: "screen_chart_of_accounts" },
       // بند 5 مواءمة PAGE_PERMS: مفتاحان منفصلان كالمكتبي حرفيًا (main_window.py:782-787
       // سندات القبض ← screen_receipts · سندات الصرف ← screen_payments) —
       // بوابة الـAPI تبقى screen_vouchers (الدمج المكتبي الموثق) فلا تغيير بأي حارس مسار

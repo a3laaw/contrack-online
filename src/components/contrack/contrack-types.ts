@@ -26,6 +26,7 @@ export type ViewName =
   | "comments"
   | "gateway"
   | "other-company"
+  | "chart-of-accounts"
   | "settings"
   | "users"
   | "data-mgmt"
@@ -276,6 +277,47 @@ export interface ExpenseAccountDTO {
   name: string;
   accountKind?: string;
   parentId?: number | null;
+  /** Task 102 — جسر الهجرة: الحساب المحاسبي المربوط + تسميته */
+  accountId?: number | null;
+  accountName?: string | null;
+}
+
+// ==================== المحاسبة الكاملة — دليل الحسابات (Task 102) ====================
+
+/** حساب في دليل الحسابات كما يعيده GET /api/accounts */
+export interface AccountDTO {
+  id: number;
+  code: string;
+  name: string;
+  type: string; // asset | liability | equity | revenue | expense
+  nature: string; // debit | credit
+  parentId: number | null;
+  isLeaf: boolean;
+  allowPosting: boolean;
+  isActive: boolean;
+  isSystem: boolean;
+  openingBalance: number; // موقَّع: مدين موجب / دائن سالب
+  notes: string;
+  sortOrder: number;
+  xbrlElement: string;
+}
+
+export interface ChartAccountsResponse {
+  accounts: AccountDTO[];
+  seeded: boolean;
+}
+
+/** صف الجسر: حساب مصروف قديم + الحساب المربوط + المقترح آليًا */
+export interface BridgeRow {
+  id: number;
+  name: string;
+  fullPath: string;
+  accountKind: string;
+  isActive: boolean;
+  accountId: number | null;
+  linkedLabel: string | null;
+  suggestedId: number | null;
+  suggestedLabel: string | null;
 }
 
 export interface User {

@@ -566,40 +566,56 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
                 {payKind === "expense" && (
                   <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
                     {expenseReady ? (
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-                        <div className="space-y-1.5">
-                          <Label>حساب رئيسي</Label>
-                          <SearchableSelect
-                            value={expParent}
-                            onValueChange={(v) => {
-                              setExpParent(v);
-                              setExpChild("none");
-                            }}
-                            options={[
-                              { value: "none", label: "—" },
-                              ...expRoots.map((a) => ({ value: String(a.id), label: a.name })),
-                            ]}
-                            placeholder="اختر"
-                            searchPlaceholder="ابحث باسم الحساب…"
-                            emptyText="لا نتائج مطابقة"
-                          />
+                      <>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                          <div className="space-y-1.5">
+                            <Label>حساب رئيسي</Label>
+                            <SearchableSelect
+                              value={expParent}
+                              onValueChange={(v) => {
+                                setExpParent(v);
+                                setExpChild("none");
+                              }}
+                              options={[
+                                { value: "none", label: "—" },
+                                ...expRoots.map((a) => ({ value: String(a.id), label: a.name })),
+                              ]}
+                              placeholder="اختر"
+                              searchPlaceholder="ابحث باسم الحساب…"
+                              emptyText="لا نتائج مطابقة"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>حساب فرعي</Label>
+                            <SearchableSelect
+                              value={expChild}
+                              onValueChange={setExpChild}
+                              disabled={expParent === "none"}
+                              options={[
+                                { value: "none", label: "—" },
+                                ...expChildrenOf(Number(expParent)).map((a) => ({ value: String(a.id), label: a.name })),
+                              ]}
+                              placeholder={expParent === "none" ? "—" : "اختر"}
+                              searchPlaceholder="ابحث باسم الحساب…"
+                              emptyText="لا نتائج مطابقة"
+                            />
+                          </div>
                         </div>
-                        <div className="space-y-1.5">
-                          <Label>حساب فرعي</Label>
-                          <SearchableSelect
-                            value={expChild}
-                            onValueChange={setExpChild}
-                            disabled={expParent === "none"}
-                            options={[
-                              { value: "none", label: "—" },
-                              ...expChildrenOf(Number(expParent)).map((a) => ({ value: String(a.id), label: a.name })),
-                            ]}
-                            placeholder={expParent === "none" ? "—" : "اختر"}
-                            searchPlaceholder="ابحث باسم الحساب…"
-                            emptyText="لا نتائج مطابقة"
-                          />
-                        </div>
-                      </div>
+                        {/* Task 103 — شارة الحساب المحاسبي الموافق (جسر المحاسبة الكاملة) — عرض فقط حتى المرحلة ب */}
+                        {(() => {
+                          const sel =
+                            expChild !== "none"
+                              ? expenseAccounts.find((a) => String(a.id) === expChild)
+                              : expParent !== "none"
+                                ? expenseAccounts.find((a) => String(a.id) === expParent)
+                                : null;
+                          return sel?.accountName ? (
+                            <p className="text-[11px] text-muted-foreground">
+                              الحساب المحاسبي الموافق في دليل الحسابات: <span className="font-mono" dir="ltr">{sel.accountName}</span> (عرض فقط — القيد الآلي في المرحلة التالية)
+                            </p>
+                          ) : null;
+                        })()}
+                      </>
                     ) : (
                       <div className="space-y-1.5">
                         <Label>اسم حساب المصروف</Label>
