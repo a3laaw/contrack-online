@@ -30,6 +30,7 @@ import { GatewayView } from "./GatewayView";
 import { OtherCompanyView } from "./OtherCompanyView";
 import { ChartOfAccountsView } from "./ChartOfAccountsView";
 import { JournalEntriesView } from "./JournalEntriesView";
+import { LedgerView } from "./LedgerView";
 import { SubcontractorsView } from "./SubcontractorsView";
 import { ReportsView } from "./ReportsView";
 import { DEFAULT_REPORT_KEY } from "./reports-list";
@@ -386,6 +387,7 @@ function AppRoot() {
       {view === "journal-entries" && (
         <JournalEntriesView onAuthError={onAuthError} presetQ={journalPresetQ} onConsumePresetQ={() => setJournalPresetQ(null)} />
       )}
+      {view === "ledger" && <LedgerView onAuthError={onAuthError} />}
       {view === "subcontractors" && <SubcontractorsView user={user} onAuthError={onAuthError} />}
       {view === "reports" && (
         <ReportsView user={user} onAuthError={onAuthError} selected={reportsKey} onSelect={setReportsKey} />

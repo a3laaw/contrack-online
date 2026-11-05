@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   BarChart3,
   BookText,
+  Scale,
   ScrollText,
   Building2,
   CalendarClock,
@@ -131,6 +132,8 @@ export const NAV_MODULES: NavModule[] = [
       { id: "chart-of-accounts", label: "دليل الحسابات", icon: BookText, view: "chart-of-accounts", flag: "full_accounting", perm: "screen_chart_of_accounts" },
       // Task 104 — القيود اليومية: نواة القيد المزدوج الحقيقية (نشر/إلغاء/عكس عبر المحرك الموحد)
       { id: "journal-entries", label: "القيود اليومية", icon: ScrollText, view: "journal-entries", flag: "full_accounting", perm: "screen_journal_entries" },
+      // Task 108 — دفتر الأستاذ + ميزان المراجعة + أعمار الذمم: مخرجات الأستاذ (مصدر الحقيقة)
+      { id: "ledger", label: "دفتر الأستاذ والميزان", icon: Scale, view: "ledger", flag: "full_accounting", perm: "screen_ledger" },
       // بند 5 مواءمة PAGE_PERMS: مفتاحان منفصلان كالمكتبي حرفيًا (main_window.py:782-787
       // سندات القبض ← screen_receipts · سندات الصرف ← screen_payments) —
       // بوابة الـAPI تبقى screen_vouchers (الدمج المكتبي الموثق) فلا تغيير بأي حارس مسار

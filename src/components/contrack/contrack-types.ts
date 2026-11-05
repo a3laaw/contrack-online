@@ -28,6 +28,7 @@ export type ViewName =
   | "other-company"
   | "chart-of-accounts"
   | "journal-entries"
+  | "ledger"
   | "settings"
   | "users"
   | "data-mgmt"

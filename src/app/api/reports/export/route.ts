@@ -19,6 +19,13 @@ import {
   reportTableToCsv,
   reportVouchers,
 } from "@/lib/report-server";
+import { buildGeneralLedger, buildTrialBalance, buildAging } from "@/lib/accounting-reports-server";
+import {
+  glReportTable,
+  tbReportTable,
+  agingReportTable,
+  type AgingKind,
+} from "@/lib/accounting-reports-core";
 
 /** خريطة التقارير مع مفتاح الصلاحية المطابق من كتالوج PERMISSIONS */
 const REPORT_BUILDERS: Record<
@@ -56,6 +63,53 @@ const REPORT_BUILDERS: Record<
   leads: { permKey: "report_prospects", build: (p) => reportLeads({ from: p.from || "", to: p.to || "" }) },
   journal: { permKey: "report_journal", build: (p) => reportJournal({ from: p.from || "", to: p.to || "" }) },
   "gateway-summary": { permKey: "report_gateway_summary", build: async () => reportGatewaySummary() },
+  // Task 108 — مخرجات المحاسبة من الأستاذ (بصلاحية الشاشة نفسها)
+  "general-ledger": {
+    permKey: "screen_ledger",
+    build: async (p) => {
+      const accountId = Number(p.accountId || 0);
+      if (!accountId) throw new Error("اختيار الحساب مطلوب لتصدير دفتر الأستاذ.");
+      const gl = await buildGeneralLedger({
+        accountId,
+        from: p.from || "",
+        to: p.to || "",
+        customerId: Number(p.customerId || 0) || undefined,
+        contractId: Number(p.contractId || 0) || undefined,
+        subContractId: Number(p.subContractId || 0) || undefined,
+        costCenter: p.costCenter || undefined,
+      });
+      if (!gl) throw new Error("الحساب غير موجود في دليل الشركة.");
+      return glReportTable({
+        accountCode: gl.account.code,
+        accountName: gl.account.name,
+        from: p.from || "",
+        to: p.to || "",
+        rows: gl.rows,
+        opening: gl.opening,
+        totals: gl.totals,
+      });
+    },
+  },
+  "trial-balance": {
+    permKey: "screen_ledger",
+    build: async (p) => {
+      const asOf = (p.asOf || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(asOf)) throw new Error("تاريخ الميزان (حتى) مطلوب بصيغة YYYY-MM-DD.");
+      const tb = await buildTrialBalance({ asOf });
+      return tbReportTable({ asOf, rows: tb.rows, totals: tb.totals });
+    },
+  },
+  aging: {
+    permKey: "screen_ledger",
+    build: async (p) => {
+      const kindRaw = (p.kind || "customers").trim();
+      if (kindRaw !== "customers" && kindRaw !== "subcontractors") throw new Error("نوع الأعمار: customers أو subcontractors.");
+      const asOf = (p.asOf || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(asOf)) throw new Error("تاريخ الأعمار (حتى) مطلوب بصيغة YYYY-MM-DD.");
+      const ag = await buildAging({ kind: kindRaw as AgingKind, asOf });
+      return agingReportTable({ kind: ag.kind, asOf, rows: ag.rows, totals: ag.totals });
+    },
+  },
 };
 
 /** تصدير تقرير CSV/Excel — POST /api/reports/export {report, params} [&format=xlsx|csv] (الافتراضي csv) */
