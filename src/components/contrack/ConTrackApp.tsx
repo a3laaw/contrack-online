@@ -32,6 +32,7 @@ import { ChartOfAccountsView } from "./ChartOfAccountsView";
 import { JournalEntriesView } from "./JournalEntriesView";
 import { LedgerView } from "./LedgerView";
 import { FiscalPeriodsView } from "./FiscalPeriodsView";
+import { FinancialStatementsView } from "./FinancialStatementsView";
 import { SubcontractorsView } from "./SubcontractorsView";
 import { ReportsView } from "./ReportsView";
 import { DEFAULT_REPORT_KEY } from "./reports-list";
@@ -390,6 +391,7 @@ function AppRoot() {
       )}
       {view === "ledger" && <LedgerView onAuthError={onAuthError} />}
       {view === "fiscal-close" && <FiscalPeriodsView user={user} onAuthError={onAuthError} />}
+      {view === "financial-statements" && <FinancialStatementsView onAuthError={onAuthError} />}
       {view === "subcontractors" && <SubcontractorsView user={user} onAuthError={onAuthError} />}
       {view === "reports" && (
         <ReportsView user={user} onAuthError={onAuthError} selected={reportsKey} onSelect={setReportsKey} />

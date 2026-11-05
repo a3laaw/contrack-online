@@ -20,12 +20,20 @@ import {
   reportVouchers,
 } from "@/lib/report-server";
 import { buildGeneralLedger, buildTrialBalance, buildAging } from "@/lib/accounting-reports-server";
+import { buildFinancialStatements } from "@/lib/financial-statements-server";
 import {
   glReportTable,
   tbReportTable,
   agingReportTable,
   type AgingKind,
 } from "@/lib/accounting-reports-core";
+import {
+  bsReportTable,
+  cfReportTable,
+  eqReportTable,
+  isReportTable,
+  type FsStatementKind,
+} from "@/lib/financial-statements-core";
 
 /** خريطة التقارير مع مفتاح الصلاحية المطابق من كتالوج PERMISSIONS */
 const REPORT_BUILDERS: Record<
@@ -108,6 +116,21 @@ const REPORT_BUILDERS: Record<
       if (!/^\d{4}-\d{2}-\d{2}$/.test(asOf)) throw new Error("تاريخ الأعمار (حتى) مطلوب بصيغة YYYY-MM-DD.");
       const ag = await buildAging({ kind: kindRaw as AgingKind, asOf });
       return agingReportTable({ kind: ag.kind, asOf, rows: ag.rows, totals: ag.totals });
+    },
+  },
+  // Task 110 — القوائم المالية: تصدير كل قائمة بصيغة CSV/Excel عبر kind=bs|is|eq|cf
+  "financial-statements": {
+    permKey: "screen_financial_statements",
+    build: async (p) => {
+      const kindRaw = (p.kind || "bs").trim() as FsStatementKind;
+      if (!["bs", "is", "eq", "cf"].includes(kindRaw)) throw new Error("نوع القائمة: bs أو is أو eq أو cf.");
+      const asOf = (p.asOf || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(asOf)) throw new Error("تاريخ القوائم (حتى) مطلوب بصيغة YYYY-MM-DD.");
+      const from = (p.from || "").trim();
+      const fs = await buildFinancialStatements({ asOf, from: from || undefined });
+      const pick = (k: FsStatementKind) =>
+        k === "bs" ? bsReportTable(fs.balanceSheet) : k === "is" ? isReportTable(fs.income) : k === "eq" ? eqReportTable(fs.equity) : cfReportTable(fs.cashflow);
+      return pick(kindRaw);
     },
   },
 };

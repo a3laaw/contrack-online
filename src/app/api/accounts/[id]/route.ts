@@ -36,6 +36,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (body.allowPosting !== undefined) data.allowPosting = Boolean(body.allowPosting);
   if (body.isActive !== undefined) data.isActive = Boolean(body.isActive);
   if (body.xbrlElement !== undefined) data.xbrlElement = String(body.xbrlElement ?? "").trim();
+  // Task 110 — تصنيف التدفق النقدي: "" (اشتقاق هيكلي) | operating | investing | financing
+  if (body.cashFlowKind !== undefined) {
+    const cfk = String(body.cashFlowKind ?? "").trim();
+    if (!["", "operating", "investing", "financing"].includes(cfk)) {
+      return jsonError("تصنيف التدفق النقدي غير صحيح — القيم المسموحة: فارغ (اشتقاق هيكلي) أو operating أو investing أو financing.");
+    }
+    data.cashFlowKind = cfk;
+  }
   if (body.openingBalance !== undefined) {
     const v = Number(body.openingBalance);
     if (!Number.isFinite(v)) return jsonError("الرصيد الافتتاحي يجب أن يكون رقمًا.");

@@ -877,6 +877,7 @@ model Account {
   notes          String   @default("")
   sortOrder      Int      @default(0) @map("sort_order")
   xbrlElement    String   @default("") @map("xbrl_element") // خريطة عنصر taxonomy الكويتي/IFRS — فارغ = غير موصول
+  cashFlowKind   String   @default("") @map("cash_flow_kind") // Task 110 — تصنيف التدفق النقدي للحساب (طرف مقابل النقد): "" | operating | investing | financing — الفارغ يُشتق من القسم هيكليًا
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
   journalLines   JournalLine[]

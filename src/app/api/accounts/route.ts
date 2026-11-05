@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
       notes: true,
       sortOrder: true,
       xbrlElement: true,
+      cashFlowKind: true,
     },
   });
 

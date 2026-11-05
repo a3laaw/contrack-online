@@ -30,6 +30,7 @@ export type ViewName =
   | "journal-entries"
   | "ledger"
   | "fiscal-close"
+  | "financial-statements"
   | "settings"
   | "users"
   | "data-mgmt"
@@ -326,6 +327,8 @@ export interface AccountDTO {
   notes: string;
   sortOrder: number;
   xbrlElement: string;
+  /** Task 110 — تصنيف التدفق النقدي: "" (اشتقاق هيكلي) | operating | investing | financing */
+  cashFlowKind?: string;
   /** Task 105 — دور الحساب: standard | custody (العُهد والسلف) */
   accountRole?: string;
   /** Task 105 — يستهلكه تقارير ربحية العقود */

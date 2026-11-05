@@ -88,6 +88,7 @@ interface AccountForm {
   openingBalance: string;
   openingDirection: "debit" | "credit";
   xbrlElement: string;
+  cashFlowKind: string; // Task 110 — "" (اشتقاق هيكلي) | operating | investing | financing
   notes: string;
   allowPosting: boolean;
   isSystem?: boolean;
@@ -203,6 +204,7 @@ export function ChartOfAccountsView({ onAuthError }: { onAuthError: () => void }
       openingBalance: "0",
       openingDirection: "debit",
       xbrlElement: "",
+      cashFlowKind: "",
       notes: "",
       allowPosting: true,
       isSystem: false,
@@ -219,6 +221,7 @@ export function ChartOfAccountsView({ onAuthError }: { onAuthError: () => void }
       openingBalance: String(Math.abs(a.openingBalance)),
       openingDirection: a.openingBalance < 0 ? "credit" : "debit",
       xbrlElement: a.xbrlElement,
+      cashFlowKind: a.cashFlowKind || "",
       notes: a.notes,
       allowPosting: a.allowPosting,
       isSystem: a.isSystem,
@@ -235,6 +238,7 @@ export function ChartOfAccountsView({ onAuthError }: { onAuthError: () => void }
           allowPosting: form.allowPosting,
           openingBalance: form.openingDirection === "credit" ? -Math.abs(Number(form.openingBalance) || 0) : Math.abs(Number(form.openingBalance) || 0),
           xbrlElement: form.xbrlElement.trim(),
+          cashFlowKind: form.cashFlowKind,
         });
       }
       return apiPost("/api/accounts", {
@@ -508,6 +512,21 @@ export function ChartOfAccountsView({ onAuthError }: { onAuthError: () => void }
                   />
                   <p className="text-[11px] text-muted-foreground">
                     بصيغة namespace:عنصر — تُستخدم في توليد القوائم الموسومة لبوابة وزارة التجارة (XBRL الكويتي).
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="acc-cfkind">تصنيف التدفق النقدي (القرار 44/2016)</Label>
+                  <Select value={form.cashFlowKind || "__derive__"} onValueChange={(v) => setForm({ ...form, cashFlowKind: v === "__derive__" ? "" : v })}>
+                    <SelectTrigger id="acc-cfkind" className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__derive__">اشتقاق هيكلي تلقائي (افتراضي)</SelectItem>
+                      <SelectItem value="operating">أنشطة تشغيلية — operating</SelectItem>
+                      <SelectItem value="investing">أنشطة استثمارية — investing</SelectItem>
+                      <SelectItem value="financing">أنشطة تمويلية — financing</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    يصنف أثر الحساب على النقد في قائمة التدفقات النقدية — الفارغ يُشتق من القسم (12xx استثماري · 3xxx و22xx تمويلي · الباقي تشغيلي).
                   </p>
                 </div>
                 <div className="space-y-1.5">
