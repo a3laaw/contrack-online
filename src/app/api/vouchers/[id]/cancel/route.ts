@@ -1,12 +1,12 @@
 // POST /api/vouchers/[id]/cancel — إلغاء سند (المدير فقط)
+// Task 107 — أُعيد توجيه المسار إلى محرك الإلغاء الموحد (cancelVoucherTx):
+// كان مسارًا قديمًا يلغي ناعمًا فقط بلا عكس القيود وبلا مسح روابط السداد —
+// تجاوز خطير للمحرك (درس: كل مسارات الإلغاء تمر عبر cancelVoucherTx حصرًا).
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { adminGuard, jsonError, todayStr } from '@/lib/api-utils'
-
-/** حدث على العقد (بديل محلي) */
-async function addContractEvent(contractId: number, eventType: string, description: string, username: string) {
-  await db.contractEvent.create({ data: { contractId, eventType, description, username } })
-}
+import { adminGuard } from '@/lib/api-utils'
+import { cancelVoucherTx, voucherCancelBarrier, VoucherError } from '@/lib/voucher-server'
+import { r3 } from '@/lib/contrack-core'
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const g = await adminGuard(req)
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const reason = typeof body.reason === 'string' ? body.reason.trim() : ''
   if (!reason) return jsonError('ذكر سبب الإلغاء مطلوب', 400)
 
-  // حارس المطالبات (lifecycle_service.py:4741-4751): مطالبة سارية على العقد تمنع إلغاء السند
+  // حاجز المطالبات (lifecycle_service.py:4741-4751) — مطالبة سارية على العقد تمنع الإلغاء
   if (voucher.contractId) {
     const activeClaims = await db.claim.findMany({
       where: { contractId: voucher.contractId, status: { notIn: ['registered', 'cancelled'] } },
@@ -44,19 +44,22 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
   }
 
-  const updated = await db.voucher.update({
-    where: { id: vid },
-    data: { cancelled: true, cancelReason: reason, cancelledAt: todayStr() },
-  })
-
-  if (updated.contractId) {
-    await addContractEvent(
-      updated.contractId,
-      'إلغاء سند',
-      `إلغاء السند ${updated.voucherNumber} بمبلغ ${updated.amount.toFixed(3)} د.ك — السبب: ${reason}`,
-      g.user.username,
-    )
+  // الحواجز الموحدة للمحرك (عهدة مصفّاة/سلفة عليها خصومات) ثم الإلغاء الكامل:
+  // إلغاء الأبناء + عكس القيود + مسح تخصيص الفواتير + إعادة فتح الدفعات + الأحداث والتدقيق
+  try {
+    const barrier = await voucherCancelBarrier(vid)
+    if (barrier) return jsonError(barrier, 400)
+    const result = await db.$transaction(async (tx) => {
+      return cancelVoucherTx(tx, vid, reason, g.user.username)
+    })
+    return NextResponse.json({ ok: true, id: vid, voucherNumber: result.voucherNumber, reopened: r3(result.reopened) })
+  } catch (e) {
+    if (e instanceof VoucherError) return jsonError(e.message, e.status)
+    console.error(e)
+    return jsonError('تعذر إلغاء السند', 500)
   }
+}
 
-  return NextResponse.json({ ok: true, id: updated.id })
+function jsonError(error: string, status = 400) {
+  return NextResponse.json({ error }, { status })
 }

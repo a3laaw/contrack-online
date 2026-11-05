@@ -175,7 +175,11 @@ export interface NamedEntryParams {
   actor?: string;
 }
 
-async function resolveNamedSide(
+/**
+ * حسم طرف مسمّى إلى حساب فعلي (معرّض للوحدات التي تبني أسطرًا متعددة خارج postNamedEntry —
+ * قيد السند بتخصيص الفواتير Task 107): الحساب المباشر → الحاسم النصي → التسوية.
+ */
+export async function resolveNamedSide(
   tx: DbClient,
   side: NamedEntrySide,
   resolver: AccountResolver
@@ -391,4 +395,5 @@ export async function migrateLegacyRows(
 }
 
 export { TX_OPTS };
+export type { Tx };
 export type { JournalEntryInput, JournalLineInput, JournalLineDims } from "@/lib/accounting-journal";

@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
   const invoices = (
     await db.invoice.findMany({
       select: {
-        id: true, invoiceNumber: true, description: true, amount: true,
+        id: true, invoiceNumber: true, description: true, total: true, status: true,
         customer: { select: { name: true, phone: true } },
       },
       orderBy: { id: "asc" },
@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
     .map<SearchItem>((i) => ({
       id: i.id,
       title: `${i.invoiceNumber}${i.description ? ` — ${i.description}` : ""}`,
-      subtitle: `${i.customer.name} · ${r3(Number(i.amount))}`,
+      subtitle: `${i.customer.name} · ${r3(Number(i.total))}${i.status === "void" ? " · ملغاة" : ""}`,
       href: `invoices?id=${i.id}`,
     }));
 

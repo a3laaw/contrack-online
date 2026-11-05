@@ -115,6 +115,7 @@ const SOURCE_LABEL: Record<string, string> = {
   bank_fee_alloc: "رسوم بنكية",
   custody: "عُهد",
   contract: "عقد",
+  invoice: "فاتورة",
   reversal: "قيد عكسي",
   migration: "قيد مرحَّل",
 };

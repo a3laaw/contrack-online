@@ -1391,26 +1391,70 @@ export interface CustodyOverviewResponse {
   accounts?: CustodyOverviewItem[];
 }
 
-// ==================== الفواتير ====================
+// ==================== الفواتير (Task 107 — بنود + حالة سداد + قيد آلي) ====================
 
-/** فاتورة INV-#### — القاعدة 5: للعلم لا تخفض المديونية، ولا تتجاوز متبقي العقد */
-export interface InvoiceItem {
+export type InvoiceStatus = "unpaid" | "partial" | "paid" | "void";
+
+/** صف قائمة الفواتير — المسدد والمتبقي والحالة مشتقة من سندات القبض (مصدر واحد) */
+export interface InvoiceRow {
   id: number;
+  invoiceNo: number;
   invoiceNumber: string;
-  customer: { id: number; name: string };
-  contract: { id: number; contractNumber: string };
+  customerId: number;
+  customerName: string;
+  contractId: number | null;
+  contractNumber: string | null;
+  contractName: string | null;
   invoiceDate: string;
-  description?: string;
-  amount: number;
-  notes?: string;
+  dueDate: string;
+  description: string;
+  subtotal: number;
+  discountTotal: number;
+  total: number;
+  paidAmount: number;
+  remaining: number;
+  status: InvoiceStatus;
+  legacy: boolean;
+  entryId: number | null;
+  entryNo: number | null;
+  notes: string;
+  createdAt?: string;
 }
 
 export interface InvoicesResponse {
-  items: InvoiceItem[];
+  invoices: InvoiceRow[];
+}
+
+/** بند فاتورة (تفاصيل/إصدار) */
+export interface InvoiceItemRow {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  discountPct: number;
+  lineTotal: number;
+}
+
+/** سند سداد مرتبط بفاتورة */
+export interface InvoicePaymentRow {
+  id: number;
+  voucherId: number;
+  voucherNumber: string;
+  vdate: string;
+  method: string;
+  amount: number;
+  cancelled: boolean;
 }
 
 export interface InvoiceDetailResponse {
-  item: InvoiceItem;
+  invoice: InvoiceRow & {
+    customerPhone?: string;
+    customerCode?: string;
+    voidReason?: string;
+  };
+  items: (InvoiceItemRow & { id: number })[];
+  payments: InvoicePaymentRow[];
+  entry: { id: number; entryNo: number; status: string; entryDate: string } | null;
+  financials: { current: number; invoiced: number; remaining: number } | null;
 }
 
 // ==================== البوابة المالية ====================

@@ -81,6 +81,7 @@
         "zustand": "^5.0.6",
       },
       "devDependencies": {
+        "@embedded-postgres/linux-x64": "^18.6.0-beta.19",
         "@tailwindcss/postcss": "^4",
         "@types/better-sqlite3": "^9.6.0",
         "@types/react": "^19",
@@ -208,6 +209,8 @@
     "@dnd-kit/sortable": ["@dnd-kit/sortable@10.0.0", "https://registry.npmjs.com/@dnd-kit/sortable/-/sortable-10.0.0.tgz", { "dependencies": { "@dnd-kit/utilities": "^3.2.2", "tslib": "^2.0.0" }, "peerDependencies": { "@dnd-kit/core": "^6.3.0", "react": ">=16.8.0" } }, "sha512-+xqhmIIzvAYMGfBYYnbKuNicfSsk4RksY2XdmJhT+HAC01nix6fHCztU68jooFiMUB01Ky3F0FyOvhG/BZrWkg=="],
 
     "@dnd-kit/utilities": ["@dnd-kit/utilities@3.2.2", "https://registry.npmjs.com/@dnd-kit/utilities/-/utilities-3.2.2.tgz", { "dependencies": { "tslib": "^2.0.0" }, "peerDependencies": { "react": ">=16.8.0" } }, "sha512-+MKAJEOfaBe5SmV6t34p80MMKhjvUz0vRrvVJbPT0WElzaOJ/1xs+D+KDv+tD/NE5ujfrChEcshd4fLn0wpiqg=="],
+
+    "@embedded-postgres/linux-x64": ["@embedded-postgres/linux-x64@18.6.0-beta.19", "", { "os": "linux", "cpu": "x64" }, "sha512-U7sqNsI2M5OPAClnptT05bGSnos4IESgUesNytwvgXQ9L4GKY1mnJciXab6CE1pWm3Kes4/UrsZVJJZKBMFZbw=="],
 
     "@emnapi/core": ["@emnapi/core@1.8.1", "https://registry.npmjs.com/@emnapi/core/-/core-1.8.1.tgz", { "dependencies": { "@emnapi/wasi-threads": "1.1.0", "tslib": "^2.4.0" } }, "sha512-AvT9QFpxK0Zd8J0jopedNm+w/2fIzvtPKPjqyw9jwvBaReTTqPBk9Hixaz7KbjimP+QNz605/XnjFcDAL2pqBg=="],
 

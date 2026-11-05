@@ -46,6 +46,9 @@ async function fullResetInTx(tx: Tx): Promise<Record<string, number>> {
   await step("tasks", () => tx.task.deleteMany({}));
   await step("customer_comments", () => tx.comment.deleteMany({}));
   await step("contract_attachments", () => tx.contractAttachment.deleteMany({}));
+  // Task 107 — بنود الفواتير وروابط السداد قبل الرأس (الروابط تشير للسندات أيضًا)
+  await step("invoice_payment_links", () => tx.invoicePaymentLink.deleteMany({}));
+  await step("invoice_items", () => tx.invoiceItem.deleteMany({}));
   await step("invoices", () => tx.invoice.deleteMany({}));
   await step("vouchers", () => tx.voucher.deleteMany({}));
   await step("sub_payment_plan", () => tx.subPaymentPlanItem.deleteMany({}));

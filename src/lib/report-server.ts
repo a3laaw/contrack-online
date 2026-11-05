@@ -113,7 +113,7 @@ export async function buildContractStatementRaw(contractId: number): Promise<Raw
     }),
     db.invoice.findMany({
       where: { contractId },
-      select: { invoiceNumber: true, invoiceDate: true, description: true, amount: true },
+      select: { invoiceNumber: true, invoiceDate: true, description: true, total: true, paidAmount: true, status: true },
       orderBy: [{ invoiceDate: "asc" }, { id: "asc" }],
     }),
     db.voucher.findMany({
@@ -158,12 +158,14 @@ export async function buildContractStatementRaw(contractId: number): Promise<Raw
     });
   }
 
-  // الفواتير: صفوف محايدة «للعلم» — لا تخفض المديونية (قاعدة 5)
+  // الفواتير: صفوف محايدة «للعلم» — حالة السداد من سندات القبض (Task 107)
   for (const inv of invoices) {
+    const suffix =
+      inv.status === "paid" ? " · مسددة" : inv.status === "partial" ? ` · مسدد ${fmt3(Number(inv.paidAmount))}` : inv.status === "void" ? " · ملغاة" : "";
     moves.push({
       date: inv.invoiceDate || "",
       ref: inv.invoiceNumber,
-      desc: `فاتورة (للعلم): ${inv.description || ""} · ${fmt3(Number(inv.amount))}`.trim(),
+      desc: `فاتورة (للعلم): ${inv.description || ""} · ${fmt3(Number(inv.total))}${suffix}`.trim(),
       debit: 0, credit: 0, balance: 0, kind: "invoice_info",
     });
   }
@@ -213,7 +215,7 @@ export async function buildContractStatementRaw(contractId: number): Promise<Raw
     netAddendums,
     supExtension: supExt,
     collected,
-    totalInvoiced: r3(invoices.reduce((s, i) => s + Number(i.amount), 0)),
+    totalInvoiced: r3(invoices.filter((i) => i.status !== "void").reduce((s, i) => s + Number(i.total), 0)),
   };
 }
 

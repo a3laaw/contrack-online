@@ -365,6 +365,7 @@ model Voucher {
   cancelReason           String               @default("") @map("cancel_reason")
   cancelledAt            String               @default("") @map("cancelled_at")
   links                  VoucherPaymentLink[]
+  invoicePaymentLinks    InvoicePaymentLink[] // سداد الفواتير المخصص من هذا السند (Task 107)
   gatewayFeeLinks        GatewayFeeVoucher[]
   createdAt              DateTime             @default(now())
 
@@ -966,7 +967,8 @@ model JournalEntry {
   createdBy    String         @default("") @map("created_by")
   cancelReason String         @default("") @map("cancel_reason")
   lines        JournalLine[]
-  createdAt    DateTime       @default(now()) @map("created_at")
+  invoices     Invoice[]     @relation("InvoiceEntry") // فواتير أصدرت هذا القيد (Task 107)
+  createdAt    DateTime      @default(now()) @map("created_at")
 
   @@unique([companyId, entryNo])
   @@index([entryDate])
@@ -1033,22 +1035,87 @@ model ContractGroupItem {
 
 // ==================== الفواتير والعهد والموظفون ====================
 
+/**
+ * Invoice — Task 107 (استبدال كامل — منهج النواة الواحدة):
+ * فاتورة مستندية ببنود وحالة سداد مشتقة، تُصدر قيدًا آليًا إلزاميًا عند الإصدار
+ * (مدين ذمم العملاء / دائن إيراد العقود عبر قاعدة invoice_issue المعلنة)،
+ * والإلغاء بقيد عكسي مرتبط (لا حذف). السداد مصدره وحيد: سندات القبض عبر
+ * InvoicePaymentLink (تخصيص FIFO آلي) — paidAmount حالة مخزنة تُعاد كلها
+ * في نفس معاملة تغيّر الروابط (لا مصدر ثانٍ أبدًا).
+ * صفوف legacy=true: فواتير ما قبل النواة المزدوجة — أرشيفية بلا قيد،
+ * مستبعدة من التخصيص (أموالها حُصّلت بالفعل تحت نموذج النصوص القديم).
+ */
 model Invoice {
   companyId Int @default(1) @map("company_id")
-  id            Int      @id @default(autoincrement())
-  invoiceNumber String @map("invoice_number")
-  customerId    Int      @map("customer_id")
-  customer      Customer @relation(fields: [customerId], references: [id])
-  contractId    Int      @map("contract_id")
-  contract      Contract @relation(fields: [contractId], references: [id])
-  invoiceDate   String   @map("invoice_date")
-  description   String   @default("")
-  amount        Decimal
-  notes         String   @default("")
-  createdAt     DateTime @default(now())
+  id            Int       @id @default(autoincrement())
+  invoiceNo     Int       @default(0) @map("invoice_no") // تسلسلي لكل شركة (companyId, invoiceNo)
+  invoiceNumber String    @map("invoice_number") // صيغة العرض INV-0001 (عدّاد لا يتراجع)
+  customerId    Int       @map("customer_id")
+  customer      Customer  @relation(fields: [customerId], references: [id])
+  contractId    Int?      @map("contract_id")
+  contract      Contract? @relation(fields: [contractId], references: [id])
+  invoiceDate   String    @map("invoice_date") // YYYY-MM-DD — تاريخ قيد الإصدار (داخل فترة مفتوحة)
+  dueDate       String    @default("") @map("due_date")
+  description   String    @default("")
+  subtotal      Decimal   @default(0) @db.Decimal(18, 3) // محصلة الكميات×الأسعار قبل الخصم
+  discountTotal Decimal   @default(0) @db.Decimal(18, 3) @map("discount_total") // محصلة الخصومات
+  total         Decimal   @default(0) @db.Decimal(18, 3) // الصافي المفوتر = subtotal − discountTotal
+  paidAmount    Decimal   @default(0) @db.Decimal(18, 3) @map("paid_amount") // من الروابط حصرًا (كاش يُعاد حسابه)
+  status        String    @default("unpaid") // unpaid | partial | paid | void
+  voidReason    String    @default("") @map("void_reason")
+  legacy        Boolean   @default(false) // فاتورة مرحَّلة من هيكل ما قبل Task 107 — بلا قيد
+  notes         String    @default("")
+  entryId       Int?      @map("entry_id") // قيد الإصدار المرتبط (قيود التعديل تُعكس وتُعاد نشرها)
+  entry         JournalEntry? @relation("InvoiceEntry", fields: [entryId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  items         InvoiceItem[]
+  paymentLinks  InvoicePaymentLink[]
 
+  @@unique([companyId, invoiceNo])
   @@unique([companyId, invoiceNumber])
+  @@index([customerId])
+  @@index([contractId])
+  @@index([status])
   @@map("invoices")
+}
+
+/** بند الفاتورة — الخصم نسبة % على السطر، والمحصلة على الرأس تتحقق محركًا (لا إدخالًا يدويًا) */
+model InvoiceItem {
+  companyId Int @default(1) @map("company_id")
+  id          Int     @id @default(autoincrement())
+  invoiceId   Int     @map("invoice_id")
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Decimal @default(1) @db.Decimal(18, 3)
+  unitPrice   Decimal @default(0) @db.Decimal(18, 3) @map("unit_price")
+  discountPct Decimal @default(0) @db.Decimal(5, 2) @map("discount_pct") // 0–100
+  lineTotal   Decimal @default(0) @db.Decimal(18, 3) @map("line_total") // qty×price×(1−disc)
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
+
+/**
+ * ربط سداد الفواتير بسندات القبض — Task 107: مصدر السداد واحد هو السند
+ * (مرآة VoucherPaymentLink لكن على الفواتير — لا يتصادمان لأن lineId لخطط
+ * العقود/الباطن وinvoiceId للفواتير بجدولين مستقلين). يُنشأ بالتخصيص الآلي
+ * FIFO في معاملة إنشاء/تعديل/إلغاء السند، وpaidAmount يُجمَّع منه حصرًا.
+ */
+model InvoicePaymentLink {
+  companyId Int @default(1) @map("company_id")
+  id        Int      @id @default(autoincrement())
+  invoiceId Int      @map("invoice_id")
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  voucherId Int      @map("voucher_id")
+  voucher   Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  amount    Decimal  @db.Decimal(18, 3)
+  createdAt DateTime @default(now())
+
+  @@unique([voucherId, invoiceId])
+  @@index([invoiceId])
+  @@map("invoice_payment_links")
 }
 
 model Employee {

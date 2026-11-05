@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import type { PrismaClient } from "@prisma/client";
+import { ensureChartOfAccounts } from "@/lib/accounting-server";
 import { ensurePostingRules } from "@/lib/posting-rules-server";
 
 /**
@@ -138,6 +139,15 @@ export async function ensureSeedData(client?: PrismaClient): Promise<{ seeded: s
       }
     }
     seeded.push("contract_types");
+  }
+
+  // Task 107 — الدليل قبل قواعد الترحيل: أكواد البذرة (1121/4100/5210…) تُحسم
+  // على دليل موجود — بذر الدليل بعد القواعد كان يثبّتها فارغة (لا مرشّحين)
+  try {
+    const chart = await ensureChartOfAccounts(d as PrismaClient);
+    if (chart.seeded) seeded.push("chart_of_accounts");
+  } catch (e) {
+    console.error("chart seed error", e);
   }
 
   // Task 106 — قواعد ترحيل السندات الافتراضية (PostingRule) — بلا كتابة إن وُجدت

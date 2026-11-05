@@ -39,6 +39,8 @@ const TENANT_MODELS = new Set<string>([
   "subPaymentSource", "contractType", "typePaymentTemplate", "typePaymentStage", "typeBundleComponent",
   "contractComponent", "entityBackup", "workflowStage", "contractScope", "setting",
   "paymentMethod", "contractGroup", "contractGroupItem", "invoice",
+  // Task 107 — بنود الفواتير وروابط سدادها (فصل الشركات من اليوم الأول)
+  "invoiceItem", "invoicePaymentLink",
   "employee", "task", "visitStaff", "visit", "comment",
   "contractAttachment", "gatewayProfile", "gatewayOp", "bankLine", "otherCompanyTransfer",
   "transferOpAlloc", "otherCompanyOpening", "gatewayFeeVoucher", "matchAlias", "journalEntry",

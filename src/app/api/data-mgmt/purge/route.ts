@@ -95,6 +95,12 @@ async function collectContract(tx: Tx, contractId: number, ctx: PurgeCtx) {
   const claims = await snap(ctx, "claims", await tx.claim.findMany({ where: { contractId } }));
   const payments = await snap(ctx, "payment_plan", await tx.paymentPlanItem.findMany({ where: { contractId } }));
   const invoices = await snap(ctx, "invoices", await tx.invoice.findMany({ where: { contractId } }));
+  // Task 107 — بنود الفواتير وروابط سدادها ضمن اللقطة (الحذف فعليًا عبر ON DELETE CASCADE)
+  const invoiceIds = invoices.map((i) => i.id);
+  if (invoiceIds.length) {
+    await snap(ctx, "invoice_items", await tx.invoiceItem.findMany({ where: { invoiceId: { in: invoiceIds } } }));
+    await snap(ctx, "invoice_payment_links", await tx.invoicePaymentLink.findMany({ where: { invoiceId: { in: invoiceIds } } }));
+  }
   const events = await snap(ctx, "contract_events", await tx.contractEvent.findMany({ where: { contractId } }));
   const scopes = await snap(ctx, "contract_scope", await tx.contractScope.findMany({ where: { contractId } }));
   const groupItems = await snap(ctx, "contract_group_items", await tx.contractGroupItem.findMany({ where: { contractId } }));
@@ -273,6 +279,12 @@ async function deleteCustomerInTx(tx: Tx, customerId: number, ctx: PurgeCtx) {
   }
 
   // 2) فواتير العميل المتبقية
+  const remainingInvoices = await snap(ctx, "invoices", await tx.invoice.findMany({ where: { customerId } }));
+  const remainingInvIds = remainingInvoices.map((i) => i.id);
+  if (remainingInvIds.length) {
+    await snap(ctx, "invoice_items", await tx.invoiceItem.findMany({ where: { invoiceId: { in: remainingInvIds } } }));
+    await snap(ctx, "invoice_payment_links", await tx.invoicePaymentLink.findMany({ where: { invoiceId: { in: remainingInvIds } } }));
+  }
   const inv = await tx.invoice.deleteMany({ where: { customerId } });
   bump(ctx, "deleted", inv.count);
   ctx.counters["invoices"] = (ctx.counters["invoices"] || 0) + inv.count;

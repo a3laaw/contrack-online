@@ -37,6 +37,8 @@ import {
 import { postNamedEntry, postJournalEntry } from "@/lib/journal-server";
 import { VOUCHER_JOURNAL_SOURCES } from "@/lib/accounting-journal";
 import { insertVoucherJournal } from "@/lib/posting-rules-server";
+import { reallocateVoucherInvoiceLinks } from "@/lib/invoice-server";
+import type { VoucherJournalInvoiceAllocation } from "@/lib/posting-rules-server";
 
 export type Tx = Prisma.TransactionClient;
 export type DbClient = Prisma.TransactionClient | PrismaClient;
@@ -1116,6 +1118,20 @@ export async function createVoucher(
           }
         }
 
+        // Task 107 — تخصيص القبض على فواتير العميل المفتوحة FIFO (المصدر الوحيد لحالة السداد)
+        let invoiceAllocations: VoucherJournalInvoiceAllocation[] = [];
+        if (prep.vtype === "receipt") {
+          invoiceAllocations = await reallocateVoucherInvoiceLinks(tx, {
+            id: voucher.id,
+            voucherNumber,
+            vtype: prep.vtype,
+            cancelled: false,
+            amount: Number(prep.amount),
+            customerId: prep.expenseCustomerId ?? (prep.partyType === "customer" ? prep.partyId : null),
+            contractId: prep.contractId,
+          });
+        }
+
         // القيد المحاسبي التلقائي
         await insertVoucherJournal(tx, {
           id: voucher.id,
@@ -1136,6 +1152,8 @@ export async function createVoucher(
           boqItemId: prep.boqItemId,
           employeeId: prep.advanceEmployeeId,
           costCenter: prep.costCenter,
+          // تخصيص السداد على الفواتير (Task 107) — يفتح دائنًا إضافيًا على الذمم
+          invoiceAllocations,
         });
 
         // الرسوم البنكية للقبض
@@ -1410,6 +1428,20 @@ export async function updateVoucher(
       await tx.voucher.update({ where: { id: v.id }, data: { advanceAmount: res.advance } });
     }
 
+    // Task 107 — إعادة تخصيص القبض على الفواتير بعد تعديل المبلغ/العميل/العقد
+    let invoiceAllocations: VoucherJournalInvoiceAllocation[] = [];
+    if (v.vtype === "receipt") {
+      invoiceAllocations = await reallocateVoucherInvoiceLinks(tx, {
+        id: v.id,
+        voucherNumber: v.voucherNumber,
+        vtype: v.vtype,
+        cancelled: false,
+        amount: newAmount,
+        customerId: v.expenseCustomerId ?? (v.partyType === "customer" ? v.partyId : null),
+        contractId: v.contractId,
+      });
+    }
+
     // عكس القيد القديم وإعادة إنشاء القيد
     await reverseVoucherJournals(tx, v.id, "تعديل السند");
     await insertVoucherJournal(tx, {
@@ -1432,6 +1464,8 @@ export async function updateVoucher(
       projectId: v.projectId,
       employeeId: v.advanceEmployeeId,
       costCenter: v.costCenter,
+      // تخصيص السداد على الفواتير (Task 107)
+      invoiceAllocations,
     });
 
     // إعادة موازنة رسوم الأبناء عند تغيّر method/amount
@@ -1585,6 +1619,17 @@ export async function cancelVoucherTx(
 
   // عكس قيود الأب
   await reverseVoucherJournals(tx, v.id, reason);
+
+  // Task 107 — مسح تخصيص الفواتير وإعادة فتح المسدد عليها (المصدر الوحيد لحالة السداد)
+  await reallocateVoucherInvoiceLinks(tx, {
+    id: v.id,
+    voucherNumber: v.voucherNumber,
+    vtype: v.vtype,
+    cancelled: true,
+    amount: Number(v.amount),
+    customerId: v.expenseCustomerId ?? (v.partyType === "customer" ? v.partyId : null),
+    contractId: v.contractId,
+  });
 
   // إعادة فتح الدفعات المغطاة
   let reopened = 0;

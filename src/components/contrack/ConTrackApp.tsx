@@ -379,7 +379,7 @@ function AppRoot() {
       )}
       {view === "custody" && <CustodyView user={user} onAuthError={onAuthError} />}
       {view === "advances" && <AdvancesView user={user} onAuthError={onAuthError} />}
-      {view === "invoices" && <InvoicesView user={user} onAuthError={onAuthError} />}
+      {view === "invoices" && <InvoicesView user={user} onAuthError={onAuthError} onOpenJournal={openJournalWithQ} />}
       {view === "gateway" && <GatewayView user={user} onAuthError={onAuthError} />}
       {view === "other-company" && <OtherCompanyView user={user} onAuthError={onAuthError} />}
       {view === "chart-of-accounts" && <ChartOfAccountsView onAuthError={onAuthError} />}

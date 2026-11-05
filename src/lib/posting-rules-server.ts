@@ -13,7 +13,13 @@ import {
   type SeedChartAccount,
   type VoucherRuleContext,
 } from "@/lib/posting-rules-core";
-import { postNamedEntry } from "@/lib/journal-server";
+import {
+  buildAccountResolver,
+  postNamedEntry,
+  postJournalEntry,
+  resolveNamedSide,
+  type JournalLineInput,
+} from "@/lib/journal-server";
 import { r3 } from "@/lib/contrack-core";
 
 /**
@@ -75,6 +81,8 @@ export async function ensurePostingRules(tx: DbClient): Promise<{ created: numbe
 
   // إصلاح البذرة النظامية: كود مثبّت صار غير قابل للنشر ⇒ يُعاد حسمه من الأزرق.
   // المقارنة تامة (الكود نفسه ورقة نشطة تقبل النشر) — لا يكفي أن للكود ذرية قابلة.
+  // Task 107: كود فارغ لقاعدة أزرقها المدمج غير فارغ (مثل invoice_issue 1121/4100)
+  // يعني بذرة سابقة لنموذج الدليل قبل وجوده — تُحسم الآن أيضًا.
   for (const def of POSTING_RULE_CATALOG) {
     const row = byKey.get(def.key);
     if (!row || !row.isSystem) continue;
@@ -82,6 +90,8 @@ export async function ensurePostingRules(tx: DbClient): Promise<{ created: numbe
     const patch: { debitCode?: string; creditCode?: string } = {};
     if (row.debitCode && !stillValid(row.debitCode)) patch.debitCode = resolve(def.defaultDebitCode);
     if (row.creditCode && !stillValid(row.creditCode)) patch.creditCode = resolve(def.defaultCreditCode);
+    if (!row.debitCode && def.defaultDebitCode) patch.debitCode = resolve(def.defaultDebitCode);
+    if (!row.creditCode && def.defaultCreditCode) patch.creditCode = resolve(def.defaultCreditCode);
     if (Object.keys(patch).length > 0) {
       await tx.postingRule.update({ where: { id: row.id }, data: patch });
       repaired++;
@@ -141,7 +151,7 @@ async function loadActiveRuleCodes(client: DbClient): Promise<Map<string, { debi
 }
 
 /** دليل الشركة كمرشّحات حسم — أوراق نشطة فقط (النشر على الإجماليات ممنوع محركًا) */
-async function loadChartCandidates(client: DbClient): Promise<RuleChartAccount[]> {
+export async function loadChartCandidates(client: DbClient): Promise<RuleChartAccount[]> {
   const rows = await client.account.findMany({
     where: { isActive: true, allowPosting: true },
     select: { id: true, code: true, name: true, allowPosting: true, isActive: true },
@@ -152,6 +162,12 @@ async function loadChartCandidates(client: DbClient): Promise<RuleChartAccount[]
 // ==================== محرك قيد السند ====================
 
 /** مدخلات قيد السند — أبعاد كاملة على السطرين (Task 106: عميل/باطن/بنود/مشاريع/مركز/موظف) */
+export interface VoucherJournalInvoiceAllocation {
+  invoiceId: number;
+  invoiceNumber: string;
+  amount: number;
+}
+
 export interface VoucherJournalInput {
   id: number;
   voucherNumber: string;
@@ -172,6 +188,13 @@ export interface VoucherJournalInput {
   projectId?: number | null;
   employeeId?: number | null;
   costCenter?: string;
+  /**
+   * Task 107 — تخصيص السداد على فواتير العميل (قبض حصرًا، يأتي من reallocateVoucherInvoiceLinks).
+   * يفتح دائنًا إضافيًا على حساب ذمم قاعدة invoice_issue (نفس مدين قيد الإصدار) بمبلغ التخصيص،
+   * والفائض يبقى دائنًا على طرف القاعدة كالسابق — دورة الاستحقاق كاملة: إصدار (مدين ذمم)
+   * ثم سداد (دائن ذمم) فلا ازدواج إيراد ولا ذمم معلقة.
+   */
+  invoiceAllocations?: VoucherJournalInvoiceAllocation[];
 }
 
 /**
@@ -245,6 +268,81 @@ export async function insertVoucherJournal(
     employeeId: v.employeeId ?? null,
     costCenter: v.costCenter || "",
   };
+
+  // ===== Task 107 — قبض بسداد فواتير مخصص: قيد متعدد الأسطر =====
+  // مدين النقد (كامل المبلغ) + دائن ذمم العملاء لكل فاتورة مسددة + دائن طرف
+  // القاعدة للفائض غير المخصص — دورة استحقاق كاملة بلا ازدواج إيراد.
+  const allocs = (v.invoiceAllocations || [])
+    .map((a) => ({ ...a, amount: r3(a.amount) }))
+    .filter((a) => a.amount > 0 && a.invoiceId > 0);
+  const allocSum = r3(allocs.reduce((s, a) => s + a.amount, 0));
+  const totalAmount = r3(v.amount);
+  if (v.vtype === "receipt" && allocs.length > 0 && allocSum > 0 && allocSum <= totalAmount + 0.001) {
+    const ruleIss = rulesMap.get("invoice_issue");
+    const arRes = resolvePostingSide(
+      // حساب الذمم = مدين قاعدة invoice_issue (نفس حساب قيد الإصدار) وإلا الاسم المدمج «العملاء»
+      { ruleCode: ruleIss?.debitCode || "", builtinName: "العملاء" },
+      chart
+    );
+    const resolver = await buildAccountResolver(tx);
+    const debitId = await resolveNamedSide(
+      tx,
+      { name: debitRes?.name || builtinDebitName(v.vtype, sideCtx), accountId: debitRes?.accountId ?? null },
+      resolver
+    );
+    const arId = await resolveNamedSide(
+      tx,
+      { name: arRes?.name || "العملاء", accountId: arRes?.accountId ?? null },
+      resolver
+    );
+    const creditId = await resolveNamedSide(
+      tx,
+      {
+        name: creditRes?.name || (isCustodySettlement ? v.accountSnapshot || "العهد" : builtinCreditName(v.vtype, sideCtx)),
+        accountId: creditRes?.accountId ?? null,
+      },
+      resolver
+    );
+
+    const lines: JournalLineInput[] = [
+      {
+        accountId: debitId,
+        debit: totalAmount,
+        credit: 0,
+        description: debitRes?.name || builtinDebitName(v.vtype, sideCtx),
+        ...dims,
+      },
+      ...allocs.map((a) => ({
+        accountId: arId,
+        debit: 0,
+        credit: a.amount,
+        description: `سداد فاتورة ${a.invoiceNumber}`,
+        ...dims,
+      })),
+    ];
+    const remainder = r3(totalAmount - allocSum);
+    if (remainder > 0) {
+      lines.push({
+        accountId: creditId,
+        debit: 0,
+        credit: remainder,
+        description: creditRes?.name || (isCustodySettlement ? v.accountSnapshot || "العهد" : builtinCreditName(v.vtype, sideCtx)),
+        ...dims,
+      });
+    }
+    await postJournalEntry(
+      tx,
+      {
+        entryDate: v.vdate,
+        description: `${VOUCHER_TYPE_LABELS[v.vtype] || v.vtype} ${v.voucherNumber}`,
+        sourceType: "voucher",
+        sourceId: v.id,
+        lines,
+      },
+      "النظام (آلي)"
+    );
+    return;
+  }
 
   await postNamedEntry(tx, {
     entryDate: v.vdate,

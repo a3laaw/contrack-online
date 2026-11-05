@@ -53,9 +53,10 @@ const GROUP_LABELS: Record<string, string> = {
   receipt: "القبض",
   payment: "الصرف",
   custody: "العهد والسلف",
+  invoice: "الفواتير",
   other: "أخرى",
 };
-const GROUP_ORDER = ["receipt", "payment", "custody", "other"] as const;
+const GROUP_ORDER = ["receipt", "payment", "custody", "invoice", "other"] as const;
 
 export function PostingRulesTab({ onAuthError }: PostingRulesTabProps) {
   const { toast } = useToast();
@@ -267,6 +268,7 @@ function groupOf(ruleKey: string): string {
   if (ruleKey === "receipt") return "receipt";
   if (ruleKey.startsWith("payment_")) return "payment";
   if (ruleKey.startsWith("custody_")) return "custody";
+  if (ruleKey.startsWith("invoice_")) return "invoice";
   return "other";
 }
 
@@ -282,6 +284,7 @@ const RULE_ADJUSTABLE: Record<string, { debit: boolean; credit: boolean }> = {
   salary_deduction: { debit: true, credit: true },
   transfer: { debit: false, credit: false },
   bank_fee: { debit: true, credit: false },
+  invoice_issue: { debit: true, credit: true },
 };
 
 const RULE_DESCRIPTIONS: Record<string, string> = {
@@ -296,4 +299,5 @@ const RULE_DESCRIPTIONS: Record<string, string> = {
   salary_deduction: "المدين: رواتب وأجور 5210 — الدائن: عُهد وسلف الموظفين 1140.",
   transfer: "المدين: المستلَم إليه — الدائن: المُحوَّل منه — من السند نفسه. سياقي دائمًا.",
   bank_fee: "المدين: رسوم وعمولات بنكية 5260 — الدائن: حساب السند الأب.",
+  invoice_issue: "المدين: ذمم العملاء 1121 — الدائن: إيرادات العقود 4100. سداد الفاتورة يدخل دائنًا على حساب المدين هنا.",
 };

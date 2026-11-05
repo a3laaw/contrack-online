@@ -110,7 +110,10 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   // ===== المجموعات والفواتير =====
   { model: "contractGroup", table: "contract_groups", serial: true },
   { model: "contractGroupItem", table: "contract_group_items", serial: true },
+  // Task 107 — الفواتير ببنودها وروابط سدادها (الرأس ثم البنود ثم الروابط — FK على voucher أعلاه)
   { model: "invoice", table: "invoices", serial: true },
+  { model: "invoiceItem", table: "invoice_items", serial: true },
+  { model: "invoicePaymentLink", table: "invoice_payment_links", serial: true },
   // ===== الإنتاجية =====
   { model: "task", table: "tasks", serial: true },
   { model: "visit", table: "visits", serial: true },
@@ -390,6 +393,35 @@ export function transformLegacyVoucherRows(
 }
 
 /**
+ * Task 107 — محوّل فواتير النسخ القديمة (ما قبل بنود/حالة السداد):
+ * amount الواحد ⇒ subtotal/discountTotal/total + invoiceNo تسلسلي + legacy=true
+ * (أرشيفية بلا قيد ومستبعدة من التخصيص — الأموال حُصّلت تحت نموذج النصوص).
+ * الدالة نقية (لا DB) — صفوف الهيكل الجديد تمر كما هي.
+ */
+export function transformLegacyInvoiceRows(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+  let seq = 0;
+  return rows.map((v) => {
+    const isLegacy = "amount" in v && !("total" in v);
+    if (!isLegacy) return v;
+    seq += 1;
+    const amount = Number(v["amount"] ?? 0);
+    const parsedNo = Number(String(v["invoiceNumber"] ?? "").replace(/^INV-/, ""));
+    const out: Record<string, unknown> = { ...v };
+    delete out["amount"];
+    out["invoiceNo"] = Number.isFinite(parsedNo) && parsedNo > 0 ? parsedNo : seq;
+    out["subtotal"] = amount;
+    out["discountTotal"] = 0;
+    out["total"] = amount;
+    out["paidAmount"] = 0;
+    out["status"] = "unpaid";
+    out["legacy"] = true;
+    out["dueDate"] = "";
+    out["voidReason"] = "";
+    return out;
+  });
+}
+
+/**
  * استعادة كاملة داخل معاملة واحدة:
  * 1) تحقق أن كل مفاتيح الملف جداول معروفة (مفاتيح الجداول المُسقطة تُقبل وتُهمل — Task 105)
  * 2) حذف كل الجداول بالترتيب العكسي (الأبناء قبل الآباء)
@@ -466,6 +498,10 @@ export async function restoreBackupData(
     // Task 105: نسخ قديمة تحمل السندات بحقول الشجرة القديمة — تُحوّل للحقول الموحدة
     if (m.table === "vouchers" && needLegacyVoucherTransform && resolveForLegacy) {
       rows = transformLegacyVoucherRows(rows, legacyTree, resolveForLegacy, suspenseId);
+    }
+    // Task 107: نسخ قديمة تحمل الفواتير بحقل amount الواحد بلا بنود/حالة — تُحوّل للهيكل الجديد أرشيفيًا
+    if (m.table === "invoices") {
+      rows = transformLegacyInvoiceRows(rows);
     }
     inserted[m.table] = await insertRows(tx, m.model, m.table, rows);
   }

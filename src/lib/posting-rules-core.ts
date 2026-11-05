@@ -16,7 +16,7 @@
 
 // ==================== كتالوج القواعد ====================
 
-export type PostingRuleGroup = "receipt" | "payment" | "custody" | "other";
+export type PostingRuleGroup = "receipt" | "payment" | "custody" | "invoice" | "other";
 
 export interface PostingRuleDef {
   /** مفتاح القاعدة — يخزَّن في PostingRule.ruleKey */
@@ -159,6 +159,18 @@ export const POSTING_RULE_CATALOG: PostingRuleDef[] = [
     creditAdjustable: false,
     description: "المدين: رسوم وعمولات بنكية (5260) — قابل للتثبيت. الدائن: حساب السند الأب (نقد/بنك).",
   },
+  {
+    // Task 107 — قيد إصدار الفاتورة عبر القواعد المعلنة (مبدأ «المستند بلا قيد = مسودة»)
+    key: "invoice_issue",
+    label: "إصدار فاتورة",
+    group: "invoice",
+    defaultDebitCode: "1121",
+    defaultCreditCode: "4100",
+    debitAdjustable: true,
+    creditAdjustable: true,
+    description:
+      "قيد إصدار الفاتورة — المدين: ذمم العملاء (1121)، الدائن: إيرادات العقود (4100) — الطرفان قابلان للضبط. سداد الفاتورة بسند قبض يدخل دائنًا على حساب المدين هنا. الإلغاء/التعديل بقيد عكسي مرتبط آليًا.",
+  },
 ];
 
 /** خريطة الكتالوج بالمفتاح — للوصول السريع */
@@ -170,6 +182,7 @@ export const POSTING_RULE_GROUP_LABEL: Record<PostingRuleGroup, string> = {
   receipt: "القبض",
   payment: "الصرف",
   custody: "العهد والسلف",
+  invoice: "الفواتير",
   other: "أخرى",
 };
 

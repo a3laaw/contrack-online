@@ -96,7 +96,8 @@ export async function PATCH(req: NextRequest, { params }: P) {
 
   if (body.amount !== undefined) {
     const planCount = await db.paymentPlanItem.count({ where: { contractId: id } });
-    const invoicesCount = await db.invoice.count({ where: { contractId: id } });
+    // Task 107 — الفواتير الملغاة بلا أثر مالي ولا تحسب في الحواجز
+    const invoicesCount = await db.invoice.count({ where: { contractId: id, status: { not: "void" } } });
     if (core.receipts.length > 0 || planCount > 0 || invoicesCount > 0) {
       return jsonError("لا يمكن تعديل قيمة العقد بعد وجود حركة مالية");
     }
@@ -256,7 +257,7 @@ export async function DELETE(req: NextRequest, { params }: P) {
   const contract = await db.contract.findUnique({ where: { id } });
   if (!contract) return jsonError("العقد غير موجود", 404);
 
-  const invoices = await db.invoice.count({ where: { contractId: id } });
+  const invoices = await db.invoice.count({ where: { contractId: id, status: { not: "void" } } });
   if (invoices > 0) return jsonError("لا يمكن حذف العقد لوجود فواتير مرتبطة به");
 
   const vouchers = await db.voucher.count({ where: { contractId: id, cancelled: false } });

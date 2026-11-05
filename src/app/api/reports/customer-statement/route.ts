@@ -52,7 +52,7 @@ async function buildStatement(contractId: number): Promise<{
     db.invoice.findMany({
       where: { contractId },
       orderBy: [{ invoiceDate: 'asc' }, { id: 'asc' }],
-      select: { invoiceNumber: true, invoiceDate: true, description: true, amount: true },
+      select: { invoiceNumber: true, invoiceDate: true, description: true, total: true, paidAmount: true, status: true },
     }),
     db.voucher.findMany({
       where: { contractId, vtype: 'receipt', cancelled: false },
@@ -78,11 +78,15 @@ async function buildStatement(contractId: number): Promise<{
     netAddendums = round3(netAddendums + net)
   }
   for (const inv of invoices) {
-    // V3.14: الفاتورة للعلم فقط — لا تخفض المديونية
+    // V3.14: الفاتورة للعلم — Task 107: حالة السداد من سندات القبض
+    const total = Number(inv.total)
+    const paid = Number(inv.paidAmount)
+    const suffix =
+      inv.status === 'paid' ? ' · مسددة' : inv.status === 'partial' ? ` · مسدد ${paid.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}` : inv.status === 'void' ? ' · ملغاة' : ''
     movements.push({
       date: isoDay(inv.invoiceDate),
       ref: inv.invoiceNumber,
-      description: `فاتورة (للعلم): ${inv.description || 'فاتورة'} · ${Number(inv.amount).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`,
+      description: `فاتورة (للعلم): ${inv.description || 'فاتورة'} · ${total.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}${suffix}`,
       debit: 0, credit: 0,
     })
   }
