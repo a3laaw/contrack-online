@@ -38,6 +38,7 @@ export const PERMISSIONS: { key: string; label: string; group: string; secretary
   { key: "screen_chart_of_accounts", label: "شاشة دليل الحسابات", group: "الشاشات", secretary: true },
   { key: "screen_journal_entries", label: "شاشة القيود اليومية", group: "الشاشات", secretary: true },
   { key: "screen_ledger", label: "شاشة دفتر الأستاذ والميزان", group: "الشاشات", secretary: true },
+  { key: "screen_fiscal_close", label: "شاشة الفترات والإقفال المالي", group: "الشاشات", secretary: true },
   // ---------- التقارير ----------
   { key: "report_customers_balances", label: "تقرير العملاء والأرصدة", group: "التقارير", secretary: false, desktop: "rep_customers" },
   { key: "report_stage_dues", label: "مستحقات المراحل", group: "التقارير", secretary: true, desktop: "rep_dues_board" },

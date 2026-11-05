@@ -34,6 +34,7 @@ async function fullResetInTx(tx: Tx): Promise<Record<string, number>> {
   await step("addendum_items", () => tx.addendumItem.deleteMany({}));
   await step("sub_contract_items", () => tx.subContractItem.deleteMany({}));
   await step("claims", () => tx.claim.deleteMany({}));
+  await step("fiscal_closings", () => tx.fiscalClosing.deleteMany({}));
   await step("journal_lines", () => tx.journalLine.deleteMany({}));
   await step("journal_entries", () => tx.journalEntry.deleteMany({}));
   await step("fiscal_periods", () => tx.fiscalPeriod.deleteMany({}));

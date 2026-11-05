@@ -50,6 +50,8 @@ const TENANT_MODELS = new Set<string>([
   "account",
   // Task 104 — نواة القيد المزدوج: الأستاذ العام والفترات المالية
   "journalLine", "fiscalYear", "fiscalPeriod",
+  // Task 109 — سجل الإقفالات السنوية الموثق
+  "fiscalClosing",
 ]);
 
 interface Ctx { companyId: number }

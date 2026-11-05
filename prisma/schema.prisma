@@ -922,6 +922,36 @@ model FiscalPeriod {
 }
 
 /**
+ * سجل الإقفال السنوي الموثق (Task 109) — كل إقفال سنة مالية يُوثق سجلًا واحدًا لكل شركة وسنة:
+ * قيد الإغلاق المرتبط + إجمالي الإيرادات والمصروفات ونتيجة السنة + ميزان افتتاحية السنة التالية
+ * (openingSnapshot) لغرض المراجعة — الإعادة للفتح تحوّل الحالة reverted وتلغي قيد الإغلاق
+ * إلغاءً موثقًا (بلا حذف فيزيائي — القيد يبقى في السجل بسبب الإلغاء).
+ */
+model FiscalClosing {
+  companyId       Int          @default(1) @map("company_id")
+  id              Int          @id @default(autoincrement())
+  year            Int
+  status          String       @default("closed") // closed | reverted
+  closingEntryId  Int?         @unique @map("closing_entry_id")
+  closingEntry    JournalEntry? @relation("FiscalClosingEntry", fields: [closingEntryId], references: [id], onDelete: SetNull)
+  totalRevenue    Decimal      @default(0) @db.Decimal(18, 3) @map("total_revenue")
+  totalExpense    Decimal      @default(0) @db.Decimal(18, 3) @map("total_expense")
+  netResult       Decimal      @default(0) @db.Decimal(18, 3) @map("net_result") // موجب = ربح، سالب = خسارة
+  linesCount      Int          @default(0) @map("lines_count") // عدد أسطر الإغلاق (بما فيها سطر الأرباح المحتجزة)
+  openingSnapshot Json?        @map("opening_snapshot") // ميزان افتتاحية السنة التالية — أرصدة محمولة موثقة
+  notes           String       @default("")
+  closedBy        String       @map("closed_by")
+  closedAt        DateTime     @default(now()) @map("closed_at")
+  revertedAt      DateTime?    @map("reverted_at")
+  revertReason    String       @default("") @map("revert_reason")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  @@unique([companyId, year])
+  @@index([companyId, status])
+  @@map("fiscal_closings")
+}
+
+/**
  * قاعدة ترحيل السندات — قالب القيد الآلي لكل صنف سند (Task 106).
  * قرار هيكلي: قواعد القيد تُعلن ولا تُصلب — لكل شركة نسخها القابلة للضبط،
  * والبذرة النظامية (isSystem) تطابق المنطق المدمج حرفيًا فتعمل الشركة بلا أي ضبط.
@@ -968,6 +998,7 @@ model JournalEntry {
   cancelReason String         @default("") @map("cancel_reason")
   lines        JournalLine[]
   invoices     Invoice[]     @relation("InvoiceEntry") // فواتير أصدرت هذا القيد (Task 107)
+  closingRecord FiscalClosing? @relation("FiscalClosingEntry") // إقفال سنوي وثّق بهذا القيد (Task 109)
   createdAt    DateTime      @default(now()) @map("created_at")
 
   @@unique([companyId, entryNo])

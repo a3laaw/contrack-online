@@ -91,6 +91,7 @@ export const VIEW_PERMS: Partial<Record<ViewName, string>> = {
   "chart-of-accounts": "screen_chart_of_accounts",
   "journal-entries": "screen_journal_entries",
   ledger: "screen_ledger",
+  "fiscal-close": "screen_fiscal_close",
   reports: "screen_reports",
   settings: "screen_settings",
 };

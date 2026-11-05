@@ -118,6 +118,7 @@ const SOURCE_LABEL: Record<string, string> = {
   invoice: "فاتورة",
   reversal: "قيد عكسي",
   migration: "قيد مرحَّل",
+  closing: "إغلاق سنوي",
 };
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {

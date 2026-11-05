@@ -29,6 +29,7 @@ export type ViewName =
   | "chart-of-accounts"
   | "journal-entries"
   | "ledger"
+  | "fiscal-close"
   | "settings"
   | "users"
   | "data-mgmt"

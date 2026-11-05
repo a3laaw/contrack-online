@@ -21,6 +21,7 @@ import {
   LayoutTemplate,
   ListChecks,
   ListTodo,
+  LockKeyhole,
   MessageSquareText,
   Receipt,
   ReceiptText,
@@ -134,6 +135,8 @@ export const NAV_MODULES: NavModule[] = [
       { id: "journal-entries", label: "القيود اليومية", icon: ScrollText, view: "journal-entries", flag: "full_accounting", perm: "screen_journal_entries" },
       // Task 108 — دفتر الأستاذ + ميزان المراجعة + أعمار الذمم: مخرجات الأستاذ (مصدر الحقيقة)
       { id: "ledger", label: "دفتر الأستاذ والميزان", icon: Scale, view: "ledger", flag: "full_accounting", perm: "screen_ledger" },
+      // Task 109 — الفترات المالية والإقفال السنوي الموثق (قفل الشهور + قيد الإغلاق + الافتتاحية)
+      { id: "fiscal-close", label: "الفترات والإقفال", icon: LockKeyhole, view: "fiscal-close", flag: "full_accounting", perm: "screen_fiscal_close" },
       // بند 5 مواءمة PAGE_PERMS: مفتاحان منفصلان كالمكتبي حرفيًا (main_window.py:782-787
       // سندات القبض ← screen_receipts · سندات الصرف ← screen_payments) —
       // بوابة الـAPI تبقى screen_vouchers (الدمج المكتبي الموثق) فلا تغيير بأي حارس مسار
