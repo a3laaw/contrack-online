@@ -136,6 +136,8 @@ export interface VoucherItem {
   cancelReason?: string;
   receiptGroupRef?: string;
   feeChildren?: { voucherNumber: string; amount: number }[];
+  /** أرقام القيود المرتبطة بالسند (posted مصدره سند) — Task 106 */
+  entryNos?: number[];
 }
 
 export interface VouchersResponse {
@@ -148,10 +150,39 @@ export interface VoucherLinkRow {
   kind: string;
 }
 
+/** سطر القيد المرتبط بالسند (Task 106) */
+export interface VoucherJournalLineRow {
+  accountCode: string;
+  accountName: string;
+  debit: number;
+  credit: number;
+  description: string;
+}
+
+/** القيد المرتبط بالسند كما تعيده تفاصيل السند (Task 106) */
+export interface VoucherJournalRow {
+  id: number;
+  entryNo: number;
+  entryDate: string;
+  description: string;
+  status: string;
+  sourceType: string;
+  amount: number;
+  lines: VoucherJournalLineRow[];
+}
+
 export interface VoucherDetailResponse {
-  item: VoucherItem;
-  links: VoucherLinkRow[];
-  feeChildren: { voucherNumber: string; amount: number }[];
+  /** الـAPI يعيد كل شيء داخل كائن voucher (بما فيها links/feeChildren/journals) */
+  voucher: VoucherItem & {
+    notes?: string;
+    chequeDueDate?: string;
+    costCenter?: string;
+    links?: (VoucherLinkRow & { lineTitle?: string })[];
+    feeChildren?: { id: number; voucherNumber: string; vtype?: string; amount: number; cancelled?: boolean; cancelReason?: string }[];
+    /** القيود المرتبطة (أصلية/عكس إلغاء/رسوم) بأسطرها — Task 106 */
+    journals?: VoucherJournalRow[];
+    createdAt?: string;
+  };
 }
 
 /** خط دفعة من /api/payment-link — يُستخدم للربط بالسند ولخطة الباطن */

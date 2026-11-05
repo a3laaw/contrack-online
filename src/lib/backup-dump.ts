@@ -80,7 +80,9 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "workflowStage", table: "workflow_stages", serial: true }, // FK ذاتي
   { model: "paymentMethod", table: "payment_methods", serial: true },
   // Task 102 — دليل الحسابات الكامل (FK ذاتي: شجرة) — قبل السندات لترابط الحسابات (Task 105: الدليل الوحيد)
-  { model: "account", table: "accounts", serial: true }, // FK ذاتي
+  { model: "account", table: "accounts", serial: true },
+  // Task 106 — قواعد ترحيل السندات (أكواد نصية بلا FK — منطقيًا بعد الدليل وقبل السندات)
+  { model: "postingRule", table: "posting_rules", serial: false },
   { model: "employee", table: "employees", serial: true },
   { model: "visitStaff", table: "visit_staff", serial: true },
   { model: "gatewayProfile", table: "gateway_profiles", serial: true },

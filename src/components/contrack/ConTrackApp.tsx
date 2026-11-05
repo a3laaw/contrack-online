@@ -108,6 +108,8 @@ function AppRoot() {
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [statementTarget, setStatementTarget] = React.useState<StatementTarget | null>(null);
   const [vouchersPresetQ, setVouchersPresetQ] = React.useState<string | null>(null);
+  // Task 106 — فتح قيد سند في القيود اليومية بالبحث برقمه
+  const [journalPresetQ, setJournalPresetQ] = React.useState<string | null>(null);
 
   // ===== وضع السندات وأقسام الإعدادات وإدارة البيانات والتقارير (هيكل التنقل المعتمد) =====
   const [vouchersMode, setVouchersMode] = React.useState<"receipt" | "payment">("receipt");
@@ -265,6 +267,15 @@ function AppRoot() {
     [navigate]
   );
 
+  // Task 106 — فتح قيد مرتبط بسند في القيود اليومية بالبحث برقمه
+  const openJournalWithQ = React.useCallback(
+    (entryNo: string) => {
+      setJournalPresetQ(entryNo);
+      navigate("journal-entries");
+    },
+    [navigate]
+  );
+
   // زر «عقد جديد» من شاشة العملاء ⇒ فتح معالج العقد مع العميل محددًا مسبقًا
   const startNewContractForCustomer = React.useCallback(
     (customerId: number) => {
@@ -363,6 +374,7 @@ function AppRoot() {
           presetQ={vouchersPresetQ}
           onConsumePresetQ={() => setVouchersPresetQ(null)}
           initialMode={vouchersMode}
+          onOpenJournal={openJournalWithQ}
         />
       )}
       {view === "custody" && <CustodyView user={user} onAuthError={onAuthError} />}
@@ -371,7 +383,9 @@ function AppRoot() {
       {view === "gateway" && <GatewayView user={user} onAuthError={onAuthError} />}
       {view === "other-company" && <OtherCompanyView user={user} onAuthError={onAuthError} />}
       {view === "chart-of-accounts" && <ChartOfAccountsView onAuthError={onAuthError} />}
-      {view === "journal-entries" && <JournalEntriesView onAuthError={onAuthError} />}
+      {view === "journal-entries" && (
+        <JournalEntriesView onAuthError={onAuthError} presetQ={journalPresetQ} onConsumePresetQ={() => setJournalPresetQ(null)} />
+      )}
       {view === "subcontractors" && <SubcontractorsView user={user} onAuthError={onAuthError} />}
       {view === "reports" && (
         <ReportsView user={user} onAuthError={onAuthError} selected={reportsKey} onSelect={setReportsKey} />

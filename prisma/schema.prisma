@@ -920,6 +920,34 @@ model FiscalPeriod {
   @@map("fiscal_periods")
 }
 
+/**
+ * قاعدة ترحيل السندات — قالب القيد الآلي لكل صنف سند (Task 106).
+ * قرار هيكلي: قواعد القيد تُعلن ولا تُصلب — لكل شركة نسخها القابلة للضبط،
+ * والبذرة النظامية (isSystem) تطابق المنطق المدمج حرفيًا فتعمل الشركة بلا أي ضبط.
+ * الحسم عند النشر بأولوية صارمة:
+ *   1) اختيار السند الصريح (accountId/custodyAccountId من الدليل الموحد)
+ *   2) كود القاعدة القابل للضبط (debitCode/creditCode إن لم يكن فارغًا)
+ *   3) الافتراضي المدمج في النواة (posting-rules-core) — شبكة أمان إن كانت
+ *      القاعدة معطلة أو كودها فارغًا أو الكود غير موجود في الدليل
+ * الأكواد نصية (لا FK) — حسمها إلى id يتكرر عند كل نشر على الدليل الحي،
+ * فتظهر القاعدة المتضاربة مع الدليل خطأً واضحًا عند الحفظ لا صمتًا عند النشر.
+ */
+model PostingRule {
+  companyId  Int      @default(1) @map("company_id")
+  id         Int      @id @default(autoincrement())
+  ruleKey    String   @map("rule_key") // مفتاح من POSTING_RULE_CATALOG (receipt|payment_expense|…)
+  label      String   @default("") // التسمية المعروضة عند البذر (تُحدَّث من الكتالوج إن فارغت)
+  debitCode  String   @default("") @map("debit_code") // كود حساب الطرف المدين الثابت — فارغ = سياقي
+  creditCode String   @default("") @map("credit_code") // كود حساب الطرف الدائن الثابت — فارغ = سياقي
+  enabled    Boolean  @default(true) // القاعدة المعطلة ترجع كليًا للافتراضي المدمج
+  isSystem   Boolean  @default(true) @map("is_system") // بذرة النظام: تُعدَّل أكوادها ولا تُحذف
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([companyId, ruleKey])
+  @@map("posting_rules")
+}
+
 /** رأس القيد — status: posted (منشور يُحسب في الأرصدة) | draft | cancelled (مُلغى لا يُحسب) */
 model JournalEntry {
   companyId    Int            @default(1) @map("company_id")

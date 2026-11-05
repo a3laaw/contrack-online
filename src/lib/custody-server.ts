@@ -794,7 +794,7 @@ async function createAdvanceVoucherInTx(
     },
   });
   if (params.kind === "grant") {
-    // مدين سلف موظفين دائن الصندوق (test_v453: قيد الصرف)
+    // مدين سلف موظفين دائن الصندوق (test_v453: قيد الصرف) — عبر قواعد الترحيل (Task 106)
     await insertVoucherJournal(tx, {
       id: voucher.id,
       voucherNumber,
@@ -806,8 +806,10 @@ async function createAdvanceVoucherInTx(
       contractId: null,
       subContractId: null,
       accountId: params.advanceAccount.id,
+      custodyAccountId: null,
       accountSnapshot: params.advanceAccount.name,
       partyType: "",
+      employeeId: params.employee.id,
     });
   } else {
     // مدين الصندوق دائن سلف موظفين — يدخل الخزينة ويخفض المصروف بلا إيراد ولا رسوم (test_v453)

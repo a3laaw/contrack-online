@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { authGuard, jsonError, normalizeArabic, ok } from "@/lib/api-utils";
 import { createVoucher, VoucherError, VOUCHER_TYPE_LABELS, CreateVoucherInput } from "@/lib/voucher-server";
+import { VOUCHER_JOURNAL_SOURCES } from "@/lib/accounting-journal";
 
 /** قائمة السندات بفلاتر: vtype / q / contractId / subContractId / partyType+partyId / from,to / includeCancelled */
 export async function GET(req: NextRequest) {
@@ -59,6 +60,20 @@ export async function GET(req: NextRequest) {
   const customerNames = new Map(customers.map((c) => [c.id, c.name]));
   const subNames = new Map(subcontractors.map((s) => [s.id, s.name]));
 
+  // القيود المرتبطة بالسندات المعروضة دفعة واحدة (Task 106: شارة رقم القيد في القائمة)
+  const rowIds = rows.map((r) => r.id);
+  const journalRows = await db.journalEntry.findMany({
+    where: { sourceType: { in: VOUCHER_JOURNAL_SOURCES }, sourceId: { in: rowIds.length ? rowIds : [0] }, status: "posted" },
+    select: { sourceId: true, entryNo: true, status: true },
+  });
+  const entryNosByVoucher = new Map<number, number[]>();
+  for (const j of journalRows) {
+    if (j.sourceId == null) continue;
+    const list = entryNosByVoucher.get(j.sourceId) ?? [];
+    list.push(j.entryNo);
+    entryNosByVoucher.set(j.sourceId, list);
+  }
+
   const nq = normalizeArabic(q);
   const items = rows
     .filter((r) => {
@@ -104,6 +119,7 @@ export async function GET(req: NextRequest) {
       cancelled: r.cancelled,
       cancelReason: r.cancelReason,
       cancelledAt: r.cancelledAt,
+      entryNos: entryNosByVoucher.get(r.id) ?? [],
       feeChildren: r.feeChildren.map((c) => ({ id: c.id, voucherNumber: c.voucherNumber, amount: Number(c.amount) })),
     }));
 

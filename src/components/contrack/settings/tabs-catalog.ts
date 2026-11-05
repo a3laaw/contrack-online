@@ -38,10 +38,11 @@ export const TAB_SECURITY_SECRETARY = "◆  كلمة المرور";
 export const TAB_CONTRACT_TYPES = "☰  أنواع العقود";
 export const TAB_WORKFLOW = "⇄  مراحل المتابعة";
 export const TAB_VISITS = "◷  جدول الزيارات";
+export const TAB_POSTING_RULES = "≡  قواعد الترحيل";
 export const TAB_BACKUP = "⊞  البيانات والنسخ الاحتياطي";
 export const TAB_DEVELOPER = "⚙  أدوات المطور";
 
-/** كل التبويبات التسعة بترتيب المكتبي _build (الإدارية الثمانية + أدوات المطور) */
+/** كل التبويبات بترتيب المكتبي _build (الإدارية الثمانية + قواعد الترحيل Task 106 + أدوات المطور) */
 export const SETTINGS_TABS: SettingsTabDef[] = [
   { value: "company", label: TAB_COMPANY, adminOnly: true, developerOnly: false },
   // Task 97 — قرار معتمد: الشركات للمطور حصرًا (البابان معًا = يستثني المدير والسكرتير)
@@ -51,6 +52,8 @@ export const SETTINGS_TABS: SettingsTabDef[] = [
   { value: "contract-types", label: TAB_CONTRACT_TYPES, adminOnly: true, developerOnly: false },
   { value: "workflow", label: TAB_WORKFLOW, adminOnly: true, developerOnly: false },
   { value: "visits", label: TAB_VISITS, adminOnly: true, developerOnly: false },
+  // Task 106 — قوالب قيود السندات القابلة للضبط لكل شركة (بعد الزيارات وقبل النسخ)
+  { value: "posting-rules", label: TAB_POSTING_RULES, adminOnly: true, developerOnly: false },
   { value: "backup", label: TAB_BACKUP, adminOnly: true, developerOnly: false },
   { value: "developer", label: TAB_DEVELOPER, adminOnly: false, developerOnly: true },
 ];

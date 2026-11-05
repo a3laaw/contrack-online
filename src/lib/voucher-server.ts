@@ -36,6 +36,7 @@ import {
 } from "@/lib/voucher-describe";
 import { postNamedEntry, postJournalEntry } from "@/lib/journal-server";
 import { VOUCHER_JOURNAL_SOURCES } from "@/lib/accounting-journal";
+import { insertVoucherJournal } from "@/lib/posting-rules-server";
 
 export type Tx = Prisma.TransactionClient;
 export type DbClient = Prisma.TransactionClient | PrismaClient;
@@ -522,70 +523,8 @@ export async function employeeAdvanceRemaining(client: DbClient, employeeId: num
 
 // ==================== القيود المحاسبية ====================
 
-/** القيد التلقائي عند إنشاء السند (_insert_voucher_journal) */
-export async function insertVoucherJournal(
-  tx: Tx,
-  v: {
-    id: number;
-    voucherNumber: string;
-    vtype: string;
-    vdate: string;
-    amount: number;
-    account: string;
-    method: string;
-    contractId: number | null;
-    subContractId: number | null;
-    /** الحساب الرئيسي من الدليل الموحد (مصروف في الصرف/التصفية) */
-    accountId?: number | null;
-    /** طرف العهدة (handover/return/تصفية) */
-    custodyAccountId?: number | null;
-    accountSnapshot: string;
-    partyType: string;
-  }
-): Promise<void> {
-  // Task 105: الحساب من الدليل الموحد (accountId) أولويةً، والطرف النصي الحر (نقدية/بنك/العملاء…)
-  // يُحسم بمحرك postNamedEntry (الدليل → الخريطة الثابتة → التسوية)
-  let debit = "";
-  let credit = "";
-  let debitAccountId: number | null = null;
-  let creditAccountId: number | null = null;
-  switch (v.vtype) {
-    case "receipt":
-      debit = v.account || defaultAccountForMethod(v.method);
-      credit = v.contractId ? "إيرادات العقود" : "العملاء";
-      break;
-    case "payment":
-      debit = v.accountSnapshot || (v.partyType === "partner" ? "جاري الشريك" : "مصروفات أخرى");
-      debitAccountId = v.accountId ?? null;
-      credit = v.account || defaultAccountForMethod(v.method);
-      break;
-    case "transfer":
-      debit = v.account || "بنك";
-      credit = v.method || "صندوق";
-      break;
-    case "custody_return":
-      debit = v.account || defaultAccountForMethod(v.method);
-      credit = v.accountSnapshot || "العهد";
-      creditAccountId = v.custodyAccountId ?? null;
-      break;
-    case "salary_deduction":
-      debit = "رواتب";
-      credit = "سلف موظفين";
-      break;
-    default:
-      return; // نوع غير معروف — بلا قيد (كما كان)
-  }
-  await postNamedEntry(tx, {
-    entryDate: v.vdate,
-    description: `${VOUCHER_TYPE_LABELS[v.vtype] || v.vtype} ${v.voucherNumber}`,
-    debit: { name: debit, accountId: debitAccountId },
-    credit: { name: credit, accountId: creditAccountId },
-    amount: v.amount,
-    dims: { contractId: v.contractId, subContractId: v.subContractId },
-    sourceType: "voucher",
-    sourceId: v.id,
-  });
-}
+/** القيد التلقائي عند إنشاء السند — Task 106: المحرك انتقل إلى posting-rules-server (قواعد قابلة للضبط) */
+export { insertVoucherJournal };
 
 /** عكس قيود السند بصنم voucher_cancel — عبر المحرك: أسطر معكوسة بنفس الأبعاد */
 export async function reverseVoucherJournals(tx: Tx, voucherId: number, reason: string): Promise<void> {
@@ -1192,6 +1131,11 @@ export async function createVoucher(
           custodyAccountId: prep.custodyAccountId,
           accountSnapshot: prep.accountSnapshot,
           partyType: prep.partyType,
+          // الأبعاد الكاملة على سطر القيد (Task 106)
+          customerId: prep.expenseCustomerId ?? (prep.partyType === "customer" ? prep.partyId : null),
+          boqItemId: prep.boqItemId,
+          employeeId: prep.advanceEmployeeId,
+          costCenter: prep.costCenter,
         });
 
         // الرسوم البنكية للقبض
@@ -1482,6 +1426,12 @@ export async function updateVoucher(
       custodyAccountId: v.custodyAccountId,
       accountSnapshot: v.accountSnapshot ?? "",
       partyType: v.partyType,
+      // الأبعاد الكاملة على سطر القيد (Task 106)
+      customerId: v.expenseCustomerId ?? (v.partyType === "customer" ? v.partyId : null),
+      boqItemId: v.boqItemId,
+      projectId: v.projectId,
+      employeeId: v.advanceEmployeeId,
+      costCenter: v.costCenter,
     });
 
     // إعادة موازنة رسوم الأبناء عند تغيّر method/amount

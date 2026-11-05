@@ -135,7 +135,16 @@ interface DraftLine {
 
 const emptyLine = (): DraftLine => ({ accountId: "", debit: "", credit: "", description: "" });
 
-export function JournalEntriesView({ onAuthError }: { onAuthError: () => void }) {
+export function JournalEntriesView({
+  onAuthError,
+  presetQ,
+  onConsumePresetQ,
+}: {
+  onAuthError: () => void;
+  /** بحث مسبق (رقم القيد من شاشة السندات — Task 106) */
+  presetQ?: string | null;
+  onConsumePresetQ?: () => void;
+}) {
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -147,6 +156,16 @@ export function JournalEntriesView({ onAuthError }: { onAuthError: () => void })
   const [q, setQ] = React.useState("");
   const [page, setPage] = React.useState(1);
   const [expanded, setExpanded] = React.useState<number | null>(null);
+
+  // بحث مسبق (فتح قيد سند من شاشة السندات) — يُستهلك مرة واحدة
+  React.useEffect(() => {
+    if (presetQ != null) {
+      setStatus("all");
+      setQ(presetQ);
+      setPage(1);
+      onConsumePresetQ?.();
+    }
+  }, [presetQ]);
 
   const filtersQs = React.useCallback(() => {
     const p = new URLSearchParams();

@@ -9,6 +9,8 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { adminGuard, audit, jsonError, ok } from "@/lib/api-utils";
 import { hashPassword } from "@/lib/auth";
+import { ensurePostingRules } from "@/lib/posting-rules-server";
+import { forCompany } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   const guard = await adminGuard(req);
@@ -101,6 +103,8 @@ export async function POST(req: NextRequest) {
       notes: String(body.notes || "").trim(),
     },
   });
+  // قواعد ترحيل السندات الافتراضية للشركة الجديدة (Task 106) — بسياق الشركة المُنشأة
+  await ensurePostingRules(forCompany(company.id));
   if (wantsAdmin && h) {
     // مدير الشركة الأول — admin بصلاحيات دور المدير الافتراضية كاملة داخل شركته
     await db.user.create({

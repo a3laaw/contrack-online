@@ -122,6 +122,7 @@ export async function POST(req: NextRequest) {
           subContractId: null,
           accountSnapshot: "",
           partyType: "customer",
+          customerId: core.contract.customerId,
         });
         await tx.contractEvent.create({
           data: {

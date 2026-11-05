@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import type { PrismaClient } from "@prisma/client";
+import { ensurePostingRules } from "@/lib/posting-rules-server";
 
 /**
  * بذر البيانات المرجعية الافتراضية — مطابق لقيم المصدر (database.py:1532-1556
@@ -138,6 +139,10 @@ export async function ensureSeedData(client?: PrismaClient): Promise<{ seeded: s
     }
     seeded.push("contract_types");
   }
+
+  // Task 106 — قواعد ترحيل السندات الافتراضية (PostingRule) — بلا كتابة إن وُجدت
+  const rules = await ensurePostingRules(d);
+  if (rules.created > 0) seeded.push("posting_rules");
 
   return { seeded };
 }

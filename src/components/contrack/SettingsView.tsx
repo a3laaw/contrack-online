@@ -32,6 +32,7 @@ import { AppearanceTab } from "./settings/appearance-tab";
 import { SecurityTab } from "./settings/security-tab";
 import { WorkflowTab } from "./settings/workflow-tab";
 import { VisitsTab } from "./settings/visits-tab";
+import { PostingRulesTab } from "./settings/posting-rules-tab";
 import { BackupTab } from "./settings/backup-tab";
 import { DeveloperTab } from "./settings/developer-tab";
 import { type SettingsFormDTO } from "./settings/shared";
@@ -169,6 +170,9 @@ export function SettingsView({ user, onAuthError, initialSection }: SettingsView
 
         {/* ===== 6) جدول الزيارات (مدير) ===== */}
         {manager && <TabsContent value="visits"><VisitsTab onAuthError={onAuthError} /></TabsContent>}
+
+        {/* ===== 6-ب) قواعد الترحيل (مدير — Task 106): قوالب القيد الآلي للسندات ===== */}
+        {manager && <TabsContent value="posting-rules"><PostingRulesTab onAuthError={onAuthError} /></TabsContent>}
 
         {/* ===== 7) البيانات والنسخ الاحتياطي (مدير) ===== */}
         {manager && (

@@ -20,6 +20,7 @@ import {
   TAB_DEVELOPER,
   TAB_SECURITY_ADMIN,
   TAB_SECURITY_SECRETARY,
+  TAB_POSTING_RULES,
   TAB_VISITS,
   TAB_WORKFLOW,
   defaultSettingsTab,
@@ -29,7 +30,7 @@ import {
 } from "@/components/contrack/settings/tabs-catalog";
 
 describe("SETTINGS_TABS — التبويبات بترتيب المكتبي وأسمائه الحرفية (settings.py:509-532)", () => {
-  test("ثمانية تبويبات إدارية + أدوات المطور بترتيب _build (Task 105: سقط تبويب شجرة المصروفات مع الجدول)", () => {
+  test("عشرة تبويبات إدارية + أدوات المطور بترتيب _build (Task 106: تاب قواعد الترحيل بعد الزيارات)", () => {
     expect(SETTINGS_TABS.map((t) => t.value)).toEqual([
       "company",
       "companies",
@@ -38,6 +39,7 @@ describe("SETTINGS_TABS — التبويبات بترتيب المكتبي وأ�
       "contract-types",
       "workflow",
       "visits",
+      "posting-rules",
       "backup",
       "developer",
     ]);
@@ -53,13 +55,14 @@ describe("SETTINGS_TABS — التبويبات بترتيب المكتبي وأ�
     expect(byValue.get("expense-accounts")).toBeUndefined(); // Task 105 — أُسقط مع الشجرة القديمة
     expect(byValue.get("workflow")).toBe("⇄  مراحل المتابعة");
     expect(byValue.get("visits")).toBe("◷  جدول الزيارات");
+    expect(byValue.get("posting-rules")).toBe("≡  قواعد الترحيل"); // Task 106
     expect(byValue.get("backup")).toBe("⊞  البيانات والنسخ الاحتياطي");
     expect(byValue.get("developer")).toBe("⚙  أدوات المطور");
   });
 
   test("بوابات الأدوار: الإدارية adminOnly وأدوات المطور developerOnly", () => {
     const adminOnly = SETTINGS_TABS.filter((t) => t.adminOnly).map((t) => t.value);
-    expect(adminOnly).toEqual(["company", "companies", "contract-types", "workflow", "visits", "backup"]);
+    expect(adminOnly).toEqual(["company", "companies", "contract-types", "workflow", "visits", "posting-rules", "backup"]);
     // Task 97 — قرار معتمد: الشركات للمطور حصرًا (انحراف ويب موثق عن المكتبي)
     const devOnly = SETTINGS_TABS.filter((t) => t.developerOnly).map((t) => t.value);
     expect(devOnly).toEqual(["companies", "developer"]);
@@ -76,6 +79,7 @@ describe("visibleSettingsTabs — قواعد الظهور الثلاثة كال�
       "contract-types",
       "workflow",
       "visits",
+      "posting-rules",
       "backup",
     ]);
   });
@@ -83,7 +87,7 @@ describe("visibleSettingsTabs — قواعد الظهور الثلاثة كال�
   test("المطور: كل التبويبات — is_admin يشمل المطور (auth_service.py:168)", () => {
     const tabs = visibleSettingsTabs(true, true);
     expect(tabs.map((t) => t.value)).toEqual(SETTINGS_TABS.map((t) => t.value));
-    expect(tabs.length).toBe(9); // Task 105: 8 إدارية + أدوات المطور (سقط تبويب الشجرة القديمة)
+    expect(tabs.length).toBe(10); // Task 106: 9 إدارية + أدوات المطور
   });
 
   test("السكرتير: الطباعة والعرض + كلمة المرور فقط بترتيب المكتبي (settings.py:510-515)", () => {
@@ -110,7 +114,7 @@ describe("visibleSettingsTabs — قواعد الظهور الثلاثة كال�
 
 describe("resolveInitialSection — قسم الشل إلى تبويب صالح للدور", () => {
   test("أقسام الشل الحقيقية تمر كما هي للمدير", () => {
-    for (const s of ["company", "appearance", "security", "contract-types", "workflow", "visits"]) {
+    for (const s of ["company", "appearance", "security", "contract-types", "workflow", "visits", "posting-rules"]) {
       expect(resolveInitialSection(s, true, false)).toBe(s);
     }
   });

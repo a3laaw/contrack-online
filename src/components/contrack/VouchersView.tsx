@@ -44,8 +44,9 @@ import { useToast } from "@/hooks/use-toast";
 import { apiGet } from "./api";
 import { errMessage, isManagerRole } from "./contrack-types";
 import { VOUCHER_TYPE_BADGE, VOUCHER_TYPE_LABEL } from "./contrack-types";
-import type { User, VoucherDetailResponse, VoucherItem, VouchersResponse } from "./contrack-types";
+import type { User, VoucherDetailResponse, VoucherItem, VoucherJournalRow, VoucherLinkRow, VouchersResponse } from "./contrack-types";
 import { fmtDate, formatKWD, statusBadgeClass } from "@/lib/format";
+import { ScrollText, Landmark } from "lucide-react";
 import { VoucherPage } from "./VoucherPage";
 
 interface VouchersViewProps {
@@ -56,6 +57,8 @@ interface VouchersViewProps {
   onConsumePresetQ?: () => void;
   /** الوضع المبدئي من القائمة الجانبية: سندات القبض / سندات الصرف */
   initialMode?: "receipt" | "payment";
+  /** فتح القيد في شاشة القيود اليومية بالبحث برقمه (Task 106) */
+  onOpenJournal?: (entryNo: string) => void;
 }
 
 const TYPE_FILTERS: { v: string; label: string }[] = [
@@ -67,7 +70,7 @@ const TYPE_FILTERS: { v: string; label: string }[] = [
   { v: "salary_deduction", label: "خصم راتب" },
 ];
 
-export function VouchersView({ user, onAuthError, presetQ, onConsumePresetQ, initialMode }: VouchersViewProps) {
+export function VouchersView({ user, onAuthError, presetQ, onConsumePresetQ, initialMode, onOpenJournal }: VouchersViewProps) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const manager = isManagerRole(user.role);
@@ -298,6 +301,7 @@ export function VouchersView({ user, onAuthError, presetQ, onConsumePresetQ, ini
                     <TableHead className="w-28">التاريخ</TableHead>
                     <TableHead>الطرف</TableHead>
                     <TableHead>الوصف</TableHead>
+                    <TableHead className="w-24">القيد</TableHead>
                     <TableHead className="text-start">المبلغ</TableHead>
                     <TableHead className="w-24">الحالة</TableHead>
                     <TableHead className="w-20">إجراءات</TableHead>
@@ -321,6 +325,28 @@ export function VouchersView({ user, onAuthError, presetQ, onConsumePresetQ, ini
                         </TableCell>
                         <TableCell className="max-w-48">
                           <span className="block truncate text-muted-foreground">{v.description || "—"}</span>
+                        </TableCell>
+                        <TableCell>
+                          {(v.entryNos?.length ?? 0) > 0 ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenJournal?.(String(v.entryNos![0]))}
+                                  className="inline-flex items-center gap-1 rounded-md border border-status-info/40 bg-status-info-bg px-1.5 py-0.5 text-[11px] font-semibold text-status-info transition-colors hover:bg-status-info/15"
+                                  aria-label={`فتح القيد رقم ${v.entryNos![0]}`}
+                                >
+                                  <ScrollText className="size-3" />
+                                  <span dir="ltr">#{v.entryNos![0]}</span>
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs">
+                                القيد المرتبط — انقر للفتح في القيود اليومية
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-end font-bold tabular-nums" dir="ltr">{formatKWD(v.amount)}</TableCell>
                         <TableCell>
@@ -386,6 +412,16 @@ export function VouchersView({ user, onAuthError, presetQ, onConsumePresetQ, ini
                   <span className="font-bold tabular-nums" dir="ltr">{formatKWD(v.amount)}</span>
                 </div>
                 {v.description && <p className="truncate text-xs text-muted-foreground">{v.description}</p>}
+                {(v.entryNos?.length ?? 0) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenJournal?.(String(v.entryNos![0]))}
+                    className="inline-flex w-fit items-center gap-1 rounded-md border border-status-info/40 bg-status-info-bg px-1.5 py-0.5 text-[10px] font-semibold text-status-info"
+                  >
+                    <ScrollText className="size-3" />
+                    <span dir="ltr">قيد #{v.entryNos![0]}</span>
+                  </button>
+                )}
                 {v.cancelled && v.cancelReason && <p className="text-xs text-status-danger">السبب: {v.cancelReason}</p>}
                 <div className="flex justify-end gap-1">
                   <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setDetailId(v.id)}>
@@ -423,7 +459,7 @@ export function VouchersView({ user, onAuthError, presetQ, onConsumePresetQ, ini
               <Loader2 className="size-4 animate-spin" /> جارٍ التحميل…
             </div>
           ) : detailQuery.data ? (
-            <VoucherDetailBody data={detailQuery.data} />
+            <VoucherDetailBody data={detailQuery.data} onOpenJournal={onOpenJournal} />
           ) : (
             <p className="py-4 text-center text-sm text-destructive">{errMessage(detailQuery.error)}</p>
           )}
@@ -472,8 +508,20 @@ export function VouchersView({ user, onAuthError, presetQ, onConsumePresetQ, ini
 }
 
 /** جسم نافذة التفاصيل — مشترك بين شاشة السندات وتبويب سندات العقد */
-export function VoucherDetailBody({ data }: { data: VoucherDetailResponse }) {
-  const v = data.item;
+export function VoucherDetailBody({
+  data,
+  onOpenJournal,
+}: {
+  data: VoucherDetailResponse;
+  onOpenJournal?: (entryNo: string) => void;
+}) {
+  // مفتاح الاستجابة «voucher» (Task 104 أعادت هيكلة المسار) — مع تحمّل الأشكال القديمة
+  const v = (data as { voucher?: VoucherDetailResponse["voucher"]; item?: VoucherDetailResponse["voucher"] }).voucher ?? (data as { item?: VoucherDetailResponse["voucher"] }).item;
+  if (!v) return <p className="py-4 text-center text-sm text-destructive">تعذر تحميل تفاصيل السند.</p>;
+  // القيود والروابط داخل كائن السند (شكل الـAPI الحالي) مع تحمّل الشكل الجذري القديم
+  const journals: VoucherJournalRow[] = v.journals ?? ((data as { journals?: VoucherJournalRow[] }).journals ?? []);
+  const links: (VoucherLinkRow & { lineTitle?: string })[] =
+    v.links ?? ((data as { links?: (VoucherLinkRow & { lineTitle?: string })[] }).links ?? []);
   const rows: { label: string; value: React.ReactNode }[] = [
     { label: "النوع", value: VOUCHER_TYPE_LABEL[v.vtype] || v.vtype },
     { label: "التاريخ", value: fmtDate(v.vdate) },
@@ -510,13 +558,13 @@ export function VoucherDetailBody({ data }: { data: VoucherDetailResponse }) {
           </div>
         ))}
       </div>
-      {(data.links?.length ?? 0) > 0 && (
+      {links.length > 0 && (
         <div>
           <p className="mb-1 text-xs font-semibold">خطوط الربط بالدفعات</p>
           <div className="max-h-36 space-y-1 overflow-y-auto">
-            {data.links.map((l) => (
-              <div key={l.lineId} className="flex items-center justify-between rounded-md border px-2 py-1.5 text-xs">
-                <span>خط #{l.lineId} — {l.kind}</span>
+            {links.map((l, i) => (
+              <div key={`${l.lineId}-${i}`} className="flex items-center justify-between rounded-md border px-2 py-1.5 text-xs">
+                <span>{l.lineTitle ? `${l.lineTitle} — ` : ""}خط #{l.lineId} — {l.kind}</span>
                 <span className="font-bold tabular-nums" dir="ltr">{formatKWD(l.amount)}</span>
               </div>
             ))}
@@ -536,6 +584,70 @@ export function VoucherDetailBody({ data }: { data: VoucherDetailResponse }) {
           </div>
         </div>
       )}
+      <VoucherJournalsSection journals={journals} onOpenJournal={onOpenJournal} />
+    </div>
+  );
+}
+
+/** القيود المرتبطة بالسند (القيد الآلي + عكس الإلغاء + رسوم الأبناء) — Task 106 */
+function VoucherJournalsSection({
+  journals,
+  onOpenJournal,
+}: {
+  journals: VoucherJournalRow[];
+  onOpenJournal?: (entryNo: string) => void;
+}) {
+  if (journals.length === 0) return null;
+  return (
+    <div>
+      <p className="mb-1 flex items-center gap-1 text-xs font-semibold">
+        <Landmark className="size-3.5 text-status-info" />
+        القيود المحاسبية المرتبطة ({journals.length})
+      </p>
+      <div className="max-h-64 space-y-2 overflow-y-auto pe-1">
+        {journals.map((j) => (
+          <div key={j.id} className="rounded-md border p-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {onOpenJournal && j.status !== "cancelled" ? (
+                <button
+                  type="button"
+                  onClick={() => onOpenJournal(String(j.entryNo))}
+                  className="inline-flex items-center gap-1 rounded-md border border-status-info/40 bg-status-info-bg px-1.5 py-0.5 text-[11px] font-semibold text-status-info transition-colors hover:bg-status-info/15"
+                  aria-label={`فتح القيد رقم ${j.entryNo}`}
+                >
+                  <ScrollText className="size-3" />
+                  <span dir="ltr">قيد #{j.entryNo}</span>
+                </button>
+              ) : (
+                <Badge variant="secondary" dir="ltr">قيد #{j.entryNo}</Badge>
+              )}
+              <span className="text-[11px] tabular-nums text-muted-foreground" dir="ltr">{fmtDate(j.entryDate)}</span>
+              {j.sourceType === "voucher_cancel" && (
+                <Badge className="bg-status-danger-bg text-status-danger text-[10px]">عكس الإلغاء</Badge>
+              )}
+              {j.sourceType === "bank_fee_alloc" && (
+                <Badge className="bg-status-warn-bg text-status-warn text-[10px]">توزيع رسوم</Badge>
+              )}
+              {j.status === "cancelled" && <Badge className="bg-status-danger-bg text-status-danger text-[10px]">ملغى</Badge>}
+              <span className="ms-auto text-xs font-bold tabular-nums" dir="ltr">{formatKWD(j.amount)}</span>
+            </div>
+            {j.description && <p className="mt-1 truncate text-[11px] text-muted-foreground">{j.description}</p>}
+            <div className="mt-1.5 space-y-0.5">
+              {j.lines.map((l, i) => (
+                <div key={i} className="flex items-center gap-2 rounded bg-muted/40 px-1.5 py-1 text-[11px]">
+                  <span className="w-12 shrink-0 font-semibold text-muted-foreground" dir="ltr">{l.accountCode}</span>
+                  <span className="min-w-0 flex-1 truncate">{l.accountName}</span>
+                  {l.debit > 0 ? (
+                    <span className="font-bold tabular-nums text-status-done" dir="ltr">{formatKWD(l.debit)} مدين</span>
+                  ) : (
+                    <span className="font-bold tabular-nums text-status-danger" dir="ltr">{formatKWD(l.credit)} دائن</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
