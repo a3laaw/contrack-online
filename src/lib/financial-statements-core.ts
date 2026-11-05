@@ -253,6 +253,8 @@ export function buildBalanceSheet(rows: FsAccountRow[], asOf: string, netResult:
 export interface EquityChangeRow {
   code: string;
   name: string;
+  /** عنصر XBRL الموصول بالحساب — يحمله إلى مصدّر iXBRL وفحص الاكتمال (Task 111) */
+  xbrl?: string;
   opening: number; // دائن موجب (مُقلب من الموقَّع)
   increase: number;
   decrease: number;
@@ -290,6 +292,7 @@ export function buildEquityChanges(rows: FsAccountRow[], from: string, to: strin
     out.push({
       code: r.code,
       name: r.name,
+      xbrl: r.xbrlElement || undefined,
       opening,
       increase: change > 0 ? change : 0,
       decrease: change < 0 ? -change : 0,

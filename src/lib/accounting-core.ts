@@ -175,6 +175,7 @@ export const ACCOUNT_SEED: AccountSeedNode[] = [
           { code: "2150", name: "مصاريف مستحقة", type: "liability", xbrl: "ifrs-full:AccruedExpensesCurrent" },
           { code: "2160", name: "رواتب مستحقة", type: "liability", xbrl: "kw:SalariesPayable" },
           { code: "2170", name: "زكاة مستحقة", type: "liability", xbrl: "kw:ZakatPayable", notes: "زكاة صندوق الكويت الوطني 1% — قانون 8/2019" },
+          { code: "2180", name: "ضريبة الدخل المستحقة", type: "liability", xbrl: "kw:IncomeTaxPayable", notes: "ضريبة دخل الأجانب 15% — الشركات الأجنبية الملكية (Task 111)" },
         ],
       },
       {

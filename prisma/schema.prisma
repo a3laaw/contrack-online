@@ -19,6 +19,7 @@ model Company {
   shortName String   @default("") @map("short_name")
   isActive  Boolean  @default(true) @map("is_active")
   notes     String   @default("")
+  foreignOwned Boolean @default(false) @map("foreign_owned") // Task 111 — شركة أجنبية ملكية: يفعّل وحدة ضريبة دخل الأجانب 15%
   createdAt DateTime @default(now()) @map("created_at")
   users     User[]
 
@@ -807,6 +808,7 @@ model Setting {
   companyEmail          String   @default("") @map("company_email")
   headerTitle           String   @default("نظام إدارة العقود والمحاسبة") @map("header_title")
   currency              String   @default("د.ك")
+  companyLicense        String   @default("") @map("company_license") // Task 111 — رقم الترخيص المدني للبيانات الوصفية XBRL
   bankFeeAmount         Decimal  @default(0.150) @map("bank_fee_amount")
   bankFeeMethod         String   @default("تحويل بنكي") @map("bank_fee_method")
   bankFeeEnabled        Boolean  @default(true) @map("bank_fee_enabled")
@@ -953,6 +955,39 @@ model FiscalClosing {
 }
 
 /**
+ * إقرار الزكاة/الضريبة السنوي — Task 111.
+ * الزكاة 1% (قانون 8/2019 لصندوق الكويت الوطني) وضريبة دخل الأجانب 15% (شركة أجنبية ملكية حصرًا).
+ * مصدر الرقم الوحيد: الأستاذ (نتيجة السنة من حركة 4xxx/5xxx المرحّلة — قيود الإغلاق السنوي مستثناة
+ * حتى لا تصير النتيجة صفرًا بعد الإقفال). التعديلات «بالنموذج المعلن» تُوثق صفًا صفًا (Json).
+ * الاعتماد ينشر قيد المخصص آليًا عبر المحرك الموحد — الإلغاء قيد عكسي موثق بلا حذف فيزيائي.
+ */
+model TaxDeclaration {
+  companyId    Int      @default(1) @map("company_id")
+  id           Int      @id @default(autoincrement())
+  year         Int
+  kind         String   @default("zakat") // zakat (1%) | foreign_tax (15%)
+  status       String   @default("draft") // draft | approved | cancelled
+  netProfit    Decimal  @db.Decimal(18, 3) @map("net_profit") // نتيجة السنة من الأستاذ لحظة إنشاء المسودة
+  adjustments  Json?    // تعديلات النموذج المعلن [{label, amount}] — موجب إضافة / سالب خصم
+  base         Decimal  @db.Decimal(18, 3) // الوعاء = صافي الربح + التعديلات (الزكاة لا تقل عن صفر)
+  rate         Decimal  @db.Decimal(7, 4) // 0.01 أو 0.15
+  amount       Decimal  @db.Decimal(18, 3) // المخصص المحتسب
+  entryId      Int?     @map("entry_id")
+  entry        JournalEntry? @relation("TaxDeclarationEntry", fields: [entryId], references: [id], onDelete: SetNull)
+  notes        String   @default("")
+  approvedBy   String   @default("") @map("approved_by")
+  approvedAt   DateTime? @map("approved_at")
+  cancelledAt  DateTime? @map("cancelled_at")
+  cancelReason String   @default("") @map("cancel_reason")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([companyId, year])
+  @@index([companyId, status])
+  @@map("tax_declarations")
+}
+
+/**
  * قاعدة ترحيل السندات — قالب القيد الآلي لكل صنف سند (Task 106).
  * قرار هيكلي: قواعد القيد تُعلن ولا تُصلب — لكل شركة نسخها القابلة للضبط،
  * والبذرة النظامية (isSystem) تطابق المنطق المدمج حرفيًا فتعمل الشركة بلا أي ضبط.
@@ -999,6 +1034,7 @@ model JournalEntry {
   cancelReason String         @default("") @map("cancel_reason")
   lines        JournalLine[]
   invoices     Invoice[]     @relation("InvoiceEntry") // فواتير أصدرت هذا القيد (Task 107)
+  taxDeclarations TaxDeclaration[] @relation("TaxDeclarationEntry") // مخصصات زكاة/ضريبة وثّقت بهذا القيد (Task 111)
   closingRecord FiscalClosing? @relation("FiscalClosingEntry") // إقفال سنوي وثّق بهذا القيد (Task 109)
   createdAt    DateTime      @default(now()) @map("created_at")
 

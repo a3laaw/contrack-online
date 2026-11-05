@@ -6,6 +6,7 @@ import {
   BookText,
   Scale,
   Landmark,
+  FileBadge,
   ScrollText,
   Building2,
   CalendarClock,
@@ -138,6 +139,8 @@ export const NAV_MODULES: NavModule[] = [
       { id: "ledger", label: "دفتر الأستاذ والميزان", icon: Scale, view: "ledger", flag: "full_accounting", perm: "screen_ledger" },
       // Task 110 — القوائم المالية الموحدة (القرار الوزاري 44/2016) من الأستاذ حصرًا + فحوص التوازن
       { id: "financial-statements", label: "القوائم المالية", icon: Landmark, view: "financial-statements", flag: "full_accounting", perm: "screen_financial_statements" },
+      // Task 111 — الزكاة 1% وضريبة الأجانب 15% + مصدّر iXBRL للتقديم الإلكتروني
+      { id: "zakat-xbrl", label: "الزكاة والتقديم", icon: FileBadge, view: "zakat-xbrl", flag: "full_accounting", perm: "screen_zakat_xbrl" },
       // Task 109 — الفترات المالية والإقفال السنوي الموثق (قفل الشهور + قيد الإغلاق + الافتتاحية)
       { id: "fiscal-close", label: "الفترات والإقفال", icon: LockKeyhole, view: "fiscal-close", flag: "full_accounting", perm: "screen_fiscal_close" },
       // بند 5 مواءمة PAGE_PERMS: مفتاحان منفصلان كالمكتبي حرفيًا (main_window.py:782-787
