@@ -26,10 +26,10 @@ const SNAPSHOT = "عهدة عامة";
 describe("aggregateBalances — custody_balances", () => {
   test("السيناريو الذهبي: مُسلَّم 1000 · منفَق 750 · مرتجع 100 ⇒ رصيد 150", () => {
     const rows = aggregateBalances([
-      { custodyAccountId: ACC, custodyAccountSnapshot: SNAPSHOT, vtype: "payment", amount: 1000, expenseGroupRef: "" },
-      { custodyAccountId: ACC, custodyAccountSnapshot: SNAPSHOT, vtype: "payment", amount: 400, expenseGroupRef: "PAY-GRP-20260110-01" },
-      { custodyAccountId: ACC, custodyAccountSnapshot: SNAPSHOT, vtype: "payment", amount: 350, expenseGroupRef: "PAY-GRP-20260110-01" },
-      { custodyAccountId: ACC, custodyAccountSnapshot: SNAPSHOT, vtype: "custody_return", amount: 100, expenseGroupRef: "" },
+      { custodyAccountId: ACC, custodyAccount: SNAPSHOT, vtype: "payment", amount: 1000, expenseGroupRef: "" },
+      { custodyAccountId: ACC, custodyAccount: SNAPSHOT, vtype: "payment", amount: 400, expenseGroupRef: "PAY-GRP-20260110-01" },
+      { custodyAccountId: ACC, custodyAccount: SNAPSHOT, vtype: "payment", amount: 350, expenseGroupRef: "PAY-GRP-20260110-01" },
+      { custodyAccountId: ACC, custodyAccount: SNAPSHOT, vtype: "custody_return", amount: 100, expenseGroupRef: "" },
     ]);
     expect(rows.length).toBe(1);
     const r = rows[0];
@@ -46,8 +46,8 @@ describe("aggregateBalances — custody_balances", () => {
 
   test("الرصيد يطرح المرتجع أيضًا: balance = handed − spent − returned (3471-3479)", () => {
     const rows = aggregateBalances([
-      { custodyAccountId: 1, custodyAccountSnapshot: "أ", vtype: "payment", amount: 500, expenseGroupRef: "" },
-      { custodyAccountId: 1, custodyAccountSnapshot: "أ", vtype: "custody_return", amount: 200, expenseGroupRef: "" },
+      { custodyAccountId: 1, custodyAccount: "أ", vtype: "payment", amount: 500, expenseGroupRef: "" },
+      { custodyAccountId: 1, custodyAccount: "أ", vtype: "custody_return", amount: 200, expenseGroupRef: "" },
     ]);
     expect(rows[0].balance).toBe(300);
     expect(rows[0].returnedCount).toBe(1);
@@ -55,9 +55,9 @@ describe("aggregateBalances — custody_balances", () => {
 
   test("ترتيب حسب اسم الحساب + مرآة MAX(snapshot) النصية", () => {
     const rows = aggregateBalances([
-      { custodyAccountId: 2, custodyAccountSnapshot: "عهدة سيارات", vtype: "payment", amount: 10, expenseGroupRef: "" },
-      { custodyAccountId: 1, custodyAccountSnapshot: "عهدة عامة", vtype: "payment", amount: 20, expenseGroupRef: "" },
-      { custodyAccountId: 2, custodyAccountSnapshot: "عهدة ب", vtype: "payment", amount: 5, expenseGroupRef: "" },
+      { custodyAccountId: 2, custodyAccount: "عهدة سيارات", vtype: "payment", amount: 10, expenseGroupRef: "" },
+      { custodyAccountId: 1, custodyAccount: "عهدة عامة", vtype: "payment", amount: 20, expenseGroupRef: "" },
+      { custodyAccountId: 2, custodyAccount: "عهدة ب", vtype: "payment", amount: 5, expenseGroupRef: "" },
     ]);
     // ع > س في ترتيب يونيكود ⇒ «عهدة عامة» بعد «عهدة سيارات»
     expect(rows.map((r) => r.accountId)).toEqual([2, 1]);
@@ -66,8 +66,8 @@ describe("aggregateBalances — custody_balances", () => {
 
   test("المرتجع يُجمع بلا شرط مرجع المجموعة والصرف بشرطه (مرآة CASE في SQL)", () => {
     const rows = aggregateBalances([
-      { custodyAccountId: 1, custodyAccountSnapshot: "أ", vtype: "custody_return", amount: 70, expenseGroupRef: "X1" },
-      { custodyAccountId: 1, custodyAccountSnapshot: "أ", vtype: "payment", amount: 30, expenseGroupRef: "X1" },
+      { custodyAccountId: 1, custodyAccount: "أ", vtype: "custody_return", amount: 70, expenseGroupRef: "X1" },
+      { custodyAccountId: 1, custodyAccount: "أ", vtype: "payment", amount: 30, expenseGroupRef: "X1" },
     ]);
     expect(rows[0].returned).toBe(70); // custody_return يُجمع حتى بمرجع مجموعة
     expect(rows[0].spent).toBe(30); // payment بمرجع ⇒ منفَق
@@ -127,12 +127,12 @@ describe("buildSettlementsSummary — settlements_summary", () => {
   test("السيناريو الذهبي: ترويسة مجموعة + بنودها + البيان بلا تكرار مفصول بـ«،»", () => {
     const res = buildSettlementsSummary(
       [
-        { expenseGroupRef: "PAY-GRP-20260110-01", vdate: "2026-01-10", amount: 400, custodyAccountId: ACC, custodyAccountSnapshot: SNAPSHOT },
-        { expenseGroupRef: "PAY-GRP-20260110-01", vdate: "2026-01-12", amount: 350, custodyAccountId: ACC, custodyAccountSnapshot: SNAPSHOT },
+        { expenseGroupRef: "PAY-GRP-20260110-01", vdate: "2026-01-10", amount: 400, custodyAccountId: ACC, custodyAccount: SNAPSHOT },
+        { expenseGroupRef: "PAY-GRP-20260110-01", vdate: "2026-01-12", amount: 350, custodyAccountId: ACC, custodyAccount: SNAPSHOT },
       ],
       [
-        { expenseGroupRef: "PAY-GRP-20260110-01", voucherNumber: "PV-201", vdate: "2026-01-10", party: "مطارات", expenseAccountSnapshot: "إيجارات", amount: 400, description: "إيجار مكتب يناير" },
-        { expenseGroupRef: "PAY-GRP-20260110-01", voucherNumber: "PV-202", vdate: "2026-01-12", party: "مورد الأسمنت", expenseAccountSnapshot: "مواد", amount: 350, description: "شراء أسمنت" },
+        { expenseGroupRef: "PAY-GRP-20260110-01", voucherNumber: "PV-201", vdate: "2026-01-10", party: "مطارات", accountSnapshot: "إيجارات", amount: 400, description: "إيجار مكتب يناير" },
+        { expenseGroupRef: "PAY-GRP-20260110-01", voucherNumber: "PV-202", vdate: "2026-01-12", party: "مورد الأسمنت", accountSnapshot: "مواد", amount: 350, description: "شراء أسمنت" },
       ]
     );
     expect(res.count).toBe(1);
@@ -149,18 +149,18 @@ describe("buildSettlementsSummary — settlements_summary", () => {
   test("البيان المتكرر يُذكر مرة واحدة (V9.15.2 بلا تكرار) والفارغ ⇒ «تصفية عهدة»", () => {
     const res = buildSettlementsSummary(
       [
-        { expenseGroupRef: "R1", vdate: "2026-02-01", amount: 100, custodyAccountId: 1, custodyAccountSnapshot: "أ" },
-        { expenseGroupRef: "R1", vdate: "2026-02-02", amount: 50, custodyAccountId: 1, custodyAccountSnapshot: "أ" },
+        { expenseGroupRef: "R1", vdate: "2026-02-01", amount: 100, custodyAccountId: 1, custodyAccount: "أ" },
+        { expenseGroupRef: "R1", vdate: "2026-02-02", amount: 50, custodyAccountId: 1, custodyAccount: "أ" },
       ],
       [
-        { expenseGroupRef: "R1", voucherNumber: "PV-1", vdate: "2026-02-01", party: "", expenseAccountSnapshot: "", amount: 100, description: "وقود" },
-        { expenseGroupRef: "R1", voucherNumber: "PV-2", vdate: "2026-02-02", party: "", expenseAccountSnapshot: "", amount: 50, description: "وقود" },
+        { expenseGroupRef: "R1", voucherNumber: "PV-1", vdate: "2026-02-01", party: "", accountSnapshot: "", amount: 100, description: "وقود" },
+        { expenseGroupRef: "R1", voucherNumber: "PV-2", vdate: "2026-02-02", party: "", accountSnapshot: "", amount: 50, description: "وقود" },
       ]
     );
     expect(res.rows[0].description).toBe("وقود");
     const empty = buildSettlementsSummary(
-      [{ expenseGroupRef: "R2", vdate: "2026-02-01", amount: 10, custodyAccountId: 1, custodyAccountSnapshot: "أ" }],
-      [{ expenseGroupRef: "R2", voucherNumber: "PV-3", vdate: "2026-02-01", party: "", expenseAccountSnapshot: "", amount: 10, description: "" }]
+      [{ expenseGroupRef: "R2", vdate: "2026-02-01", amount: 10, custodyAccountId: 1, custodyAccount: "أ" }],
+      [{ expenseGroupRef: "R2", voucherNumber: "PV-3", vdate: "2026-02-01", party: "", accountSnapshot: "", amount: 10, description: "" }]
     );
     expect(empty.rows[0].description).toBe("تصفية عهدة");
   });
@@ -168,8 +168,8 @@ describe("buildSettlementsSummary — settlements_summary", () => {
   test("الترتيب: MIN(vdate) ثم المرجع، والإجمالي مقرّبًا لـ3 خانات", () => {
     const res = buildSettlementsSummary(
       [
-        { expenseGroupRef: "R-B", vdate: "2026-03-01", amount: 10.0005, custodyAccountId: 1, custodyAccountSnapshot: "أ" },
-        { expenseGroupRef: "R-A", vdate: "2026-02-01", amount: 20, custodyAccountId: 1, custodyAccountSnapshot: "أ" },
+        { expenseGroupRef: "R-B", vdate: "2026-03-01", amount: 10.0005, custodyAccountId: 1, custodyAccount: "أ" },
+        { expenseGroupRef: "R-A", vdate: "2026-02-01", amount: 20, custodyAccountId: 1, custodyAccount: "أ" },
       ],
       []
     );
@@ -182,19 +182,19 @@ describe("buildSettlementsSummary — settlements_summary", () => {
 
 describe("buildLedgerItems + filterSearchAndBalance — custody_ledger", () => {
   const handovers = [
-    { id: 10, voucherNumber: "PV-101", vdate: "2026-01-05", party: "أحمد", description: "تسليم عهدة", amount: 1000, custodyAccountId: ACC, custodyAccountSnapshot: SNAPSHOT },
+    { id: 10, voucherNumber: "PV-101", vdate: "2026-01-05", party: "أحمد", description: "تسليم عهدة", amount: 1000, custodyAccountId: ACC, custodyAccount: SNAPSHOT },
   ];
   const groups = [
-    { expenseGroupRef: "PAY-GRP-20260110-01", vdate: "2026-01-10", id: 20, description: "بنود التصفية", amount: 400, custodyAccountId: ACC, custodyAccountSnapshot: SNAPSHOT },
-    { expenseGroupRef: "PAY-GRP-20260110-01", vdate: "2026-01-12", id: 21, description: "بنود التصفية", amount: 350, custodyAccountId: ACC, custodyAccountSnapshot: SNAPSHOT },
+    { expenseGroupRef: "PAY-GRP-20260110-01", vdate: "2026-01-10", id: 20, description: "بنود التصفية", amount: 400, custodyAccountId: ACC, custodyAccount: SNAPSHOT },
+    { expenseGroupRef: "PAY-GRP-20260110-01", vdate: "2026-01-12", id: 21, description: "بنود التصفية", amount: 350, custodyAccountId: ACC, custodyAccount: SNAPSHOT },
   ];
   const returns = [
-    { id: 30, voucherNumber: "CV-7", vdate: "2026-01-15", party: "", description: "إرجاع المتبقي", amount: 100, custodyAccountId: ACC, custodyAccountSnapshot: SNAPSHOT },
+    { id: 30, voucherNumber: "CV-7", vdate: "2026-01-15", party: "", description: "إرجاع المتبقي", amount: 100, custodyAccountId: ACC, custodyAccount: SNAPSHOT },
   ];
   // التفاصيل بترتيب id تنازليًا كما تُرجع list_vouchers (ORDER BY v.id DESC)
   const details = [
-    { id: 21, voucherNumber: "PV-202", vdate: "2026-01-12", party: "مورد الأسمنت", description: "شراء أسمنت", amount: 350, expenseAccountSnapshot: "مواد", expenseGroupRef: "PAY-GRP-20260110-01", contractNumber: "CON-009" },
-    { id: 20, voucherNumber: "PV-201", vdate: "2026-01-10", party: "مطارات", description: "إيجار مكتب يناير", amount: 400, expenseAccountSnapshot: "إيجارات", expenseGroupRef: "PAY-GRP-20260110-01", contractNumber: "" },
+    { id: 21, voucherNumber: "PV-202", vdate: "2026-01-12", party: "مورد الأسمنت", description: "شراء أسمنت", amount: 350, accountSnapshot: "مواد", expenseGroupRef: "PAY-GRP-20260110-01", contractNumber: "CON-009" },
+    { id: 20, voucherNumber: "PV-201", vdate: "2026-01-10", party: "مطارات", description: "إيجار مكتب يناير", amount: 400, accountSnapshot: "إيجارات", expenseGroupRef: "PAY-GRP-20260110-01", contractNumber: "" },
   ];
 
   test("البيانات: تسليم يضيف «- المستلم» إن لم يكن في البيان (3602-3604)", () => {
@@ -233,7 +233,7 @@ describe("buildLedgerItems + filterSearchAndBalance — custody_ledger", () => {
   test("مرآة list_vouchers: بند ملغى في تفاصيل التصفية يظهر في البيان (لا فلتر ملغى في المصدر)", () => {
     const withCancelled = [
       ...details,
-      { id: 22, voucherNumber: "PV-203", vdate: "2026-01-13", party: "بائع", description: "بند ملغى", amount: 999, expenseAccountSnapshot: "متفرقات", expenseGroupRef: "PAY-GRP-20260110-01", contractNumber: "" },
+      { id: 22, voucherNumber: "PV-203", vdate: "2026-01-13", party: "بائع", description: "بند ملغى", amount: 999, accountSnapshot: "متفرقات", expenseGroupRef: "PAY-GRP-20260110-01", contractNumber: "" },
     ];
     const items = buildLedgerItems(handovers, returns, groups, withCancelled);
     const st = items.find((x) => x.kind === "settlement")!;
@@ -260,15 +260,15 @@ describe("buildDetailedRows — custody_detailed_report", () => {
   function ledgerFixture(): CustodyLedgerItem[] {
     return filterSearchAndBalance(
       buildLedgerItems(
-        [{ id: 10, voucherNumber: "PV-101", vdate: "2026-01-05", party: "أحمد", description: "تسليم عهدة", amount: 1000, custodyAccountId: ACC, custodyAccountSnapshot: SNAPSHOT }],
-        [{ id: 30, voucherNumber: "CV-7", vdate: "2026-01-15", party: "", description: "إرجاع المتبقي", amount: 100, custodyAccountId: ACC, custodyAccountSnapshot: SNAPSHOT }],
+        [{ id: 10, voucherNumber: "PV-101", vdate: "2026-01-05", party: "أحمد", description: "تسليم عهدة", amount: 1000, custodyAccountId: ACC, custodyAccount: SNAPSHOT }],
+        [{ id: 30, voucherNumber: "CV-7", vdate: "2026-01-15", party: "", description: "إرجاع المتبقي", amount: 100, custodyAccountId: ACC, custodyAccount: SNAPSHOT }],
         [
-          { expenseGroupRef: "PAY-GRP-20260110-01", vdate: "2026-01-10", id: 20, description: "", amount: 400, custodyAccountId: ACC, custodyAccountSnapshot: SNAPSHOT },
-          { expenseGroupRef: "PAY-GRP-20260110-01", vdate: "2026-01-12", id: 21, description: "", amount: 350, custodyAccountId: ACC, custodyAccountSnapshot: SNAPSHOT },
+          { expenseGroupRef: "PAY-GRP-20260110-01", vdate: "2026-01-10", id: 20, description: "", amount: 400, custodyAccountId: ACC, custodyAccount: SNAPSHOT },
+          { expenseGroupRef: "PAY-GRP-20260110-01", vdate: "2026-01-12", id: 21, description: "", amount: 350, custodyAccountId: ACC, custodyAccount: SNAPSHOT },
         ],
         [
-          { id: 20, voucherNumber: "PV-201", vdate: "2026-01-10", party: "مطارات", description: "إيجار مكتب يناير", amount: 400, expenseAccountSnapshot: "إيجارات", expenseGroupRef: "PAY-GRP-20260110-01", contractNumber: "CON-009" },
-          { id: 21, voucherNumber: "PV-202", vdate: "2026-01-12", party: "مورد الأسمنت", description: "شراء أسمنت", amount: 350, expenseAccountSnapshot: "مواد", expenseGroupRef: "PAY-GRP-20260110-01", contractNumber: "" },
+          { id: 20, voucherNumber: "PV-201", vdate: "2026-01-10", party: "مطارات", description: "إيجار مكتب يناير", amount: 400, accountSnapshot: "إيجارات", expenseGroupRef: "PAY-GRP-20260110-01", contractNumber: "CON-009" },
+          { id: 21, voucherNumber: "PV-202", vdate: "2026-01-12", party: "مورد الأسمنت", description: "شراء أسمنت", amount: 350, accountSnapshot: "مواد", expenseGroupRef: "PAY-GRP-20260110-01", contractNumber: "" },
         ]
       ),
       ""
@@ -283,7 +283,7 @@ describe("buildDetailedRows — custody_detailed_report", () => {
     expect(rows[1].ref).toBe("PV-201");
     expect(rows[1].type).toBe("تصفية PAY-GRP-20260110-01");
     expect(rows[1].out).toBe(400);
-    expect(rows[1].expense).toBe("إيجارات");
+    expect(rows[1].accountSnapshot).toBe("إيجارات");
     expect(rows[1].customer).toBe("CON-009");
     expect(rows[2].out).toBe(350);
     expect(rows[3].type).toBe("إرجاع عهدة");
@@ -320,11 +320,11 @@ describe("buildMonthlyRows — custody_monthly_summary", () => {
   const ledger: CustodyLedgerItem[] = filterSearchAndBalance(
     buildLedgerItems(
       [
-        { id: 1, voucherNumber: "PV-1", vdate: "2025-12-20", party: "", description: "تسليم ديسمبر", amount: 800, custodyAccountId: 1, custodyAccountSnapshot: "عهدة أ" },
-        { id: 2, voucherNumber: "PV-2", vdate: "2026-01-05", party: "", description: "تسليم يناير", amount: 1000, custodyAccountId: 1, custodyAccountSnapshot: "عهدة أ" },
+        { id: 1, voucherNumber: "PV-1", vdate: "2025-12-20", party: "", description: "تسليم ديسمبر", amount: 800, custodyAccountId: 1, custodyAccount: "عهدة أ" },
+        { id: 2, voucherNumber: "PV-2", vdate: "2026-01-05", party: "", description: "تسليم يناير", amount: 1000, custodyAccountId: 1, custodyAccount: "عهدة أ" },
       ],
-      [{ id: 3, voucherNumber: "CV-1", vdate: "2026-01-15", party: "", description: "إرجاع", amount: 100, custodyAccountId: 1, custodyAccountSnapshot: "عهدة أ" }],
-      [{ expenseGroupRef: "G-1", vdate: "2026-01-10", id: 4, description: "", amount: 750, custodyAccountId: 1, custodyAccountSnapshot: "عهدة أ" }],
+      [{ id: 3, voucherNumber: "CV-1", vdate: "2026-01-15", party: "", description: "إرجاع", amount: 100, custodyAccountId: 1, custodyAccount: "عهدة أ" }],
+      [{ expenseGroupRef: "G-1", vdate: "2026-01-10", id: 4, description: "", amount: 750, custodyAccountId: 1, custodyAccount: "عهدة أ" }],
       []
     ),
     ""

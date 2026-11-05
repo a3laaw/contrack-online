@@ -18,11 +18,15 @@ import {
   isValidAccountCode,
   isValidXbrlElement,
   openingBalanceSigned,
-  suggestAccountForExpenseAccount,
-  suggestBridgeLinks,
   xbrlMappingStats,
   type AccountSeedNode,
 } from "@/lib/accounting-core";
+import {
+  planTreeMerge,
+  planVoucherFieldMigration,
+  resolveMergeMap,
+  verifyFieldMigration,
+} from "@/lib/accounting-merge-core";
 
 // ==================== مساعدات فحص الشجرة ====================
 
@@ -197,45 +201,122 @@ describe("قواعد التحقق — checkAccountMutation", () => {
   });
 });
 
-describe("جسر الربط الآلي — شجرة المصروفات → الدليل الجديد", () => {
-  const candidates = [
+describe("دمج الشجرتين — planTreeMerge + تحويل السندات (Task 105)", () => {
+  const chart = [
     { id: 1, code: "5220", name: "إيجارات", type: "expense", isLeaf: true, isActive: true },
     { id: 2, code: "5250", name: "قرطاسية ومطبوعات", type: "expense", isLeaf: true, isActive: true },
     { id: 3, code: "1140", name: "عُهد وسلف الموظفين", type: "asset", isLeaf: true, isActive: true },
-    { id: 4, code: "5110", name: "مواد وأدوات", type: "expense", isLeaf: true, isActive: false }, // موقوف — لا يُقترح
   ];
 
-  test("تطابق تام للاسم", () => {
-    expect(suggestAccountForExpenseAccount("إيجارات", "إيجارات", "expense", candidates)).toBe(1);
-  });
-
-  test("تطابق مقطع المسار الأخير", () => {
-    expect(suggestAccountForExpenseAccount("قرطاسية", "مصروفات إدارية / قرطاسية ومطبوعات", "expense", candidates)).toBe(2);
-  });
-
-  test("حساب السلفة يُقترح من أصول (وليس مصروفات) بالتطابق التام", () => {
-    expect(suggestAccountForExpenseAccount("عُهد وسلف الموظفين", "العُهد / عُهد وسلف الموظفين", "advance", candidates)).toBe(3);
-  });
-
-  test("الحساب الموقوف لا يُقترح", () => {
-    expect(suggestAccountForExpenseAccount("مواد وأدوات", "مشاريع / مواد وأدوات", "expense", candidates)).toBeNull();
-  });
-
-  test("بلا مطابقة ⇒ null", () => {
-    expect(suggestAccountForExpenseAccount("حساب غريب تمامًا", "حساب غريب تمامًا", "expense", candidates)).toBeNull();
-  });
-
-  test("suggestBridgeLinks يعيد اقتراحًا لكل صف", () => {
-    const rows = suggestBridgeLinks(
-      [
-        { id: 100, name: "إيجارات", fullPath: "إيجارات", accountKind: "expense" },
-        { id: 101, name: "غير موجود", fullPath: "غير موجود", accountKind: "expense" },
-      ],
-      candidates
+  test("الجسر المعتمد يدويًا يفوز أولًا ويضبط includeInProfitability للمصروف", () => {
+    const plan = planTreeMerge(
+      [{ id: 100, parentId: null, name: "إيجار بنكي", fullPath: "إيجار بنكي", isActive: true, allowPosting: true, includeInProfitability: false, accountKind: "expense", accountId: 1 }],
+      chart,
+      new Set([100]),
+      new Set(),
     );
-    expect(rows).toHaveLength(2);
-    expect(rows[0].suggestedId).toBe(1);
-    expect(rows[1].suggestedId).toBeNull();
+    expect(plan.links).toEqual([{ eaId: 100, accountId: 1, method: "bridge" }]);
+    expect(plan.creates).toHaveLength(0);
+    expect(plan.profitabilityOnExisting).toEqual([{ accountId: 1, includeInProfitability: false }]);
+  });
+
+  test("مطابقة الاسم التامة تربط دون إنشاء والعهدة المستهدفة تضبط custody", () => {
+    const plan = planTreeMerge(
+      [{ id: 101, parentId: null, name: "عهدة عامة", fullPath: "العُهد / عهدة عامة", isActive: true, allowPosting: true, includeInProfitability: true, accountKind: "advance", accountId: 3 }],
+      chart,
+      new Set(),
+      new Set([101]),
+    );
+    expect(plan.links).toEqual([{ eaId: 101, accountId: 3, method: "bridge" }]);
+    expect(plan.custodyRoleOnExisting).toEqual([3]);
+  });
+
+  test("حساب مصروف مستخدم غير مطابق ⇒ إنشاء تحت 5300 بأكواد تسلسلية 530001+", () => {
+    const plan = planTreeMerge(
+      [
+        { id: 200, parentId: null, name: "بنزين", fullPath: "تشغيلية / بنزين", isActive: true, allowPosting: true, includeInProfitability: true, accountKind: "expense" },
+        { id: 201, parentId: null, name: "رسوم بلدية", fullPath: "تشغيلية / رسوم بلدية", isActive: true, allowPosting: true, includeInProfitability: true, accountKind: "expense" },
+      ],
+      chart,
+      new Set([200, 201]),
+      new Set(),
+    );
+    expect(plan.creates.map((c) => ({ eaId: c.eaId, parentCode: c.parentCode, code: c.code, type: c.type, role: c.accountRole }))).toEqual([
+      { eaId: 200, parentCode: "5300", code: "530001", type: "expense", role: "standard" },
+      { eaId: 201, parentCode: "5300", code: "530002", type: "expense", role: "standard" },
+    ]);
+    expect(plan.leafToBranchCodes).toEqual(["5300"]);
+  });
+
+  test("عهدة غير مطابقة تُنشأ تحت 1140 بـrole=custody — ولا دمج جماعي في 1140", () => {
+    const plan = planTreeMerge(
+      [{ id: 300, parentId: null, name: "عهدة المهندس", fullPath: "العُهد / عهدة المهندس", isActive: true, allowPosting: true, includeInProfitability: true, accountKind: "advance" }],
+      chart,
+      new Set(),
+      new Set([300]),
+    );
+    expect(plan.creates[0]).toMatchObject({ parentCode: "1140", code: "114001", type: "asset", accountRole: "custody" });
+  });
+
+  test("غير المستخدم في سندات يُهمل ويُوثق — والدليل نظيف", () => {
+    const plan = planTreeMerge(
+      [{ id: 400, parentId: null, name: "إعلانات قديمة", fullPath: "تسويق / إعلانات", isActive: true, allowPosting: true, includeInProfitability: true, accountKind: "expense" }],
+      chart,
+      new Set(),
+      new Set(),
+    );
+    expect(plan.links).toHaveLength(0);
+    expect(plan.creates).toHaveLength(0);
+    expect(plan.skipped).toEqual([{ eaId: 400, name: "إعلانات قديمة", reason: "حساب مصروف غير مستخدم في سندات" }]);
+  });
+
+  test("تحويل السندات: تصفية تحفظ طرفيها وhandover يجعل العهدة رئيسية وsnapshot مدمج", () => {
+    const plan = planTreeMerge(
+      [
+        { id: 500, parentId: null, name: "بنزين", fullPath: "ب", isActive: true, allowPosting: true, includeInProfitability: true, accountKind: "expense" },
+        { id: 501, parentId: null, name: "عهدة عامة", fullPath: "ع", isActive: true, allowPosting: true, includeInProfitability: true, accountKind: "advance" },
+      ],
+      chart,
+      new Set([500]),
+      new Set([501]),
+    );
+    const map = resolveMergeMap(plan, [
+      { eaId: 500, accountId: 90 },
+      { eaId: 501, accountId: 91 },
+    ]);
+    const names = new Map([[90, "بنزين / وقود"], [91, "عهدة عامة"]]);
+    const { updates, unresolved } = planVoucherFieldMigration(
+      [
+        { id: 1, expenseAccountId: 500, custodyAccountId: 501, expenseAccountSnapshot: "بنزين", custodyAccountSnapshot: "عهدة عامة" }, // تصفية
+        { id: 2, expenseAccountId: null, custodyAccountId: 501, expenseAccountSnapshot: "", custodyAccountSnapshot: "عهدة عامة" }, // handover
+        { id: 3, expenseAccountId: null, custodyAccountId: null, expenseAccountSnapshot: "", custodyAccountSnapshot: "" }, // قبض — بلا حساب
+      ],
+      map,
+      names,
+    );
+    expect(unresolved).toHaveLength(0);
+    expect(updates).toEqual([
+      { id: 1, accountId: 90, custodyAccountId: 91, accountSnapshot: "بنزين" },
+      { id: 2, accountId: 91, custodyAccountId: 91, accountSnapshot: "عهدة عامة" },
+    ]);
+    // تحقق الفحوص: كل حالة سليمة
+    const check = verifyFieldMigration(
+      [
+        { id: 1, expenseAccountId: 500, custodyAccountId: 501, expenseAccountSnapshot: "", custodyAccountSnapshot: "" },
+        { id: 2, expenseAccountId: null, custodyAccountId: 501, expenseAccountSnapshot: "", custodyAccountSnapshot: "" },
+      ],
+      updates,
+    );
+    expect(check.ok).toBe(true);
+  });
+
+  test("فحص الفشل: تصفية فقدت طرفًا تُكتشف", () => {
+    const check = verifyFieldMigration(
+      [{ id: 7, expenseAccountId: 5, custodyAccountId: 6, expenseAccountSnapshot: "", custodyAccountSnapshot: "" }],
+      [{ id: 7, accountId: 90, custodyAccountId: null, accountSnapshot: null }],
+    );
+    expect(check.ok).toBe(false);
+    expect(check.errors[0]).toContain("7");
   });
 });
 

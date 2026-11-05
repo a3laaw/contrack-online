@@ -4,8 +4,10 @@
  *
  * قواعد الظهور المكتبية (SettingsPage._build):
  *   - is_admin() = الدور admin أو developer (auth_service.py:166-168) ⇒
- *     «بيانات الشركة» وأنواع العقود وحسابات المصروفات ومراحل المتابعة
+ *     «بيانات الشركة» وأنواع العقود ومراحل المتابعة
  *     وجدول الزيارات والبيانات والنسخ الاحتياطي للمدير/المطور فقط.
+ *   - Task 105 — تاب «حسابات المصروفات» أُسقط نهائيًا: الشجرة دُمجت في
+ *     دليل الحسابات الموحد (Account) وأُزيل مدخلها من الكتالوج.
  *   - «الطباعة والعرض» للجميع، و«الأمان والمستخدمون» للجميع مع اختلاف
  *     التسمية: «◆ الأمان والمستخدمون» للإدارة و«◆ كلمة المرور» للسكرتير.
  *   - «⚙ أدوات المطور» لـ developer فقط (is_developer — auth_service.py:171).
@@ -34,7 +36,6 @@ export const TAB_APPEARANCE = "▤  الطباعة والعرض";
 export const TAB_SECURITY_ADMIN = "◆  الأمان والمستخدمون";
 export const TAB_SECURITY_SECRETARY = "◆  كلمة المرور";
 export const TAB_CONTRACT_TYPES = "☰  أنواع العقود";
-export const TAB_EXPENSE_ACCOUNTS = "§  حسابات المصروفات";
 export const TAB_WORKFLOW = "⇄  مراحل المتابعة";
 export const TAB_VISITS = "◷  جدول الزيارات";
 export const TAB_BACKUP = "⊞  البيانات والنسخ الاحتياطي";
@@ -48,7 +49,6 @@ export const SETTINGS_TABS: SettingsTabDef[] = [
   { value: "appearance", label: TAB_APPEARANCE, adminOnly: false, developerOnly: false },
   { value: "security", label: TAB_SECURITY_ADMIN, adminOnly: false, developerOnly: false },
   { value: "contract-types", label: TAB_CONTRACT_TYPES, adminOnly: true, developerOnly: false },
-  { value: "expense-accounts", label: TAB_EXPENSE_ACCOUNTS, adminOnly: true, developerOnly: false },
   { value: "workflow", label: TAB_WORKFLOW, adminOnly: true, developerOnly: false },
   { value: "visits", label: TAB_VISITS, adminOnly: true, developerOnly: false },
   { value: "backup", label: TAB_BACKUP, adminOnly: true, developerOnly: false },

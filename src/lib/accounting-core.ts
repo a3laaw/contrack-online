@@ -343,94 +343,9 @@ export function checkAccountMutation(input: AccountMutationInput, existing?: {
   return { ok: true, code, name, type, nature };
 }
 
-// ==================== جسر ربط شجرة المصروفات القديمة ====================
-
-export interface BridgeAccountCandidate {
-  id: number;
-  code: string;
-  name: string;
-  type: string;
-  isLeaf: boolean;
-  isActive: boolean;
-}
-
-export interface BridgeSuggestionResult {
-  expenseAccountId: number;
-  suggestedId: number | null;
-  suggestedName: string | null;
-}
-
-/**
- * اقتراح الحساب المحاسبي الموافق لحساب مصروف قديم — مطابقة الاسم/المسار
- * بأعرَف المطابقة أولًا ثم تضمين المسار. تفاضل بين أنواع شجرة المصروفات:
- * expense → حسابات مصروفات، advance → حسابات أصول (عُهد وسلف).
- */
-export function suggestAccountForExpenseAccount(
-  name: string,
-  fullPath: string,
-  accountKind: string,
-  accounts: BridgeAccountCandidate[]
-): number | null {
-  const normName = normalizeMatch(name);
-  const pathSegs = String(fullPath || name)
-    .split("/")
-    .map((s) => normalizeMatch(s))
-    .filter(Boolean);
-  const wantedType = accountKind === "advance" ? "asset" : "expense";
-
-  const pool = accounts.filter(
-    (a) => a.isLeaf && a.isActive && a.type === wantedType
-  );
-
-  // 1) تطابق تام للاسم
-  const exact = pool.find((a) => normalizeMatch(a.name) === normName);
-  if (exact) return exact.id;
-
-  // 2) تطابق تام مع أي مقطع من المسار (الأعمق أولًا)
-  for (let i = pathSegs.length - 1; i >= 0; i -= 1) {
-    const seg = pathSegs[i];
-    if (!seg) continue;
-    const bySeg = pool.find((a) => normalizeMatch(a.name) === seg);
-    if (bySeg) return bySeg.id;
-  }
-
-  // 3) تضمين (الاسم القديم داخل اسم الدليل أو العكس)
-  const partial = pool.find(
-    (a) => {
-      const an = normalizeMatch(a.name);
-      return normName.length >= 3 && (an.includes(normName) || normName.includes(an));
-    }
-  );
-  if (partial) return partial.id;
-
-  return null;
-}
-
-/** تطبيع مطابقة أخف من normalizeArabic الرسمي — يكفي للربط الآلي */
-function normalizeMatch(s: string): string {
-  return (s || "")
-    .replace(/[\u064B-\u065F\u0670]/g, "")
-    .replace(/[أإآ]/g, "ا")
-    .replace(/ى/g, "ي")
-    .replace(/ة/g, "ه")
-    .trim();
-}
-
-/** رفع مقترحات لكل شجرة المصروفات دفعة واحدة */
-export function suggestBridgeLinks(
-  expenseAccounts: { id: number; name: string; fullPath: string; accountKind: string }[],
-  accounts: BridgeAccountCandidate[]
-): BridgeSuggestionResult[] {
-  return expenseAccounts.map((ea) => {
-    const suggestedId = suggestAccountForExpenseAccount(ea.name, ea.fullPath, ea.accountKind, accounts);
-    const suggested = suggestedId != null ? accounts.find((a) => a.id === suggestedId) : null;
-    return {
-      expenseAccountId: ea.id,
-      suggestedId,
-      suggestedName: suggested ? `${suggested.code} — ${suggested.name}` : null,
-    };
-  });
-}
+// Task 105 — أُسقطت وحدة «جسر شجرة المصروفات» نهائيًا (suggestAccountForExpenseAccount/
+// suggestBridgeLinks): الشجرتان دُمجتا في الدليل الواحد Account — الحسابات المنشأة
+// موثقة في db/expense-tree-migration-report-task105.json.
 
 // ==================== الأرصدة الافتتاحية (Task 103) ====================
 

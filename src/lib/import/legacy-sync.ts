@@ -4,15 +4,22 @@ import "server-only";
  * تُستدعى مرة واحدة قبل تنفيذ الاستيراد حتى يمر الفحص (أنواع العقود معتمدة،
  * حسابات المصروفات موجودة، المشاريع مربوطة). كلها idempotent: تُنشأ الناقصة
  * فقط عبر غلاف db المحصور بشركة الجلسة — لا upsert ولا كتابة لشركة أخرى.
+ *
+ * Task 105 — الشجرة الموحدة: حسابات المصروفات على دليل Account حصرًا —
+ * الناقص يُنشأ ابنًا مباشرًا تحت 5300 «مصروفات أخرى» بكود تسلسلي (530001+)
+ * بaccountRole='standard'، والدليل ثابت البنية (لا شجرة متعددة المستويات).
  */
 
 import { db } from "@/lib/db";
 import { nameKey, typeKey } from "./normalize";
 
 const UNSPECIFIED = "غير محدد";
+const EXPENSE_PARENT_CODE = "5300";
+const XBRL_OTHER_EXPENSES = "kw:OtherExpenses";
 
 export interface LegacySyncInput {
   types: { name: string; isSupervision: boolean }[];
+  /** من الملف المكتبي — fullPath/parentFullPath تاريخيان: البنية الجديدة مسطحة تحت 5300 */
   accounts: { name: string; fullPath: string; parentFullPath: string }[];
   projects: string[];
 }
@@ -21,6 +28,28 @@ export interface LegacySyncReport {
   typesCreated: string[];
   accountsCreated: string[];
   projectsCreated: string[];
+}
+
+/** حساب 5300 مضمون الوجود كفرع (لا يقبل قيدًا) — الأبناء أوراق المصروف */
+async function ensureExpenseBranch() {
+  const parent = await db.account.findFirst({ where: { code: EXPENSE_PARENT_CODE } });
+  if (!parent) throw new Error("حساب المصروفات 5300 غير موجود في دليل الشركة — بذّر الدليل أولاً");
+  if (parent.isLeaf || parent.allowPosting) {
+    return db.account.update({
+      where: { id: parent.id },
+      data: { isLeaf: false, allowPosting: false },
+    });
+  }
+  return parent;
+}
+
+/** أول كود متاح تحت 5300: 530001 صعودًا (فحص أكواد أبناء 5300 الموجودة) */
+async function nextExpenseCode(parentId: number): Promise<string> {
+  const children = await db.account.findMany({ where: { parentId }, select: { code: true } });
+  const taken = new Set(children.map((c) => c.code));
+  let seq = 1;
+  while (taken.has(`${EXPENSE_PARENT_CODE}${String(seq).padStart(3, "0")}`)) seq += 1;
+  return `${EXPENSE_PARENT_CODE}${String(seq).padStart(3, "0")}`;
 }
 
 export async function syncLegacyReferenceData(input: LegacySyncInput): Promise<LegacySyncReport> {
@@ -41,41 +70,39 @@ export async function syncLegacyReferenceData(input: LegacySyncInput): Promise<L
     report.typesCreated.push(created.name);
   }
 
-  // ===== شجرة حسابات المصروفات (الآباء أولًا حسب عمق المسار) =====
-  const existingAccounts = await db.expenseAccount.findMany({
-    select: { id: true, name: true, fullPath: true },
+  // ===== حسابات المصروفات (الدليل الموحد: الأوراق type='expense' النشطة) =====
+  const existingAccounts = await db.account.findMany({
+    where: { type: "expense", isActive: true },
+    select: { id: true, name: true },
   });
   const accountKeys = new Set<string>();
-  const accountIdsByPath = new Map<string, number>(); // nameKey(fullPath أو name) ← id
   for (const a of existingAccounts) {
     if ((a.name || "").trim()) accountKeys.add(nameKey(a.name));
-    if ((a.fullPath || "").trim()) accountKeys.add(nameKey(a.fullPath));
-    if (a.fullPath) accountIdsByPath.set(nameKey(a.fullPath), a.id);
-    if (a.name) accountIdsByPath.set(nameKey(a.name), a.id);
   }
-  const sorted = [...input.accounts].sort(
-    (a, b) => (a.fullPath.split("/").length - b.fullPath.split("/").length) || a.fullPath.localeCompare(b.fullPath)
-  );
-  for (const a of sorted) {
+  // إنشاء الناقص: كل حساب ابن مباشر تحت 5300 (المطابقة بالاسم — لا fullPath في الدليل الموحد)
+  let branch: { id: number } | null = null;
+  for (const a of input.accounts) {
     const name = (a.name || "").trim();
-    const fullPath = (a.fullPath || "").trim() || name;
-    if (!name) continue;
-    if (accountKeys.has(nameKey(fullPath)) || accountKeys.has(nameKey(name))) continue;
-    // الأب: مسار المصدر الصريح (parentFullPath) — أو المسار دون آخر مقطع احتياطًا
-    const parentPath =
-      a.parentFullPath.trim() ||
-      (fullPath.split("/").length > 1
-        ? fullPath.split("/").map((s) => s.trim()).slice(0, -1).join(" / ")
-        : "");
-    const parentId = parentPath ? (accountIdsByPath.get(nameKey(parentPath)) ?? null) : null;
-    const created = await db.expenseAccount.create({
-      data: { name, fullPath, parentId, isActive: true },
+    if (!name || accountKeys.has(nameKey(name))) continue;
+    if (!branch) branch = await ensureExpenseBranch();
+    const created = await db.account.create({
+      data: {
+        code: await nextExpenseCode(branch.id),
+        name,
+        type: "expense",
+        nature: "debit",
+        parentId: branch.id,
+        isLeaf: true,
+        allowPosting: true,
+        isActive: true,
+        isSystem: false,
+        accountRole: "standard",
+        xbrlElement: XBRL_OTHER_EXPENSES,
+        notes: "مستورد من ملف المكتبة القديم (شجرة المصروفات السابقة)",
+      },
     });
-    accountKeys.add(nameKey(name));
-    accountKeys.add(nameKey(fullPath));
-    accountIdsByPath.set(nameKey(fullPath), created.id);
-    accountIdsByPath.set(nameKey(name), created.id);
-    report.accountsCreated.push(fullPath);
+    accountKeys.add(nameKey(created.name));
+    report.accountsCreated.push(a.fullPath || name);
   }
 
   // ===== المشاريع (لربط سندات الصرف) =====

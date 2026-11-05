@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     // المنصرف الفعلي: صرف سارٍ على حسابات تُحتسب في الربحية (الافتراضي 1)
     db.voucher.findMany({
       where: { vtype: 'payment', cancelled: false, contractId: { in: ids } },
-      select: { contractId: true, amount: true, partyType: true, expenseAccountId: true, expenseAccount: { select: { includeInProfitability: true } } },
+      select: { contractId: true, amount: true, partyType: true, accountId: true, accountRef: { select: { includeInProfitability: true } } },
     }),
     db.subContract.groupBy({
       by: ['contractId'],
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   const otherPaidByContract = new Map<number, number>()
   for (const v of payments) {
     if (v.contractId == null) continue
-    const include = v.expenseAccount ? v.expenseAccount.includeInProfitability : true
+    const include = v.accountRef ? v.accountRef.includeInProfitability : true
     if (!include) continue
     paidByContract.set(v.contractId, round3((paidByContract.get(v.contractId) ?? 0) + Number(v.amount)))
     if ((v.partyType || '') !== 'subcontractor') {

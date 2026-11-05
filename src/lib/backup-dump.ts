@@ -52,11 +52,16 @@ interface BackupModelSpec {
 // FK ذاتي المرجع (شجرة/سند أب) — الاستعادة تعالجها بمرورات متتالية
 const SELF_REF_FK: Record<string, string> = {
   workflow_stages: "parentId",
-  expense_accounts: "parentId",
   vouchers: "parentVoucherId",
   accounts: "parentId", // Task 102 — دليل الحسابات: شجرة ذاتية المرجع
   journal_entries: "reversalOfId", // Task 104 — قيد عكسي يرتبط بالقيد الأصلي
 };
+
+/**
+ * Task 105 — مفتاح الجدول القديم المُسقط: نسخ JSON القديمة (قبل Task 105) تحمل
+ * expense_accounts — تُقرأ لبناء خريطة حسم الحساب ثم تُهمل من الإدراج.
+ */
+const DROPPED_LEGACY_TABLES = new Set(["expense_accounts"]);
 
 /** حد أقصى للصفوف في كل createMany (لتجنّب تجاوز حدود المعاملات) */
 const CHUNK = 200;
@@ -74,9 +79,8 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "contractType", table: "contract_types", serial: true },
   { model: "workflowStage", table: "workflow_stages", serial: true }, // FK ذاتي
   { model: "paymentMethod", table: "payment_methods", serial: true },
-  // Task 102 — دليل الحسابات الكامل (FK ذاتي: شجرة) — قبل expense_accounts لاستعادة الرابط accountId
+  // Task 102 — دليل الحسابات الكامل (FK ذاتي: شجرة) — قبل السندات لترابط الحسابات (Task 105: الدليل الوحيد)
   { model: "account", table: "accounts", serial: true }, // FK ذاتي
-  { model: "expenseAccount", table: "expense_accounts", serial: true }, // FK ذاتي
   { model: "employee", table: "employees", serial: true },
   { model: "visitStaff", table: "visit_staff", serial: true },
   { model: "gatewayProfile", table: "gateway_profiles", serial: true },
@@ -217,14 +221,6 @@ async function insertLegacyJournalRows(
       isActive: true,
     });
   }
-  const expenseRows = (await delegate(tx, "expenseAccount").findMany({
-    where: { accountId: { not: null } },
-    select: { name: true, accountId: true },
-  })) as unknown as { name: string; accountId: number }[];
-  const bridge = new Map<string, number>();
-  for (const ea of expenseRows) {
-    if (ea.accountId != null) bridge.set(String(ea.name).trim(), ea.accountId);
-  }
   const candidates = accounts.map((a) => ({
     id: a.id,
     code: a.code,
@@ -235,8 +231,6 @@ async function insertLegacyJournalRows(
   const resolve = (name: string): number | null => {
     const raw = String(name || "").trim();
     if (!raw) return null;
-    const bridged = bridge.get(raw);
-    if (bridged != null) return bridged;
     return resolveLegacyAccountName(raw, candidates);
   };
 
@@ -341,8 +335,61 @@ async function insertRows(
 }
 
 /**
+ * Task 105 — محوّل حقول السندات القديمة للشكل الجديد (نسخة JSON قبل الترقية):
+ *  expense_account_id + custody_account_id + snapshotين  →  account_id + custody_account_id + account_snapshot
+ * الحسم عبر أسماء الشجرة القديمة (خريطة expense_accounts من نفس الملف إن وُجدت) ثم الدليل المستعاد؛
+ * الشك ⇒ حساب التسوية المؤقت (نفس دقة ترحيل Task 104 النصي). الدالة نقية (لا DB).
+ */
+export function transformLegacyVoucherRows(
+  rows: Record<string, unknown>[],
+  legacyTree: Record<string, unknown>[],
+  resolve: (name: string) => number | null,
+  suspenseId: number,
+): Record<string, unknown>[] {
+  const eaById = new Map<number, { name: string; fullPath: string; kind: string }>();
+  for (const ea of legacyTree) {
+    if (ea?.id != null) {
+      eaById.set(Number(ea.id), {
+        name: String(ea.name ?? ""),
+        fullPath: String(ea.full_path ?? ea.fullPath ?? ea.name ?? ""),
+        kind: String(ea.account_kind ?? ea.accountKind ?? "expense"),
+      });
+    }
+  }
+  const resolveLegacy = (eaId: unknown, snapshot: unknown): number | null => {
+    const ea = eaId != null && eaById.has(Number(eaId)) ? eaById.get(Number(eaId)) : null;
+    const candidates = [ea?.name || "", ea?.fullPath || "", String(snapshot ?? "")].map((s) => s.trim()).filter(Boolean);
+    for (const c of candidates) {
+      const id = resolve(c);
+      if (id != null) return id;
+    }
+    return null;
+  };
+  return rows.map((v) => {
+    const hasOld = "expense_account_id" in v || "custody_account_id" in v || "expense_account_snapshot" in v || "custody_account_snapshot" in v;
+    if (!hasOld) return v;
+    const expId = resolveLegacy(v["expense_account_id"], v["expense_account_snapshot"]);
+    const cusId = resolveLegacy(v["custody_account_id"], v["custody_account_snapshot"]);
+    const main = expId ?? cusId;
+    const snapshot = String(v["expense_account_snapshot"] ?? "") || String(v["custody_account_snapshot"] ?? "") || null;
+    const out: Record<string, unknown> = { ...v };
+    delete out["expense_account_id"];
+    delete out["expense_account_snapshot"];
+    delete out["custody_account_snapshot"];
+    // حقول snake_case تُحول إلى camelCase عند استعمال Prisma مباشرة — الملفات الجديدة أصلاً camelCase:
+    out["accountId"] = main ?? null;
+    out["custodyAccountId"] = cusId ?? suspenseId;
+    out["accountSnapshot"] = snapshot;
+    if ("account_id" in out) delete out["account_id"];
+    if ("account_snapshot" in out) delete out["account_snapshot"];
+    if ("custody_account_id" in out) delete out["custody_account_id"];
+    return out;
+  });
+}
+
+/**
  * استعادة كاملة داخل معاملة واحدة:
- * 1) تحقق أن كل مفاتيح الملف جداول معروفة
+ * 1) تحقق أن كل مفاتيح الملف جداول معروفة (مفاتيح الجداول المُسقطة تُقبل وتُهمل — Task 105)
  * 2) حذف كل الجداول بالترتيب العكسي (الأبناء قبل الآباء)
  * 3) إنشاء بالترتيب الطوبولوجي مع الحفاظ على المعرّفات الأصلية
  * 4) إعادة ضبط تسلسلات id (setval) لكل جدول تسلسلي
@@ -353,7 +400,51 @@ export async function restoreBackupData(
 ): Promise<{ inserted: Record<string, number> }> {
   const known = new Map(BACKUP_MODELS.map((m) => [m.table, m]));
   for (const key of Object.keys(data)) {
-    if (!known.has(key)) throw new Error(`جدول غير معروف في ملف النسخة: ${key}`);
+    if (!known.has(key) && !DROPPED_LEGACY_TABLES.has(key)) {
+      throw new Error(`جدول غير معروف في ملف النسخة: ${key}`);
+    }
+  }
+
+  // Task 105 — خريطة الشجرة القديمة من نفس الملف (إن وُجدت) لتحويل حقول السندات
+  const legacyTree = Array.isArray(data["expense_accounts"]) ? (data["expense_accounts"] as Record<string, unknown>[]) : [];
+  const needLegacyVoucherTransform =
+    legacyTree.length > 0 || (Array.isArray(data["vouchers"]) && (data["vouchers"] as Record<string, unknown>[]).some((r) => "expense_account_id" in r));
+  let resolveForLegacy: ((name: string) => number | null) | null = null;
+  let suspenseId = 0;
+  if (needLegacyVoucherTransform) {
+    const accounts = (await delegate(tx, "account").findMany({
+      select: { id: true, code: true, name: true, allowPosting: true, isActive: true },
+    })) as unknown as { id: number; code: string; name: string; allowPosting: boolean; isActive: boolean }[];
+    suspenseId = accounts.find((a) => a.code === SUSPENSE_ACCOUNT.code)?.id ?? 0;
+    if (suspenseId === 0) {
+      const created = (await delegate(tx, "account").create({
+        data: {
+          code: SUSPENSE_ACCOUNT.code,
+          name: SUSPENSE_ACCOUNT.name,
+          type: SUSPENSE_ACCOUNT.type,
+          nature: SUSPENSE_ACCOUNT.nature,
+          isLeaf: true,
+          allowPosting: true,
+          isActive: true,
+          isSystem: true,
+          notes: SUSPENSE_ACCOUNT.notes,
+          xbrlElement: "kw:SuspenseAccount",
+        },
+      })) as { id: number };
+      suspenseId = created.id;
+    }
+    const candidates = accounts.map((a) => ({
+      id: a.id,
+      code: a.code,
+      name: a.name,
+      allowPosting: a.allowPosting,
+      isActive: a.isActive,
+    }));
+    resolveForLegacy = (name: string): number | null => {
+      const raw = String(name || "").trim();
+      if (!raw) return null;
+      return resolveLegacyAccountName(raw, candidates);
+    };
   }
 
   // 2) حذف بالترتيب العكسي
@@ -364,13 +455,20 @@ export async function restoreBackupData(
   // 3) إنشاء بالترتيب الطوبولوجي
   const inserted: Record<string, number> = {};
   for (const m of BACKUP_MODELS) {
-    const rows = Array.isArray(data[m.table]) ? (data[m.table] as Record<string, unknown>[]) : [];
+    let rows = Array.isArray(data[m.table]) ? (data[m.table] as Record<string, unknown>[]) : [];
     // Task 104: نسخ قديمة تحمل القيود بنصوص أطراف — تُحوّل لحالة النموذج الجديد بأسطره
     if (m.table === "journal_entries" && rows.some((r) => "debitAccount" in r)) {
       inserted[m.table] = await insertLegacyJournalRows(tx, rows as unknown as LegacyJournalRow[]);
       continue;
     }
+    // Task 105: نسخ قديمة تحمل السندات بحقول الشجرة القديمة — تُحوّل للحقول الموحدة
+    if (m.table === "vouchers" && needLegacyVoucherTransform && resolveForLegacy) {
+      rows = transformLegacyVoucherRows(rows, legacyTree, resolveForLegacy, suspenseId);
+    }
     inserted[m.table] = await insertRows(tx, m.model, m.table, rows);
+  }
+  for (const key of Object.keys(data)) {
+    if (DROPPED_LEGACY_TABLES.has(key)) inserted[key] = 0; // الجدول المُسقط — أُهمل بعد استخدامه للحسم
   }
 
   // 4) إعادة ضبط التسلسلات — أسماء الجداول من قائمة بيضاء حرفية (لا مدخلات خارجية)

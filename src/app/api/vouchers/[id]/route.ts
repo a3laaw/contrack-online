@@ -30,6 +30,7 @@ export async function GET(req: NextRequest, { params }: P) {
       employee: { select: { id: true, name: true } },
       parentVoucher: { select: { id: true, voucherNumber: true, vtype: true } },
       feeChildren: { select: { id: true, voucherNumber: true, vtype: true, amount: true, cancelled: true, cancelReason: true } },
+      accountRef: { select: { name: true, code: true } },
     },
   });
   if (!v) return Response.json({ error: "السند غير موجود" }, { status: 404 });
@@ -106,10 +107,9 @@ export async function GET(req: NextRequest, { params }: P) {
         ? { id: v.subContract.id, amount: Number(v.subContract.amount), subcontractorName: v.subContract.subcontractor.name }
         : null,
       allocation: v.allocation,
-      expenseAccountId: v.expenseAccountId,
-      expenseAccountSnapshot: v.expenseAccountSnapshot,
+      accountId: v.accountId,
+      accountSnapshot: v.accountSnapshot || v.accountRef?.name || null,
       custodyAccountId: v.custodyAccountId,
-      custodyAccountSnapshot: v.custodyAccountSnapshot,
       advanceEmployeeId: v.advanceEmployeeId,
       employeeName: v.employee?.name || "",
       parentVoucher: v.parentVoucher ? { id: v.parentVoucher.id, voucherNumber: v.parentVoucher.voucherNumber } : null,
@@ -188,6 +188,8 @@ export async function PATCH(req: NextRequest, { params }: P) {
           : undefined,
         allowOverpay: Boolean(body.allowOverpay),
         chequeDueDate: body.chequeDueDate !== undefined ? String(body.chequeDueDate) : undefined,
+        // ملاحظة: accountId/custodyAccountId غير مقبولة في التعديل عمدًا (كما كان مع القديمين)
+        // — حدود التعديل تُبنى من القائمة البيضاء أعلاه فتُتجاهل أي مفاتيح أخرى.
       },
       guard.user
     );

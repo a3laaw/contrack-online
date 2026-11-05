@@ -4,9 +4,10 @@
  * شاشة الإعدادات — نقطة الدخول (المرحلة 9 · بند 6).
  * أُعيدت هيكلتها إلى تبويبات مطابقة للمكتبي حرفيًا (settings.py:461-533):
  *   ⌂ بيانات الشركة · ▤ الطباعة والعرض · ◆ الأمان والمستخدمون/كلمة المرور ·
- *   ☰ أنواع العقود · § حسابات المصروفات · ⇄ مراحل المتابعة · ◷ جدول الزيارات ·
+ *   ☰ أنواع العقود · ⇄ مراحل المتابعة · ◷ جدول الزيارات ·
  *   ⊞ البيانات والنسخ الاحتياطي · ⚙ أدوات المطور (developer فقط — بتابات
  *   داخلية خمسة). المحتوى موزع في src/components/contrack/settings/*.
+ *   Task 105 — تاب «حسابات المصروفات» أُسقط مع دمج الشجرة في دليل الحسابات الموحد.
  *
  * كل الأسلاك القائمة محفوظة: /api/settings (بيانات الشركة والنسخ التلقائي)،
  * /api/payment-methods، تبويب المزايا الحي عبر /api/feature-flags، وحروف
@@ -29,7 +30,6 @@ import { CompanyTab } from "./settings/company-tab";
 import { CompaniesTab } from "./settings/companies-tab";
 import { AppearanceTab } from "./settings/appearance-tab";
 import { SecurityTab } from "./settings/security-tab";
-import { ExpenseAccountsTab } from "./settings/expense-accounts-tab";
 import { WorkflowTab } from "./settings/workflow-tab";
 import { VisitsTab } from "./settings/visits-tab";
 import { BackupTab } from "./settings/backup-tab";
@@ -164,16 +164,13 @@ export function SettingsView({ user, onAuthError, initialSection }: SettingsView
           </TabsContent>
         )}
 
-        {/* ===== 5) حسابات المصروفات (مدير) ===== */}
-        {manager && <TabsContent value="expense-accounts"><ExpenseAccountsTab onAuthError={onAuthError} /></TabsContent>}
-
-        {/* ===== 6) مراحل المتابعة (مدير) ===== */}
+        {/* ===== 5) مراحل المتابعة (مدير) ===== */}
         {manager && <TabsContent value="workflow"><WorkflowTab onAuthError={onAuthError} /></TabsContent>}
 
-        {/* ===== 7) جدول الزيارات (مدير) ===== */}
+        {/* ===== 6) جدول الزيارات (مدير) ===== */}
         {manager && <TabsContent value="visits"><VisitsTab onAuthError={onAuthError} /></TabsContent>}
 
-        {/* ===== 8) البيانات والنسخ الاحتياطي (مدير) ===== */}
+        {/* ===== 7) البيانات والنسخ الاحتياطي (مدير) ===== */}
         {manager && (
           <TabsContent value="backup" className="space-y-4">
             {!formReady ? (
@@ -190,7 +187,7 @@ export function SettingsView({ user, onAuthError, initialSection }: SettingsView
           </TabsContent>
         )}
 
-        {/* ===== 9) أدوات المطور (developer فقط — بتابات داخلية خمسة) ===== */}
+        {/* ===== 8) أدوات المطور (developer فقط — بتابات داخلية خمسة) ===== */}
         {isDeveloper && <TabsContent value="developer"><DeveloperTab onAuthError={onAuthError} /></TabsContent>}
       </Tabs>
     </div>

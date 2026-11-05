@@ -125,10 +125,12 @@ export interface VoucherItem {
   contractId?: number | null;
   contractNumber?: string;
   allocation?: string;
-  custodyAccountSnapshot?: string;
+  /** Task 105 — الحساب المحاسبي الرئيسي في الدليل الموحد */
+  accountId?: number | null;
   advanceEmployeeId?: number | null;
   employeeName?: string;
-  expenseAccountSnapshot?: string;
+  /** اسم الحساب عند التسجيل (مصروف أو عهدة) — حقل موحّد للسند */
+  accountSnapshot?: string | null;
   parentVoucherId?: number | null;
   cancelled: boolean;
   cancelReason?: string;
@@ -273,19 +275,9 @@ export interface EmployeeDTO {
   jobTitle?: string;
 }
 
-export interface ExpenseAccountDTO {
-  id: number;
-  name: string;
-  accountKind?: string;
-  parentId?: number | null;
-  /** Task 102 — جسر الهجرة: الحساب المحاسبي المربوط + تسميته */
-  accountId?: number | null;
-  accountName?: string | null;
-}
+// ==================== المحاسبة الكاملة — دليل الحسابات الموحد (Task 102/105) ====================
 
-// ==================== المحاسبة الكاملة — دليل الحسابات (Task 102) ====================
-
-/** حساب في دليل الحسابات كما يعيده GET /api/accounts */
+/** حساب في دليل الحسابات الموحد كما يعيده GET /api/accounts — الدليل الوحيد بعد إسقاط شجرة المصروفات (Task 105) */
 export interface AccountDTO {
   id: number;
   code: string;
@@ -301,24 +293,15 @@ export interface AccountDTO {
   notes: string;
   sortOrder: number;
   xbrlElement: string;
+  /** Task 105 — دور الحساب: standard | custody (العُهد والسلف) */
+  accountRole?: string;
+  /** Task 105 — يستهلكه تقارير ربحية العقود */
+  includeInProfitability?: boolean;
 }
 
 export interface ChartAccountsResponse {
   accounts: AccountDTO[];
   seeded: boolean;
-}
-
-/** صف الجسر: حساب مصروف قديم + الحساب المربوط + المقترح آليًا */
-export interface BridgeRow {
-  id: number;
-  name: string;
-  fullPath: string;
-  accountKind: string;
-  isActive: boolean;
-  accountId: number | null;
-  linkedLabel: string | null;
-  suggestedId: number | null;
-  suggestedLabel: string | null;
 }
 
 export interface User {
@@ -1263,7 +1246,7 @@ export interface ClaimsResponse {
 // ==================== العُهد ====================
 
 /**
- * حساب عهدة = ExpenseAccount(accountKind='advance') — الرصيد محسوب لحظيًا:
+ * حساب عهدة = Account(accountRole='custody') في الدليل الموحد (Task 105) — الرصيد محسوب لحظيًا:
  * balance = handed (تسليم) − spent (تصفية) − returned (إرجاع). القاعدة 8.
  */
 export interface CustodyAccountItem {
@@ -1282,6 +1265,8 @@ export interface CustodyAccountItem {
 
 export interface CustodyAccountsResponse {
   items: CustodyAccountItem[];
+  /** Task 105 — مسار custody/accounts يعيد accounts (شجرة مسطّحة) — يُقبل أي من المفتاحين */
+  accounts?: CustodyAccountItem[];
 }
 
 /** نوع حركة دفتر العهدة: handover تسليم | settlement تصفية | return إرجاع */
@@ -1331,6 +1316,8 @@ export interface CustodySettlementItem {
 
 export interface CustodySettlementsResponse {
   items: CustodySettlementItem[];
+  /** Task 105 — مسار settlements يعيد settlements — يُقبل أي من المفتاحين */
+  settlements?: CustodySettlementItem[];
 }
 
 /** بند تصفية — كل بند سند PV مستقل تحت مرجع المجموعة نفسه */
@@ -1340,8 +1327,10 @@ export interface CustodySettlementLine {
   voucherNumber?: string;
   vdate?: string;
   amount: number;
-  expenseAccountId?: number | null;
-  expenseAccountName?: string;
+  /** الحساب المحاسبي للبند في الدليل الموحد (Task 105) */
+  accountId?: number | null;
+  /** اسم الحساب عند التسجيل */
+  accountSnapshot?: string | null;
   customerId?: number | null;
   customerName?: string;
   contractId?: number | null;
@@ -1367,6 +1356,8 @@ export interface CustodyOverviewItem {
 
 export interface CustodyOverviewResponse {
   items: CustodyOverviewItem[];
+  /** Task 105 — custodyOverview يعيد accounts — يُقبل أي من المفتاحين */
+  accounts?: CustodyOverviewItem[];
 }
 
 // ==================== الفواتير ====================

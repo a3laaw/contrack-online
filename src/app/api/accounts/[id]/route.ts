@@ -5,7 +5,7 @@ import { audit, authGuard, jsonError, ok } from "@/lib/api-utils";
 /**
  * تعديل/حذف حساب من دليل الحسابات — Task 102.
  * PATCH: الاسم/البيانات/الرصيد الافتتاحي/خريطة XBRL/التفعيل — الكود والنوع مقفولان للنظامي.
- * DELETE: غير النظامي الذي لا أبناء له ولا ربط بشجرة المصروفات حصرًا.
+ * DELETE: غير النظامي الذي لا أبناء له وغير مستخدم في أي سند (حساب رئيسي أو عهدة).
  */
 
 interface Params {
@@ -84,8 +84,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const childCount = await db.account.count({ where: { parentId: id } });
   if (childCount > 0) return jsonError("لا يمكن حذف حساب له حسابات فرعية — احذف الفروع أولًا.");
 
-  const bridged = await db.expenseAccount.findFirst({ where: { accountId: id }, select: { id: true } });
-  if (bridged) return jsonError("الحساب مربوط بحساب مصروف في «جسر المصروفات» — افصل الربط قبل الحذف.");
+  // الشجرة الموحدة (Task 105): لا جسر مصروفات — الحارس هو الاستخدام الفعلي في السندات
+  const usedInVouchers = await db.voucher.count({ where: { OR: [{ accountId: id }, { custodyAccountId: id }] } });
+  if (usedInVouchers > 0) return jsonError("الحساب مستخدم في سندات — لا يمكن حذفه.");
 
   await db.$transaction(async (tx) => {
     await tx.account.delete({ where: { id } });

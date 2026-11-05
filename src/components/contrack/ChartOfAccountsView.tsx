@@ -2,13 +2,13 @@
 
 /**
  * شاشة «دليل الحسابات» — Task 102/103 (المحاسبة الكاملة).
- * ثلاثة تبويبات:
+ * تبويبان:
  *  1) الدليل: شجرة قابلة للطي بأكواد وأرصدة افتتاحية، إضافة/تعديل/إيقاف/حذف
  *     (منع حذف النظامي أو ذي الفروع أو المربوط)، وبذر الدليل الكويتي القياسي.
  *  2) خريطة XBRL: ربط الأوراق بعناصر taxonomy الكويتي/IFRS — هدف التوافق الأساسي
  *     مع التقديم الإلكتروني لوزارة التجارة والصناعة.
- *  3) جسر المصروفات: ربط شجرة حسابات المصروفات القديمة بالدليل الجديد بمقترحات آلية
- *     ومراجعة بشرية قبل التطبيق (لا حذف ولا تغيير سلوك للسندات).
+ *  Task 105 — تاب «جسر المصروفات» أُسقط: شجرة المصروفات القديمة دُمجت آليًا في
+ *  الدليل الموحد (Account) ولا جسر بعد الآن.
  */
 
 import * as React from "react";
@@ -58,7 +58,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "./api";
-import type { AccountDTO, BridgeRow, ChartAccountsResponse } from "./contrack-types";
+import type { AccountDTO, ChartAccountsResponse } from "./contrack-types";
 import { errMessage } from "./contrack-types";
 import { formatKWD } from "@/lib/format";
 import { checkOpeningBalance } from "@/lib/accounting-core";
@@ -77,12 +77,6 @@ const TYPE_BADGE: Record<string, string> = {
   equity: "bg-status-done-bg text-status-done",
   revenue: "bg-status-done-bg text-status-done",
   expense: "bg-status-danger-bg text-status-danger",
-};
-
-const KIND_LABEL: Record<string, string> = {
-  expense: "مصروف",
-  advance: "سلفة/عهدة",
-  asset: "أصل",
 };
 
 interface AccountForm {
@@ -387,7 +381,6 @@ export function ChartOfAccountsView({ onAuthError }: { onAuthError: () => void }
         <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
           <TabsTrigger value="tree">الدليل</TabsTrigger>
           <TabsTrigger value="xbrl">خريطة XBRL</TabsTrigger>
-          <TabsTrigger value="bridge">جسر المصروفات</TabsTrigger>
         </TabsList>
 
         {/* ============ تبويب الدليل ============ */}
@@ -455,9 +448,6 @@ export function ChartOfAccountsView({ onAuthError }: { onAuthError: () => void }
 
         {/* ============ تبويب خريطة XBRL ============ */}
         <XbrlTab accounts={leaves} fail={fail} />
-
-        {/* ============ تبويب جسر المصروفات ============ */}
-        <BridgeTab fail={fail} />
 
         {/* ============ حوار إضافة/تعديل حساب ============ */}
         <Dialog open={form !== null} onOpenChange={(v) => !v && setForm(null)}>
@@ -686,167 +676,5 @@ function XbrlTab({ accounts, fail }: { accounts: AccountDTO[]; fail: (e: unknown
         </Table>
       </div>
     </TabsContent>
-  );
-}
-
-// ============================================================
-// تبويب جسر المصروفات — ربط الشجرة القديمة بالدليل الجديد
-// ============================================================
-
-function BridgeTab({ fail }: { fail: (e: unknown, t: string) => void }) {
-  const qc = useQueryClient();
-  const { toast } = useToast();
-
-  const bridgeQuery = useQuery<{ rows: BridgeRow[] }, Error>({
-    queryKey: ["accounts-bridge"],
-    queryFn: async () => apiGet<{ rows: BridgeRow[] }>("/api/accounts/bridge"),
-    retry: false,
-  });
-  const rows = bridgeQuery.data?.rows ?? [];
-
-  // اختيارات الواجهة المحلية — الافتراضي يُشتق عند الرسم من المحفوظ (بلا مزامنة useEffect)
-  const [picks, setPicks] = React.useState<Record<number, string>>({});
-  const savedOf = (r: BridgeRow) => (r.accountId != null ? String(r.accountId) : "0");
-  const pickOf = (r: BridgeRow) => picks[r.id] ?? savedOf(r);
-  const changed = rows.filter((r) => pickOf(r) !== savedOf(r));
-
-  const applySuggestion = (r: BridgeRow) => {
-    if (r.suggestedId == null) return;
-    setPicks((prev) => ({ ...prev, [r.id]: String(r.suggestedId) }));
-  };
-  const applyAllSuggestions = () => {
-    setPicks((prev) => {
-      const next = { ...prev };
-      for (const r of rows) if (r.suggestedId != null) next[r.id] = String(r.suggestedId);
-      return next;
-    });
-  };
-
-  const saveMutation = useMutation({
-    mutationFn: () =>
-      apiPost<{ applied: number }>(
-        "/api/accounts/bridge",
-        {
-          // الروابط المتغيرة فقط — لا كل الصفوف (مهلة المعاملة التفاعلية مع بطء الـpooler)
-          links: changed.map((r) => ({
-            expenseAccountId: r.id,
-            accountId: pickOf(r) === "0" ? null : Number(pickOf(r)),
-          })),
-        }
-      ),
-    onSuccess: (res) => {
-      toast({ title: `حُفظ الجسر — ${res.applied} رابطًا` });
-      qc.invalidateQueries({ queryKey: ["accounts-bridge"] });
-      qc.invalidateQueries({ queryKey: ["expense-accounts"] });
-    },
-    onError: (e) => fail(e, "تعذر حفظ الجسر"),
-  });
-
-  return (
-    <TabsContent value="bridge" className="space-y-3">
-      <Card>
-        <CardContent className="flex flex-wrap items-center justify-between gap-2 py-3 text-xs">
-          <span className="text-muted-foreground">
-            كل حساب في شجرة المصروفات القديمة يقابله حساب في الدليل الجديد — الربط آلي بالاقتراح ثم مراجعتك،
-            والشجرة القديمة تظل تعمل كما هي حتى اكتمال القيود المزدوجة.
-          </span>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={applyAllSuggestions}>
-              <Sparkles className="size-4" /> تطبيق كل المقترحات
-            </Button>
-            <Button size="sm" className="h-9 gap-1.5" disabled={saveMutation.isPending || changed.length === 0} onClick={() => saveMutation.mutate()}>
-              <Link2 className="size-4" />
-              {saveMutation.isPending ? "جارٍ الحفظ…" : `حفظ الروابط (${changed.length})`}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="min-w-48">حساب المصروفات القديم</TableHead>
-              <TableHead className="w-20 text-center">النوع</TableHead>
-              <TableHead className="min-w-56">الحساب المحاسبي الموافق</TableHead>
-              <TableHead className="w-40 text-center">المقترح آليًا</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {bridgeQuery.isLoading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell colSpan={4}><div className="h-8 animate-pulse rounded bg-muted" /></TableCell>
-                </TableRow>
-              ))
-            ) : rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">لا حسابات مصروفات — أضفها من الإعدادات أولًا</TableCell>
-              </TableRow>
-            ) : (
-              rows.map((r) => {
-                const pick = pickOf(r);
-                const isChanged = pick !== savedOf(r);
-                return (
-                  <TableRow key={r.id} className={isChanged ? "bg-primary/5" : ""}>
-                    <TableCell className="text-sm">
-                      <div className="truncate" title={r.fullPath}>{r.fullPath || r.name}</div>
-                      {r.isActive === false && <span className="text-[11px] text-muted-foreground">· موقوف</span>}
-                    </TableCell>
-                    <TableCell className="text-center text-xs text-muted-foreground">{KIND_LABEL[r.accountKind] ?? r.accountKind}</TableCell>
-                    <TableCell>
-                      <Select value={pick} onValueChange={(v) => setPicks((prev) => ({ ...prev, [r.id]: v }))}>
-                        <SelectTrigger className="h-8 w-full text-xs"><SelectValue placeholder="— بلا ربط —" /></SelectTrigger>
-                        <SelectContent className="max-h-64">
-                          <SelectItem value="0">— بلا ربط —</SelectItem>
-                          <BridgeAccountOptions kind={r.accountKind} />
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {r.suggestedId != null ? (
-                        <button
-                          type="button"
-                          className="inline-flex max-w-full items-center gap-1 truncate rounded-md border px-2 py-1 text-[11px] hover:bg-accent"
-                          title={`تطبيق المقترح: ${r.suggestedLabel}`}
-                          onClick={() => applySuggestion(r)}
-                        >
-                          <Sparkles className="size-3 shrink-0 text-primary" />
-                          <span className="truncate">{r.suggestedLabel}</span>
-                        </button>
-                      ) : (
-                        <span className="text-[11px] text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
-    </TabsContent>
-  );
-}
-
-/** خيارات الحسابات المحاسبية للأوراق — مصروفات للشجرة العادية وأصول للعُهد/السلف */
-function BridgeAccountOptions({ kind }: { kind: string }) {
-  const accQuery = useQuery<ChartAccountsResponse, Error>({
-    queryKey: ["accounts"],
-    queryFn: async () => apiGet<ChartAccountsResponse>("/api/accounts"),
-    retry: false,
-  });
-  const wantedType = kind === "advance" ? "asset" : "expense";
-  const options = (accQuery.data?.accounts ?? []).filter(
-    (a) => a.isLeaf && a.isActive && a.type === wantedType
-  );
-  return (
-    <>
-      {options.map((a) => (
-        <SelectItem key={a.id} value={String(a.id)}>
-          {a.code} — {a.name}
-        </SelectItem>
-      ))}
-    </>
   );
 }

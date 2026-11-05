@@ -324,14 +324,19 @@ model Voucher {
   partyId                Int?                 @map("party_id")
   method                 String               @default("")
   account                String               @default("")
-  expenseAccountId       Int?                 @map("expense_account_id")
-  expenseAccount         ExpenseAccount?      @relation("expenseAccount", fields: [expenseAccountId], references: [id])
-  expenseAccountSnapshot String               @default("") @map("expense_account_snapshot")
+  // Task 105 — الحساب الموحّد على الدليل الواحد (Account):
+  // • accountId: الحساب المحاسبي الرئيسي للسند — مصروف في الصرف/التصفية
+  // • custodyAccountId: طرف العهدة (حساب أصل بـaccountRole=custody) — handover/return فقط له، التصفية تضيف accountId
+  // • accountSnapshot: اسم الحساب عند التسجيل (عرض وبحث)
+  // دلالات التمييز كما كانت: handover/return = custodyAccountId فقط، تصفية = accountId + custodyAccountId،
+  // صرف مصروف = accountId فقط — كل فلاتر الكشوف (null/not-null) تُترجم 1:1.
+  accountId             Int?        @map("account_id")
+  accountRef            Account?    @relation("VoucherAccount", fields: [accountId], references: [id])
+  accountSnapshot       String?     @map("account_snapshot")
   expenseGroupRef        String               @default("") @map("expense_group_ref")
   expenseGroupLine       Int?                 @map("expense_group_line")
   custodyAccountId       Int?                 @map("custody_account_id")
-  custodyAccount         ExpenseAccount?      @relation("custodyAccount", fields: [custodyAccountId], references: [id])
-  custodyAccountSnapshot String               @default("") @map("custody_account_snapshot")
+  custodyAccount         Account?             @relation("VoucherCustodyAccount", fields: [custodyAccountId], references: [id])
   advanceEmployeeId      Int?                 @map("advance_employee_id")
   employee               Employee?            @relation(fields: [advanceEmployeeId], references: [id])
   amount                 Decimal
@@ -838,27 +843,10 @@ model PaymentMethod {
   @@map("payment_methods")
 }
 
-model ExpenseAccount {
-  companyId Int @default(1) @map("company_id")
-  id                     Int              @id @default(autoincrement())
-  parentId               Int?             @map("parent_id")
-  parent                 ExpenseAccount?  @relation("tree", fields: [parentId], references: [id])
-  children               ExpenseAccount[] @relation("tree")
-  name                   String
-  fullPath               String           @default("") @map("full_path")
-  isActive               Boolean          @default(true) @map("is_active")
-  allowPosting           Boolean          @default(true) @map("allow_posting")
-  includeInProfitability Boolean          @default(true) @map("include_in_profitability")
-  accountKind            String           @default("expense") @map("account_kind") // expense|advance
-  sortOrder              Int              @default(0) @map("sort_order")
-  // Task 102 — جسر الهجرة: الحساب المحاسبي الموافق في دليل الحسابات الجديد (Account)
-  // بلا علاقة FK عمدًا (قاعدة الجداول التشغيلية) — الربط عبر شاشة «جسر المصروفات»
-  accountId              Int?             @map("account_id")
-  vouchersAsExpense      Voucher[]        @relation("expenseAccount")
-  vouchersAsCustody      Voucher[]        @relation("custodyAccount")
-
-  @@map("expense_accounts")
-}
+// Task 105 — أُسقطت شجرة ExpenseAccount نهائيًا (منهج النواة الواحدة: دليل واحد):
+// أُرشفت إلى db/expense-accounts-tree-archive-task105.json، حُمّلت إلى Account
+// (مصروف → 5xxx، عُهد/سلف → أصول 1xxx بـaccountRole=custody) وتقرير الدمج
+// في db/expense-tree-migration-report-task105.json.
 
 // ==================== المحاسبة الكاملة — دليل الحسابات (Task 102) ====================
 // الشجرة الكاملة لكل شركة — الأرضية للقيود المزدوجة (Task 104) والقوائم المالية
@@ -879,6 +867,11 @@ model Account {
   allowPosting   Boolean  @default(true) @map("allow_posting")
   isActive       Boolean  @default(true) @map("is_active")
   isSystem       Boolean  @default(false) @map("is_system") // نظامي مُبذّر: لا يُحذف ولا يتغير كوده/نوعه
+  // Task 105 — خصائص الشجرة الموحدة المنقولة من ExpenseAccount عند دمجها وإسقاطها:
+  // • accountRole: عهد/سلف الموظفين (بديل accountKind='advance') — تُعرض في شاشات العهد وتُستخدم في سندات التسليم/التصفية
+  // • includeInProfitability: تستهلكها تقارير ربحية العقود (استبعاد الصرف غير الربحي)
+  accountRole            String   @default("standard") @map("account_role") // standard | custody
+  includeInProfitability Boolean  @default(true) @map("include_in_profitability")
   openingBalance Decimal  @default(0) @db.Decimal(18, 3) @map("opening_balance") // مدين موجب / دائن سالب (Task 103)
   notes          String   @default("")
   sortOrder      Int      @default(0) @map("sort_order")
@@ -886,6 +879,8 @@ model Account {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
   journalLines   JournalLine[]
+  vouchers       Voucher[] @relation("VoucherAccount")
+  custodyVouchers Voucher[] @relation("VoucherCustodyAccount")
 
   @@unique([companyId, code])
   @@index([companyId, type])

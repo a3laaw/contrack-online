@@ -488,11 +488,11 @@ export async function subPaymentCap(
 export async function custodyRemaining(client: DbClient, custodyAccountId: number): Promise<number> {
   const [handed, spent, returned] = await Promise.all([
     client.voucher.aggregate({
-      where: { vtype: "payment", cancelled: false, custodyAccountId, expenseAccountId: null },
+      where: { vtype: "payment", cancelled: false, custodyAccountId, accountId: null },
       _sum: { amount: true },
     }),
     client.voucher.aggregate({
-      where: { vtype: "payment", cancelled: false, custodyAccountId, expenseAccountId: { not: null } },
+      where: { vtype: "payment", cancelled: false, custodyAccountId, accountId: { not: null } },
       _sum: { amount: true },
     }),
     client.voucher.aggregate({
@@ -535,27 +535,28 @@ export async function insertVoucherJournal(
     method: string;
     contractId: number | null;
     subContractId: number | null;
-    expenseAccountId?: number | null;
+    /** الحساب الرئيسي من الدليل الموحد (مصروف في الصرف/التصفية) */
+    accountId?: number | null;
+    /** طرف العهدة (handover/return/تصفية) */
     custodyAccountId?: number | null;
-    expenseAccountSnapshot: string;
-    custodyAccountSnapshot: string;
+    accountSnapshot: string;
     partyType: string;
   }
 ): Promise<void> {
-  // Task 104: الأطراف نصوص قديمة — تُحسم عبر المحرك الموحد (postNamedEntry):
-  // جسر الشجرة → اسم الدليل → الخريطة الثابتة → حساب التسوية المؤقت
+  // Task 105: الحساب من الدليل الموحد (accountId) أولويةً، والطرف النصي الحر (نقدية/بنك/العملاء…)
+  // يُحسم بمحرك postNamedEntry (الدليل → الخريطة الثابتة → التسوية)
   let debit = "";
   let credit = "";
-  let debitExpenseAccountId: number | null = null;
-  let creditExpenseAccountId: number | null = null;
+  let debitAccountId: number | null = null;
+  let creditAccountId: number | null = null;
   switch (v.vtype) {
     case "receipt":
       debit = v.account || defaultAccountForMethod(v.method);
       credit = v.contractId ? "إيرادات العقود" : "العملاء";
       break;
     case "payment":
-      debit = v.expenseAccountSnapshot || v.custodyAccountSnapshot || (v.partyType === "partner" ? "جاري الشريك" : "مصروفات أخرى");
-      debitExpenseAccountId = v.expenseAccountId ?? null;
+      debit = v.accountSnapshot || (v.partyType === "partner" ? "جاري الشريك" : "مصروفات أخرى");
+      debitAccountId = v.accountId ?? null;
       credit = v.account || defaultAccountForMethod(v.method);
       break;
     case "transfer":
@@ -564,8 +565,8 @@ export async function insertVoucherJournal(
       break;
     case "custody_return":
       debit = v.account || defaultAccountForMethod(v.method);
-      credit = v.custodyAccountSnapshot || "العهد";
-      creditExpenseAccountId = v.custodyAccountId ?? null;
+      credit = v.accountSnapshot || "العهد";
+      creditAccountId = v.custodyAccountId ?? null;
       break;
     case "salary_deduction":
       debit = "رواتب";
@@ -577,8 +578,8 @@ export async function insertVoucherJournal(
   await postNamedEntry(tx, {
     entryDate: v.vdate,
     description: `${VOUCHER_TYPE_LABELS[v.vtype] || v.vtype} ${v.voucherNumber}`,
-    debit: { name: debit, expenseAccountId: debitExpenseAccountId },
-    credit: { name: credit, expenseAccountId: creditExpenseAccountId },
+    debit: { name: debit, accountId: debitAccountId },
+    credit: { name: credit, accountId: creditAccountId },
     amount: v.amount,
     dims: { contractId: v.contractId, subContractId: v.subContractId },
     sourceType: "voucher",
@@ -623,10 +624,28 @@ export async function reverseVoucherJournals(tx: Tx, voucherId: number, reason: 
 // ==================== الرسوم البنكية ====================
 
 export async function ensureBankCommissionAccount(tx: Tx): Promise<{ id: number; name: string }> {
-  const found = await tx.expenseAccount.findFirst({ where: { name: "عمولات بنكية" } });
-  if (found) return { id: found.id, name: found.name };
-  const created = await tx.expenseAccount.create({
-    data: { name: "عمولات بنكية", fullPath: "عمولات بنكية", accountKind: "expense" },
+  // الدليل الموحد (Task 105): 5260 «رسوم وعمولات بنكية» نظامي من البذرة — ضمانه فقط
+  const byCode = await tx.account.findFirst({ where: { code: "5260", type: "expense" }, select: { id: true, name: true } });
+  if (byCode) return { id: byCode.id, name: byCode.name };
+  const byName = await tx.account.findFirst({ where: { name: "عمولات بنكية", type: "expense" }, select: { id: true, name: true } });
+  if (byName) return { id: byName.id, name: byName.name };
+  const parent = await tx.account.findFirst({ where: { code: "5300" }, select: { id: true } });
+  if (parent) {
+    await tx.account.update({ where: { id: parent.id }, data: { isLeaf: false, allowPosting: false } });
+  }
+  const created = await tx.account.create({
+    data: {
+      code: "5260",
+      name: "رسوم وعمولات بنكية",
+      type: "expense",
+      nature: "debit",
+      parentId: parent?.id ?? null,
+      isLeaf: true,
+      allowPosting: true,
+      isActive: true,
+      isSystem: true,
+      xbrlElement: "kw:BankFeesAndCommissionsExpense",
+    },
   });
   return { id: created.id, name: created.name };
 }
@@ -654,8 +673,8 @@ export async function createFeeChildVoucher(
       amount: params.fee,
       description: `رسوم بنكية عن سند القبض ${params.parent.voucherNumber}`,
       notes: `BANK_FEE:${params.parent.voucherNumber}`,
-      expenseAccountId: acc.id,
-      expenseAccountSnapshot: acc.name,
+      accountId: acc.id,
+      accountSnapshot: acc.name,
       parentVoucherId: params.parent.id,
       contractId: params.parent.contractId,
     },
@@ -667,7 +686,7 @@ export async function createFeeChildVoucher(
       await postNamedEntry(tx, {
         entryDate: params.parent.vdate,
         description: `توزيع رسوم بنكية سند ${params.parent.voucherNumber}`,
-        debit: { name: acc.name, expenseAccountId: acc.id },
+        debit: { name: acc.name, accountId: acc.id },
         credit: { name: params.parent.account || "البنك" },
         amount: row.amount,
         dims: { contractId: row.contractId },
@@ -679,7 +698,7 @@ export async function createFeeChildVoucher(
     await postNamedEntry(tx, {
       entryDate: params.parent.vdate,
       description: `رسوم بنكية عن سند القبض ${params.parent.voucherNumber}`,
-      debit: { name: acc.name, expenseAccountId: acc.id },
+      debit: { name: acc.name, accountId: acc.id },
       credit: { name: params.parent.account || "البنك" },
       amount: params.fee,
       dims: { contractId: params.parent.contractId },
@@ -795,7 +814,8 @@ export interface CreateVoucherInput {
   partyId?: number;
   contractId?: number;
   subContractId?: number;
-  expenseAccountId?: number;
+  /** الحساب المحاسبي من الدليل الموحد (مصروف للصرف، أو مصروف التصفية مع عهدة) — Task 105 */
+  accountId?: number;
   custodyAccountId?: number;
   advanceEmployeeId?: number;
   description?: string;
@@ -825,10 +845,9 @@ interface PreparedVoucher {
   partyId: number | null;
   contractId: number | null;
   subContractId: number | null;
-  expenseAccountId: number | null;
-  expenseAccountSnapshot: string;
+  accountId: number | null;
+  accountSnapshot: string;
   custodyAccountId: number | null;
-  custodyAccountSnapshot: string;
   advanceEmployeeId: number | null;
   chequeDueDate: string;
   allocation: string;
@@ -865,10 +884,9 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
     partyId: input.partyId ? intOr(input.partyId, 0) || null : null,
     contractId: input.contractId ? intOr(input.contractId, 0) || null : null,
     subContractId: null,
-    expenseAccountId: null,
-    expenseAccountSnapshot: "",
+    accountId: null,
+    accountSnapshot: "",
     custodyAccountId: null,
-    custodyAccountSnapshot: "",
     advanceEmployeeId: null,
     chequeDueDate: "",
     allocation: String(input.allocation || ""),
@@ -969,13 +987,13 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
           { overpay: true, remaining: cap.remaining }
         );
       }
-      if (input.expenseAccountId) {
-        const acc = await db.expenseAccount.findUnique({ where: { id: intOr(input.expenseAccountId, 0) } });
-        if (!acc || !acc.allowPosting || acc.accountKind !== "expense") {
+      if (input.accountId) {
+        const acc = await db.account.findUnique({ where: { id: intOr(input.accountId, 0) } });
+        if (!acc || !acc.isActive || !acc.isLeaf || !acc.allowPosting || acc.type !== "expense") {
           throw new VoucherError("حساب المصروف المحدد غير صالح للترحيل");
         }
-        base.expenseAccountId = acc.id;
-        base.expenseAccountSnapshot = acc.name;
+        base.accountId = acc.id;
+        base.accountSnapshot = acc.name;
       }
       const subPlan = await computeSubPlan(sc.id);
       if (subPlan) {
@@ -1004,31 +1022,31 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
       return base;
     }
     if (input.custodyAccountId) {
-      const acc = await db.expenseAccount.findUnique({ where: { id: intOr(input.custodyAccountId, 0) } });
-      if (!acc || acc.accountKind !== "advance") {
+      const acc = await db.account.findUnique({ where: { id: intOr(input.custodyAccountId, 0) } });
+      if (!acc || !acc.isActive || acc.accountRole !== "custody") {
         throw new VoucherError("حساب العهدة غير صالح (يجب أن يكون من حسابات العُهد)");
       }
       base.custodyAccountId = acc.id;
-      base.custodyAccountSnapshot = acc.name;
+      base.accountSnapshot = acc.name;
       if (!base.description.trim()) base.description = await applyDescriptionPrefix(db, "custody", "تسليم عهدة");
-      if (input.expenseAccountId) {
-        const exp = await db.expenseAccount.findUnique({ where: { id: intOr(input.expenseAccountId, 0) } });
-        if (exp && exp.allowPosting && exp.accountKind === "expense") {
-          base.expenseAccountId = exp.id;
-          base.expenseAccountSnapshot = exp.name;
+      if (input.accountId) {
+        const exp = await db.account.findUnique({ where: { id: intOr(input.accountId, 0) } });
+        if (exp && exp.isActive && exp.isLeaf && exp.allowPosting && exp.type === "expense") {
+          base.accountId = exp.id;
+          base.accountSnapshot = exp.name;
         }
       }
       return base;
     }
-    if (!input.expenseAccountId) {
+    if (!input.accountId) {
       throw new VoucherError("حساب المصروف مطلوب لسند الصرف (أو حساب عهدة للتسليم، أو طرف شريك للمدير)");
     }
-    const acc = await db.expenseAccount.findUnique({ where: { id: intOr(input.expenseAccountId, 0) } });
-    if (!acc || !acc.allowPosting || acc.accountKind !== "expense") {
+    const acc = await db.account.findUnique({ where: { id: intOr(input.accountId, 0) } });
+    if (!acc || !acc.isActive || !acc.isLeaf || !acc.allowPosting || acc.type !== "expense") {
       throw new VoucherError("حساب المصروف غير موجود أو غير مسموح بالترحيل عليه");
     }
-    base.expenseAccountId = acc.id;
-    base.expenseAccountSnapshot = acc.name;
+    base.accountId = acc.id;
+    base.accountSnapshot = acc.name;
     if (base.partyType === "subcontractor" && base.partyId) {
       if (!base.contractId) throw new VoucherError("العقد مطلوب للصرف لمقاول باطن");
       if (!base.description.trim()) {
@@ -1074,14 +1092,14 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
 
   if (base.vtype === "custody_return") {
     if (!input.custodyAccountId) throw new VoucherError("حساب العهدة مطلوب لسند إرجاع العهدة");
-    const acc = await db.expenseAccount.findUnique({ where: { id: intOr(input.custodyAccountId, 0) } });
-    if (!acc || acc.accountKind !== "advance") throw new VoucherError("حساب العهدة غير صالح");
+    const acc = await db.account.findUnique({ where: { id: intOr(input.custodyAccountId, 0) } });
+    if (!acc || !acc.isActive || acc.accountRole !== "custody") throw new VoucherError("حساب العهدة غير صالح");
     const rem = await custodyRemaining(db, acc.id);
     if (amount > rem + 1e-9) {
       throw new VoucherError(`المبلغ يتجاوز متبقي العهدة (${rem} د.ك فقط)`);
     }
     base.custodyAccountId = acc.id;
-    base.custodyAccountSnapshot = acc.name;
+    base.accountSnapshot = acc.name;
     base.account = normalizeAccount(input.account, base.method);
     base.party = base.party || acc.name;
     if (!base.description.trim()) base.description = await applyDescriptionPrefix(db, "custody", "إرجاع عهدة");
@@ -1123,10 +1141,9 @@ export async function createVoucher(
             partyId: prep.partyId,
             method: prep.method,
             account: prep.account,
-            expenseAccountId: prep.expenseAccountId,
-            expenseAccountSnapshot: prep.expenseAccountSnapshot,
+            accountId: prep.accountId,
+            accountSnapshot: prep.accountSnapshot || null,
             custodyAccountId: prep.custodyAccountId,
-            custodyAccountSnapshot: prep.custodyAccountSnapshot,
             advanceEmployeeId: prep.advanceEmployeeId,
             amount: prep.amount,
             description: prep.description,
@@ -1171,10 +1188,9 @@ export async function createVoucher(
           method: prep.method,
           contractId: prep.contractId,
           subContractId: prep.subContractId,
-          expenseAccountId: prep.expenseAccountId,
+          accountId: prep.accountId,
           custodyAccountId: prep.custodyAccountId,
-          expenseAccountSnapshot: prep.expenseAccountSnapshot,
-          custodyAccountSnapshot: prep.custodyAccountSnapshot,
+          accountSnapshot: prep.accountSnapshot,
           partyType: prep.partyType,
         });
 
@@ -1462,10 +1478,9 @@ export async function updateVoucher(
       method: newMethod,
       contractId: v.contractId,
       subContractId: v.subContractId,
-      expenseAccountId: v.expenseAccountId,
+      accountId: v.accountId,
       custodyAccountId: v.custodyAccountId,
-      expenseAccountSnapshot: v.expenseAccountSnapshot,
-      custodyAccountSnapshot: v.custodyAccountSnapshot,
+      accountSnapshot: v.accountSnapshot ?? "",
       partyType: v.partyType,
     });
 
@@ -1563,7 +1578,7 @@ export async function voucherCancelBarrier(voucherId: number): Promise<string | 
     }
   }
   // (ب) سند تسليم عهدة له تصفية سارية
-  if (v.vtype === "payment" && v.custodyAccountId && !v.expenseAccountId) {
+  if (v.vtype === "payment" && v.custodyAccountId && !v.accountId) {
     const settlements = await db.voucher.count({
       where: { custodyAccountId: v.custodyAccountId, expenseGroupRef: { not: "" }, cancelled: false, id: { not: v.id } },
     });

@@ -28,6 +28,8 @@ export async function GET(req: NextRequest) {
       allowPosting: true,
       isActive: true,
       isSystem: true,
+      accountRole: true,
+      includeInProfitability: true,
       openingBalance: true,
       notes: true,
       sortOrder: true,

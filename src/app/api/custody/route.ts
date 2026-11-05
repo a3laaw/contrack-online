@@ -5,24 +5,24 @@
 //      → { accounts:[{id,name,fullPath,handed,spent,returned,balance}],
 //          movements:[سندات العهدة], totals:{...} }
 //      الرصيد محسوب دائمًا (لا تخزين):
-//        handed   = Σ payment بـ custodyAccountId و expenseAccountId=null
-//        spent    = Σ payment بـ custodyAccountId و expenseAccountId≠null (بنود التصفية)
+//        handed   = Σ payment بـ custodyAccountId و accountId=null
+//        spent    = Σ payment بـ custodyAccountId و accountId≠null (بنود التصفية)
 //        returned = Σ custody_return
 //
 // POST /api/custody body {op:'handover'|'settle'|'return'|'addAccount', ...}
-//   handover  → سند PV: vtype='payment', custodyAccountId=حساب عهدة,
-//               expenseAccountId=null, method='نقدًا'
+//   handover  → سند PV: vtype='payment', custodyAccountId=حساب عهدة (accountRole='custody'),
+//               accountId=null, method='نقدًا'
 //   settle    → دفعة مجمعة: سند PV لكل بند تحت مرجع واحد
 //               method='تصفية عهدة' + notes «تصفية عهدة من حساب: X» — لا نقدية جديدة
 //   return    → سند vtype='custody_return' على نفس الحساب، بحارس: المبلغ ≤ المتبقي + 0.001
-//   addAccount→ إنشاء حساب عهدة (accountKind='advance') تحت جذر «عهد الموظفين» (مدير فقط)
+//   addAccount→ إنشاء حساب عهدة (Account.accountRole='custody') تحت عقدة 1140 «عُهد وسلف الموظفين» (مدير فقط)
 //
-// ملاحظة التكيف: عمود expenseGroupRef غير متاح في مخطط Prisma الحالي
-// (ممنوع تعديل المخطط في هذه المهمة)، لذا يُخزَّن مرجع المجموعة داخل notes
-// بنمط الوسم النصي الذي يعتمده الأصل نفسه في حارس الإلغاء
-// (spec-8-e §1.4: notes تحتوي «تصفية عهدة من حساب:») —
-// «المرجع: PAY-GRP-YYYYMMDD-### | بند i/n» — والتمييز بين التسليم والتصفية
-// يبقى حرفيًا كما في الأصل: وجود/عدم وجود expenseAccountId.
+// ملاحظة التكيف (Task 105 — الشجرة الموحدة): الحسابات على دليل Account —
+// عهد الموظفين = عقدة كود 1140 وأبناؤها accountRole='custody'، وحسابات المصروف
+// أوراق type='expense'. يُخزَّن مرجع المجموعة داخل notes بنمط الوسم النصي
+// الذي يعتمده الأصل نفسه في حارس الإلغاء (spec-8-e §1.4: notes تحتوي
+// «تصفية عهدة من حساب:») — «المرجع: PAY-GRP-YYYYMMDD-### | بند i/n» —
+// والتمييز بين التسليم والتصفية يبقى حرفيًا كما في الأصل: وجود/عدم وجود accountId.
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
@@ -42,21 +42,21 @@ function parseAmount(v: unknown): number | null {
 
 const EPS = 0.001 // تسامح الحرس المالي (المتبقي)
 const SETTLE_METHOD = 'تصفية عهدة'
-const CUSTODY_ROOT = 'عهد الموظفين'
+const CUSTODY_PARENT_CODE = '1140' // عقدة «عُهد وسلف الموظفين» في الدليل الموحد
 const GROUP_RE = /المرجع: (PAY-GRP-\d{8}-\d{3})/
 
 type VoucherRow = {
   vtype: string
   custodyAccountId: number | null
-  expenseAccountId: number | null
+  accountId: number | null
   amount: number | Prisma.Decimal
 }
 
 function isHandover(v: VoucherRow): boolean {
-  return v.vtype === 'payment' && v.expenseAccountId == null
+  return v.vtype === 'payment' && v.accountId == null
 }
 function isSettlementItem(v: VoucherRow): boolean {
-  return v.vtype === 'payment' && v.expenseAccountId != null
+  return v.vtype === 'payment' && v.accountId != null
 }
 
 /** أرصدة حسابات العهدة من سندات سارية — محسوبة دائمًا (لا تخزين) */
@@ -87,29 +87,32 @@ function computeBalances(accounts: { id: number }[], rows: VoucherRow[]) {
 async function findCustodyAccount(id: unknown) {
   const accId = Number(id)
   if (!Number.isInteger(accId)) return null
-  const acc = await db.expenseAccount.findUnique({ where: { id: accId } })
-  if (!acc || !acc.isActive || acc.accountKind !== 'advance') return null
+  const acc = await db.account.findUnique({ where: { id: accId } })
+  if (!acc || !acc.isActive || acc.accountRole !== 'custody') return null
   return acc
 }
 
-/** جذر شجرة العهد — يُنشأ عند أول حاجة (لا يقبل قيدًا كالأصل) */
-async function ensureCustodyRoot(tx?: Prisma.TransactionClient) {
+/** عقدة العهد 1140 — تُحوّل لفرع (لا يقبل قيدًا) عند أول حاجة؛ null إن غاب عن الدليل */
+async function ensureCustodyParent(tx?: Prisma.TransactionClient) {
   const client = tx ?? db
-  const root = await client.expenseAccount.findFirst({
-    where: { name: CUSTODY_ROOT, accountKind: 'advance' },
-    orderBy: { id: 'asc' },
-  })
-  if (root) return root
-  return client.expenseAccount.create({
-    data: {
-      name: CUSTODY_ROOT,
-      fullPath: CUSTODY_ROOT,
-      accountKind: 'advance',
-      allowPosting: false,
-      includeInProfitability: false,
-      sortOrder: 8000,
-    },
-  })
+  const parent = await client.account.findFirst({ where: { code: CUSTODY_PARENT_CODE } })
+  if (!parent) return null
+  if (parent.isLeaf || parent.allowPosting) {
+    return client.account.update({
+      where: { id: parent.id },
+      data: { isLeaf: false, allowPosting: false },
+    })
+  }
+  return parent
+}
+
+/** أول كود متاح تحت 1140: 114001 صعودًا (فحص أكواد أبناء 1140 الموجودة) */
+async function nextCustodyCode(parentId: number): Promise<string> {
+  const children = await db.account.findMany({ where: { parentId }, select: { code: true } })
+  const taken = new Set(children.map((c) => c.code))
+  let seq = 1
+  while (taken.has(`${CUSTODY_PARENT_CODE}${String(seq).padStart(3, '0')}`)) seq += 1
+  return `${CUSTODY_PARENT_CODE}${String(seq).padStart(3, '0')}`
 }
 
 const pad3 = (n: number) => String(n).padStart(3, '0')
@@ -130,22 +133,23 @@ export async function GET(req: NextRequest) {
   const employee = sp.get('employee')?.trim() ?? ''
   const accountId = Number(sp.get('accountId') ?? '') || undefined
 
-  const accounts = await db.expenseAccount.findMany({
-    where: { accountKind: 'advance', isActive: true },
+  const accounts = await db.account.findMany({
+    where: { accountRole: 'custody', isActive: true },
     orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
-    select: { id: true, name: true, fullPath: true },
+    select: { id: true, name: true },
   })
 
   // كل سندات العهدة السارية (لحساب الأرصدة)
   const rows = await db.voucher.findMany({
     where: { custodyAccountId: { not: null }, cancelled: false },
-    select: { vtype: true, custodyAccountId: true, expenseAccountId: true, amount: true },
+    select: { vtype: true, custodyAccountId: true, accountId: true, amount: true },
   })
   const balances = computeBalances(accounts, rows)
 
   const accDTOs = accounts.map((a) => {
     const b = balances.get(a.id) ?? { handed: 0, spent: 0, returned: 0, balance: 0 }
-    return { id: a.id, name: a.name, fullPath: a.fullPath, ...b }
+    // الحسابات custody أوراق مباشرة تحت 1140 — fullPath للعرض فقط (بلا عمود في القاعدة)
+    return { id: a.id, name: a.name, fullPath: a.name, ...b }
   })
 
   // الحركات (آخر 300) مع فلاتر اختيارية
@@ -158,13 +162,13 @@ export async function GET(req: NextRequest) {
     orderBy: [{ vdate: 'desc' }, { id: 'desc' }],
     take: 300,
     include: {
-      custodyAccount: { select: { name: true, fullPath: true } },
-      expenseAccount: { select: { name: true } },
+      custodyAccount: { select: { name: true } },
+      accountRef: { select: { name: true } },
     },
   })
 
   const movements = vouchers.map((v) => {
-    const kind = v.vtype === 'custody_return' ? 'return' : v.expenseAccountId != null ? 'settlement' : 'handover'
+    const kind = v.vtype === 'custody_return' ? 'return' : v.accountId != null ? 'settlement' : 'handover'
     return {
       id: v.id,
       voucherNumber: v.voucherNumber,
@@ -173,8 +177,8 @@ export async function GET(req: NextRequest) {
       vdate: ymdOf(v.vdate),
       custodyAccountId: v.custodyAccountId ?? 0,
       custodyAccountName: v.custodyAccount?.name ?? '',
-      expenseAccountId: v.expenseAccountId,
-      expenseAccountName: v.expenseAccount?.name ?? null,
+      accountId: v.accountId,
+      accountName: v.accountRef?.name ?? null,
       groupRef: kind === 'settlement' ? GROUP_RE.exec(v.notes)?.[1] ?? '' : '',
       amount: v.amount,
       party: v.party,
@@ -220,18 +224,25 @@ export async function POST(req: NextRequest) {
     if ('response' in a) return a.response
     const name = typeof body.name === 'string' ? body.name.trim() : ''
     if (!name) return jsonError('اسم حساب العهدة مطلوب', 400)
-    const dup = await db.expenseAccount.findFirst({ where: { name } })
-    if (dup) return jsonError(`يوجد حساب مصروفات بنفس الاسم «${name}»`, 409)
-    const root = await ensureCustodyRoot()
-    const created = await db.expenseAccount.create({
+    const dup = await db.account.findFirst({ where: { name } })
+    if (dup) return jsonError(`يوجد حساب بنفس الاسم «${name}» في دليل الحسابات`, 409)
+    const parent = await ensureCustodyParent()
+    if (!parent) return jsonError('حساب العهد 1140 غير موجود في دليل الشركة', 400)
+    const created = await db.account.create({
       data: {
-        parentId: root.id,
+        code: await nextCustodyCode(parent.id),
         name,
-        fullPath: `${CUSTODY_ROOT} / ${name}`,
-        accountKind: 'advance',
+        type: 'asset',
+        nature: 'debit',
+        parentId: parent.id,
+        isLeaf: true,
         allowPosting: true,
+        isActive: true,
+        isSystem: false,
+        accountRole: 'custody',
         includeInProfitability: false,
-        sortOrder: 8001,
+        xbrlElement: 'kw:EmployeeAdvancesReceivable',
+        notes: 'حساب عهدة موظفين — أنشئ من شاشة العُهد',
       },
     })
     return NextResponse.json({ id: created.id, name: created.name }, { status: 201 })
@@ -259,11 +270,11 @@ export async function POST(req: NextRequest) {
           party,
           partyType: 'other',
           method: 'نقدًا',
-          account: acc.fullPath,
+          account: acc.name,
           amount,
           description,
           custodyAccountId: acc.id,
-          // الحارس الحرفي: التسليم بلا حساب مصروف — ولا يجمع عهدة وسلفة معًا (advanceEmployeeId يبقى null)
+          // الحارس الحرفي: التسليم بلا حساب رئيسي (accountId يبقى null) — ولا يجمع عهدة وسلفة معًا (advanceEmployeeId يبقى null)
         },
       })
     })
@@ -284,35 +295,35 @@ export async function POST(req: NextRequest) {
     const itemsInput = Array.isArray(body.items) ? body.items : []
     if (itemsInput.length === 0) return jsonError('بنود التصفية مطلوبة — أضف بندًا واحدًا على الأقل', 400)
 
-    type Item = { expenseAccountId: number; description: string; amount: number; accountPath: string }
+    type Item = { accountId: number; description: string; amount: number; accountPath: string }
     const items: Item[] = []
     let total = 0
     for (const raw of itemsInput) {
       if (typeof raw !== 'object' || raw === null) return jsonError('بنود التصفية غير صالحة', 400)
       const it = raw as Record<string, unknown>
-      const expenseAccountId = Number(it.expenseAccountId)
-      if (!Number.isInteger(expenseAccountId)) return jsonError('حساب المصروف مطلوب لكل بند', 400)
-      const expAcc = await db.expenseAccount.findUnique({ where: { id: expenseAccountId } })
+      const accountId = Number(it.accountId)
+      if (!Number.isInteger(accountId)) return jsonError('حساب المصروف مطلوب لكل بند', 400)
+      const expAcc = await db.account.findUnique({ where: { id: accountId } })
       if (!expAcc || !expAcc.isActive) return jsonError('أحد حسابات المصروف غير موجود أو غير نشط', 404)
       // الحارس المزدوج: حساب عهدة لا يُستخدم كحساب مصروف (account_snapshot — spec §1.1)
-      if (expAcc.accountKind !== 'expense') {
+      if (expAcc.type !== 'expense' || expAcc.accountRole === 'custody') {
         return jsonError(`«${expAcc.name}» ليس حساب مصروف — لا يمكن استخدام حساب عهدة في بند تصفية`, 400)
       }
       const amount = parseAmount(it.amount)
       if (amount == null || amount <= 0) return jsonError('مبلغ كل بند يجب أن يكون أكبر من صفر', 400)
       total = round3(total + amount)
       items.push({
-        expenseAccountId,
+        accountId,
         description: (typeof it.description === 'string' ? it.description.trim() : '') || 'مصروف من العهدة',
         amount,
-        accountPath: expAcc.fullPath,
+        accountPath: expAcc.name,
       })
     }
 
     // حارس الرصيد: إجمالي البنود ≤ متبقي العهدة + 0.001
     const rows = await db.voucher.findMany({
       where: { custodyAccountId: acc.id, cancelled: false },
-      select: { vtype: true, custodyAccountId: true, expenseAccountId: true, amount: true },
+      select: { vtype: true, custodyAccountId: true, accountId: true, amount: true },
     })
     const b = computeBalances([acc], rows).get(acc.id)!
     if (total > b.balance + EPS) {
@@ -346,9 +357,9 @@ export async function POST(req: NextRequest) {
               account: it.accountPath,
               amount: it.amount,
               description: it.description,
-              expenseAccountId: it.expenseAccountId,
+              accountId: it.accountId,
               custodyAccountId: acc.id,
-              notes: `تصفية عهدة من حساب: ${acc.fullPath} | المرجع: ${groupRef} | بند ${i + 1}/${items.length}`,
+              notes: `تصفية عهدة من حساب: ${acc.name} | المرجع: ${groupRef} | بند ${i + 1}/${items.length}`,
             },
           })
           created.push({ id: v.id, voucherNumber: v.voucherNumber, amount: Number(v.amount) })
@@ -379,7 +390,7 @@ export async function POST(req: NextRequest) {
     // الحارس الحرفي: المبلغ ≤ المتبقي + 0.001
     const rows = await db.voucher.findMany({
       where: { custodyAccountId: acc.id, cancelled: false },
-      select: { vtype: true, custodyAccountId: true, expenseAccountId: true, amount: true },
+      select: { vtype: true, custodyAccountId: true, accountId: true, amount: true },
     })
     const b = computeBalances([acc], rows).get(acc.id)!
     if (amount > b.balance + EPS) {
@@ -399,11 +410,10 @@ export async function POST(req: NextRequest) {
           party: '',
           partyType: 'other',
           method,
-          account: acc.fullPath,
+          account: acc.name,
           amount,
           description,
           custodyAccountId: acc.id,
-          expenseAccountId: null,
         },
       })
     })

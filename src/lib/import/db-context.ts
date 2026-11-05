@@ -4,7 +4,7 @@ import "server-only";
  *   _existing_customer_name_map (:118-124) · _existing_contract_map (:127-143)
  *   · _known_contract_types (:194-205) · أسماء المقاولين (:569-574) · أرقام
  *   السندات (:663-669 / :802-807) · المشاريع (:808-812) · حسابات المصروفات
- *   (:792-801). + تحميل مصنف ExcelJS من بايتات الملف المرفوع.
+ *   (:792-801 — على الدليل الموحد Account منذ Task 105). + تحميل مصنف ExcelJS من بايتات الملف المرفوع.
  */
 
 import ExcelJS from "exceljs";
@@ -31,8 +31,9 @@ export async function buildImportDbContext(): Promise<ImportDbContext> {
         },
       }),
       db.contractType.findMany({ select: { name: true } }),
-      db.expenseAccount.findMany({
-        select: { id: true, name: true, fullPath: true },
+      db.account.findMany({
+        where: { type: "expense", isActive: true },
+        select: { id: true, name: true },
       }),
       db.voucher.findMany({ select: { voucherNumber: true } }),
       db.voucher.findMany({ where: { vtype: "payment" }, select: { voucherNumber: true } }),
@@ -63,9 +64,8 @@ export async function buildImportDbContext(): Promise<ImportDbContext> {
 
   const expenseAccounts: Record<string, number> = {};
   for (const a of accounts) {
-    for (const alias of [a.fullPath, a.name]) {
-      if (alias) expenseAccounts[nameKey(alias)] = a.id;
-    }
+    // الدليل الموحد بلا fullPath — المطابقة بالاسم فقط (مفتاح واحد لكل حساب)
+    if (a.name) expenseAccounts[nameKey(a.name)] = a.id;
   }
 
   return {

@@ -75,14 +75,14 @@ export async function GET(req: NextRequest) {
     await db.voucher.findMany({
       select: {
         id: true, voucherNumber: true, vtype: true, party: true, description: true, amount: true, account: true,
-        expenseAccountSnapshot: true, custodyAccountSnapshot: true,
+        accountSnapshot: true,
         contract: { select: { contractNumber: true } },
       },
       orderBy: { id: "asc" },
       take: 8000,
     })
   )
-    .filter((v) => hit(v.voucherNumber, v.party, v.description, v.account, v.expenseAccountSnapshot, v.custodyAccountSnapshot, v.contract?.contractNumber))
+    .filter((v) => hit(v.voucherNumber, v.party, v.description, v.account, v.accountSnapshot, v.contract?.contractNumber))
     .slice(0, limit)
     .map<SearchItem>((v) => ({
       id: v.id,

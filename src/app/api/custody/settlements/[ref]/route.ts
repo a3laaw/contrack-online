@@ -48,8 +48,8 @@ export async function PATCH(req: NextRequest, { params }: P) {
     if (existing.length === 0) return jsonError("التصفية غير موجودة", 404);
     const withCustody = existing.find((v) => v.custodyAccountId);
     if (!withCustody?.custodyAccountId) return jsonError("التصفية بلا حساب عهدة صالح");
-    const acc = await db.expenseAccount.findUnique({ where: { id: withCustody.custodyAccountId } });
-    if (!acc || acc.accountKind !== "advance") return jsonError("حساب العهدة غير صالح", 404);
+    const acc = await db.account.findUnique({ where: { id: withCustody.custodyAccountId } });
+    if (!acc || acc.accountRole !== "custody") return jsonError("حساب العهدة غير صالح", 404);
 
     const oldActive = existing.filter((v) => !v.cancelled);
     const oldActiveTotal = r3(oldActive.reduce((s, v) => s + Number(v.amount), 0));

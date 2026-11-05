@@ -120,8 +120,7 @@ export async function POST(req: NextRequest) {
           method,
           contractId: line.contractId,
           subContractId: null,
-          expenseAccountSnapshot: "",
-          custodyAccountSnapshot: "",
+          accountSnapshot: "",
           partyType: "customer",
         });
         await tx.contractEvent.create({

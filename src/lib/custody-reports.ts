@@ -64,23 +64,23 @@ export async function custodyBalancesReport(from: string, to: string): Promise<C
     },
     select: {
       custodyAccountId: true,
-      custodyAccountSnapshot: true,
+      custodyAccount: { select: { name: true } },
       vtype: true,
       amount: true,
       expenseGroupRef: true,
     },
     orderBy: { id: "asc" },
   });
-  return aggregateBalances(rows);
+  return aggregateBalances(rows.map((r) => ({ ...r, custodyAccount: r.custodyAccount?.name ?? "" })));
 }
 
-/** مرآة custody_accounts (3528): الحسابات ذات الحركة، وإلا كل حسابات advance بالأصفار */
+/** مرآة custody_accounts (3528): الحسابات ذات الحركة، وإلا كل حسابات العهدة بالأصفار */
 export async function custodyAccountsForReports(): Promise<CustodyBalanceRow[]> {
   const rows = await custodyBalancesReport("", "");
   if (rows.length) return rows;
-  const accs = await db.expenseAccount.findMany({
-    where: { accountKind: "advance" },
-    orderBy: { id: "asc" },
+  const accs = await db.account.findMany({
+    where: { accountRole: "custody" },
+    orderBy: { code: "asc" },
     select: { id: true, name: true },
   });
   return accs.map((a) => ({
@@ -143,12 +143,13 @@ export async function settlementsSummaryReport(
       vdate: true,
       amount: true,
       custodyAccountId: true,
-      custodyAccountSnapshot: true,
+      custodyAccount: { select: { name: true } },
       voucherNumber: true,
     },
     orderBy: [{ vdate: "asc" }, { id: "asc" }],
   });
-  const refs = [...new Set(rows.map((r) => r.expenseGroupRef))];
+  const flat = rows.map((r) => ({ ...r, custodyAccount: r.custodyAccount?.name ?? "" }));
+  const refs = [...new Set(flat.map((r) => r.expenseGroupRef))];
   const detailsRows = refs.length
     ? await db.voucher.findMany({
         where: { expenseGroupRef: { in: refs }, cancelled: false },
@@ -157,14 +158,14 @@ export async function settlementsSummaryReport(
           voucherNumber: true,
           vdate: true,
           party: true,
-          expenseAccountSnapshot: true,
+          accountSnapshot: true,
           amount: true,
           description: true,
         },
         orderBy: [{ vdate: "asc" }, { id: "asc" }],
       })
     : [];
-  return buildSettlementsSummary(rows, detailsRows);
+  return buildSettlementsSummary(flat, detailsRows.map((d) => ({ ...d, accountSnapshot: d.accountSnapshot ?? "" })));
 }
 
 // ==================== الكشف الموحد (custody_ledger 3544) ====================
@@ -193,7 +194,7 @@ export async function custodyLedgerReport(
       where: { ...baseWhere, expenseGroupRef: "" },
       select: {
         id: true, voucherNumber: true, vdate: true, party: true, description: true, amount: true,
-        custodyAccountId: true, custodyAccountSnapshot: true,
+        custodyAccountId: true, custodyAccount: { select: { name: true } },
       },
       orderBy: [{ vdate: "asc" }, { id: "asc" }],
     }),
@@ -201,7 +202,7 @@ export async function custodyLedgerReport(
       where: { ...baseWhere, expenseGroupRef: { not: "" } },
       select: {
         expenseGroupRef: true, vdate: true, id: true, description: true, amount: true,
-        custodyAccountId: true, custodyAccountSnapshot: true,
+        custodyAccountId: true, custodyAccount: { select: { name: true } },
       },
       orderBy: [{ vdate: "asc" }, { id: "asc" }],
     }),
@@ -215,7 +216,7 @@ export async function custodyLedgerReport(
       },
       select: {
         id: true, voucherNumber: true, vdate: true, party: true, description: true, amount: true,
-        custodyAccountId: true, custodyAccountSnapshot: true,
+        custodyAccountId: true, custodyAccount: { select: { name: true } },
       },
       orderBy: [{ vdate: "asc" }, { id: "asc" }],
     }),
@@ -228,7 +229,7 @@ export async function custodyLedgerReport(
         where: { vtype: { in: ["payment", "transfer"] }, expenseGroupRef: { in: refs } },
         select: {
           id: true, voucherNumber: true, vdate: true, party: true, description: true, amount: true,
-          expenseAccountSnapshot: true, expenseGroupRef: true,
+          accountSnapshot: true, expenseGroupRef: true,
           contract: { select: { contractNumber: true } },
         },
         orderBy: { id: "desc" },
@@ -241,12 +242,17 @@ export async function custodyLedgerReport(
     party: d.party,
     description: d.description,
     amount: d.amount,
-    expenseAccountSnapshot: d.expenseAccountSnapshot,
+    accountSnapshot: d.accountSnapshot ?? "",
     expenseGroupRef: d.expenseGroupRef,
     contractNumber: d.contract?.contractNumber || "",
   }));
 
-  const items = buildLedgerItems(handoverRows, returnRows, groupRows, detailInputs);
+  const items = buildLedgerItems(
+    handoverRows.map((h) => ({ ...h, custodyAccount: h.custodyAccount?.name ?? "" })),
+    returnRows.map((t) => ({ ...t, custodyAccount: t.custodyAccount?.name ?? "" })),
+    groupRows.map((g) => ({ ...g, custodyAccount: g.custodyAccount?.name ?? "" })),
+    detailInputs,
+  );
   const rows = filterSearchAndBalance(items, search);
 
   let totalIn = 0;
@@ -322,7 +328,7 @@ export async function custodyHandoverListReport(
     select: {
       id: true, voucherNumber: true, vdate: true, party: true, description: true,
       amount: true, method: true, notes: true,
-      custodyAccountId: true, custodyAccountSnapshot: true,
+      custodyAccountId: true, custodyAccount: { select: { name: true } },
     },
     orderBy: [{ vdate: "asc" }, { id: "asc" }],
   });
@@ -336,6 +342,6 @@ export async function custodyHandoverListReport(
     method: r.method,
     notes: r.notes,
     custodyAccountId: r.custodyAccountId,
-    custodyAccount: r.custodyAccountSnapshot,
+    custodyAccount: r.custodyAccount?.name ?? "",
   }));
 }

@@ -170,7 +170,6 @@ export const NAV_MODULES: NavModule[] = [
       { id: "settings-security", label: "الأمان وكلمة المرور", icon: ShieldCheck, view: "settings", section: "security", perm: "screen_settings" },
       { id: "users", label: "المستخدمون والصلاحيات", icon: UserCog, view: "users", adminOnly: true },
       { id: "contract-types", label: "أنواع العقود", icon: FileStack, view: "settings", section: "contract-types", adminOnly: true },
-      { id: "expense-accounts", label: "حسابات المصروفات", icon: Wallet, view: "settings", section: "expense-accounts", adminOnly: true },
       { id: "workflow-stages", label: "مراحل المتابعة", icon: ClipboardList, view: "settings", section: "workflow", adminOnly: true },
       { id: "visits-config", label: "إعدادات الزيارات", icon: CalendarDays, view: "settings", section: "visits", adminOnly: true },
       { id: "backup", label: "النسخ الاحتياطي", icon: FileSpreadsheet, view: "data-mgmt", section: "backup", adminOnly: true, flag: "full_backup" },

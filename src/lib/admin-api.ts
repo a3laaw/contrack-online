@@ -1,14 +1,12 @@
 // ============================================================
 // ConTrack Online — عميل API للإدارة:
-// شجرة المراحل + قوالب الدفع + صلاحيات المستخدمين + حسابات
-// المصروفات (إدارة) + النسخ الاحتياطي
+// شجرة المراحل + قوالب الدفع + صلاحيات المستخدمين + النسخ الاحتياطي
+// (Task 105 — عميل حسابات المصروفات أُسقط مع دمج الشجرة في دليل الحسابات)
 // بنفس نمط followup-api.ts: توكن Bearer + أخطاء عربية
 // ============================================================
 import { ApiError, getStoredToken } from '@/components/contrack/api'
 import type {
   BackupFile,
-  ExpenseAccountAdminDTO,
-  ExpenseAccountCreateInput,
   PaymentTemplateDTO,
   PaymentTemplateInput,
   UserPermissionsDTO,
@@ -92,26 +90,6 @@ export const adminApi = {
     adminRequest<UserPermissionsDTO>(`/api/users/${userId}/permissions`, {
       method: 'PUT',
       ...jsonBody({ permissions }),
-    }),
-
-  // ---------- حسابات المصروفات (إدارة) ----------
-  /** كل الحسابات بما فيها المعطلة (لشاشة الإعدادات) */
-  expenseAccountsAll: () =>
-    adminRequest<ExpenseAccountAdminDTO[]>('/api/expense-accounts?all=1'),
-
-  addExpenseAccount: (input: ExpenseAccountCreateInput) =>
-    adminRequest<{ id: number; fullPath: string }>('/api/expense-accounts', {
-      method: 'POST',
-      ...jsonBody(input),
-    }),
-
-  updateExpenseAccount: (
-    id: number,
-    patch: { isActive?: boolean; allowPosting?: boolean; includeInProfitability?: boolean; name?: string },
-  ) =>
-    adminRequest<{ id: number }>(`/api/expense-accounts?id=${id}`, {
-      method: 'PATCH',
-      ...jsonBody(patch),
     }),
 
   // ---------- النسخ الاحتياطي ----------

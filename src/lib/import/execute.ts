@@ -471,7 +471,8 @@ export async function executeImport(
           partyId: linked ? sid : undefined,
           subContractId: linked?.id,
           contractId: conId ?? undefined,
-          expenseAccountId: row.expense_account_id,
+          // مفتاح الحساب الجديد (Task 105): accountId — القيمة من عمود الملف المكتبي التاريخي كما هي
+          accountId: row.expense_account_id,
           expenseCustomerId: expenseCustomerId ?? undefined,
           description: row.description,
           notes: row.notes,

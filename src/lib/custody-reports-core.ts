@@ -59,7 +59,7 @@ export interface CustodyBalanceRow {
 /** صف سند مُقلَّم لأرصدة العهد */
 export interface BalanceInputRow {
   custodyAccountId: number | null;
-  custodyAccountSnapshot: string;
+  custodyAccount: string;
   vtype: string;
   amount: AmountLike;
   expenseGroupRef: string;
@@ -85,8 +85,8 @@ export function aggregateBalances(rows: BalanceInputRow[]): CustodyBalanceRow[] 
       a = { name: "", handed: 0, spent: 0, returned: 0, handedCount: 0, spentCount: 0, returnedCount: 0, refs: new Set() };
       accs.set(id, a);
     }
-    // مرآة MAX(custody_account_snapshot) — أعلى قيمة نصية
-    if ((r.custodyAccountSnapshot || "") > a.name) a.name = r.custodyAccountSnapshot || "";
+    // مرآة MAX(اسم حساب العهدة) — أعلى قيمة نصية
+    if ((r.custodyAccount || "") > a.name) a.name = r.custodyAccount || "";
     const amt = toNum(r.amount);
     if (r.vtype === "custody_return") {
       a.returned = r3(a.returned + amt);
@@ -171,7 +171,8 @@ export interface SettlementDetailLine {
   voucherNumber: string;
   vdate: string;
   party: string;
-  expenseAccount: string;
+  /** اسم حساب المصروف المسجّل على البند (الدليل الموحد) */
+  accountSnapshot: string;
   amount: number;
   description: string;
 }
@@ -192,7 +193,7 @@ export interface SettlementGroupInput {
   vdate: string;
   amount: AmountLike;
   custodyAccountId: number | null;
-  custodyAccountSnapshot: string;
+  custodyAccount: string;
 }
 
 export interface SettlementDetailInput {
@@ -200,7 +201,7 @@ export interface SettlementDetailInput {
   voucherNumber: string;
   vdate: string;
   party: string;
-  expenseAccountSnapshot: string;
+  accountSnapshot: string;
   amount: AmountLike;
   description: string;
 }
@@ -228,7 +229,7 @@ export function buildSettlementsSummary(
     if (r.vdate < g.vdate) g.vdate = r.vdate;
     g.lines += 1;
     g.total = r3(g.total + toNum(r.amount));
-    if ((r.custodyAccountSnapshot || "") > g.custodyAccount) g.custodyAccount = r.custodyAccountSnapshot || "";
+    if ((r.custodyAccount || "") > g.custodyAccount) g.custodyAccount = r.custodyAccount || "";
   }
   const details = new Map<string, SettlementDetailLine[]>();
   for (const d of detailsRows) {
@@ -237,7 +238,7 @@ export function buildSettlementsSummary(
       voucherNumber: d.voucherNumber,
       vdate: d.vdate,
       party: d.party,
-      expenseAccount: d.expenseAccountSnapshot,
+      accountSnapshot: d.accountSnapshot,
       amount: toNum(d.amount),
       description: d.description,
     });
@@ -274,7 +275,8 @@ export interface LedgerDetailLine {
   vdate: string;
   description: string;
   party: string;
-  expenseAccountSnapshot: string;
+  /** اسم حساب المصروف المسجّل على البند (الدليل الموحد) */
+  accountSnapshot: string;
   contractNumber: string;
   amount: number;
 }
@@ -312,7 +314,7 @@ export interface LedgerHandoverInput {
   description: string;
   amount: AmountLike;
   custodyAccountId: number | null;
-  custodyAccountSnapshot: string;
+  custodyAccount: string;
 }
 
 export interface LedgerGroupInput {
@@ -322,7 +324,7 @@ export interface LedgerGroupInput {
   description: string;
   amount: AmountLike;
   custodyAccountId: number | null;
-  custodyAccountSnapshot: string;
+  custodyAccount: string;
 }
 
 export interface LedgerDetailInput {
@@ -332,7 +334,7 @@ export interface LedgerDetailInput {
   party: string;
   description: string;
   amount: AmountLike;
-  expenseAccountSnapshot: string;
+  accountSnapshot: string;
   expenseGroupRef: string;
   contractNumber?: string;
 }
@@ -363,7 +365,7 @@ export function buildLedgerItems(
       details: [],
       detailsCount: 0,
       custodyAccountId: h.custodyAccountId,
-      custodyAccount: h.custodyAccountSnapshot || "",
+      custodyAccount: h.custodyAccount || "",
     });
   }
   for (const t of returnRows) {
@@ -379,7 +381,7 @@ export function buildLedgerItems(
       details: [],
       detailsCount: 0,
       custodyAccountId: t.custodyAccountId,
-      custodyAccount: t.custodyAccountSnapshot || "",
+      custodyAccount: t.custodyAccount || "",
     });
   }
   interface Group {
@@ -401,7 +403,7 @@ export function buildLedgerItems(
       gmap.set(ref, e);
     }
     if (g.vdate < e.vdate) e.vdate = g.vdate;
-    if ((g.custodyAccountSnapshot || "") > e.custodyAccount) e.custodyAccount = g.custodyAccountSnapshot || "";
+    if ((g.custodyAccount || "") > e.custodyAccount) e.custodyAccount = g.custodyAccount || "";
     if ((g.description || "") < e.description) e.description = g.description;
     e.linesCount += 1;
     e.amount = r3(e.amount + toNum(g.amount));
@@ -417,7 +419,7 @@ export function buildLedgerItems(
       vdate: d.vdate,
       description: d.description,
       party: d.party,
-      expenseAccountSnapshot: d.expenseAccountSnapshot,
+      accountSnapshot: d.accountSnapshot,
       contractNumber: d.contractNumber || "",
       amount: toNum(d.amount),
     });
@@ -461,7 +463,7 @@ export function filterSearchAndBalance(
       if (contains(hay, q)) return true;
       return (item.details || []).some((d) =>
         contains(
-          ["voucherNumber", "description", "party", "expenseAccountSnapshot", "contractNumber"]
+          ["voucherNumber", "description", "party", "accountSnapshot", "contractNumber"]
             .map((k) => String((d as unknown as Record<string, unknown>)[k] ?? ""))
             .join(" "),
           q
@@ -494,7 +496,8 @@ export interface CustodyDetailedRow {
   type: string;
   description: string;
   party: string;
-  expense: string;
+  /** اسم حساب المصروف المسجّل على البند (الدليل الموحد) */
+  accountSnapshot: string;
   customer: string;
   in: number;
   out: number;
@@ -515,7 +518,7 @@ export function buildDetailedRows(ledgerRows: CustodyLedgerItem[]): {
       custodyAccountId: item.custodyAccountId,
       description: item.description || "",
       party: "",
-      expense: "",
+      accountSnapshot: "",
       customer: "",
     };
     if (item.kind === "settlement" && item.details.length) {
@@ -531,7 +534,7 @@ export function buildDetailedRows(ledgerRows: CustodyLedgerItem[]): {
           type: `تصفية ${groupRef}`.trim(),
           description: (d.description || "").trim() || base.description,
           party: d.party || "",
-          expense: d.expenseAccountSnapshot || "",
+          accountSnapshot: d.accountSnapshot || "",
           customer: d.contractNumber || "",
           in: 0,
           out: r3(d.amount),

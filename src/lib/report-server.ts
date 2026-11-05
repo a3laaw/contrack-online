@@ -960,18 +960,14 @@ export async function reportVouchers(opts: { from?: string; to?: string; option?
     where,
     include: {
       contract: { select: { contractNumber: true } },
-      expenseAccount: { select: { fullPath: true } },
+      accountRef: { select: { name: true, code: true } },
     },
     orderBy: [{ vdate: "asc" }, { id: "asc" }],
   });
 
   const accountLabel = (v: (typeof rows0)[number]): string => {
-    const path = v.expenseAccountSnapshot || v.expenseAccount?.fullPath || "";
-    if (path) {
-      const parts = path.split("/").map((p) => p.trim()).filter(Boolean);
-      if (parts.length > 1) return `${parts[0]} / ${parts[parts.length - 1]}`;
-      return parts[0] || "";
-    }
+    const label = v.accountSnapshot || (v.accountRef ? `${v.accountRef.code} — ${v.accountRef.name}` : "");
+    if (label) return label;
     return v.account || "";
   };
 
@@ -1025,7 +1021,7 @@ export async function reportExpenses(opts: { from?: string; to?: string }): Prom
   if (from || to) where.vdate = { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) };
   const rows0 = await db.voucher.findMany({
     where,
-    include: { expenseAccount: { select: { id: true, fullPath: true, includeInProfitability: true, accountKind: true } } },
+    include: { accountRef: { select: { id: true, name: true, code: true, includeInProfitability: true } } },
     orderBy: [{ vdate: "asc" }, { id: "asc" }],
   });
 
@@ -1046,8 +1042,8 @@ export async function reportExpenses(opts: { from?: string; to?: string }): Prom
       // استبعاد صرف العهد المجمّع (تصفية العهدة لا تصرف نقدًا جديدًا)
       if (v.custodyAccountId && v.expenseGroupRef) continue;
       if (v.partyType === "partner") continue;
-      const path = v.expenseAccountSnapshot || v.expenseAccount?.fullPath || v.account || "غير محدد";
-      const acc = ensureAcc(path, v.expenseAccount ? v.expenseAccount.includeInProfitability : true);
+      const label = v.accountSnapshot || (v.accountRef ? `${v.accountRef.code} — ${v.accountRef.name}` : v.account || "غير محدد");
+      const acc = ensureAcc(label, v.accountRef ? v.accountRef.includeInProfitability : true);
       acc.count += 1;
       acc.total = r3(acc.total + amount);
     } else if (v.vtype === "custody_return" && v.advanceEmployeeId) {
@@ -1293,7 +1289,7 @@ export async function reportContracts(opts: { option?: string; from?: string; to
             vtype: "payment", cancelled: false,
             OR: [{ contractId: { in: ids } }, { subContract: { contractId: { in: ids } } }],
           },
-          select: { contractId: true, subContractId: true, partyType: true, amount: true, expenseAccountId: true, expenseAccount: { select: { includeInProfitability: true } } },
+          select: { contractId: true, subContractId: true, partyType: true, amount: true, accountId: true, accountRef: { select: { includeInProfitability: true } } },
         })
       : [];
     const subRows = ids.length
@@ -1306,7 +1302,7 @@ export async function reportContracts(opts: { option?: string; from?: string; to
           .filter((p) => {
             const belongs = p.contractId === contractId || (p.subContractId !== null && directIds.includes(p.subContractId));
             if (!belongs) return false;
-            if (p.expenseAccountId && p.expenseAccount && !p.expenseAccount.includeInProfitability) return false;
+            if (p.accountId && p.accountRef && !p.accountRef.includeInProfitability) return false;
             return true;
           })
           .reduce((s, p) => s + Number(p.amount), 0)
@@ -1319,7 +1315,7 @@ export async function reportContracts(opts: { option?: string; from?: string; to
           .filter((p) => {
             const belongs = p.contractId === contractId || (p.subContractId !== null && directIds.includes(p.subContractId));
             if (!belongs) return false;
-            if (p.expenseAccountId && p.expenseAccount && !p.expenseAccount.includeInProfitability) return false;
+            if (p.accountId && p.accountRef && !p.accountRef.includeInProfitability) return false;
             if (p.subContractId !== null || p.partyType === "subcontractor") return false;
             return true;
           })

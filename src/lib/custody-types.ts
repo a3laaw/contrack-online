@@ -5,7 +5,7 @@
 
 /** نوع حركة العهدة:
  *  handover   = تسليم عهدة (سند صرف PV بلا حساب مصروف)
- *  settlement = بند تصفية (سند صرف PV بحساب مصروف فعلي تحت مرجع مجموعة)
+ *  settlement = بند تصفية (سند صرف PV بحساب مصروف فعلي من الدليل الموحد تحت مرجع مجموعة)
  *  return     = إرجاع متبقٍ للخزينة (سند CV) */
 export type CustodyKind = 'handover' | 'settlement' | 'return'
 
@@ -31,8 +31,10 @@ export interface CustodyMovementDTO {
   vdate: string // yyyy-MM-dd
   custodyAccountId: number
   custodyAccountName: string
-  expenseAccountId: number | null
-  expenseAccountName: string | null
+  /** الحساب المحاسبي للبند في الدليل الموحد (Task 105) */
+  accountId: number | null
+  /** اسم الحساب عند التسجيل */
+  accountSnapshot: string | null
   /** مرجع الدفعة المجمعة PAY-GRP-YYYYMMDD-### (فارغ لغير بنود التصفية) */
   groupRef: string
   amount: number
@@ -54,9 +56,9 @@ export interface CustodySummaryDTO {
   }
 }
 
-/** بند ضمن دفعة تصفية مجمّعة */
+/** بند ضمن دفعة تصفية مجمّعة — الحساب من الدليل الموحد (Task 105) */
 export interface CustodySettleItemInput {
-  expenseAccountId: number
+  accountId: number
   description?: string
   amount: number
 }

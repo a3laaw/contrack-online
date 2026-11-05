@@ -93,7 +93,8 @@ export interface VoucherDTO {
   notes: string
   cancelled: boolean
   cancelReason: string
-  expenseAccountName: string | null
+  /** اسم الحساب المسجّل على السند (الدليل الموحد — Task 105) */
+  accountSnapshot: string | null
 }
 
 export interface ContractEventDTO {
@@ -192,15 +193,34 @@ export interface ContractTypeDTO {
   payments: TypePaymentTplDTO[]
 }
 
-export interface ExpenseAccountDTO {
+/**
+ * حساب في دليل الحسابات الموحد — GET /api/accounts (Task 105 — الدليل الوحيد،
+ * بديل شجرة حسابات المصروفات المُسقَطة).
+ */
+export interface AccountNode {
   id: number
-  parentId: number | null
+  code: string
   name: string
-  fullPath: string
-  accountKind: string
+  type: string // asset | liability | equity | revenue | expense
+  nature: string // debit | credit
+  parentId: number | null
+  isLeaf: boolean
   allowPosting: boolean
   isActive: boolean
+  isSystem: boolean
+  /** دور الحساب: standard | custody (العُهد والسلف) */
+  accountRole?: string
+  /** يستهلكه تقارير ربحية العقود */
+  includeInProfitability?: boolean
+  openingBalance?: number
+  notes?: string
   sortOrder: number
+  xbrlElement?: string
+}
+
+export interface AccountsResponse {
+  accounts: AccountNode[]
+  seeded?: boolean
 }
 
 export interface SettingsDTO {
@@ -258,6 +278,6 @@ export interface PaymentVoucherInput {
   account: string
   amount: number
   description?: string
-  expenseAccountId?: number
+  accountId?: number
   contractId?: number
 }

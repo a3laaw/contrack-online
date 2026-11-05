@@ -105,9 +105,9 @@ export async function ensureSuspenseAccount(tx: DbClient): Promise<number> {
 
 /**
  * بناء حاسم أسماء القيود القديمة لسياق الشركة:
- *  1) جسر شجرة المصروفات (اسم ExpenseAccount → accountId المرتبط من Task 102)
- *  2) مطابقة اسم الدليل/الخريطة الثابتة عبر النواة النقية
- *  3) الشك ⇒ حساب التسوية المؤقت (يُعدّ في unmatchedViaSuspense للمراجعة)
+ *  1) مطابقة اسم الدليل/الخريطة الثابتة عبر النواة النقية (snapshots القديمة من النسخ المستعادة)
+ *  2) الشك ⇒ حساب التسوية المؤقت (يُعدّ في unmatchedViaSuspense للمراجعة)
+ * (جسر شجرة المصروفات أُسقط معها في Task 105 — الحسم الآن على الدليل الواحد مباشرة)
  */
 export async function buildAccountResolver(tx: DbClient): Promise<AccountResolver> {
   const accounts = await tx.account.findMany({
@@ -125,16 +125,6 @@ export async function buildAccountResolver(tx: DbClient): Promise<AccountResolve
     });
   }
 
-  // جسر شجرة المصروفات القديمة: اسم الشجرة → الحساب المرتبط (Task 102)
-  const expenseRows = await tx.expenseAccount.findMany({
-    where: { accountId: { not: null } },
-    select: { name: true, accountId: true },
-  });
-  const bridgeNameToAccount = new Map<string, number>();
-  for (const ea of expenseRows) {
-    if (ea.accountId != null) bridgeNameToAccount.set(ea.name.trim(), ea.accountId);
-  }
-
   const candidates = accounts.map((a) => ({
     id: a.id,
     code: a.code,
@@ -142,19 +132,11 @@ export async function buildAccountResolver(tx: DbClient): Promise<AccountResolve
     allowPosting: a.allowPosting,
     isActive: a.isActive,
   }));
-  const resolvedViaBridge = new Set<string>();
   const suspenseHits: string[] = [];
 
   const resolve = (name: string): number | null => {
     const raw = String(name || "").trim();
     if (!raw) return null;
-    // 1) جسر المصروفات بالاسم (يدعم snapshot أسماء الشجرة القديمة)
-    const bridged = bridgeNameToAccount.get(raw);
-    if (bridged != null) {
-      resolvedViaBridge.add(raw);
-      return bridged;
-    }
-    // 2) مطابقة الدليل/الخريطة الثابتة
     return resolveLegacyAccountName(raw, candidates);
   };
 
@@ -174,10 +156,10 @@ export async function buildAccountResolver(tx: DbClient): Promise<AccountResolve
 // ==================== بوابة الأسماء القديمة → المحرك ====================
 
 export interface NamedEntrySide {
-  /** الاسم العربي الحر كما كتبه الكود القديم ("العملاء"، "بنك"، snapshot الشجرة…) */
+  /** الاسم العربي الحر (يُحسم بالدليل/الخريطة الثابتة — يبقى وصفًا للسطر) */
   name: string;
-  /** إن كان الطرف حساب شجرة المصروفات/العهد القديمة — يُحسم بجسره أولًا (Task 102) */
-  expenseAccountId?: number | null;
+  /** الحساب المحسوم من الدليل مباشرة (Task 105: بديل جسر expenseAccountId) — أولوية أعلى من الاسم */
+  accountId?: number | null;
 }
 
 export interface NamedEntryParams {
@@ -198,21 +180,18 @@ async function resolveNamedSide(
   side: NamedEntrySide,
   resolver: AccountResolver
 ): Promise<number> {
-  if (side.expenseAccountId != null) {
-    const ea = await tx.expenseAccount.findFirst({
-      where: { id: side.expenseAccountId },
-      select: { accountId: true, name: true },
-    });
-    if (ea?.accountId != null) return ea.accountId; // الجسر المرتبط من شاشة دليل الحسابات
+  // الحساب المحسوم مباشرة من الدليل (Task 105) — يُقبل إن كان حسابًا فعليًا نشطًا في سياق الشركة
+  if (side.accountId != null && resolver.accountsById.has(side.accountId)) {
+    return side.accountId;
   }
   const resolved = resolver.resolve(side.name);
   return resolved ?? resolver.suspenseId;
 }
 
 /**
- * نشر قيد بطرفين معروفي الاسم نصيًا (آلية السندات القديمة) عبر المحرك الموحد —
- * الجسر الانتقالي فقط: يحسم كل طرف (جسر الشجرة → الدليل → الخريطة الثابتة → التسوية)
- * ويبنِ سطرين بأبعاد المستند. كل المواضع القديمة تستدعي هذا بدل journalEntry.create.
+ * نشر قيد بطرفين معروفي الحساب (آلية السندات) عبر المحرك الموحد —
+ * يحسم كل طرف (الحساب المباشر → الدليل/الخريطة الثابتة → التسوية)
+ * ويبنِ سطرين بأبعاد المستند. كل المواضع التشغيلية تستدعي هذا بدل journalEntry.create.
  */
 export async function postNamedEntry(tx: Tx, params: NamedEntryParams): Promise<PostEntryResult> {
   const resolver = await buildAccountResolver(tx);

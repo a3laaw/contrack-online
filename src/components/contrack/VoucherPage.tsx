@@ -30,11 +30,12 @@ import { errMessage, isManagerRole } from "./contrack-types";
 import { SearchableSelect } from "./SearchableSelect";
 import { round3 } from "@/lib/format";
 import type {
+  AccountDTO,
+  ChartAccountsResponse,
   ContractsResponse,
   CustomerContractRow,
   CustomerDetailResponse,
   EmployeeDTO,
-  ExpenseAccountDTO,
   PaymentLinkResponse,
   PaymentLinkValidateResult,
   PaymentMethodDTO,
@@ -185,18 +186,28 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
     enabled: !!subContractId,
   });
 
-  // حسابات المصاريف (المسار قد لا يكون جاهزًا بعد ⇒ input نصي احتياطي)
-  const expenseAccQuery = useQuery<ExpenseAccountDTO[]>({
-    queryKey: ["expense-accounts"],
-    queryFn: () => apiGet<ExpenseAccountDTO[]>("/api/expense-accounts"),
+  // دليل الحسابات الموحد (Task 105) — المصروفات والعُهد من الدليل نفسه؛
+  // إن تعذّر التحميل ⇒ input نصي احتياطي كما كان
+  const chartAccQuery = useQuery<ChartAccountsResponse>({
+    queryKey: ["accounts"],
+    queryFn: () => apiGet<ChartAccountsResponse>("/api/accounts"),
     enabled: vtype === "payment" || vtype === "custody_return",
     retry: false,
   });
-  const expenseAccounts: ExpenseAccountDTO[] = expenseAccQuery.data ?? [];
-  const expenseReady = expenseAccQuery.isSuccess && expenseAccounts.length > 0;
-  const expRoots = expenseAccounts.filter((a) => !a.parentId);
-  const expChildrenOf = (id: number) => expenseAccounts.filter((a) => a.parentId === id);
-  const advanceAccounts = expenseAccounts.filter((a) => a.accountKind === "advance");
+  const chartAccounts: AccountDTO[] = chartAccQuery.data?.accounts ?? [];
+  // حسابات الصرف ← مصروف: أوراق نشطة تستقبل القيود من نوع مصروف
+  const expenseLeaves = chartAccounts.filter(
+    (a) => a.isLeaf && a.isActive && a.allowPosting && a.type === "expense"
+  );
+  const expenseReady = chartAccQuery.isSuccess && expenseLeaves.length > 0;
+  // واجهة الأب ← ابن من شجرة الدليل: الأب = ولي الورقة مباشرة (قد يتعدى مستويان في الدليل الموحد)
+  const chartById = new Map(chartAccounts.map((a) => [a.id, a]));
+  const expRoots = [...new Set(expenseLeaves.map((a) => a.parentId).filter((id): id is number => id != null))]
+    .map((id) => chartById.get(id))
+    .filter((a): a is AccountDTO => !!a && a.isActive);
+  const expChildrenOf = (id: number) => expenseLeaves.filter((a) => a.parentId === id);
+  // حسابات العُهد: عقد/أوراق بدور custody في الدليل الموحد
+  const custodyAccountsList = chartAccounts.filter((a) => a.isActive && a.accountRole === "custody");
 
   const employeesQuery = useQuery<EmployeeDTO[]>({
     queryKey: ["employees"],
@@ -293,17 +304,18 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
         .filter((l) => l.amount > 0);
     } else if (vtype === "payment") {
       if (payKind === "expense") {
-        const child = expChild !== "none" ? expenseAccounts.find((a) => String(a.id) === expChild) : null;
-        const parent = expParent !== "none" ? expenseAccounts.find((a) => String(a.id) === expParent) : null;
-        base.expenseAccountId = child ? child.id : expParent !== "none" ? parent?.id : null;
-        base.account = child?.name || parent?.name || expAccountText.trim();
+        const child = expChild !== "none" ? chartAccounts.find((a) => String(a.id) === expChild) : null;
+        const parent = expParent !== "none" ? chartAccounts.find((a) => String(a.id) === expParent) : null;
+        const selected = child ?? parent ?? null;
+        base.accountId = selected ? selected.id : null;
+        base.account = selected?.name || expAccountText.trim();
         if (expCustomerId !== "none") {
           base.partyType = "customer";
           base.partyId = Number(expCustomerId);
         }
         if (expContractId !== "none") base.contractId = Number(expContractId);
       } else if (payKind === "custody") {
-        const acc = custodyAccountId !== "none" ? advanceAccounts.find((a) => String(a.id) === custodyAccountId) : null;
+        const acc = custodyAccountId !== "none" ? custodyAccountsList.find((a) => String(a.id) === custodyAccountId) : null;
         base.custodyAccountId = acc ? acc.id : null;
         base.account = acc?.name || custodyText.trim();
       } else if (payKind === "subcontract") {
@@ -320,7 +332,7 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
       base.account = fromAccount;
       base.toAccount = toAccount;
     } else if (vtype === "custody_return") {
-      const acc = custodyAccountId !== "none" ? advanceAccounts.find((a) => String(a.id) === custodyAccountId) : null;
+      const acc = custodyAccountId !== "none" ? custodyAccountsList.find((a) => String(a.id) === custodyAccountId) : null;
       base.custodyAccountId = acc ? acc.id : null;
       base.account = acc?.name || custodyText.trim();
     } else if (vtype === "salary_deduction") {
@@ -578,7 +590,7 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
                               }}
                               options={[
                                 { value: "none", label: "—" },
-                                ...expRoots.map((a) => ({ value: String(a.id), label: a.name })),
+                                ...expRoots.map((a) => ({ value: String(a.id), label: `${a.code} — ${a.name}` })),
                               ]}
                               placeholder="اختر"
                               searchPlaceholder="ابحث باسم الحساب…"
@@ -593,7 +605,7 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
                               disabled={expParent === "none"}
                               options={[
                                 { value: "none", label: "—" },
-                                ...expChildrenOf(Number(expParent)).map((a) => ({ value: String(a.id), label: a.name })),
+                                ...expChildrenOf(Number(expParent)).map((a) => ({ value: String(a.id), label: `${a.code} — ${a.name}` })),
                               ]}
                               placeholder={expParent === "none" ? "—" : "اختر"}
                               searchPlaceholder="ابحث باسم الحساب…"
@@ -601,18 +613,18 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
                             />
                           </div>
                         </div>
-                        {/* Task 103 — شارة الحساب المحاسبي الموافق (جسر المحاسبة الكاملة) — عرض فقط حتى المرحلة ب */}
+                        {/* Task 105 — الحساب المختار هو حساب الدليل الموحد نفسه — شارة كود/اسم عرضًا */}
                         {(() => {
                           const sel =
                             expChild !== "none"
-                              ? expenseAccounts.find((a) => String(a.id) === expChild)
+                              ? chartAccounts.find((a) => String(a.id) === expChild)
                               : expParent !== "none"
-                                ? expenseAccounts.find((a) => String(a.id) === expParent)
+                                ? chartAccounts.find((a) => String(a.id) === expParent)
                                 : null;
-                          return sel?.accountName ? (
-                            <p className="text-[11px] text-muted-foreground">
-                              الحساب المحاسبي الموافق في دليل الحسابات: <span className="font-mono" dir="ltr">{sel.accountName}</span> (عرض فقط — القيد الآلي في المرحلة التالية)
-                            </p>
+                          return sel ? (
+                            <Badge variant="outline" className="w-fit gap-1.5 border-status-info/40 bg-status-info-bg text-[11px] text-status-info">
+                              <span className="font-mono" dir="ltr">{sel.code}</span> — {sel.name}
+                            </Badge>
                           ) : null;
                         })()}
                       </>
@@ -657,7 +669,7 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
 
                 {payKind === "custody" && (
                   <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
-                    {advanceAccounts.length > 0 ? (
+                    {custodyAccountsList.length > 0 ? (
                       <div className="space-y-1.5">
                         <Label>حساب العهدة</Label>
                         <Select value={custodyAccountId} onValueChange={setCustodyAccountId}>
@@ -665,7 +677,7 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
                             <SelectValue placeholder="اختر حساب عهدة" />
                           </SelectTrigger>
                           <SelectContent>
-                            {advanceAccounts.map((a) => (
+                            {custodyAccountsList.map((a) => (
                               <SelectItem key={a.id} value={String(a.id)}>
                                 {a.name}
                               </SelectItem>
@@ -800,7 +812,7 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
             {/* ===== إرجاع عهدة / خصم راتب ===== */}
             {vtype === "custody_return" && (
               <div className="rounded-lg border bg-muted/30 p-3">
-                {advanceAccounts.length > 0 ? (
+                {custodyAccountsList.length > 0 ? (
                   <div className="space-y-1.5">
                     <Label>حساب العهدة</Label>
                     <Select value={custodyAccountId} onValueChange={setCustodyAccountId}>
@@ -808,7 +820,7 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
                         <SelectValue placeholder="اختر حساب عهدة" />
                       </SelectTrigger>
                       <SelectContent>
-                        {advanceAccounts.map((a) => (
+                        {custodyAccountsList.map((a) => (
                           <SelectItem key={a.id} value={String(a.id)}>
                             {a.name}
                           </SelectItem>

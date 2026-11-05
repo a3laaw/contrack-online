@@ -66,7 +66,6 @@ async function fullResetInTx(tx: Tx): Promise<Record<string, number>> {
   await step("match_aliases", () => tx.matchAlias.deleteMany({}));
   await step("employees", () => tx.employee.deleteMany({}));
   await step("accounts", () => tx.account.deleteMany({}));
-  await step("expense_accounts", () => tx.expenseAccount.deleteMany({}));
   await step("type_payment_stages", () => tx.typePaymentStage.deleteMany({}));
   await step("type_payment_tpl", () => tx.typePaymentTemplate.deleteMany({}));
   await step("type_bundle_components", () => tx.typeBundleComponent.deleteMany({}));

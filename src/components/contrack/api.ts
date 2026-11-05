@@ -176,8 +176,8 @@ export const api = {
   /** إلغاء سند بسبب */
   cancelVoucher: (id: number, reason: string) =>
     apiPost<{ ok: boolean; id: number }>(`/api/vouchers/${id}/cancel`, { reason }),
-  /** شجرة حسابات المصروفات */
-  expenseAccounts: () => apiGet<import("@/lib/contrack-types").ExpenseAccountDTO[]>("/api/expense-accounts"),
+  /** دليل الحسابات الموحد (شجرة كاملة — Task 105) */
+  accounts: () => apiGet<import("@/lib/contrack-types").AccountsResponse>("/api/accounts"),
   /** أنواع العقود (مع عدّاد القوالب) */
   contractTypes: () =>
     apiGet<{ types: ContractTypeLite[] }>("/api/contract-types").then((r) => r.types),

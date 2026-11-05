@@ -479,7 +479,7 @@ export function VoucherDetailBody({ data }: { data: VoucherDetailResponse }) {
     { label: "التاريخ", value: fmtDate(v.vdate) },
     { label: "الطرف", value: v.partyName || v.party || (v.partyType === "partner" ? "شريك" : "—") },
     { label: "الطريقة", value: v.method || "—" },
-    { label: "الحساب", value: v.account || v.expenseAccountSnapshot || v.custodyAccountSnapshot || "—" },
+    { label: "الحساب", value: v.account || v.accountSnapshot || "—" },
     { label: "العقد", value: v.contractNumber || "—" },
     { label: "البيان", value: v.description || "—" },
     ...(v.advanceAmount ? [{ label: "دفعة مقدمة (فائض)", value: formatKWD(v.advanceAmount) }] : []),

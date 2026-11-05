@@ -25,42 +25,8 @@ export async function ensureSeedData(client?: PrismaClient): Promise<{ seeded: s
     seeded.push("payment_methods");
   }
 
-  // ===== شجرة حسابات المصروفات والعُهد =====
-  if ((await d.expenseAccount.count()) === 0) {
-    const roots = [
-      { name: "مصروفات عامة", kind: "expense", posting: false, children: ["إيجارات", "كهرباء وماء", "اتصالات وإنترنت", "صيانة", "وقود", "قرطاسية ومطبوعات"] },
-      { name: "عمولات بنكية", kind: "expense", posting: true, children: [] as string[] },
-      { name: "رواتب", kind: "expense", posting: true, children: ["سلف موظفين"] },
-      { name: "العُهد", kind: "advance", posting: false, children: ["عهدة عامة"] },
-    ];
-    let order = 0;
-    for (const r of roots) {
-      const parent = await d.expenseAccount.create({
-        data: {
-          name: r.name,
-          fullPath: r.name,
-          accountKind: r.kind,
-          allowPosting: r.posting,
-          sortOrder: order++,
-        },
-      });
-      let childOrder = 0;
-      for (const c of r.children) {
-        const child = await d.expenseAccount.create({
-          data: {
-            name: c,
-            fullPath: `${r.name} / ${c}`,
-            accountKind: r.kind,
-            allowPosting: true,
-            parentId: parent.id,
-            sortOrder: childOrder++,
-          },
-        });
-        await d.expenseAccount.update({ where: { id: child.id }, data: { fullPath: `${r.name} / ${c}` } });
-      }
-    }
-    seeded.push("expense_accounts");
-  }
+  // Task 105 — أُسقطت شجرة حسابات المصروفات القديمة (ExpenseAccount) —
+  // دليل الحسابات الموحد (Account/Task 102) يُبذر عند أول قراءة عبر ensureChartOfAccounts.
 
   // ===== مراحل التنفيذ (قالب عام transactionType='contract') =====
   if ((await d.workflowStage.count()) === 0) {

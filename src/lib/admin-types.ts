@@ -1,6 +1,7 @@
 // ============================================================
 // ConTrack Online — أنواع الإدارة: شجرة المراحل، قوالب الدفع،
-// الصلاحيات المفصلة، حسابات المصروفات، النسخ الاحتياطي (spec-8-f §7 §9)
+// الصلاحيات المفصلة، النسخ الاحتياطي (spec-8-f §7 §9)
+// (Task 105 — أنواع شجرة حسابات المصروفات أُسقطت مع دمجها في دليل الحسابات)
 // ============================================================
 
 // ------------------------------------------------------------
@@ -150,27 +151,6 @@ export interface UserPermissionsDTO {
   role: string
   /** المدير/المطوّر: كلها true دائمًا */
   permissions: PermissionMap
-}
-
-// ------------------------------------------------------------
-// حسابات المصروفات (شجرة ExpenseAccount) — تاب الإعدادات
-// ------------------------------------------------------------
-export interface ExpenseAccountAdminDTO {
-  id: number
-  parentId: number | null
-  name: string
-  fullPath: string
-  accountKind: string // expense | advance | asset
-  allowPosting: boolean
-  includeInProfitability: boolean
-  isActive: boolean
-  sortOrder: number
-}
-
-export interface ExpenseAccountCreateInput {
-  name: string
-  parentId?: number | null
-  accountKind?: string
 }
 
 // ------------------------------------------------------------

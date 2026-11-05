@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
               `  ↳ ${d.voucherNumber}`,
               d.vdate,
               acc,
-              `${d.expenseAccount || ""} · ${d.party || ""}`,
+              `${d.accountSnapshot || ""} · ${d.party || ""}`,
               d.amount,
               d.description || "",
             ]);
@@ -130,7 +130,7 @@ export async function GET(req: NextRequest) {
         const data = await custodyDetailedReport(from, to, accountId);
         title = `التقرير التفصيلي للعهد · من ${from} إلى ${to}`;
         rows = data.rows.map((r) => [
-          r.vdate, r.ref, r.account, r.type, r.description, r.party, r.expense, r.customer,
+          r.vdate, r.ref, r.account, r.type, r.description, r.party, r.accountSnapshot, r.customer,
           r.in || "", r.out || "", r.balance,
         ]);
         heads = DET_HEADS;

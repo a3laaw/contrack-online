@@ -38,7 +38,7 @@ const TENANT_MODELS = new Set<string>([
   "claim", "subcontractor", "subContract", "subContractItem", "subPaymentPlanItem",
   "subPaymentSource", "contractType", "typePaymentTemplate", "typePaymentStage", "typeBundleComponent",
   "contractComponent", "entityBackup", "workflowStage", "contractScope", "setting",
-  "paymentMethod", "expenseAccount", "contractGroup", "contractGroupItem", "invoice",
+  "paymentMethod", "contractGroup", "contractGroupItem", "invoice",
   "employee", "task", "visitStaff", "visit", "comment",
   "contractAttachment", "gatewayProfile", "gatewayOp", "bankLine", "otherCompanyTransfer",
   "transferOpAlloc", "otherCompanyOpening", "gatewayFeeVoucher", "matchAlias", "journalEntry",

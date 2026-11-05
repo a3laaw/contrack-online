@@ -137,7 +137,7 @@ export interface ImportDbContext {
   existingContracts: { customerName: string; label: string; amount: number }[];
   /** أنواع العقود المعتمدة: typeKey ← الاسم الرسمي (بلا «غير محدد») */
   knownContractTypes: Record<string, string>;
-  /** حسابات المصروفات: nameKey(fullPath أو name) ← المعرف */
+  /** حسابات المصروفات: nameKey(الاسم) ← المعرف — الدليل الموحد Account (Task 105: بلا fullPath) */
   expenseAccounts: Record<string, number>;
   /** أرقام السندات الموجودة بالقاعدة — القبض: كل الأنواع (:666-669) والصرف: payment فقط (:802-807) */
   existingReceiptNumbers: string[];

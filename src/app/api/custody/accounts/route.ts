@@ -7,9 +7,12 @@ import { VoucherError } from "@/lib/voucher-server";
 import { custodyBreakdown } from "@/lib/custody-server";
 
 /**
- * شجرة حسابات العُهد (ExpenseAccount.accountKind='advance'):
- * أب = فئة عهدة (مثل «العُهد»)، ابن = عهدة. لكل حساب: الرصيد = مُسلَّم − مُنفَق − مرتجع.
+ * حسابات العُهد على الدليل الموحد (Task 105 — Account.accountRole='custody'):
+ * عقدة ثابتة «عُهد وسلف الموظفين» (كود 1140) وأبناؤها أوراق تقبل القيد.
+ * لا نقل بين الآباء — بنية الدليل ثابتة. لكل حساب: الرصيد = مُسلَّم − مُنفَق − مرتجع.
  */
+
+const CUSTODY_PARENT_CODE = "1140";
 
 function err(e: unknown) {
   if (e instanceof VoucherError) return Response.json({ error: e.message }, { status: e.status });
@@ -17,18 +20,41 @@ function err(e: unknown) {
   return jsonError("حدث خطأ غير متوقع", 500);
 }
 
+/** جذر العهد 1140 — تحويله لفرع (لا يقبل قيدًا) عند أول حاجة؛ null إن غاب عن الدليل */
+async function ensureCustodyParent(tx?: Prisma.TransactionClient) {
+  const client = tx ?? db;
+  const parent = await client.account.findFirst({ where: { code: CUSTODY_PARENT_CODE } });
+  if (!parent) return null;
+  if (parent.isLeaf || parent.allowPosting) {
+    return client.account.update({
+      where: { id: parent.id },
+      data: { isLeaf: false, allowPosting: false },
+    });
+  }
+  return parent;
+}
+
+/** أول كود متاح تحت 1140: 114001 صعودًا (فحص أكواد أبناء 1140 الموجودة) */
+async function nextCustodyCode(parentId: number): Promise<string> {
+  const children = await db.account.findMany({ where: { parentId }, select: { code: true } });
+  const taken = new Set(children.map((c) => c.code));
+  let seq = 1;
+  while (taken.has(`${CUSTODY_PARENT_CODE}${String(seq).padStart(3, "0")}`)) seq += 1;
+  return `${CUSTODY_PARENT_CODE}${String(seq).padStart(3, "0")}`;
+}
+
 /** GET: كل حسابات العُهد مع الأرصدة المحسوبة لحظيًا + الإجمالي */
 export async function GET(req: NextRequest) {
   const guard = await authGuard(req, "screen_custody");
   if ("response" in guard) return guard.response;
 
-  const accounts = await db.expenseAccount.findMany({
-    where: { accountKind: "advance" },
+  const accounts = await db.account.findMany({
+    where: { accountRole: "custody" },
     orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
   });
   const parentIds = [...new Set(accounts.map((a) => a.parentId).filter((x): x is number => x != null))];
   const parents = parentIds.length
-    ? await db.expenseAccount.findMany({ where: { id: { in: parentIds } }, select: { id: true, name: true } })
+    ? await db.account.findMany({ where: { id: { in: parentIds } }, select: { id: true, name: true } })
     : [];
   const parentNames = new Map(parents.map((p) => [p.id, p.name]));
 
@@ -49,12 +75,14 @@ export async function GET(req: NextRequest) {
   }[] = [];
   for (const acc of accounts) {
     const bd = await custodyBreakdown(db, acc.id);
+    const parentName = acc.parentId ? parentNames.get(acc.parentId) || "" : "";
     items.push({
       id: acc.id,
       name: acc.name,
-      fullPath: acc.fullPath,
+      // الحسابات custody أوراق مباشرة تحت 1140 — fullPath للعرض فقط (بلا عمود في القاعدة)
+      fullPath: parentName ? `${parentName} / ${acc.name}` : acc.name,
       parentId: acc.parentId,
-      parentName: acc.parentId ? parentNames.get(acc.parentId) || "" : "",
+      parentName,
       isActive: acc.isActive,
       allowPosting: acc.allowPosting,
       includeInProfitability: acc.includeInProfitability,
@@ -74,7 +102,7 @@ export async function GET(req: NextRequest) {
   return ok({ accounts: items, totals });
 }
 
-/** POST (مدير): إنشاء فئة/عهدة — يمنع إنشاء ابن لأب ليس advance */
+/** POST (مدير): إنشاء عهدة جديدة — دائمًا ابنًا لعقدة 1140 (الدليل ثابت البنية) */
 export async function POST(req: NextRequest) {
   const guard = await adminGuard(req);
   if ("response" in guard) return guard.response;
@@ -82,31 +110,31 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const name = String(body.name || "").trim();
     if (!name) return jsonError("اسم الحساب مطلوب");
-    const parentId = body.parentId ? intOr(body.parentId, 0) : 0;
     const isActive = body.isActive === undefined ? true : Boolean(body.isActive);
-    const sortOrder = body.sortOrder !== undefined ? intOr(body.sortOrder, 0) : 0;
 
-    let parent: { id: number; name: string; fullPath: string } | null = null;
-    if (parentId) {
-      const p = await db.expenseAccount.findUnique({ where: { id: parentId } });
-      if (!p) return jsonError("حساب الأب غير موجود", 404);
-      if (p.accountKind !== "advance") return jsonError("حساب الأب يجب أن يكون حساب عهدة (accountKind=advance)");
-      parent = p;
-    }
-    const dup = await db.expenseAccount.findFirst({
-      where: { name, accountKind: "advance", parentId: parent ? parent.id : null },
+    const parent = await ensureCustodyParent();
+    if (!parent) return jsonError("حساب العهد 1140 غير موجود في دليل الشركة", 404);
+
+    const dup = await db.account.findFirst({
+      where: { name, accountRole: "custody", parentId: parent.id },
     });
     if (dup) return jsonError("يوجد حساب بنفس الاسم في نفس المستوى");
 
-    const created = await db.expenseAccount.create({
+    const created = await db.account.create({
       data: {
+        code: await nextCustodyCode(parent.id),
         name,
-        fullPath: parent && parent.fullPath ? `${parent.fullPath} / ${name}` : name,
-        parentId: parent ? parent.id : null,
-        accountKind: "advance",
+        type: "asset",
+        nature: "debit",
+        parentId: parent.id,
+        isLeaf: true,
+        allowPosting: true,
         isActive,
-        sortOrder,
+        isSystem: false,
+        accountRole: "custody",
         includeInProfitability: false, // العهدة ليست مصروفًا — ذمة نقدية
+        xbrlElement: "kw:EmployeeAdvancesReceivable",
+        notes: "حساب عهدة موظفين — أنشئ من شاشة العُهد",
       },
     });
     return ok(
@@ -114,9 +142,10 @@ export async function POST(req: NextRequest) {
         account: {
           id: created.id,
           name: created.name,
-          fullPath: created.fullPath,
+          code: created.code,
+          fullPath: name,
           parentId: created.parentId,
-          accountKind: created.accountKind,
+          accountRole: created.accountRole,
           isActive: created.isActive,
         },
       },
@@ -127,7 +156,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** PATCH (مدير): تعديل اسم/الأب/التفعيل/الترتيب — مع منع الحلقات وتحديث المسار الكامل للفرع */
+/** PATCH (مدير): تعديل الاسم/التفعيل فقط — النقل بين الآباء انتهى (الدليل ثابت البنية) */
 export async function PATCH(req: NextRequest) {
   const guard = await adminGuard(req);
   if ("response" in guard) return guard.response;
@@ -135,79 +164,36 @@ export async function PATCH(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const id = intOr(body.id, 0);
     if (!id) return jsonError("معرف الحساب مطلوب");
-    const acc = await db.expenseAccount.findUnique({ where: { id } });
+    const acc = await db.account.findUnique({ where: { id } });
     if (!acc) return jsonError("حساب العهدة غير موجود", 404);
-    if (acc.accountKind !== "advance") return jsonError("هذا الحساب ليس حساب عهدة");
+    if (acc.accountRole !== "custody") return jsonError("هذا الحساب ليس حساب عهدة");
 
-    const data: Prisma.ExpenseAccountUpdateInput = {};
+    const data: Prisma.AccountUpdateInput = {};
 
     if (body.name !== undefined) {
       const name = String(body.name).trim();
       if (!name) return jsonError("اسم الحساب مطلوب");
-      const dup = await db.expenseAccount.findFirst({
-        where: { name, accountKind: "advance", parentId: acc.parentId, id: { not: id } },
+      const dup = await db.account.findFirst({
+        where: { name, accountRole: "custody", id: { not: id } },
       });
       if (dup) return jsonError("يوجد حساب بنفس الاسم في نفس المستوى");
       data.name = name;
     }
-
-    let parentPath = "";
-    if (acc.parentId) {
-      const currentParent = await db.expenseAccount.findUnique({ where: { id: acc.parentId } });
-      parentPath = currentParent?.fullPath || "";
-    }
-    if (body.parentId !== undefined) {
-      const parentId = body.parentId ? intOr(body.parentId, 0) : 0;
-      if (parentId === id) return jsonError("لا يمكن ربط الحساب بنفسه");
-      if (parentId) {
-        const p = await db.expenseAccount.findUnique({ where: { id: parentId } });
-        if (!p) return jsonError("حساب الأب غير موجود", 404);
-        if (p.accountKind !== "advance") return jsonError("حساب الأب يجب أن يكون حساب عهدة (accountKind=advance)");
-        // منع الحلقة: الصعود من الأب الجديد يجب ألا يصل إلى الحساب نفسه
-        let cursor = p.parentId;
-        const seen = new Set<number>();
-        while (cursor && !seen.has(cursor)) {
-          if (cursor === id) return jsonError("لا يمكن ربط الحساب بأحد أبنائه");
-          seen.add(cursor);
-          const up = await db.expenseAccount.findUnique({ where: { id: cursor }, select: { parentId: true } });
-          cursor = up?.parentId ?? null;
-        }
-        data.parent = { connect: { id: p.id } };
-        parentPath = p.fullPath;
-      } else {
-        data.parent = { disconnect: true };
-        parentPath = "";
-      }
-    }
-
     if (body.isActive !== undefined) data.isActive = Boolean(body.isActive);
-    if (body.sortOrder !== undefined) data.sortOrder = intOr(body.sortOrder, 0);
 
-    const updated = await db.$transaction(async (tx) => {
-      const newName = (data.name as string) || acc.name;
-      const fullPath = parentPath ? `${parentPath} / ${newName}` : newName;
-      const row = await tx.expenseAccount.update({
-        where: { id },
-        data: { ...data, fullPath },
-      });
-      // تحديث مسار الأبناء (فرع advance فقط)
-      const updateChildren = async (pid: number, parentFullPath: string) => {
-        const children = await tx.expenseAccount.findMany({ where: { parentId: pid, accountKind: "advance" } });
-        for (const ch of children) {
-          const childPath = `${parentFullPath} / ${ch.name}`;
-          await tx.expenseAccount.update({ where: { id: ch.id }, data: { fullPath: childPath } });
-          await updateChildren(ch.id, childPath);
-        }
-      };
-      await updateChildren(id, fullPath);
-      return row;
-    });
+    const updated = await db.account.update({ where: { id }, data });
+
+    // إعادة بناء fullPath للعرض (بلا عمود في القاعدة)
+    const parent = updated.parentId
+      ? await db.account.findUnique({ where: { id: updated.parentId }, select: { name: true } })
+      : null;
+    const parentName = parent?.name || "";
 
     return ok({
       account: {
         id: updated.id,
         name: updated.name,
-        fullPath: updated.fullPath,
+        fullPath: parentName ? `${parentName} / ${updated.name}` : updated.name,
         parentId: updated.parentId,
         isActive: updated.isActive,
       },

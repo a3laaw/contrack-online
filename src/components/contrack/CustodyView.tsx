@@ -52,6 +52,8 @@ import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiFetch, apiGet, apiPost } from "./api";
 import { SearchableSelect } from "./SearchableSelect";
 import type {
+  AccountDTO,
+  ChartAccountsResponse,
   CustodyAccountItem,
   CustodyAccountsResponse,
   CustodyLedgerResponse,
@@ -61,7 +63,6 @@ import type {
   CustodyOverviewResponse,
   CustomerDetailResponse,
   CustomersResponse,
-  ExpenseAccountDTO,
   PaymentMethodsResponse,
   User,
 } from "./contrack-types";
@@ -86,7 +87,7 @@ type CustodyTab = "accounts" | "settlements" | "ledger" | "reports";
 
 const DEAD_CONTRACT_STATUSES = new Set(["ملغى"]);
 
-/** بنود التصفية تُربط بحساب مصروف فعلي (لا بحسابات العهد advance) */
+/** بنود التصفية تُربط بحساب مصروف فعلي من الدليل (لا بحسابات العُهد) */
 const LEDGER_KINDS = ["handover", "settlement", "return"] as const;
 
 function todayStr(): string {
@@ -147,22 +148,22 @@ const emptySettleLine = (): SettleLineForm => ({
   description: "",
 });
 
-/** سطر بند تصفية: حساب مصروف (شجرة أب/ابن) + عميل/عقد اختياريان + مبلغ + وصف */
+/** سطر بند تصفية: حساب مصروف (شجرة الدليل أب/ابن) + عميل/عقد اختياريان + مبلغ + وصف */
 function SettleLineRow({
   index,
   line,
   onChange,
   onRemove,
-  expenseAccounts,
-  expenseReady,
+  chartAccounts,
+  chartReady,
   customers,
 }: {
   index: number;
   line: SettleLineForm;
   onChange: (patch: Partial<SettleLineForm>) => void;
   onRemove: () => void;
-  expenseAccounts: ExpenseAccountDTO[];
-  expenseReady: boolean;
+  chartAccounts: AccountDTO[];
+  chartReady: boolean;
   customers: { id: number; name: string }[];
 }) {
   const customerIdNum = line.customerId !== "none" ? Number(line.customerId) : null;
@@ -175,8 +176,15 @@ function SettleLineRow({
     (c) => !DEAD_CONTRACT_STATUSES.has(c.status)
   );
 
-  const roots = expenseAccounts.filter((a) => !a.parentId);
-  const childrenOf = (id: number) => expenseAccounts.filter((a) => a.parentId === id);
+  // أوراق مصروف نشطة تستقبل القيود — من الدليل الموحد (Task 105)
+  const expenseLeaves = chartAccounts.filter(
+    (a) => a.type === "expense" && a.isActive && a.isLeaf && a.allowPosting
+  );
+  const byId = new Map(chartAccounts.map((a) => [a.id, a]));
+  const roots = [...new Set(expenseLeaves.map((a) => a.parentId).filter((id): id is number => id != null))]
+    .map((id) => byId.get(id))
+    .filter((a): a is AccountDTO => !!a && a.isActive);
+  const childrenOf = (id: number) => expenseLeaves.filter((a) => a.parentId === id);
   const children = line.expParent !== "none" ? childrenOf(Number(line.expParent)) : [];
 
   return (
@@ -193,7 +201,7 @@ function SettleLineRow({
           حذف البند
         </Button>
       </div>
-      {expenseReady ? (
+      {chartReady ? (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div className="space-y-1">
             <Label className="text-[11px]">حساب المصروف (أب) *</Label>
@@ -207,7 +215,7 @@ function SettleLineRow({
               <SelectContent>
                 {roots.map((a) => (
                   <SelectItem key={a.id} value={String(a.id)}>
-                    {a.name}
+                    {a.code} — {a.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -226,7 +234,7 @@ function SettleLineRow({
               <SelectContent>
                 {children.map((a) => (
                   <SelectItem key={a.id} value={String(a.id)}>
-                    {a.name}
+                    {a.code} — {a.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -331,16 +339,16 @@ export function CustodyView({ user, onAuthError }: CustodyViewProps) {
       if (a.children?.length) walk(a.children);
     }
   };
-  walk(accountsQuery.data?.items ?? []);
+  walk(accountsQuery.data?.items ?? accountsQuery.data?.accounts ?? []);
   const activeAccounts = flatAccounts.filter((a) => a.isActive);
 
   // ===== بطاقات علوية =====
-  const overviewItems = overviewQuery.data?.items ?? [];
+  const overviewItems = overviewQuery.data?.items ?? overviewQuery.data?.accounts ?? [];
   const totalBalance = overviewItems.length
     ? round3(overviewItems.reduce((s, i) => s + Number(i.balance || 0), 0))
     : round3(activeAccounts.reduce((s, a) => s + Number(a.balance || 0), 0));
   const custodyCount = overviewItems.length || activeAccounts.length;
-  const settlements = [...(settlementsQuery.data?.items ?? [])].sort((a, b) =>
+  const settlements = [...(settlementsQuery.data?.items ?? settlementsQuery.data?.settlements ?? [])].sort((a, b) =>
     (b.vdate + b.ref).localeCompare(a.vdate + a.ref)
   );
   const lastSettlement = settlements[0] ?? null;
@@ -548,14 +556,18 @@ export function CustodyView({ user, onAuthError }: CustodyViewProps) {
     wasSettleOpen.current = settleOpen;
   }, [settleOpen]);
 
-  const expenseAccQuery = useQuery<ExpenseAccountDTO[]>({
-    queryKey: ["expense-accounts"],
-    queryFn: () => apiGet<ExpenseAccountDTO[]>("/api/expense-accounts"),
+  // دليل الحسابات الموحد (Task 105) — أوراق مصروف التصفية من الدليل نفسه
+  const chartAccQuery = useQuery<ChartAccountsResponse>({
+    queryKey: ["accounts"],
+    queryFn: () => apiGet<ChartAccountsResponse>("/api/accounts"),
     enabled: settleOpen,
     retry: false,
   });
-  const expenseAccounts: ExpenseAccountDTO[] = expenseAccQuery.data ?? [];
-  const expenseReady = expenseAccQuery.isSuccess && expenseAccounts.length > 0;
+  const chartAccounts: AccountDTO[] = chartAccQuery.data?.accounts ?? [];
+  const expenseLeaves = chartAccounts.filter(
+    (a) => a.type === "expense" && a.isActive && a.isLeaf && a.allowPosting
+  );
+  const chartReady = chartAccQuery.isSuccess && expenseLeaves.length > 0;
 
   const customersQuery = useQuery<CustomersResponse>({
     queryKey: ["customers", ""],
@@ -613,7 +625,7 @@ export function CustodyView({ user, onAuthError }: CustodyViewProps) {
     }
     for (let i = 0; i < filled.length; i++) {
       const l = filled[i];
-      const hasAccount = expenseReady
+      const hasAccount = chartReady
         ? l.expChild !== "none" || l.expParent !== "none"
         : !!l.expText.trim();
       if (!hasAccount) {
@@ -627,12 +639,13 @@ export function CustodyView({ user, onAuthError }: CustodyViewProps) {
       custodyAccountId: Number(sAccountId),
       description: sDescription.trim() || undefined,
       lines: filled.map((l) => {
-        const child = l.expChild !== "none" ? expenseAccounts.find((a) => String(a.id) === l.expChild) : null;
-        const parent = l.expParent !== "none" ? expenseAccounts.find((a) => String(a.id) === l.expParent) : null;
-        const expenseAccountId = child ? child.id : parent ? parent.id : null;
+        const child = l.expChild !== "none" ? chartAccounts.find((a) => String(a.id) === l.expChild) : null;
+        const parent = l.expParent !== "none" ? chartAccounts.find((a) => String(a.id) === l.expParent) : null;
+        const selected = child ?? parent ?? null;
+        const accountId = selected ? selected.id : null;
         return {
-          expenseAccountId,
-          expenseAccountName: expenseAccountId === null ? l.expText.trim() : undefined,
+          accountId,
+          accountSnapshot: accountId === null ? l.expText.trim() : undefined,
           customerId: l.customerId !== "none" ? Number(l.customerId) : undefined,
           contractId: l.contractId !== "none" ? Number(l.contractId) : undefined,
           amount: Number(l.amount),
@@ -815,7 +828,7 @@ export function CustodyView({ user, onAuthError }: CustodyViewProps) {
             العُهد
           </h1>
           <p className="text-xs text-muted-foreground">
-            العهدة = حساب advance والرصيد محسوب (مُسلَّم − مُصروف − مرتجع) — التصفية توزّع مبلغًا سبق صرفه ولا تصرف نقدًا جديدًا.
+            العهدة = حساب بدور custody في دليل الحسابات الموحد والرصيد محسوب (مُسلَّم − مُصروف − مرتجع) — التصفية توزّع مبلغًا سبق صرفه ولا تصرف نقدًا جديدًا.
           </p>
         </div>
         {manager && (
@@ -900,7 +913,7 @@ export function CustodyView({ user, onAuthError }: CustodyViewProps) {
                   <Wallet className="size-8 text-muted-foreground/50" />
                   <p className="text-sm font-medium">لا حسابات عهدة نشطة</p>
                   <p className="text-xs text-muted-foreground">
-                    العهدة حساب في شجرة حسابات المصاريف بنوع advance — أنشئها من «إدارة الحسابات».
+                    العهدة حساب في دليل الحسابات الموحد بدور custody — أنشئها من «إدارة الحسابات».
                   </p>
                 </CardContent>
               </Card>
@@ -1377,8 +1390,8 @@ export function CustodyView({ user, onAuthError }: CustodyViewProps) {
                 onRemove={() =>
                   setSLines((prev) => (prev.length > 1 ? prev.filter((_, j) => j !== i) : prev))
                 }
-                expenseAccounts={expenseAccounts}
-                expenseReady={expenseReady}
+                chartAccounts={chartAccounts}
+                chartReady={chartReady}
                 customers={customers}
               />
             ))}
@@ -1473,7 +1486,7 @@ export function CustodyView({ user, onAuthError }: CustodyViewProps) {
                 <TableBody>
                   {detailQuery.data.lines.map((l, i) => (
                     <TableRow key={l.id ?? `${l.voucherId ?? i}`}>
-                      <TableCell className="text-xs font-semibold">{l.expenseAccountName ?? "—"}</TableCell>
+                      <TableCell className="text-xs font-semibold">{l.accountSnapshot ?? "—"}</TableCell>
                       <TableCell className="text-xs">
                         <div>{l.customerName ?? "—"}</div>
                         {l.contractNumber && (

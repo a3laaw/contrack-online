@@ -71,12 +71,12 @@ function todayLocal(): string {
 
 // ==================== أنواع الاستجابات ====================
 
-interface DetailLine { voucherNumber: string; vdate: string; party: string; expenseAccount: string; amount: number; description: string }
+interface DetailLine { voucherNumber: string; vdate: string; party: string; accountSnapshot: string; amount: number; description: string }
 interface SummaryGroup { ref: string; vdate: string; custodyAccountId: number | null; custodyAccount: string; lines: number; total: number; description: string; details: DetailLine[] }
 interface BalanceRow { accountId: number; account: string; handed: number; spent: number; returned: number; balance: number; handedCount: number; spentCount: number; returnedCount: number; settlements: number }
-interface LedgerLine { id: number; voucherNumber: string; vdate: string; description: string; party: string; expenseAccountSnapshot: string; contractNumber: string; amount: number }
+interface LedgerLine { id: number; voucherNumber: string; vdate: string; description: string; party: string; accountSnapshot: string; contractNumber: string; amount: number }
 interface LedgerRow { kind: "handover" | "return" | "settlement"; ref: string; voucherId: number | null; vdate: string; description: string; in: number; out: number; balance: number; details: LedgerLine[]; detailsCount: number; custodyAccountId: number | null; custodyAccount: string }
-interface DetailedRow { vdate: string; ref: string; account: string; custodyAccountId: number | null; type: string; description: string; party: string; expense: string; customer: string; in: number; out: number; balance: number }
+interface DetailedRow { vdate: string; ref: string; account: string; custodyAccountId: number | null; type: string; description: string; party: string; accountSnapshot: string; customer: string; in: number; out: number; balance: number }
 interface MonthlyRow { month: string; account: string; opening: number; handed: number; spent: number; returned: number; closing: number }
 interface HandoverRow { id: number; ref: string; vdate: string; party: string; description: string; amount: number; method: string; notes: string; custodyAccountId: number | null; custodyAccount: string }
 interface OpenRow { accountId: number; account: string; balance: number; handed: number; spent: number; returned: number; oldest: string; days: number; handovers: number }
@@ -407,7 +407,7 @@ function ReportTable({
                             <TableCell dir="ltr" className="text-end">{fmtDate(d.vdate)}</TableCell>
                             <TableCell>{acc}</TableCell>
                             <TableCell className="text-center">
-                              {d.expenseAccount} · {d.party}
+                              {d.accountSnapshot} · {d.party}
                             </TableCell>
                             <NumCell v={d.amount} />
                             <TableCell className="whitespace-normal">{d.description}</TableCell>
@@ -528,7 +528,7 @@ function ReportTable({
                 <TableCell>{r.type}</TableCell>
                 <TableCell className="max-w-[20rem] whitespace-normal">{r.description}</TableCell>
                 <TableCell>{r.party}</TableCell>
-                <TableCell>{r.expense}</TableCell>
+                <TableCell>{r.accountSnapshot}</TableCell>
                 <TableCell>{r.customer}</TableCell>
                 <NumCell v={r.in} />
                 <NumCell v={r.out} />

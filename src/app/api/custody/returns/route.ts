@@ -14,8 +14,8 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const custodyAccountId = intOr(body.custodyAccountId, 0);
     if (!custodyAccountId) return jsonError("حساب العهدة مطلوب");
-    const acc = await db.expenseAccount.findUnique({ where: { id: custodyAccountId } });
-    if (!acc || acc.accountKind !== "advance") return jsonError("حساب العهدة غير صالح (يجب أن يكون من حسابات العُهد)", 404);
+    const acc = await db.account.findUnique({ where: { id: custodyAccountId } });
+    if (!acc || acc.accountRole !== "custody") return jsonError("حساب العهدة غير صالح (يجب أن يكون من حسابات العُهد)", 404);
 
     const amount = r3(Number(body.amount));
     if (!Number.isFinite(amount) || !(amount > 0)) return jsonError("مبلغ الإرجاع يجب أن يكون أكبر من صفر");
