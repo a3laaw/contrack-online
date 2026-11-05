@@ -1,13 +1,16 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { audit, authGuard, jsonError, ok } from "@/lib/api-utils";
+import { isSuperRole } from "@/lib/permissions-catalog";
 import { ensureChartOfAccounts } from "@/lib/accounting-server";
 import {
   buildAccountResolver,
+  nextEntryNo,
   postJournalEntry,
   TX_OPTS,
 } from "@/lib/journal-server";
 import { validateJournalEntry, type JournalEntryInput } from "@/lib/accounting-journal";
+import { getSettingsRow } from "@/lib/contrack-server";
 
 /**
  * القيود اليومية — نواة القيد المزدوج (Task 104).
@@ -117,6 +120,17 @@ export async function POST(req: NextRequest) {
     sourceType: "manual",
     lines: Array.isArray(body.lines) ? (body.lines as JournalEntryInput["lines"]) : [],
   };
+  // Task 112 — وضع الاعتماد: asDraft يخلق مسودة (لا أثر مالي حتى اعتماد المحاسب الرئيسي)،
+  // وتفعيل entryApprovalMode يجبر غير المدير على المسودة تلقائيًا حتى لو طلب النشر المباشر
+  async function entryApprovalModeActive(): Promise<boolean> {
+    try {
+      const s = await getSettingsRow();
+      return Boolean(s.entryApprovalMode);
+    } catch {
+      return false;
+    }
+  }
+  const wantsDraft = body.asDraft === true || ((await entryApprovalModeActive()) && !isSuperRole(guard.user.role));
 
   // تحقق مسبق سريع قبل فتح المعاملة (رسائل فورية للواجهة)
   const accounts = await db.account.findMany({
@@ -129,6 +143,56 @@ export async function POST(req: NextRequest) {
   if (!pre.ok) return jsonError(pre.error || "قيد غير صالح.", 400);
 
   try {
+    if (wantsDraft) {
+      // مسودة: رقم القيد يُحجز منذ الإنشاء (unique companyId+entryNo) وبلا أثر مالي —
+      // بلا فحص فترة (النشر يتحقق لاحقًا) وبلا بذر احتياطي للمرفقين
+      const draft = await db.$transaction(async (tx) => {
+        const entryNo = await nextEntryNo(tx);
+        const row = await tx.journalEntry.create({
+          data: {
+            entryNo,
+            entryDate: input.entryDate,
+            description: input.description.trim(),
+            status: "draft",
+            sourceType: "manual",
+            postedAt: null,
+            createdBy: guard.user.username,
+          },
+        });
+        await tx.journalLine.createMany({
+          data: input.lines.map((l, i) => ({
+            entryId: row.id,
+            accountId: l.accountId,
+            debit: l.debit,
+            credit: l.credit,
+            description: (l.description || "").trim(),
+            customerId: l.customerId ?? null,
+            contractId: l.contractId ?? null,
+            subContractId: l.subContractId ?? null,
+            boqItemId: l.boqItemId ?? null,
+            projectId: l.projectId ?? null,
+            employeeId: l.employeeId ?? null,
+            costCenter: (l.costCenter || "").trim(),
+            sort: i,
+          })),
+        });
+        await audit(tx, {
+          username: guard.user.username,
+          action: "حفظ مسودة قيد",
+          entityType: "journal_entry",
+          entityId: row.id,
+          entityName: `مسودة قيد #${entryNo}`,
+          newStatus: "draft",
+          reason: input.description.slice(0, 180),
+        });
+        return { id: row.id, entryNo, totalDebit: input.lines.reduce((s, l) => s + Number(l.debit || 0), 0), totalCredit: input.lines.reduce((s, l) => s + Number(l.credit || 0), 0) };
+      }, TX_OPTS);
+      return ok({
+        entry: draft,
+        draft: true,
+        message: `حُفظت المسودة #${draft.entryNo} — بانتظار اعتماد المحاسب الرئيسي (بلا أثر مالي)`,
+      });
+    }
     const result = await db.$transaction(async (tx) => {
       await buildAccountResolver(tx);
       const posted = await postJournalEntry(tx, input, guard.user.username);

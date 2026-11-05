@@ -82,6 +82,55 @@ export const PERMISSIONS: { key: string; label: string; group: string; secretary
 
 export type PermissionSpec = (typeof PERMISSIONS)[number];
 
+/**
+ * الأدوار المحاسبية الجاهزة — Task 112 (خارطة المرحلة 5):
+ *  • accountant «محاسب»: يرى الشاشات التشغيلية والقيود والسندات — ينشئ لكن لا يعتمد (الاعتماد للمدير)
+ *  • chief_accountant «محاسب رئيسي»: كل الشاشات المحاسبية + إجراءات الاعتماد/الإلغاء/الإقفال
+ *    (الإجراءات الإدارية الحساسة تبقى للمدير في الواجهات — الرئيسي هنا شاشات كاملة)
+ *  • auditor «مراجع»: قراءة كاملة للشاشات والتقارير المالية بلا إجراءات تعديل
+ * تُطبَّق كحزمة مفاتيح على صلاحيات مستخدم عبر شاشة الصلاحيات (زر لكل دور) — وتوفر
+ * بنفس آلية user_permissions القائمة بلا أي بنية أدوار جديدة.
+ */
+export const ACCOUNTING_ROLE_PRESETS: Record<
+  "accountant" | "chief_accountant" | "auditor",
+  { label: string; desc: string; keys: string[] }
+> = {
+  accountant: {
+    label: "محاسب",
+    desc: "إنشاء القيود والسندات والفواتير — بلا اعتماد ولا إقفال",
+    keys: [
+      "screen_customers", "screen_contracts", "screen_vouchers", "screen_receipts",
+      "screen_custody", "screen_invoices", "screen_statement",
+      "screen_chart_of_accounts", "screen_journal_entries", "screen_ledger",
+      "screen_financial_statements", "action_add_voucher", "action_edit_voucher",
+    ],
+  },
+  chief_accountant: {
+    label: "محاسب رئيسي",
+    desc: "كل الشاشات المحاسبية + الاعتماد والإقفال — بلا إدارة المستخدمين",
+    keys: [
+      "screen_customers", "screen_contracts", "screen_vouchers", "screen_receipts", "screen_payments",
+      "screen_custody", "screen_invoices", "screen_statement", "screen_reports",
+      "screen_chart_of_accounts", "screen_journal_entries", "screen_ledger",
+      "screen_fiscal_close", "screen_financial_statements", "screen_zakat_xbrl",
+      "screen_other_company", "screen_claims",
+      "action_add_voucher", "action_edit_voucher", "action_cancel_voucher", "action_add_payment",
+    ],
+  },
+  auditor: {
+    label: "مراجع",
+    desc: "قراءة كاملة للشاشات والتقارير المالية — بلا أي إجراء تعديل",
+    keys: [
+      "screen_customers", "screen_contracts", "screen_vouchers", "screen_receipts",
+      "screen_custody", "screen_invoices", "screen_statement", "screen_reports",
+      "screen_chart_of_accounts", "screen_journal_entries", "screen_ledger",
+      "screen_fiscal_close", "screen_financial_statements", "screen_zakat_xbrl",
+      "report_customers_balances", "report_stage_dues", "report_subcontractors",
+      "report_cashflow", "report_contracts", "report_journal",
+    ],
+  },
+};
+
 const PERM_BY_KEY = new Map(PERMISSIONS.map((p) => [p.key, p]));
 
 /** افتراضيات الدور للمفتاح — مرآة role_perm_defaults: المدير والمطور الكل، والسكرتير حسب علم المفتاح المكتبية */

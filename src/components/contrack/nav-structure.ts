@@ -132,17 +132,17 @@ export const NAV_MODULES: NavModule[] = [
       // Task 102 — المحاسبة الكاملة: دليل الحسابات أرضية البرنامج المحاسبي
       // بخريطة XBRL الكويتي وجسر المصروفات — خلف ميزة full_accounting وصلاحية مستقلة
       // (بلا adminOnly: صاحب العمل سكرتير هنا — الباب صلاحية screen_chart_of_accounts)
-      { id: "chart-of-accounts", label: "دليل الحسابات", icon: BookText, view: "chart-of-accounts", flag: "full_accounting", perm: "screen_chart_of_accounts" },
+      { id: "chart-of-accounts", label: "دليل الحسابات", icon: BookText, view: "chart-of-accounts", perm: "screen_chart_of_accounts" },
       // Task 104 — القيود اليومية: نواة القيد المزدوج الحقيقية (نشر/إلغاء/عكس عبر المحرك الموحد)
-      { id: "journal-entries", label: "القيود اليومية", icon: ScrollText, view: "journal-entries", flag: "full_accounting", perm: "screen_journal_entries" },
+      { id: "journal-entries", label: "القيود اليومية", icon: ScrollText, view: "journal-entries", perm: "screen_journal_entries" },
       // Task 108 — دفتر الأستاذ + ميزان المراجعة + أعمار الذمم: مخرجات الأستاذ (مصدر الحقيقة)
-      { id: "ledger", label: "دفتر الأستاذ والميزان", icon: Scale, view: "ledger", flag: "full_accounting", perm: "screen_ledger" },
+      { id: "ledger", label: "دفتر الأستاذ والميزان", icon: Scale, view: "ledger", perm: "screen_ledger" },
       // Task 110 — القوائم المالية الموحدة (القرار الوزاري 44/2016) من الأستاذ حصرًا + فحوص التوازن
-      { id: "financial-statements", label: "القوائم المالية", icon: Landmark, view: "financial-statements", flag: "full_accounting", perm: "screen_financial_statements" },
+      { id: "financial-statements", label: "القوائم المالية", icon: Landmark, view: "financial-statements", perm: "screen_financial_statements" },
       // Task 111 — الزكاة 1% وضريبة الأجانب 15% + مصدّر iXBRL للتقديم الإلكتروني
-      { id: "zakat-xbrl", label: "الزكاة والتقديم", icon: FileBadge, view: "zakat-xbrl", flag: "full_accounting", perm: "screen_zakat_xbrl" },
+      { id: "zakat-xbrl", label: "الزكاة والتقديم", icon: FileBadge, view: "zakat-xbrl", perm: "screen_zakat_xbrl" },
       // Task 109 — الفترات المالية والإقفال السنوي الموثق (قفل الشهور + قيد الإغلاق + الافتتاحية)
-      { id: "fiscal-close", label: "الفترات والإقفال", icon: LockKeyhole, view: "fiscal-close", flag: "full_accounting", perm: "screen_fiscal_close" },
+      { id: "fiscal-close", label: "الفترات والإقفال", icon: LockKeyhole, view: "fiscal-close", perm: "screen_fiscal_close" },
       // بند 5 مواءمة PAGE_PERMS: مفتاحان منفصلان كالمكتبي حرفيًا (main_window.py:782-787
       // سندات القبض ← screen_receipts · سندات الصرف ← screen_payments) —
       // بوابة الـAPI تبقى screen_vouchers (الدمج المكتبي الموثق) فلا تغيير بأي حارس مسار

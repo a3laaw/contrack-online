@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authGuard, jsonError } from "@/lib/api-utils";
+import { audit, authGuard, jsonError } from "@/lib/api-utils";
 import { buildFinancialStatements } from "@/lib/financial-statements-server";
+import { db } from "@/lib/db";
 import { getSettingsRow } from "@/lib/contrack-server";
 import { buildIxbrlDocument, checkCoverage } from "@/lib/xbrl-core";
 
@@ -33,6 +34,19 @@ export async function GET(req: NextRequest) {
       `خريطة XBRL غير مكتملة — ${coverage.uncovered.length} بندًا بقيمة بلا عنصر. راجع تقرير الاكتمال أو صدّر بمسودة force=1.`,
       409
     );
+  }
+  // Task 112 — تدقيق تصدير XBRL (التنزيل يُسجل — المعاينة لا تلوث السجل)
+  if (download) {
+    await db.$transaction(async (tx) => {
+      await audit(tx, {
+        username: guard.user.username,
+        action: "تصدير iXBRL",
+        entityType: "xbrl_export",
+        entityId: 0,
+        entityName: `التقديم ${Number(asOf.slice(0, 4))} حتى ${asOf}${force ? " (مسودة force)" : ""}`,
+        newStatus: force ? "draft" : "final",
+      });
+    });
   }
   const settings = await getSettingsRow();
   const year = Number(asOf.slice(0, 4));

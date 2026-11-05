@@ -33,6 +33,7 @@ function serialize(s: Awaited<ReturnType<typeof getSettingsRow>>) {
     autoBackupEnabled: s.autoBackupEnabled,
     autoBackupInterval: s.autoBackupInterval,
     uiTheme: s.uiTheme,
+    entryApprovalMode: s.entryApprovalMode,
     updatedAt: s.updatedAt,
   };
 }
@@ -58,7 +59,7 @@ const STR_FIELDS = [
 ] as const;
 
 const NUM_FIELDS = ["bankFeeAmount", "openingBalanceBank", "openingBalanceCash", "autoBackupInterval"] as const;
-const BOOL_FIELDS = ["bankFeeEnabled", "cashflowEnabled", "subPayClientGate", "autoBackupEnabled"] as const;
+const BOOL_FIELDS = ["bankFeeEnabled", "cashflowEnabled", "subPayClientGate", "autoBackupEnabled", "entryApprovalMode"] as const;
 
 /** الإعدادات — ينشئ الصف الافتراضي id=1 إن لم يوجد */
 export async function GET(req: NextRequest) {
@@ -88,7 +89,10 @@ export async function PUT(req: NextRequest) {
   }
 
   const s = await getSettingsRow();
-  const updated = await db.setting.update({ where: { companyId: s.companyId }, data });
+  // Task 112 — updateMany بدل update(where companyId): غلاف db يحصر companyId آليًا
+  // (update بالـwhere companyId المباشر يمر بمسار injectCompound المخصص للمفاتيح المركبة فيكسر القيمة)
+  await db.setting.updateMany({ where: { companyId: s.companyId }, data });
+  const updated = await getSettingsRow();
   await audit(db, {
     username: guard.user.username,
     action: "تعديل",

@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  BadgeCheck,
   Plus,
   RefreshCw,
   Search,
@@ -50,8 +51,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { ApiError, apiGet, apiPost } from "./api";
+import { ApiError, apiGet, apiPost, apiPut } from "./api";
+import { isManagerRole, type User } from "./contrack-types";
 import { errMessage } from "./contrack-types";
 import { formatKWD } from "@/lib/format";
 
@@ -138,10 +141,12 @@ interface DraftLine {
 const emptyLine = (): DraftLine => ({ accountId: "", debit: "", credit: "", description: "" });
 
 export function JournalEntriesView({
+  user,
   onAuthError,
   presetQ,
   onConsumePresetQ,
 }: {
+  user: User;
   onAuthError: () => void;
   /** بحث مسبق (رقم القيد من شاشة السندات — Task 106) */
   presetQ?: string | null;
@@ -149,6 +154,29 @@ export function JournalEntriesView({
 }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const manager = isManagerRole(user.role);
+  // Task 112 — وضع الاعتماد: القراءة من الإعدادات والتبديل للمدير حصرًا
+  const [approvalMode, setApprovalMode] = React.useState(false);
+  const settingsQ = useQuery({
+    queryKey: ["journal-approval-settings"],
+    queryFn: async () => apiGet<{ settings: { entryApprovalMode: boolean } }>("/api/settings"),
+    staleTime: 30_000,
+  });
+  React.useEffect(() => {
+    if (settingsQ.data) setApprovalMode(!!settingsQ.data.settings.entryApprovalMode);
+  }, [settingsQ.data]);
+  const toggleApproval = useMutation({
+    mutationFn: async (v: boolean) => apiPut<{ settings: { entryApprovalMode: boolean } }>("/api/settings", { entryApprovalMode: v }),
+    onSuccess: (res) => {
+      setApprovalMode(!!res.settings.entryApprovalMode);
+      toast({ title: res.settings.entryApprovalMode ? "فُعّل وضع الاعتماد — القيود تُحفظ مسودة حتى اعتماد المحاسب الرئيسي" : "عُطّل وضع الاعتماد — النشر مباشر" });
+      qc.invalidateQueries({ queryKey: ["journal-approval-settings"] });
+    },
+    onError: (e) => {
+      if (e instanceof ApiError && e.status === 401) onAuthError();
+      toast({ title: "تعذر تغيير وضع الاعتماد", description: errMessage(e), variant: "destructive" });
+    },
+  });
 
   // ==================== فلاتر القائمة ====================
   const [status, setStatus] = React.useState("posted");
@@ -215,12 +243,15 @@ export function JournalEntriesView({
     setCDate(new Date().toISOString().slice(0, 10));
     setCDescription("");
     setCLines([emptyLine(), emptyLine()]);
+    setSaveAsDraft(false);
     setCreateOpen(true);
   };
 
+  const [saveAsDraft, setSaveAsDraft] = React.useState(false);
   const createM = useMutation({
-    mutationFn: async () =>
-      apiPost<{ entry: { entryNo: number }; message: string }>("/api/journal-entries", {
+    mutationFn: async (asDraft: boolean) =>
+      apiPost<{ entry: { entryNo: number }; message: string; draft?: boolean }>("/api/journal-entries", {
+        asDraft,
         entryDate: cDate,
         description: cDescription,
         lines: cLines
@@ -233,15 +264,15 @@ export function JournalEntriesView({
           })),
       }),
     onSuccess: (res) => {
-      toast({ title: "تم النشر", description: res.message });
+      toast({ title: res.draft ? "حُفظت المسودة" : "تم النشر", description: res.message });
       setCreateOpen(false);
-      setStatus("posted");
+      setStatus(res.draft ? "draft" : "posted");
       setPage(1);
       qc.invalidateQueries({ queryKey: ["journal-entries"] });
     },
     onError: (e) => {
       if (e instanceof ApiError && e.status === 401) onAuthError();
-      toast({ title: "تعذر النشر", description: errMessage(e), variant: "destructive" });
+      toast({ title: "تعذر الحفظ", description: errMessage(e), variant: "destructive" });
     },
   });
 
@@ -266,6 +297,32 @@ export function JournalEntriesView({
     onError: (e) => {
       if (e instanceof ApiError && e.status === 401) onAuthError();
       toast({ title: "تعذر التنفيذ", description: errMessage(e), variant: "destructive" });
+    },
+  });
+
+  // Task 112 — اعتماد مسودة (المدير) وحذف مسودة
+  const draftPostM = useMutation({
+    mutationFn: async (id: number) =>
+      apiPost<{ message: string }>(`/api/journal-entries/${id}`, { action: "post" }),
+    onSuccess: (res) => {
+      toast({ title: "تم الاعتماد", description: res.message });
+      qc.invalidateQueries({ queryKey: ["journal-entries"] });
+    },
+    onError: (e) => {
+      if (e instanceof ApiError && e.status === 401) onAuthError();
+      toast({ title: "تعذر الاعتماد", description: errMessage(e), variant: "destructive" });
+    },
+  });
+  const draftDeleteM = useMutation({
+    mutationFn: async (id: number) =>
+      apiPost<{ message: string }>(`/api/journal-entries/${id}`, { action: "delete" }),
+    onSuccess: (res) => {
+      toast({ title: "حُذفت المسودة", description: res.message });
+      qc.invalidateQueries({ queryKey: ["journal-entries"] });
+    },
+    onError: (e) => {
+      if (e instanceof ApiError && e.status === 401) onAuthError();
+      toast({ title: "تعذر الحذف", description: errMessage(e), variant: "destructive" });
     },
   });
 
@@ -295,6 +352,17 @@ export function JournalEntriesView({
                 <RefreshCw className={`h-4 w-4 ${entriesQ.isFetching ? "animate-spin" : ""}`} />
                 تحديث
               </Button>
+              {manager && (
+                <div className="flex items-center gap-2 rounded-lg border px-3 py-1.5" title="وضع الاعتماد: قيود غير المدير تُحفظ مسودة حتى اعتمادها">
+                  <span className="text-xs text-muted-foreground">وضع الاعتماد</span>
+                  <Switch
+                    checked={approvalMode}
+                    onCheckedChange={(v) => toggleApproval.mutate(v)}
+                    disabled={toggleApproval.isPending}
+                    aria-label="وضع الاعتماد"
+                  />
+                </div>
+              )}
               <Button size="sm" onClick={openCreate}>
                 <Plus className="h-4 w-4" />
                 قيد يدوي
@@ -448,7 +516,32 @@ export function JournalEntriesView({
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
-                              {e.status === "posted" ? (
+                              {e.status === "draft" ? (
+                                <>
+                                  {manager && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 px-2 text-xs"
+                                      disabled={draftPostM.isPending}
+                                      onClick={() => draftPostM.mutate(e.id)}
+                                    >
+                                      <BadgeCheck className="h-3.5 w-3.5" />
+                                      اعتماد ونشر
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs text-status-danger hover:text-status-danger"
+                                    disabled={draftDeleteM.isPending}
+                                    onClick={() => draftDeleteM.mutate(e.id)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    حذف
+                                  </Button>
+                                </>
+                              ) : e.status === "posted" ? (
                                 <>
                                   <Button
                                     variant="outline"
@@ -699,10 +792,17 @@ export function JournalEntriesView({
               تراجع
             </Button>
             <Button
+              variant="outline"
               disabled={!cTotals.balanced || !cDescription.trim() || createM.isPending}
-              onClick={() => createM.mutate()}
+              onClick={() => createM.mutate(true)}
             >
-              {createM.isPending ? "جارٍ النشر…" : "نشر القيد"}
+              {createM.isPending && saveAsDraft ? "جارٍ الحفظ…" : "حفظ كمسودة"}
+            </Button>
+            <Button
+              disabled={!cTotals.balanced || !cDescription.trim() || createM.isPending}
+              onClick={() => createM.mutate(false)}
+            >
+              {createM.isPending && !saveAsDraft ? "جارٍ النشر…" : approvalMode && !manager ? "إرسال للاعتماد" : "نشر القيد"}
             </Button>
           </DialogFooter>
         </DialogContent>

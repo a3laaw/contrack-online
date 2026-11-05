@@ -388,7 +388,7 @@ function AppRoot() {
       {view === "other-company" && <OtherCompanyView user={user} onAuthError={onAuthError} />}
       {view === "chart-of-accounts" && <ChartOfAccountsView onAuthError={onAuthError} />}
       {view === "journal-entries" && (
-        <JournalEntriesView onAuthError={onAuthError} presetQ={journalPresetQ} onConsumePresetQ={() => setJournalPresetQ(null)} />
+        <JournalEntriesView user={user} onAuthError={onAuthError} presetQ={journalPresetQ} onConsumePresetQ={() => setJournalPresetQ(null)} />
       )}
       {view === "ledger" && <LedgerView onAuthError={onAuthError} />}
       {view === "fiscal-close" && <FiscalPeriodsView user={user} onAuthError={onAuthError} />}

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ACCOUNTING_ROLE_PRESETS } from "@/lib/permissions-catalog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Plus,
@@ -351,6 +352,29 @@ function PermissionsDialog({
           </DialogTitle>
           <DialogDescription>المدير/المطور يملك كل الصلاحيات تلقائيًا — الضبط هنا يخص السكرتير.</DialogDescription>
         </DialogHeader>
+
+        {/* Task 112 — الأدوار المحاسبية الجاهزة: حزمة مفاتيح بضغطة واحدة */}
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-2.5">
+          <span className="text-xs font-semibold text-muted-foreground">أدوار محاسبية جاهزة:</span>
+          {(Object.entries(ACCOUNTING_ROLE_PRESETS) as [string, { label: string; desc: string; keys: string[] }][]).map(([key, preset]) => (
+            <Button
+              key={key}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              title={preset.desc}
+              onClick={() => {
+                const next: Record<string, boolean> = { ...allowed };
+                for (const k of preset.keys) next[k] = true;
+                setAllowed(next);
+                toast({ title: `طُبّق دور «${preset.label}»`, description: `${preset.desc} — راجع ثم احفظ.` });
+              }}
+            >
+              {preset.label}
+            </Button>
+          ))}
+        </div>
 
         {permsQuery.isLoading || !initialized ? (
           <div className="space-y-3">

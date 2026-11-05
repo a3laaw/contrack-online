@@ -282,6 +282,45 @@ export async function postJournalEntry(
 }
 
 /** إلغاء قيد — يُستبعد من الأرصدة مع بيان السبب (للمسودات والمنشورة) */
+/**
+ * نشر قيد مسودة قائم (Task 112 — وضع الاعتماد): إعادة التحقق كاملًا كالنشر المباشر
+ * (توازن/حسابات قابلة/فترة مفتوحة) ثم قلب الحالة مع postedAt/By — القيد يحمل entryNo
+ * محجوزًا منذ إنشاء المسودة فلا تسلسل مكرر.
+ */
+export async function postDraftEntry(tx: Tx, entryId: number, actor: string): Promise<PostEntryResult> {
+  const entry = await tx.journalEntry.findFirst({
+    where: { id: entryId },
+    select: { id: true, status: true, entryDate: true, description: true, lines: { select: { accountId: true, debit: true, credit: true } } },
+  });
+  if (!entry) throw new Error("القيد غير موجود.");
+  if (entry.status !== "draft") throw new Error("النشر للمسودات حصرًا.");
+
+  const period = await ensurePeriodForDate(tx, entry.entryDate);
+  if (!period.open) {
+    throw new Error(`فترة ${entry.entryDate.slice(0, 7)} مقفلة — لا يمكن النشر عليها.`);
+  }
+  const resolver = await buildAccountResolver(tx);
+  const check = validateJournalEntry(
+    {
+      entryDate: entry.entryDate,
+      description: entry.description,
+      lines: entry.lines.map((l) => ({
+        accountId: l.accountId,
+        debit: Number(l.debit),
+        credit: Number(l.credit),
+      })),
+    },
+    resolver.accountsById
+  );
+  if (!check.ok) throw new Error(check.error || "المسودة غير صالحة للنشر.");
+
+  await tx.journalEntry.update({
+    where: { id: entry.id },
+    data: { status: "posted", postedAt: new Date(), postedBy: actor },
+  });
+  return { id: entry.id, entryNo: 0, totalDebit: 0, totalCredit: 0 };
+}
+
 export async function cancelJournalEntry(
   tx: Tx,
   entryId: number,

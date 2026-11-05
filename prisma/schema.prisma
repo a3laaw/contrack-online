@@ -809,6 +809,7 @@ model Setting {
   headerTitle           String   @default("نظام إدارة العقود والمحاسبة") @map("header_title")
   currency              String   @default("د.ك")
   companyLicense        String   @default("") @map("company_license") // Task 111 — رقم الترخيص المدني للبيانات الوصفية XBRL
+  entryApprovalMode     Boolean  @default(false) @map("entry_approval_mode") // Task 112 — وضع الاعتماد: قيود المحاسب تُحفظ مسودة حتى اعتماد المحاسب الرئيسي
   bankFeeAmount         Decimal  @default(0.150) @map("bank_fee_amount")
   bankFeeMethod         String   @default("تحويل بنكي") @map("bank_fee_method")
   bankFeeEnabled        Boolean  @default(true) @map("bank_fee_enabled")

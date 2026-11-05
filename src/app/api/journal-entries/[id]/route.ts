@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { audit, authGuard, jsonError, ok } from "@/lib/api-utils";
-import { cancelJournalEntry, reverseJournalEntry, TX_OPTS } from "@/lib/journal-server";
+import { adminGuard, audit, authGuard, jsonError, ok } from "@/lib/api-utils";
+import { cancelJournalEntry, postDraftEntry, reverseJournalEntry, TX_OPTS } from "@/lib/journal-server";
 
 /**
  * تفاصيل القيد + الإجراءات (إلغاء / قيد عكسي) — Task 104.
@@ -74,8 +74,59 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
   const action = String(body.action || "");
   const reason = String(body.reason || "").trim();
-  if (!["cancel", "reverse"].includes(action)) return jsonError("إجراء غير معروف.", 400);
-  if (!reason) return jsonError("سبب الإجراء مطلوب ويُسجل في التدقيق.", 400);
+  if (!["cancel", "reverse", "post", "delete"].includes(action)) return jsonError("إجراء غير معروف.", 400);
+  if (["cancel", "reverse"].includes(action) && !reason) {
+    return jsonError("سبب الإجراء مطلوب ويُسجل في التدقيق.", 400);
+  }
+
+  // Task 112 — اعتماد مسودة: للمدير حصرًا (المحاسب الرئيسي) — إعادة التحقق كاملًا ثم النشر
+  if (action === "post") {
+    const admin = await adminGuard(req);
+    if ("response" in admin) return admin.response;
+    try {
+      const result = await db.$transaction(async (tx) => {
+        await postDraftEntry(tx, entryId, admin.user.username);
+        const row = await tx.journalEntry.findFirst({ where: { id: entryId }, select: { entryNo: true, postedAt: true, createdBy: true } });
+        await audit(tx, {
+          username: admin.user.username,
+          action: "اعتماد مسودة ونشرها",
+          entityType: "journal_entry",
+          entityId: entryId,
+          entityName: `مسودة #${row?.entryNo} ← posted`,
+          oldStatus: "draft",
+          newStatus: "posted",
+        });
+        return row;
+      }, TX_OPTS);
+      return ok({ message: `اعتمدت المسودة ونُشرت #${result?.entryNo} — دخلت الأرصدة.` });
+    } catch (e) {
+      return jsonError(e instanceof Error ? e.message : "تعذر اعتماد المسودة.", 400);
+    }
+  }
+
+  // Task 112 — حذف مسودة: بلا أثر مالي إطلاقًا (لم تُنشر قط)
+  if (action === "delete") {
+    try {
+      const row = await db.journalEntry.findFirst({ where: { id: entryId }, select: { status: true, entryNo: true } });
+      if (!row) return jsonError("القيد غير موجود.", 404);
+      if (row.status !== "draft") return jsonError("الحذف للمسودات حصرًا — المنشور يُلغى بقيد عكسي موثق.", 400);
+      await db.$transaction(async (tx) => {
+        await tx.journalEntry.delete({ where: { id: entryId } });
+        await audit(tx, {
+          username: guard.user.username,
+          action: "حذف مسودة قيد",
+          entityType: "journal_entry",
+          entityId: entryId,
+          entityName: `مسودة #${row.entryNo}`,
+          oldStatus: "draft",
+          newStatus: "deleted",
+        });
+      }, TX_OPTS);
+      return ok({ message: `حُذفت المسودة #${row.entryNo}.` });
+    } catch (e) {
+      return jsonError(e instanceof Error ? e.message : "تعذر حذف المسودة.", 400);
+    }
+  }
 
   try {
     const result = await db.$transaction(async (tx) => {

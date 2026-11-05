@@ -52,6 +52,8 @@ const TENANT_MODELS = new Set<string>([
   "journalLine", "fiscalYear", "fiscalPeriod",
   // Task 109 — سجل الإقفالات السنوية الموثق
   "fiscalClosing",
+  // Task 111 — إقرارات الزكاة/الضريبة (فصل الشركات إلزامي — الحجب يمنع قراءة إقرارات شركة أخرى)
+  "taxDeclaration",
 ]);
 
 interface Ctx { companyId: number }
