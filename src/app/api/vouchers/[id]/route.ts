@@ -10,6 +10,7 @@ import {
   cancelVoucherTx,
   voucherCancelBarrier,
 } from "@/lib/voucher-server";
+import { VOUCHER_JOURNAL_SOURCES } from "@/lib/accounting-journal";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -61,15 +62,22 @@ export async function GET(req: NextRequest, { params }: P) {
   const subTitle = new Map(subLines.map((l) => [l.id, `${l.title} (${l.dueDate})`]));
 
   const feeChildIds = v.feeChildren.map((c) => c.id);
-  const journals = await db.journalEntry.findMany({
+  const journalsRaw = await db.journalEntry.findMany({
     where: {
       OR: [
-        { sourceType: "voucher", sourceId: v.id },
+        { sourceType: { in: VOUCHER_JOURNAL_SOURCES }, sourceId: v.id },
         { sourceType: "voucher_cancel", sourceId: v.id },
+        { sourceType: "voucher_restore", sourceId: v.id },
         ...(feeChildIds.length ? [{ sourceType: "bank_fee_alloc", sourceId: { in: feeChildIds } }] : []),
       ],
     },
     orderBy: { id: "asc" },
+    include: {
+      lines: {
+        orderBy: { sort: "asc" },
+        include: { account: { select: { code: true, name: true } } },
+      },
+    },
   });
 
   return ok({
@@ -128,14 +136,21 @@ export async function GET(req: NextRequest, { params }: P) {
         cancelled: c.cancelled,
         cancelReason: c.cancelReason,
       })),
-      journals: journals.map((j) => ({
+      journals: journalsRaw.map((j) => ({
         id: j.id,
+        entryNo: j.entryNo,
         entryDate: j.entryDate,
         description: j.description,
-        debitAccount: j.debitAccount,
-        creditAccount: j.creditAccount,
-        amount: Number(j.amount),
+        status: j.status,
         sourceType: j.sourceType,
+        amount: Number(j.lines.reduce((s, l) => s + Number(l.debit), 0)),
+        lines: j.lines.map((l) => ({
+          accountCode: l.account.code,
+          accountName: l.account.name,
+          debit: Number(l.debit),
+          credit: Number(l.credit),
+          description: l.description,
+        })),
       })),
     },
   });

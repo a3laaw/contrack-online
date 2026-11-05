@@ -885,10 +885,98 @@ model Account {
   xbrlElement    String   @default("") @map("xbrl_element") // خريطة عنصر taxonomy الكويتي/IFRS — فارغ = غير موصول
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
+  journalLines   JournalLine[]
 
   @@unique([companyId, code])
   @@index([companyId, type])
   @@map("accounts")
+}
+
+// ==================== النواة المحاسبية — القيد المزدوج الحقيقي (Task 104) ====================
+// قرار هيكلي صريح (docs/roadmap-accounting.md): الأستاذ العام مصدر الحقيقة الوحيد —
+// لا رصيد يُحسب خارج JournalLine. كل مستند (سند/فاتورة/قيد يدوي) يولّد قيدًا متوازنًا إلزاميًا،
+// والإلغاء بقيد عكسي مرتبط. العقود/الباطن/مشاريع… أبعاد تحليلية على سطر القيد (بلا FK تشغيلي).
+
+/** السنة المالية — تحكم المدة الزمنية للقيود (الإقفال في Task 109) */
+model FiscalYear {
+  companyId Int            @default(1) @map("company_id")
+  id        Int            @id @default(autoincrement())
+  year      Int
+  status    String         @default("open") // open | closed
+  periods   FiscalPeriod[]
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  @@unique([companyId, year])
+  @@map("fiscal_years")
+}
+
+/** الفترة الشهرية — المفتاح "YYYY-MM" يوافق بادئة تواريخ النظام النصية */
+model FiscalPeriod {
+  companyId    Int        @default(1) @map("company_id")
+  id           Int        @id @default(autoincrement())
+  fiscalYearId Int        @map("fiscal_year_id")
+  fiscalYear   FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+  periodDate   String     @map("period_date") // "2025-01"
+  status       String     @default("open") // open | closed
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@unique([fiscalYearId, periodDate])
+  @@index([companyId, periodDate])
+  @@map("fiscal_periods")
+}
+
+/** رأس القيد — status: posted (منشور يُحسب في الأرصدة) | draft | cancelled (مُلغى لا يُحسب) */
+model JournalEntry {
+  companyId    Int            @default(1) @map("company_id")
+  id           Int            @id @default(autoincrement())
+  entryNo      Int            @default(0) @map("entry_no") // تسلسلي لكل شركة (companyId, entryNo)
+  entryDate    String         @map("entry_date")
+  description  String         @default("")
+  status       String         @default("posted") // posted | draft | cancelled
+  sourceType   String         @default("manual") @map("source_type") // manual | voucher | voucher_cancel | bank_fee_alloc | custody | reversal | migration
+  sourceId     Int?           @map("source_id")
+  reversalOfId Int?           @map("reversal_of_id") // القيد الأصلي عند القيد العكسي
+  reversalOf   JournalEntry?  @relation("entryReversal", fields: [reversalOfId], references: [id])
+  reversalEntries JournalEntry[] @relation("entryReversal")
+  postedAt     DateTime?      @map("posted_at")
+  postedBy     String         @default("") @map("posted_by")
+  createdBy    String         @default("") @map("created_by")
+  cancelReason String         @default("") @map("cancel_reason")
+  lines        JournalLine[]
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  @@unique([companyId, entryNo])
+  @@index([entryDate])
+  @@index([status])
+  @@index([sourceType, sourceId])
+  @@map("journal_entries")
+}
+
+/** سطر القيد — طرف واحد مدين أو دائن + الأبعاد التحليلية (بلا FK على التشغيلي عمدًا) */
+model JournalLine {
+  companyId   Int          @default(1) @map("company_id")
+  id          Int          @id @default(autoincrement())
+  entryId     Int          @map("entry_id")
+  entry       JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  accountId   Int          @map("account_id")
+  account     Account      @relation(fields: [accountId], references: [id])
+  debit       Decimal      @default(0) @db.Decimal(18, 3)
+  credit      Decimal      @default(0) @db.Decimal(18, 3)
+  description String       @default("")
+  // الأبعاد التحليلية — تقرأ منها تقارير الذمم والربحية (Task 108)
+  customerId    Int?    @map("customer_id")
+  contractId    Int?    @map("contract_id")
+  subContractId Int?    @map("sub_contract_id")
+  boqItemId     Int?    @map("boq_item_id")
+  projectId     Int?    @map("project_id")
+  employeeId    Int?    @map("employee_id")
+  costCenter    String  @default("") @map("cost_center")
+  sort          Int     @default(0)
+
+  @@index([entryId])
+  @@index([accountId])
+  @@index([contractId])
+  @@map("journal_lines")
 }
 
 model ContractGroup {
@@ -1178,27 +1266,7 @@ model MatchAlias {
 }
 
 // ==================== القيود والأحداث والقوالب ====================
-
-model JournalEntry {
-  companyId Int @default(1) @map("company_id")
-  id            Int      @id @default(autoincrement())
-  entryDate     String   @map("entry_date")
-  description   String   @default("")
-  debitAccount  String   @default("") @map("debit_account")
-  creditAccount String   @default("") @map("credit_account")
-  amount        Decimal
-  projectId     Int?     @map("project_id")
-  contractId    Int?     @map("contract_id")
-  boqItemId     Int?     @map("boq_item_id")
-  subContractId Int?     @map("sub_contract_id")
-  costCenter    String   @default("") @map("cost_center")
-  sourceType    String   @default("") @map("source_type")
-  sourceId      Int?     @map("source_id")
-  createdAt     DateTime @default(now())
-
-  @@index([entryDate])
-  @@map("journal_entries")
-}
+// (JournalEntry/JournalLine/FiscalYear/FiscalPeriod نقلت لقسم النواة المحاسبية — Task 104)
 
 model ContractEvent {
   companyId Int @default(1) @map("company_id")

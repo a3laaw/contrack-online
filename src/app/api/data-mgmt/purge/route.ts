@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { audit, forbidden, unauthorized, jsonError, ok } from "@/lib/api-utils";
 import { getSessionUser } from "@/lib/auth";
 import { ATTACH_DIR } from "@/lib/backups";
+import { VOUCHER_JOURNAL_SOURCES } from "@/lib/accounting-journal";
 
 type Tx = Prisma.TransactionClient;
 
@@ -102,11 +103,20 @@ async function collectContract(tx: Tx, contractId: number, ctx: PurgeCtx) {
   const visits = taskIds.length
     ? await snap(ctx, "visits", await tx.visit.findMany({ where: { taskId: { in: taskIds } } }))
     : [];
+  // Task 104: الأبعاد على الأسطر — قيود العقد = قيود أسطرها تحمل العقد + قيود سنداته
+  const purgeEntryIds = (
+    await tx.journalLine.findMany({ where: { contractId }, select: { entryId: true } })
+  ).map((l) => l.entryId);
   const journal = await snap(
     ctx,
     "journal_entries",
     await tx.journalEntry.findMany({
-      where: { OR: [{ contractId }, { sourceType: "voucher", sourceId: { in: voucherIds } }] },
+      where: {
+        OR: [
+          ...(purgeEntryIds.length ? [{ id: { in: purgeEntryIds } }] : []),
+          { sourceType: { in: [...VOUCHER_JOURNAL_SOURCES, "voucher_cancel"] }, sourceId: { in: voucherIds.length ? voucherIds : [0] } },
+        ],
+      },
     })
   );
 
@@ -169,9 +179,17 @@ async function deleteContractInTx(tx: Tx, contractId: number, ctx: PurgeCtx) {
     const r = await tx.voucherPaymentLink.deleteMany({ where: { voucherId: { in: voucherIds } } });
     bump(ctx, "deleted", r.count);
   }
-  // 6) قيود اليومية (بالعياد: contractId أو مصدرها السندات المحذوفة)
+  // 6) قيود اليومية (بالعيااد: أسطر تحمل العقد أو مصدرها السندات المحذوفة) — الأسطر Cascade
+  const jrEntryIds = (
+    await tx.journalLine.findMany({ where: { contractId }, select: { entryId: true } })
+  ).map((l) => l.entryId);
   const jr = await tx.journalEntry.deleteMany({
-    where: { OR: [{ contractId }, { sourceType: "voucher", sourceId: { in: voucherIds } }] },
+    where: {
+      OR: [
+        ...(jrEntryIds.length ? [{ id: { in: jrEntryIds } }] : []),
+        { sourceType: { in: [...VOUCHER_JOURNAL_SOURCES, "voucher_cancel"] }, sourceId: { in: voucherIds.length ? voucherIds : [0] } },
+      ],
+    },
   });
   bump(ctx, "deleted", jr.count);
   // 7) السندات — فك ارتباط الأبناء (رسوم الأبناء) ثم الحذف
@@ -322,6 +340,9 @@ async function previewCounters(kind: "contract" | "customer", id: number) {
       })
     ).map((v) => v.id);
     const addIds = (await db.addendum.findMany({ where: { contractId: id }, select: { id: true } })).map((a) => a.id);
+    const jEntryIds = (
+      await db.journalLine.findMany({ where: { contractId: id }, select: { entryId: true } })
+    ).map((l) => l.entryId);
 
     const counters: Record<string, number> = {
       vouchers: voucherIds.length,
@@ -341,7 +362,12 @@ async function previewCounters(kind: "contract" | "customer", id: number) {
       subSources: subLineIds.length ? await db.subPaymentSource.count({ where: { subLineId: { in: subLineIds } } }) : 0,
       paymentLinks: voucherIds.length ? await db.voucherPaymentLink.count({ where: { voucherId: { in: voucherIds } } }) : 0,
       journal: await db.journalEntry.count({
-        where: { OR: [{ contractId: id }, { sourceType: "voucher", sourceId: { in: voucherIds } }] },
+        where: {
+          OR: [
+            ...(jEntryIds.length ? [{ id: { in: jEntryIds } }] : []),
+            { sourceType: { in: [...VOUCHER_JOURNAL_SOURCES, "voucher_cancel"] }, sourceId: { in: voucherIds.length ? voucherIds : [0] } },
+          ],
+        },
       }),
       events: await db.contractEvent.count({ where: { contractId: id } }),
     };

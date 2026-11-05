@@ -16,6 +16,7 @@ import {
   type Tx,
 } from "@/lib/voucher-server";
 import { audit, nextNumber, normalizeArabic, parseDay, todayStr } from "@/lib/api-utils";
+import { postNamedEntry } from "@/lib/journal-server";
 
 /**
  * مكتبة العُهد والسلف (Task 12-a) — القواعد الحاكمة:
@@ -226,17 +227,15 @@ export async function createSettlementVoucherInTx(
     },
   });
   const debitAccount = line.expenseAccountSnapshot || (line.customerId ? "العملاء" : "مصروفات أخرى");
-  await tx.journalEntry.create({
-    data: {
-      entryDate: params.vdate,
-      description: `${VOUCHER_TYPE_LABELS.payment} ${voucherNumber} — ${params.groupRef}`,
-      debitAccount,
-      creditAccount: params.custodyAccount.name,
-      amount: line.amount,
-      contractId: line.contractId,
-      sourceType: "voucher",
-      sourceId: voucher.id,
-    },
+  await postNamedEntry(tx, {
+    entryDate: params.vdate,
+    description: `${VOUCHER_TYPE_LABELS.payment} ${voucherNumber} — ${params.groupRef}`,
+    debit: { name: debitAccount, expenseAccountId: line.expenseAccountId },
+    credit: { name: params.custodyAccount.name, expenseAccountId: params.custodyAccount.id },
+    amount: line.amount,
+    dims: { contractId: line.contractId },
+    sourceType: "voucher",
+    sourceId: voucher.id,
   });
   if (line.contractId) {
     await tx.contractEvent.create({
@@ -790,16 +789,14 @@ async function createAdvanceVoucherInTx(
     });
   } else {
     // مدين الصندوق دائن سلف موظفين — يدخل الخزينة ويخفض المصروف بلا إيراد ولا رسوم (test_v453)
-    await tx.journalEntry.create({
-      data: {
-        entryDate: params.vdate,
-        description: `${VOUCHER_TYPE_LABELS.custody_return} ${voucherNumber}`,
-        debitAccount: params.account || "صندوق",
-        creditAccount: params.advanceAccount.name,
-        amount: params.amount,
-        sourceType: "voucher",
-        sourceId: voucher.id,
-      },
+    await postNamedEntry(tx, {
+      entryDate: params.vdate,
+      description: `${VOUCHER_TYPE_LABELS.custody_return} ${voucherNumber}`,
+      debit: { name: params.account || "صندوق" },
+      credit: { name: params.advanceAccount.name, expenseAccountId: params.advanceAccount.id },
+      amount: params.amount,
+      sourceType: "voucher",
+      sourceId: voucher.id,
     });
   }
   await audit(tx, {

@@ -1563,29 +1563,47 @@ export async function reportExecution(opts: { option?: string; contractType?: st
   };
 }
 
-/** 13) دفتر اليومية (B.15 journal_report) */
+/** 13) دفتر اليومية (B.15 journal_report) — Task 104: من القيود المزدوجة الجديدة */
 export async function reportJournal(opts: { from?: string; to?: string }): Promise<ReportTable> {
   const from = opts.from || "";
   const to = opts.to || "";
-  const where: Prisma.JournalEntryWhereInput = {};
+  const where: Prisma.JournalEntryWhereInput = { status: "posted" };
   if (from || to) where.entryDate = { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) };
   const entries = await db.journalEntry.findMany({
     where,
     orderBy: [{ entryDate: "asc" }, { id: "asc" }],
-    take: 5000,
+    take: 2000,
+    include: {
+      lines: {
+        orderBy: { sort: "asc" },
+        include: { account: { select: { code: true, name: true } } },
+      },
+    },
   });
-  const heads = ["التاريخ", "البيان", "الحساب المدين", "الحساب الدائن", "المبلغ"];
-  const rows: (string | number)[][] = entries.map((e) => [
-    e.entryDate,
-    e.sourceType === "voucher_cancel" ? `${e.description} · (قيد عكسي)` : e.description,
-    e.debitAccount, e.creditAccount, Number(e.amount),
-  ]);
-  const total = r3(entries.reduce((s, e) => s + Number(e.amount), 0));
+  const heads = ["التاريخ", "رقم القيد", "البيان", "الحساب المدين", "الحساب الدائن", "المبلغ"];
+  const rows: (string | number)[][] = entries.map((e) => {
+    const debits = Array.from(
+      new Set(e.lines.filter((l) => Number(l.debit) > 0).map((l) => `${l.account.code} ${l.account.name}`))
+    );
+    const credits = Array.from(
+      new Set(e.lines.filter((l) => Number(l.credit) > 0).map((l) => `${l.account.code} ${l.account.name}`))
+    );
+    const total = r3(e.lines.reduce((s, l) => s + Number(l.debit), 0));
+    return [
+      e.entryDate,
+      `#${e.entryNo}`,
+      e.sourceType === "voucher_cancel" ? `${e.description} · (قيد عكسي)` : e.description,
+      debits.join("، ") || "—",
+      credits.join("، ") || "—",
+      total,
+    ];
+  });
+  const total = r3(rows.reduce((s, r) => s + Number(r[5] || 0), 0));
   return {
     title: "دفتر اليومية",
     heads,
     rows,
-    numberCols: [4],
+    numberCols: [5],
     accentRows: [],
     totals: { debit: total, credit: total, balanced: "نعم" },
   };

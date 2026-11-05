@@ -27,6 +27,7 @@ export type ViewName =
   | "gateway"
   | "other-company"
   | "chart-of-accounts"
+  | "journal-entries"
   | "settings"
   | "users"
   | "data-mgmt"

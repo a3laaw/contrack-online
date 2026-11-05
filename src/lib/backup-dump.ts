@@ -12,6 +12,12 @@ import fs from "fs";
 import path from "path";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { parseSnapshotText } from "@/lib/backup-parse";
+import {
+  migrateLegacyJournalRows,
+  resolveLegacyAccountName,
+  SUSPENSE_ACCOUNT,
+  type LegacyJournalRow,
+} from "@/lib/accounting-journal";
 
 export const BACKUP_APP = "ConTrack Online";
 export const BACKUP_VERSION = "V9.15.18-web";
@@ -49,6 +55,7 @@ const SELF_REF_FK: Record<string, string> = {
   expense_accounts: "parentId",
   vouchers: "parentVoucherId",
   accounts: "parentId", // Task 102 — دليل الحسابات: شجرة ذاتية المرجع
+  journal_entries: "reversalOfId", // Task 104 — قيد عكسي يرتبط بالقيد الأصلي
 };
 
 /** حد أقصى للصفوف في كل createMany (لتجنّب تجاوز حدود المعاملات) */
@@ -112,7 +119,11 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "gatewayFeeVoucher", table: "gateway_fee_vouchers", serial: false },
   { model: "matchAlias", table: "match_aliases", serial: true },
   // ===== القيود والأحداث والقوالب =====
-  { model: "journalEntry", table: "journal_entries", serial: true },
+  // ===== النواة المحاسبية (Task 104) — الفترات ثم القيود ثم أسطرها =====
+  { model: "fiscalYear", table: "fiscal_years", serial: true },
+  { model: "fiscalPeriod", table: "fiscal_periods", serial: true },
+  { model: "journalEntry", table: "journal_entries", serial: true }, // FK ذاتي (reversalOfId)
+  { model: "journalLine", table: "journal_lines", serial: true },
   { model: "contractEvent", table: "contract_events", serial: true },
   { model: "formCategory", table: "form_categories", serial: true },
   { model: "formTemplate", table: "form_templates", serial: true },
@@ -168,6 +179,122 @@ export async function buildBackupDump(client: DbClient, username = ""): Promise<
 }
 
 // ==================== الاستعادة (Restore) ====================
+
+/**
+ * Task 104 — إدراج قيود قديمة الشكل (نصوص أطراف) محوّلة للنموذج الجديد:
+ * حسم كل طرف (جسر شجرة المصروفات/الدليل/الخريطة الثابتة) والتسوية المؤقت للشك،
+ * ثم رؤوس مرقّمة تعاقبيًا + أسطرها. تُستدعى داخل معاملة الاستعادة بعد استعادة الحسابات.
+ */
+async function insertLegacyJournalRows(
+  tx: Prisma.TransactionClient,
+  rows: LegacyJournalRow[]
+): Promise<number> {
+  const accounts = (await delegate(tx, "account").findMany({
+    select: { id: true, code: true, name: true, allowPosting: true, isActive: true },
+  })) as unknown as { id: number; code: string; name: string; allowPosting: boolean; isActive: boolean }[];
+  let suspenseId = accounts.find((a) => a.code === SUSPENSE_ACCOUNT.code)?.id ?? null;
+  if (suspenseId == null) {
+    const created = (await delegate(tx, "account").create({
+      data: {
+        code: SUSPENSE_ACCOUNT.code,
+        name: SUSPENSE_ACCOUNT.name,
+        type: SUSPENSE_ACCOUNT.type,
+        nature: SUSPENSE_ACCOUNT.nature,
+        isLeaf: true,
+        allowPosting: true,
+        isActive: true,
+        isSystem: true,
+        notes: SUSPENSE_ACCOUNT.notes,
+        xbrlElement: "kw:SuspenseAccount",
+      },
+    })) as { id: number; code: string; name: string };
+    suspenseId = created.id;
+    accounts.push({
+      id: created.id,
+      code: created.code,
+      name: created.name,
+      allowPosting: true,
+      isActive: true,
+    });
+  }
+  const expenseRows = (await delegate(tx, "expenseAccount").findMany({
+    where: { accountId: { not: null } },
+    select: { name: true, accountId: true },
+  })) as unknown as { name: string; accountId: number }[];
+  const bridge = new Map<string, number>();
+  for (const ea of expenseRows) {
+    if (ea.accountId != null) bridge.set(String(ea.name).trim(), ea.accountId);
+  }
+  const candidates = accounts.map((a) => ({
+    id: a.id,
+    code: a.code,
+    name: a.name,
+    allowPosting: a.allowPosting,
+    isActive: a.isActive,
+  }));
+  const resolve = (name: string): number | null => {
+    const raw = String(name || "").trim();
+    if (!raw) return null;
+    const bridged = bridge.get(raw);
+    if (bridged != null) return bridged;
+    return resolveLegacyAccountName(raw, candidates);
+  };
+
+  const mig = migrateLegacyJournalRows(rows, resolve, suspenseId);
+  let entryNo = 1;
+  const heads = mig.entries.map((e) => ({
+    entryNo: entryNo++,
+    entryDate: e.entryDate,
+    description: e.description,
+    status: "posted" as const,
+    sourceType: e.sourceType,
+    sourceId: e.sourceId,
+    postedAt: new Date(),
+    postedBy: "restore-legacy",
+    createdBy: "restore-legacy",
+  }));
+  const createdEntries: { id: number; entryNo: number }[] = [];
+  const entryDelegate = delegate(tx, "journalEntry");
+  for (const chunk of chunked(heads, CHUNK)) {
+    const made = await entryDelegate.createMany({ data: chunk });
+    void made;
+  }
+  // استرجاع المعرفات المولدة بالترتيب (رقم القيد تسلسلي بدأ من 1)
+  const created = (await delegate(tx, "journalEntry").findMany({
+    where: { entryNo: { gte: 1 } },
+    select: { id: true, entryNo: true },
+  })) as unknown as { id: number; entryNo: number }[];
+  createdEntries.push(...created);
+  const idByNo = new Map(createdEntries.map((c) => [c.entryNo, c.id]));
+
+  const lineRows: Record<string, unknown>[] = [];
+  mig.entries.forEach((e, idx) => {
+    const entryId = idByNo.get(heads[idx].entryNo);
+    if (!entryId) return;
+    e.lines.forEach((l, i) => {
+      lineRows.push({
+        entryId,
+        accountId: l.accountId,
+        debit: l.debit,
+        credit: l.credit,
+        description: l.description || "",
+        customerId: l.customerId ?? null,
+        contractId: l.contractId ?? null,
+        subContractId: l.subContractId ?? null,
+        boqItemId: l.boqItemId ?? null,
+        projectId: l.projectId ?? null,
+        employeeId: l.employeeId ?? null,
+        costCenter: l.costCenter || "",
+        sort: i,
+      });
+    });
+  });
+  const lineDelegate = delegate(tx, "journalLine");
+  for (const chunk of chunked(lineRows, CHUNK)) {
+    await lineDelegate.createMany({ data: chunk });
+  }
+  return mig.entries.length;
+}
 
 /** إدراج صفوف بالحفاظ على المعرّفات — مع معالجة FK ذاتي المرجع بمرورات متتالية */
 async function insertRows(
@@ -238,6 +365,11 @@ export async function restoreBackupData(
   const inserted: Record<string, number> = {};
   for (const m of BACKUP_MODELS) {
     const rows = Array.isArray(data[m.table]) ? (data[m.table] as Record<string, unknown>[]) : [];
+    // Task 104: نسخ قديمة تحمل القيود بنصوص أطراف — تُحوّل لحالة النموذج الجديد بأسطره
+    if (m.table === "journal_entries" && rows.some((r) => "debitAccount" in r)) {
+      inserted[m.table] = await insertLegacyJournalRows(tx, rows as unknown as LegacyJournalRow[]);
+      continue;
+    }
     inserted[m.table] = await insertRows(tx, m.model, m.table, rows);
   }
 

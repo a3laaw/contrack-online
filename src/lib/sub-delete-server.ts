@@ -21,6 +21,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/api-utils";
 import { r3 } from "@/lib/contrack-core";
 import { cancelVoucherTx, VOUCHER_TYPE_LABELS, voucherCancelBarrier } from "@/lib/voucher-server";
+import { VOUCHER_JOURNAL_SOURCES } from "@/lib/accounting-journal";
 
 type Tx = Prisma.TransactionClient;
 
@@ -352,7 +353,7 @@ export async function deleteSubVouchers(
         // سندات الأبناء تُفكّ لا تُحذف ضمنيًا (V3.14/V5.8)
         await tx.voucher.updateMany({ where: { parentVoucherId: vid }, data: { parentVoucherId: null } });
         // القيود المحاسبية المرتبطة تُحذف (source_type LIKE 'voucher%')
-        await tx.journalEntry.deleteMany({ where: { sourceType: { in: ["voucher", "voucher_cancel"] }, sourceId: vid } });
+        await tx.journalEntry.deleteMany({ where: { sourceType: { in: [...VOUCHER_JOURNAL_SOURCES, "voucher_cancel"] }, sourceId: vid } });
         // لقطة الحذف في سجل التدقيق (نظير purge_audit — بلا عمود snapshot في الويب)
         await audit(tx, {
           username: user.username,

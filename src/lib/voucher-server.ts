@@ -34,6 +34,8 @@ import {
   smartReceiptStageNote,
   stageNameMap,
 } from "@/lib/voucher-describe";
+import { postNamedEntry, postJournalEntry } from "@/lib/journal-server";
+import { VOUCHER_JOURNAL_SOURCES } from "@/lib/accounting-journal";
 
 export type Tx = Prisma.TransactionClient;
 export type DbClient = Prisma.TransactionClient | PrismaClient;
@@ -533,13 +535,19 @@ export async function insertVoucherJournal(
     method: string;
     contractId: number | null;
     subContractId: number | null;
+    expenseAccountId?: number | null;
+    custodyAccountId?: number | null;
     expenseAccountSnapshot: string;
     custodyAccountSnapshot: string;
     partyType: string;
   }
 ): Promise<void> {
+  // Task 104: الأطراف نصوص قديمة — تُحسم عبر المحرك الموحد (postNamedEntry):
+  // جسر الشجرة → اسم الدليل → الخريطة الثابتة → حساب التسوية المؤقت
   let debit = "";
   let credit = "";
+  let debitExpenseAccountId: number | null = null;
+  let creditExpenseAccountId: number | null = null;
   switch (v.vtype) {
     case "receipt":
       debit = v.account || defaultAccountForMethod(v.method);
@@ -547,6 +555,7 @@ export async function insertVoucherJournal(
       break;
     case "payment":
       debit = v.expenseAccountSnapshot || v.custodyAccountSnapshot || (v.partyType === "partner" ? "جاري الشريك" : "مصروفات أخرى");
+      debitExpenseAccountId = v.expenseAccountId ?? null;
       credit = v.account || defaultAccountForMethod(v.method);
       break;
     case "transfer":
@@ -556,44 +565,58 @@ export async function insertVoucherJournal(
     case "custody_return":
       debit = v.account || defaultAccountForMethod(v.method);
       credit = v.custodyAccountSnapshot || "العهد";
+      creditExpenseAccountId = v.custodyAccountId ?? null;
       break;
     case "salary_deduction":
       debit = "رواتب";
       credit = "سلف موظفين";
       break;
+    default:
+      return; // نوع غير معروف — بلا قيد (كما كان)
   }
-  await tx.journalEntry.create({
-    data: {
-      entryDate: v.vdate,
-      description: `${VOUCHER_TYPE_LABELS[v.vtype] || v.vtype} ${v.voucherNumber}`,
-      debitAccount: debit,
-      creditAccount: credit,
-      amount: v.amount,
-      contractId: v.contractId,
-      subContractId: v.subContractId,
-      sourceType: "voucher",
-      sourceId: v.id,
-    },
+  await postNamedEntry(tx, {
+    entryDate: v.vdate,
+    description: `${VOUCHER_TYPE_LABELS[v.vtype] || v.vtype} ${v.voucherNumber}`,
+    debit: { name: debit, expenseAccountId: debitExpenseAccountId },
+    credit: { name: credit, expenseAccountId: creditExpenseAccountId },
+    amount: v.amount,
+    dims: { contractId: v.contractId, subContractId: v.subContractId },
+    sourceType: "voucher",
+    sourceId: v.id,
   });
 }
 
-/** عكس قيود السند بصنم voucher_cancel */
+/** عكس قيود السند بصنم voucher_cancel — عبر المحرك: أسطر معكوسة بنفس الأبعاد */
 export async function reverseVoucherJournals(tx: Tx, voucherId: number, reason: string): Promise<void> {
-  const rows = await tx.journalEntry.findMany({ where: { sourceType: "voucher", sourceId: voucherId } });
+  const rows = await tx.journalEntry.findMany({
+    where: { sourceType: { in: VOUCHER_JOURNAL_SOURCES }, sourceId: voucherId },
+    include: { lines: { orderBy: { sort: "asc" } } },
+  });
   for (const r of rows) {
-    await tx.journalEntry.create({
-      data: {
+    if (r.status !== "posted") continue;
+    await postJournalEntry(
+      tx,
+      {
         entryDate: todayStr(),
         description: `عكس قيد ${r.description} — ${reason}`,
-        debitAccount: r.creditAccount,
-        creditAccount: r.debitAccount,
-        amount: r.amount,
-        contractId: r.contractId,
-        subContractId: r.subContractId,
         sourceType: "voucher_cancel",
         sourceId: voucherId,
+        lines: r.lines.map((l) => ({
+          accountId: l.accountId,
+          debit: Number(l.credit),
+          credit: Number(l.debit),
+          description: l.description,
+          customerId: l.customerId,
+          contractId: l.contractId,
+          subContractId: l.subContractId,
+          boqItemId: l.boqItemId,
+          projectId: l.projectId,
+          employeeId: l.employeeId,
+          costCenter: l.costCenter,
+        })),
       },
-    });
+      "النظام (آلي)"
+    );
   }
 }
 
@@ -641,31 +664,27 @@ export async function createFeeChildVoucher(
     // توزيع بالقيمة/بالتساوي في القيود — سطر لكل عقد
     for (const row of params.allocationRows) {
       if (!(row.amount > 0)) continue;
-      await tx.journalEntry.create({
-        data: {
-          entryDate: params.parent.vdate,
-          description: `توزيع رسوم بنكية سند ${params.parent.voucherNumber}`,
-          debitAccount: acc.name,
-          creditAccount: params.parent.account || "البنك",
-          amount: row.amount,
-          contractId: row.contractId,
-          sourceType: "bank_fee_alloc",
-          sourceId: child.id,
-        },
+      await postNamedEntry(tx, {
+        entryDate: params.parent.vdate,
+        description: `توزيع رسوم بنكية سند ${params.parent.voucherNumber}`,
+        debit: { name: acc.name, expenseAccountId: acc.id },
+        credit: { name: params.parent.account || "البنك" },
+        amount: row.amount,
+        dims: { contractId: row.contractId },
+        sourceType: "bank_fee_alloc",
+        sourceId: child.id,
       });
     }
   } else {
-    await tx.journalEntry.create({
-      data: {
-        entryDate: params.parent.vdate,
-        description: `رسوم بنكية عن سند القبض ${params.parent.voucherNumber}`,
-        debitAccount: acc.name,
-        creditAccount: params.parent.account || "البنك",
-        amount: params.fee,
-        contractId: params.parent.contractId,
-        sourceType: "voucher",
-        sourceId: child.id,
-      },
+    await postNamedEntry(tx, {
+      entryDate: params.parent.vdate,
+      description: `رسوم بنكية عن سند القبض ${params.parent.voucherNumber}`,
+      debit: { name: acc.name, expenseAccountId: acc.id },
+      credit: { name: params.parent.account || "البنك" },
+      amount: params.fee,
+      dims: { contractId: params.parent.contractId },
+      sourceType: "voucher",
+      sourceId: child.id,
     });
   }
   return { id: child.id, voucherNumber: child.voucherNumber, amount: params.fee };
@@ -1152,6 +1171,8 @@ export async function createVoucher(
           method: prep.method,
           contractId: prep.contractId,
           subContractId: prep.subContractId,
+          expenseAccountId: prep.expenseAccountId,
+          custodyAccountId: prep.custodyAccountId,
           expenseAccountSnapshot: prep.expenseAccountSnapshot,
           custodyAccountSnapshot: prep.custodyAccountSnapshot,
           partyType: prep.partyType,
@@ -1201,17 +1222,15 @@ export async function createVoucher(
               const allocContracts = await activeContractsForAllocation(tx);
               const rows = allocateByValue(fee, allocContracts);
               for (const row of rows) {
-                await tx.journalEntry.create({
-                  data: {
-                    entryDate: prep.vdate,
-                    description: `توزيع رسوم بنكية بالقيمة عن ${voucher.voucherNumber}`,
-                    debitAccount: "عمولات بنكية",
-                    creditAccount: prep.account || "البنك",
-                    amount: row.amount,
-                    contractId: row.contractId,
-                    sourceType: "bank_fee_alloc",
-                    sourceId: child.id,
-                  },
+                await postNamedEntry(tx, {
+                  entryDate: prep.vdate,
+                  description: `توزيع رسوم بنكية بالقيمة عن ${voucher.voucherNumber}`,
+                  debit: { name: "عمولات بنكية" },
+                  credit: { name: prep.account || "البنك" },
+                  amount: row.amount,
+                  dims: { contractId: row.contractId },
+                  sourceType: "bank_fee_alloc",
+                  sourceId: child.id,
                 });
               }
             }
@@ -1443,6 +1462,8 @@ export async function updateVoucher(
       method: newMethod,
       contractId: v.contractId,
       subContractId: v.subContractId,
+      expenseAccountId: v.expenseAccountId,
+      custodyAccountId: v.custodyAccountId,
       expenseAccountSnapshot: v.expenseAccountSnapshot,
       custodyAccountSnapshot: v.custodyAccountSnapshot,
       partyType: v.partyType,
@@ -1485,17 +1506,15 @@ export async function updateVoucher(
           const allocContracts = await activeContractsForAllocation(tx);
           const rows = allocateByValue(fee, allocContracts);
           for (const row of rows) {
-            await tx.journalEntry.create({
-              data: {
-                entryDate: newVdate,
-                description: `توزيع رسوم بنكية بالقيمة عن ${v.voucherNumber}`,
-                debitAccount: "عمولات بنكية",
-                creditAccount: newAccount || "البنك",
-                amount: row.amount,
-                contractId: row.contractId,
-                sourceType: "bank_fee_alloc",
-                sourceId: child.id,
-              },
+            await postNamedEntry(tx, {
+              entryDate: newVdate,
+              description: `توزيع رسوم بنكية بالقيمة عن ${v.voucherNumber}`,
+              debit: { name: "عمولات بنكية" },
+              credit: { name: newAccount || "البنك" },
+              amount: row.amount,
+              dims: { contractId: row.contractId },
+              sourceType: "bank_fee_alloc",
+              sourceId: child.id,
             });
           }
         }
@@ -1666,25 +1685,37 @@ export async function restoreVoucherTx(
   if (!v.cancelled) throw new VoucherError("السند غير ملغى");
   if (!v.advanceEmployeeId) throw new VoucherError("هذا الإجراء مخصص لسلف الموظفين.");
 
-  // القيود الأصلية للسند (بنوع voucher) — تُنسخ بنفس الحسابات مدينًا/دائنًا دون عكس
+  // القيود الأصلية للسند (بأصناف قيود السندات) — تُنسخ بنفس أطرافها دون عكس (استعادة سلفة)
   const originals = await tx.journalEntry.findMany({
-    where: { sourceType: "voucher", sourceId: voucherId },
+    where: { sourceType: { in: VOUCHER_JOURNAL_SOURCES }, sourceId: voucherId },
+    include: { lines: { orderBy: { sort: "asc" } } },
   });
   const desc = `استعادة قيد السند ${v.voucherNumber}${reason ? ` — ${reason}` : ""}`;
   for (const r of originals) {
-    await tx.journalEntry.create({
-      data: {
+    if (r.status !== "posted") continue;
+    await postJournalEntry(
+      tx,
+      {
         entryDate: todayStr(),
         description: desc,
-        debitAccount: r.debitAccount,
-        creditAccount: r.creditAccount,
-        amount: r.amount,
-        contractId: r.contractId,
-        subContractId: r.subContractId,
         sourceType: "voucher_restore",
         sourceId: voucherId,
+        lines: r.lines.map((l) => ({
+          accountId: l.accountId,
+          debit: Number(l.debit),
+          credit: Number(l.credit),
+          description: l.description,
+          customerId: l.customerId,
+          contractId: l.contractId,
+          subContractId: l.subContractId,
+          boqItemId: l.boqItemId,
+          projectId: l.projectId,
+          employeeId: l.employeeId,
+          costCenter: l.costCenter,
+        })),
       },
-    });
+      "النظام (آلي)"
+    );
   }
 
   await tx.voucher.update({

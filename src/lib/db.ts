@@ -46,6 +46,8 @@ const TENANT_MODELS = new Set<string>([
   "stageNote", "txMessage",
   // Task 102 — المحاسبة الكاملة: دليل الحسابات لكل شركة
   "account",
+  // Task 104 — نواة القيد المزدوج: الأستاذ العام والفترات المالية
+  "journalLine", "fiscalYear", "fiscalPeriod",
 ]);
 
 interface Ctx { companyId: number }

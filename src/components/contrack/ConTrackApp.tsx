@@ -29,6 +29,7 @@ import { InvoicesView } from "./InvoicesView";
 import { GatewayView } from "./GatewayView";
 import { OtherCompanyView } from "./OtherCompanyView";
 import { ChartOfAccountsView } from "./ChartOfAccountsView";
+import { JournalEntriesView } from "./JournalEntriesView";
 import { SubcontractorsView } from "./SubcontractorsView";
 import { ReportsView } from "./ReportsView";
 import { DEFAULT_REPORT_KEY } from "./reports-list";
@@ -370,6 +371,7 @@ function AppRoot() {
       {view === "gateway" && <GatewayView user={user} onAuthError={onAuthError} />}
       {view === "other-company" && <OtherCompanyView user={user} onAuthError={onAuthError} />}
       {view === "chart-of-accounts" && <ChartOfAccountsView onAuthError={onAuthError} />}
+      {view === "journal-entries" && <JournalEntriesView onAuthError={onAuthError} />}
       {view === "subcontractors" && <SubcontractorsView user={user} onAuthError={onAuthError} />}
       {view === "reports" && (
         <ReportsView user={user} onAuthError={onAuthError} selected={reportsKey} onSelect={setReportsKey} />
