@@ -22,6 +22,7 @@ model Company {
   foreignOwned Boolean @default(false) @map("foreign_owned") // Task 111 — شركة أجنبية ملكية: يفعّل وحدة ضريبة دخل الأجانب 15%
   createdAt DateTime @default(now()) @map("created_at")
   users     User[]
+  subscription Subscription? @relation("SubscriptionCompany")
 
   @@map("companies")
 }
@@ -1611,4 +1612,71 @@ model TxMessage {
 
   @@index([contractId])
   @@map("tx_messages")
+}
+
+// ==================== SaaS التجاري (Task 115) ====================
+// الطبقة التجارية فوق عزل Task 85 القائم — جداول جديدة حصرًا بلا أي تعديل
+// على الجداول القائمة. الخطط كتالوج عام، الاشتراك لكل شركة (واحد إلزامي-فريد)،
+// وطلبات الانضمام طابور موافقة المطور (التسجيل الذاتي بلا إنشاء فوري).
+
+/** خطة اشتراك — كتالوج عام يبذرها النظام (durationDays=0 ⇒ دائم بلا انتهاء) */
+model Plan {
+  id           Int            @id @default(autoincrement())
+  code         String         @unique // trial | basic | pro | enterprise
+  name         String
+  durationDays Int            @default(365) @map("duration_days") // 0 = دائم
+  maxUsers     Int            @default(3) @map("max_users")
+  maxDivisions Int            @default(1) @map("max_divisions")
+  priceMonthly Decimal        @default(0) @db.Decimal(10, 3) @map("price_monthly") // للعرض — التسعير يُقرر لاحقًا
+  isActive     Boolean        @default(true) @map("is_active")
+  sortOrder    Int            @default(0) @map("sort_order")
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+/** اشتراك الشركة — صف واحد لكل شركة؛ الحالة الفعلية تُحسب مع انتهاء المدة */
+model Subscription {
+  id        Int       @id @default(autoincrement())
+  companyId Int       @unique @map("company_id")
+  company   Company   @relation("SubscriptionCompany", fields: [companyId], references: [id], onDelete: Cascade)
+  planId    Int       @map("plan_id")
+  plan      Plan      @relation(fields: [planId], references: [id])
+  status    String    @default("trial") // trial | active | frozen | cancelled
+  startsAt  DateTime  @default(now()) @map("starts_at")
+  endsAt    DateTime? @map("ends_at") // null = دائم بلا انتهاء
+  notes     String    @default("")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("subscriptions")
+}
+
+/**
+ * طلب انضمام شركة — التسجيل الذاتي يُنشئ طلبًا معلقًا لا شركة، والمطور وحده
+ * يعتمده (إنشاء شركة + بذر + مدير أول + اشتراك تجريبي) أو يرفضه بسبب موثق.
+ * كلمة المرور تُخزَّن مُهشَّرة PBKDF2 منذ لحظة الطلب (لا نص صريح أبدًا).
+ */
+model RegistrationRequest {
+  id                Int       @id @default(autoincrement())
+  companyName       String    @map("company_name")
+  shortName         String    @default("") @map("short_name")
+  contactName       String    @map("contact_name")
+  phone             String    @default("")
+  email             String    @default("")
+  activity          String    @default("") // النشاط المطلوب — نص حر في هذه المرحلة
+  requestedUsername String    @map("requested_username")
+  passwordHash      String    @map("password_hash")
+  salt              String
+  adminFullName     String    @default("") @map("admin_full_name")
+  status            String    @default("pending") // pending | approved | rejected
+  rejectionReason   String    @default("") @map("rejection_reason")
+  createdCompanyId  Int?      @map("created_company_id")
+  processedBy       String    @default("") @map("processed_by")
+  processedAt       DateTime? @map("processed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  @@index([status, createdAt])
+  @@map("registration_requests")
 }

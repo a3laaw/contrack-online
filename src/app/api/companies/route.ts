@@ -11,6 +11,8 @@ import { adminGuard, audit, jsonError, ok } from "@/lib/api-utils";
 import { hashPassword } from "@/lib/auth";
 import { ensurePostingRules } from "@/lib/posting-rules-server";
 import { forCompany } from "@/lib/db";
+import { getPlanByCode } from "@/lib/saas-server";
+import { addDays } from "@/lib/saas-core";
 
 export async function GET(req: NextRequest) {
   const guard = await adminGuard(req);
@@ -72,6 +74,8 @@ export async function POST(req: NextRequest) {
     adminUsername?: string;
     adminPassword?: string;
     adminFullName?: string;
+    planCode?: string; // Task 115 — اشتراك اختياري مع الإنشاء اليدوي
+    subscriptionDays?: number; // Task 115 — مدة مخصصة بدل مدة الخطة
   };
   const name = String(body.name || "").trim();
   if (!name) return jsonError("اسم الشركة مطلوب");
@@ -126,5 +130,35 @@ export async function POST(req: NextRequest) {
     entityId: company.id,
     entityName: name,
   });
-  return ok({ company }, 201);
+
+  // Task 115 — اشتراك اختياري مع الإنشاء اليدوي: planCode (وsubscriptionDays بديل عن مدة الخطة)
+  const planCode = String(body.planCode || "").trim();
+  let subscriptionCreated = false;
+  if (planCode) {
+    const plan = await getPlanByCode(planCode);
+    if (!plan || !plan.isActive) return jsonError("الخطة المختارة غير معروفة");
+    const customDays = Number(body.subscriptionDays);
+    const days = Number.isFinite(customDays) && customDays > 0 ? customDays : plan.durationDays;
+    const endsAt = days > 0 ? addDays(new Date(), days) : null;
+    const sub = await db.subscription.create({
+      data: {
+        companyId: company.id,
+        planId: plan.id,
+        status: plan.code === "trial" ? "trial" : "active",
+        endsAt,
+        notes: "إنشاء يدوي من لوحة المطور",
+      },
+    });
+    subscriptionCreated = true;
+    await audit(db, {
+      username: guard.user.username,
+      action: "اشتراك",
+      entityType: "subscription",
+      entityId: sub.id,
+      entityName: name,
+      newStatus: `${plan.name}/${sub.status}`,
+    });
+  }
+
+  return ok({ company, subscriptionCreated }, 201);
 }
