@@ -3090,3 +3090,22 @@ Work Log:
 Stage Summary:
 - commit df55e7d مرفوع على origin/main (مع 4ae72cf دراسة NovaFlow و5d3aa34 قريبًا). النشر للإنتاج متوقف على رمز VERCEL_TOKEN جديد أو ربط Vercel→GitHub — بعده الشركات المسجلة «مقاولات» لا تتأثر والاستشارات تُفعَّل من لوحة المطور لمن يطلب.
 - الجاهز لاحقًا: الرواتب/السلف مربوطة بالخزينة (مرحلة HR-2)، تقارير الاستشارات للعملاء، division_id على سجلات الاستشارات مع المرحلة B.
+
+---
+
+Task ID: HR-1
+Agent: المنسق (Z.ai رئيسي)
+Task: تنفيذ موديول «الموارد البشرية» HR-1 كاملًا بنمط consulting-v1 وفق docs/hr-module-design.md (اعتماد المستخدم «نفذ») — الموظف الموحد + الحضور + الإجازات + مسير الرواتب + تكامل السلف، بتحقق حي وتنظيف كامل.
+
+Work Log:
+- السكيمة: توسعة Employee (jobNumber تلقائي من 1001، employeeType داخلي/خارجي، department، jobTitle، civilId، nationality، hireDate، salary، paymentBasis monthly|daily، dailyRate، paymentMethodId nullable) + جداول جديدة: EmployeeAttendance (فريد company+employee+workDate، حالات present|absent|justified_absent|leave|holiday، checkIn/checkOut توثيق فقط بلا حساب)، EmployeeLeave (سنوية|مرضية|طارئة|بدون راتب، days شاملة الطرفين، آلة pending→approved→commenced→returned، رفض بقرار إلزامي، sickTier لسلم المرضية الكويتي م66)، PayrollBatch (شهر فريد، draft→approved→paid، إلغاء عكسي، مجاميع + journalEntryId + approvedBy/At)، PayrollRecord (لقطات مجمدة snapName/snapJobTitle/snapPaymentBasis، baseAmount، absenceDeduction، advanceDeduction، netAmount) — أُضيفت للـ TENANT_MODELS/BACKUP_MODELS بنفس ال commit (درس T111). HR-1 بلا بذر حسابات (5210/2160 قائمة — درس G3).
+- الخلفية: api/hr/* (team/attendance/leaves/payroll/summary + generate/approve/cancel/pay) — توليد المسير بشهر فريد ولقطات مجمدة وخصم غياب غير مبرر بسعر اليوم؛ الاعتماد يقيّد قيدًا موحدًا: مدين 5210 بالأساس بعد غياب / دائن 2160 بالصافي / دائن السلف المخصومة، sourceType=payroll بتاريخ نهاية الشهر؛ الدفع يولد PV على 2160؛ الإلغاء بقيد عكسي دون حذف فيزيائي (نمط زكاة)؛ approve/pay/cancel خلف isSuperRole فقط؛ audit في كل حركة + تحذير SD يدوي عند وجود موظف في مسير الشهر.
+- الواجهة: HRView (~2650 سطر) بخمس مناطق (الموظفون/الحضور/الإجازات/المسير/السلف) مع KPIs (نشطون/في إجازة اليوم/معلقة/مسير الشهر)، بحث بتطبيع عربي، SearchableSelect، تبويبات حالة للإجازات (معلقة/معتمدة/بدأت/منتهية/مرفوضة)، بطاقة المسير تتكيف على الموبايل.
+- البيئة: .env المحلي كان على sqlite الساندبوكس — أُصلح إلى Supabase (DATABASE_URL+DIRECT_URL) مع AUTH_SECRET محلي؛ ملاحظة: بيئة الساندبوكس تقتل عمليات الخلفية بين الاستدعاءات — التحقق الحي أُنجز بجُمَع ذاتية الاحتواء (تشغيل سيرفر + تنقل + لقطات في استدعاء واحد).
+- تحقق حي (agent-browser، شركة بذر HR ببيانات الدورة الكاملة): دخول hrseed-admin ⇒ «الموارد البشرية» في القائمة ⇒ الموظفون (أحمد الفهد 1001 محاسب شهري 900 + سالم المطيري) ⇒ الحضور (3 سجلات: حاضر 2/غياب غير مبرر 1، شهر نوفمبر) ⇒ الإجازات (سنوية معتمدة بقرار المدير + أزرار آلة الحالات) ⇒ المسير (PR-1 نوفمبر 2026 مدفوع 1,500/30/400/1,070 بسجلين + KPI يطابق) ⇒ السلف (عُهد 400 مخصومة كاملة ضمن المسير، أرصدة 0) ⇒ الموبايل 375px: درج تنقل + بطاقة مسير متجاوبة + تذييل مثبت — صفر أخطاء كونسول وصفحات.
+- التنظيف: حذف جميع بيانات شركة الاختبار (79 جدولًا بحقل company_id) + truncate لسجل تدقيق الاختبار + حذف الشركة وحساب hrseed-admin + إثبات في purge_audit — القاعدة عادت لحالة أول تشغيل (users=1 developer | plans=4 | feature_flags=5 | بلا شركات). سكربت البذرة المؤقت حُذف من المستودع.
+- حادثة حساب Vercel: Functions Storage 11.11GB/10GB تجاوز الخطة المجانية بسبب تراكم 91 نسخة نشر (وليست بيانات شركات — القاعدة 16MB فقط)؛ حُذفت 84 نسخة قديمة + مشروع my-project شارد أُنشئ بخطأ الربط، وبقي أحدث إنتاج لكل مشروع — النشر الجديد أصبح ممكنًا.
+
+Stage Summary:
+- النشر: push على origin/main ⇒ نشر تلقائي عبر تكامل GitHub إلى contrack-online.vercel.app.
+- الجاهز لاحقًا (خارج HR-1): HR-2 (استيراد Excel/قيد الدخول والخروج/التسويات/محرك الاحتياطيات 2161/2211)، HR-3 (كلفة العمالة التعاقدية بمرجعية ID).

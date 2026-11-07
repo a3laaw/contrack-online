@@ -29,6 +29,7 @@ import {
   Snowflake,
   Store,
   UserRound,
+  Users,
   Wallet,
   Wrench,
   DraftingCompass,
@@ -211,6 +212,7 @@ const CATALOG_ICONS: Record<string, React.ComponentType<{ className?: string }>>
   store: Store,
   wrench: Wrench,
   compass: DraftingCompass,
+  users: Users,
 };
 
 export function DevConsoleView({

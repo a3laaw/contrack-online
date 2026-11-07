@@ -374,6 +374,7 @@ model Voucher {
   links                  VoucherPaymentLink[]
   invoicePaymentLinks    InvoicePaymentLink[] // سداد الفواتير المخصص من هذا السند (Task 107)
   gatewayFeeLinks        GatewayFeeVoucher[]
+  payrollPaymentBatches  PayrollBatch[]       @relation("PayrollPaymentVoucher") // HR-1 — دفع مسير بهذا السند
   createdAt              DateTime             @default(now())
 
   @@index([vtype, cancelled, vdate])
@@ -848,6 +849,7 @@ model PaymentMethod {
   feeType  String  @default("amount") @map("fee_type") // amount|percent
   feeValue Decimal @default(0) @map("fee_value")
   isActive Boolean @default(true) @map("is_active")
+  hrEmployees Employee[] @relation("EmployeePaymentMethod") // HR-1 — وسيلة دفع الموظف
 
   @@unique([companyId, name])
   @@map("payment_methods")
@@ -1080,6 +1082,7 @@ model JournalEntry {
   lines        JournalLine[]
   invoices     Invoice[]     @relation("InvoiceEntry") // فواتير أصدرت هذا القيد (Task 107)
   taxDeclarations TaxDeclaration[] @relation("TaxDeclarationEntry") // مخصصات زكاة/ضريبة وثّقت بهذا القيد (Task 111)
+  payrollBatches PayrollBatch[] @relation("PayrollBatchEntry") // HR-1 — مساير اعتمدت بقيد هذا (المدين 5210/الدائن 2160)
   closingRecord FiscalClosing? @relation("FiscalClosingEntry") // إقفال سنوي وثّق بهذا القيد (Task 109)
   createdAt    DateTime      @default(now()) @map("created_at")
 
@@ -1239,8 +1242,25 @@ model Employee {
   notes    String    @default("")
   active   Boolean   @default(true)
   vouchers Voucher[]
+  // HR-1 — توسعة «الموظف الموحد» (docs/hr-module-design.md §3.1): نظام السلف القائم يعمل كما هو بلا ترحيل
+  jobNumber       String  @default("") @map("job_number") // رقم وظيفي يبدأ من 1001 — توليد آلي
+  employeeType    String  @default("internal") @map("employee_type") // internal | external — الخارجي يحرر إلزامية الراتب
+  department      String  @default("")
+  jobTitle        String  @default("") @map("job_title")
+  civilId         String  @default("") @map("civil_id") // الرقم المدني الكويتي 10 أرقام
+  nationality     String  @default("")
+  hireDate        String  @default("") @map("hire_date") // YYYY-MM-DD — مرجع حساب رصيد الإجازات
+  salary          Decimal @default(0) // الأساسي الشهري — صفر = مستثنى من المسير
+  paymentBasis    String  @default("monthly") @map("payment_basis") // monthly | daily
+  dailyRate       Decimal @default(0) @map("daily_rate") // لأساس الأجر اليومي
+  paymentMethodId Int?    @map("payment_method_id")
+  paymentMethod   PaymentMethod? @relation("EmployeePaymentMethod", fields: [paymentMethodId], references: [id])
+  attendances     EmployeeAttendance[]
+  leaves          EmployeeLeave[]
+  payrollRecords  PayrollRecord[]
 
   @@unique([companyId, name])
+  @@index([companyId, active])
   @@map("employees")
 }
 
@@ -1814,4 +1834,102 @@ model EngineerLeave {
 
   @@index([engineerId, status])
   @@map("engineer_leaves")
+}
+
+// ============================================================
+// HR-1 — موديول الموارد البشرية (docs/hr-module-design.md §3.2)
+// الموظف الموحد = توسعة employees · خط أنابيب واحد: مسير → قيد (5210/2160) → PV
+// ============================================================
+
+/// الحضور اليدوي اليومي — HR-1 يدوي، الاستيراد من البصمة في HR-2
+model EmployeeAttendance {
+  companyId  Int      @default(1) @map("company_id")
+  id         Int      @id @default(autoincrement())
+  employeeId Int      @map("employee_id")
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  workDate   String   @map("work_date") // YYYY-MM-DD
+  status     String   @default("present") // present | absent | justified_absent | leave | holiday
+  checkIn    String   @default("") @map("check_in") // HH:MM — يُسجل ولا يُحتسب في مسير HR-1
+  checkOut   String   @default("") @map("check_out")
+  note       String   @default("")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([companyId, employeeId, workDate])
+  @@index([workDate])
+  @@map("employee_attendance")
+}
+
+/// إجازات الموظفين — آلة حالات قانونية: معلقة → معتمدة → بدأت → منتهية (رفض من معلقة بقرار موثق)
+model EmployeeLeave {
+  companyId    Int      @default(1) @map("company_id")
+  id           Int      @id @default(autoincrement())
+  employeeId   Int      @map("employee_id")
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType    String   @map("leave_type") // سنوية | مرضية | طارئة | بدون راتب
+  startDate    String   @map("start_date") // YYYY-MM-DD
+  endDate      String   @map("end_date")   // YYYY-MM-DD — شاملة الطرفين
+  days         Decimal  @default(0) // حساب آلي بالنواة النقية
+  status       String   @default("معلقة") // معلقة | معتمدة | بدأت | منتهية | مرفوضة
+  sickTier     Int?     @map("sick_tier") // شريحة المرضية القانونية (0..4) — عرض وتحذير في HR-1
+  decisionBy   String   @default("") @map("decision_by")
+  decisionAt   String   @default("") @map("decision_at")
+  decisionNote String   @default("") @map("decision_note") // إلزامي عند الرفض
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([employeeId, status])
+  @@index([status, startDate])
+  @@map("employee_leaves")
+}
+
+/// مسير الرواتب الشهري — لقطة مجمّدة: شهر واحد بحالة نشطة (مسودة/معتمد/مدفوع)
+model PayrollBatch {
+  companyId        Int      @default(1) @map("company_id")
+  id               Int      @id @default(autoincrement())
+  batchNo          Int      @default(0) @map("batch_no") // تسلسلي عرضي PR-####
+  month            String // YYYY-MM
+  status           String   @default("draft") // draft | approved | paid | cancelled
+  grossTotal       Decimal  @default(0) @db.Decimal(18, 3) @map("gross_total")
+  deductionTotal   Decimal  @default(0) @db.Decimal(18, 3) @map("deduction_total")
+  advanceTotal     Decimal  @default(0) @db.Decimal(18, 3) @map("advance_total")
+  netTotal         Decimal  @default(0) @db.Decimal(18, 3) @map("net_total")
+  journalEntryId   Int?     @map("journal_entry_id") // قيد الاعتماد: مدين 5210 / دائن 2160 + 1140 عبر سندات SD
+  journalEntry     JournalEntry? @relation("PayrollBatchEntry", fields: [journalEntryId], references: [id])
+  paymentVoucherId Int?     @map("payment_voucher_id") // سند PV للدفع من 2160
+  paymentVoucher   Voucher? @relation("PayrollPaymentVoucher", fields: [paymentVoucherId], references: [id])
+  generatedBy      String   @default("") @map("generated_by")
+  generatedAt      DateTime? @map("generated_at")
+  approvedBy       String   @default("") @map("approved_by")
+  approvedAt       DateTime? @map("approved_at")
+  paidAt           DateTime? @map("paid_at")
+  cancelledAt      DateTime? @map("cancelled_at")
+  cancelReason     String   @default("") @map("cancel_reason")
+  records          PayrollRecord[]
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([month, status])
+  @@map("payroll_batches")
+}
+
+/// سجل الموظف في المسير — اللقطة المجمّدة (Cost Snapping): لا قراءة من ملف الموظف لاحقًا
+model PayrollRecord {
+  companyId          Int          @default(1) @map("company_id")
+  id                 Int          @id @default(autoincrement())
+  batchId            Int          @map("batch_id")
+  batch              PayrollBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  employeeId         Int          @map("employee_id")
+  employee           Employee     @relation(fields: [employeeId], references: [id])
+  snapName           String       @map("snap_name")
+  snapJobTitle       String       @default("") @map("snap_job_title")
+  snapPaymentBasis   String       @default("monthly") @map("snap_payment_basis") // monthly | daily
+  presentDays        Decimal      @default(0) // أيام الحضور (أساس اليومي + عرض)
+  absenceDays        Decimal      @default(0) // غياب غير مبرر + بدون راتب (عرض)
+  baseAmount         Decimal      @default(0) @db.Decimal(18, 3) @map("base_amount")
+  absenceDeduction   Decimal      @default(0) @db.Decimal(18, 3) @map("absence_deduction")
+  advanceDeduction   Decimal      @default(0) @db.Decimal(18, 3) @map("advance_deduction") // خطة خصم السلف
+  netAmount          Decimal      @default(0) @db.Decimal(18, 3) @map("net_amount")
+  deductionVoucherId Int?         @map("deduction_voucher_id") // سند SD لخصم السلف (مدين 2160/دائن 1140)
+
+  @@index([batchId])
+  @@index([employeeId])
+  @@map("payroll_records")
 }

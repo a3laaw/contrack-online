@@ -15,6 +15,7 @@ import {
   Wallet,
   Wrench,
   DraftingCompass,
+  Users,
   ShieldCheck,
   Info,
 } from "lucide-react";
@@ -37,6 +38,7 @@ const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
   store: Store,
   wrench: Wrench,
   compass: DraftingCompass,
+  users: Users,
 };
 
 interface LoginViewProps {

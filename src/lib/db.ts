@@ -58,6 +58,8 @@ const TENANT_MODELS = new Set<string>([
   "bankMap", "bankRecon",
   // الاستشارات الهندسية (موديول consulting — خطة الأنشطة): الفريق والإسنادات والساعات والإجازات
   "engineer", "engineerAssignment", "engineerTimesheet", "engineerLeave",
+  // HR-1 — الموارد البشرية (الموظف الموحد + الحضور + الإجازات + المسير): فصل الشركات إلزامي منذ اليوم الأول (درس T111)
+  "employeeAttendance", "employeeLeave", "payrollBatch", "payrollRecord",
 ]);
 
 interface Ctx { companyId: number }

@@ -142,6 +142,17 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "formTemplate", table: "form_templates", serial: true },
   { model: "formField", table: "form_fields", serial: true },
   { model: "formDocument", table: "form_documents", serial: true },
+  // ===== الاستشارات الهندسية (موديول consulting) — بعد الموظفين والعقود =====
+  // إصلاح فجوة موثقة: كانت النماذج الأربعة في TENANT_MODELS وغائبة عن النسخ الاحتياطي (نمط درس T112 مع taxDeclaration)
+  { model: "engineer", table: "engineers", serial: true },
+  { model: "engineerAssignment", table: "engineer_assignments", serial: true },
+  { model: "engineerTimesheet", table: "engineer_timesheets", serial: true },
+  { model: "engineerLeave", table: "engineer_leaves", serial: true },
+  // ===== HR-1 — الموارد البشرية: بعد employees (فوق) وقب�� القيود (FK batch→entry/voucher) =====
+  { model: "employeeAttendance", table: "employee_attendance", serial: true },
+  { model: "employeeLeave", table: "employee_leaves", serial: true },
+  { model: "payrollBatch", table: "payroll_batches", serial: true }, // FK journal_entry_id/payment_voucher_id SetNull
+  { model: "payrollRecord", table: "payroll_records", serial: true }, // بعد batch (FK Cascade)
   // ===== سجلات النظام (آخرًا لكي تُحذف أولًا عند الاستعادة) =====
   { model: "auditLog", table: "audit_log", serial: true },
   { model: "purgeAudit", table: "purge_audit", serial: true },

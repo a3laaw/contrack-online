@@ -49,6 +49,16 @@ export const MODULE_CATALOG: ModuleDef[] = [
     navModules: ["consulting"],
   },
   {
+    // HR-1 — الموارد البشرية (docs/hr-module-design.md): يُضاف لأي نشاط — الموظف الموحد يخدم الجميع
+    code: "hr",
+    name: "الموارد البشرية",
+    icon: "users",
+    desc: "الموظفون بأنواعهم ورواتبهم، الحضور اليدوي، الإجازات بالامتثال الكويتي، مسير الرواتب المرتبط بالخزينة، وسلف الموظفين",
+    available: true,
+    core: false,
+    navModules: ["hr"],
+  },
+  {
     code: "warehouses",
     name: "المخازن",
     icon: "package",

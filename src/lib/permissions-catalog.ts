@@ -44,6 +44,8 @@ export const PERMISSIONS: { key: string; label: string; group: string; secretary
   { key: "screen_zakat_xbrl", label: "شاشة الزكاة والتقديم الإلكتروني (XBRL)", group: "الشاشات", secretary: false },
   // مفتاح ويب-فقط لموديول الاستشارات الهندسية (خطة الأنشطة) — بلا مقابل مكتبي: secretary:true للحفاظ على السلوك
   { key: "screen_consulting", label: "شاشة الاستشارات الهندسية (الفريق/الإسناد/الساعات/الإجازات)", group: "الشاشات", secretary: true },
+  // مفتاح ويب-فقط لموديول الموارد البشرية HR-1 — بلا مقابل مكتبي: secretary:true (شاشة تشغيلية)
+  { key: "screen_hr", label: "شاشة الموارد البشرية (الموظفون/الحضور/الإجازات/المسير/السلف)", group: "الشاشات", secretary: true },
   // ---------- التقارير ----------
   { key: "report_customers_balances", label: "تقرير العملاء والأرصدة", group: "التقارير", secretary: false, desktop: "rep_customers" },
   { key: "report_stage_dues", label: "مستحقات المراحل", group: "التقارير", secretary: true, desktop: "rep_dues_board" },

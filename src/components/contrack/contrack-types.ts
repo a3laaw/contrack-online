@@ -18,6 +18,7 @@ export type ViewName =
   | "invoices"
   | "subcontractors"
   | "consulting"
+  | "hr"
   | "reports"
   | "reports-home"
   | "statement"

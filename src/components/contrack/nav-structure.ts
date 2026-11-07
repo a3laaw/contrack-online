@@ -37,6 +37,8 @@ import {
   UserCog,
   Users as UsersIcon,
   UsersRound,
+  CalendarCheck2,
+  Banknote,
   Wallet,
   Wrench,
 } from "lucide-react";
@@ -63,7 +65,7 @@ export const REPORT_PERM: Record<string, string> = {
 };
 
 /** معرّف الوحدات المعتمدة (توجيه المستخدم — تبويبات علوية) */
-export type ModuleId = "clients" | "subs" | "consulting" | "accounting" | "reports" | "settings";
+export type ModuleId = "clients" | "subs" | "consulting" | "hr" | "accounting" | "reports" | "settings";
 
 /** بند فرعي داخل وحدة — الشاشة الواحدة مستوى تنقل فرعي واحد فقط */
 export interface NavChild {
@@ -143,6 +145,20 @@ export const NAV_MODULES: NavModule[] = [
       { id: "consulting-assignments", label: "إسناد المشاريع", icon: Network, view: "consulting", section: "assignments", perm: "screen_consulting" },
       { id: "consulting-timesheets", label: "ساعات العمل", icon: Timer, view: "consulting", section: "timesheets", perm: "screen_consulting" },
       { id: "consulting-leaves", label: "الإجازات", icon: CalendarDays, view: "consulting", section: "leaves", perm: "screen_consulting" },
+    ],
+  },
+  {
+    // الموارد البشرية (HR-1) — موديول مستقل: الموظف الموحد (توسعة كيان السلف القائم) + الحضور اليدوي
+    // + الإجازات بآلة الحالات + مسير الرواتب بخط أنابيب واحد للمحرك الموحد + السلف (النظام القائم)
+    id: "hr",
+    label: "الموارد البشرية",
+    icon: UsersIcon,
+    children: [
+      { id: "hr-team", label: "الموظفون", icon: UsersIcon, view: "hr", section: "team", perm: "screen_hr" },
+      { id: "hr-attendance", label: "الحضور", icon: CalendarCheck2, view: "hr", section: "attendance", perm: "screen_hr" },
+      { id: "hr-leaves", label: "الإجازات", icon: CalendarDays, view: "hr", section: "leaves", perm: "screen_hr" },
+      { id: "hr-payroll", label: "مسير الرواتب", icon: Banknote, view: "hr", section: "payroll", perm: "screen_hr" },
+      { id: "hr-advances", label: "سلف الموظفين", icon: HandCoins, view: "hr", section: "advances", perm: "screen_hr" },
     ],
   },
   {
