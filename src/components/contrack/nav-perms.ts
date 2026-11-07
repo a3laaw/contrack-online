@@ -93,6 +93,7 @@ export const VIEW_PERMS: Partial<Record<ViewName, string>> = {
   ledger: "screen_ledger",
   "fiscal-close": "screen_fiscal_close",
   "financial-statements": "screen_financial_statements",
+  "bank-recon": "screen_bank_recon",
   "zakat-xbrl": "screen_zakat_xbrl",
   reports: "screen_reports",
   settings: "screen_settings",

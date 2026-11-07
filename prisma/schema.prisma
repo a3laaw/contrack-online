@@ -886,10 +886,48 @@ model Account {
   journalLines   JournalLine[]
   vouchers       Voucher[] @relation("VoucherAccount")
   custodyVouchers Voucher[] @relation("VoucherCustodyAccount")
+  bankMaps       BankMap[]   // Task 113 — مفاتيح كشوف البنك المرتبطة بهذا الحساب
+  bankRecons     BankRecon[] // Task 113 — إقفالات التسوية البنكية الموثقة
 
   @@unique([companyId, code])
   @@index([companyId, type])
   @@map("accounts")
+}
+
+// ==================== التسوية البنكية (Task 113) ====================
+// خريطة مفتاح كشف البنك (bank_lines.bank_account) → حساب البنك في الدليل — مرة واحدة لكل مفتاح
+model BankMap {
+  companyId Int       @default(1) @map("company_id")
+  id        Int       @id @default(autoincrement())
+  bankKey   String    @map("bank_key") // قيمة عمود bank_account في bank_lines
+  accountId Int       @map("account_id")
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@unique([companyId, bankKey])
+  @@map("bank_maps")
+}
+
+/** إقفال تسوية بنكية موثق — لقطة الفوارق بين كشف البنك ورصيد الدفتر عند تاريخ */
+model BankRecon {
+  companyId        Int     @default(1) @map("company_id")
+  id               Int     @id @default(autoincrement())
+  accountId        Int     @map("account_id")
+  account          Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  asOf             String  @map("as_of") // YYYY-MM-DD
+  statementBalance Decimal @db.Decimal(18, 3) @map("statement_balance") // رصيد الكشف المدخل من المستخدم
+  bookBalance      Decimal @db.Decimal(18, 3) @map("book_balance") // رصيد الدفتر المحسوب (افتتاحي + حركات منشورة)
+  bankOnlyCount    Int     @default(0) @map("bank_only_count") // بنود الكشف غير المسجلة
+  bankOnlyTotal    Decimal @default(0) @db.Decimal(18, 3) @map("bank_only_total")
+  glOnlyCount      Int     @default(0) @map("gl_only_count") // بنود الدفتر غير الظاهرة بالكشف (عالقة)
+  glOnlyTotal      Decimal @default(0) @db.Decimal(18, 3) @map("gl_only_total")
+  unexplained      Decimal @default(0) @db.Decimal(18, 3) @map("unexplained") // فرق غير مفسّر — الإقفال يُرفض إن لم يكن صفرًا
+  snapshot         Json    @default("{}") // لقطة قوائم الفوارق وقت الإقفال
+  closedBy         String  @default("") @map("closed_by")
+  closedAt         DateTime @default(now()) @map("closed_at")
+
+  @@unique([companyId, accountId, asOf])
+  @@map("bank_recons")
 }
 
 // ==================== النواة المحاسبية — القيد المزدوج الحقيقي (Task 104) ====================

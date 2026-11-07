@@ -54,6 +54,8 @@ const TENANT_MODELS = new Set<string>([
   "fiscalClosing",
   // Task 111 — إقرارات الزكاة/الضريبة (فصل الشركات إلزامي — الحجب يمنع قراءة إقرارات شركة أخرى)
   "taxDeclaration",
+  // Task 113 — التسوية البنكية: خرائط الكشوف وإقفالاتها لكل شركة
+  "bankMap", "bankRecon",
 ]);
 
 interface Ctx { companyId: number }

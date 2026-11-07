@@ -135,6 +135,8 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "journalLine", table: "journal_lines", serial: true },
   { model: "fiscalClosing", table: "fiscal_closings", serial: true }, // Task 109 — بعد القيود (FK closing_entry_id)
   { model: "taxDeclaration", table: "tax_declarations", serial: true }, // Task 111 — بعد القيود (FK entry_id SetNull)
+  { model: "bankMap", table: "bank_maps", serial: true }, // Task 113 — بعد الحسابات (FK account_id Cascade)
+  { model: "bankRecon", table: "bank_recons", serial: true }, // Task 113 — بعد الحسابات (FK account_id Cascade)
   { model: "contractEvent", table: "contract_events", serial: true },
   { model: "formCategory", table: "form_categories", serial: true },
   { model: "formTemplate", table: "form_templates", serial: true },

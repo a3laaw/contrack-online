@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import {
+  ArrowLeftRight,
   BarChart3,
   BookText,
   Scale,
@@ -139,6 +140,8 @@ export const NAV_MODULES: NavModule[] = [
       { id: "ledger", label: "دفتر الأستاذ والميزان", icon: Scale, view: "ledger", perm: "screen_ledger" },
       // Task 110 — القوائم المالية الموحدة (القرار الوزاري 44/2016) من الأستاذ حصرًا + فحوص التوازن
       { id: "financial-statements", label: "القوائم المالية", icon: Landmark, view: "financial-statements", perm: "screen_financial_statements" },
+      // Task 113 — التسوية البنكية: مطابقة كشوف البنك مع الأستاذ + تقرير الفوارق
+      { id: "bank-recon", label: "التسوية البنكية", icon: ArrowLeftRight, view: "bank-recon", perm: "screen_bank_recon" },
       // Task 111 — الزكاة 1% وضريبة الأجانب 15% + مصدّر iXBRL للتقديم الإلكتروني
       { id: "zakat-xbrl", label: "الزكاة والتقديم", icon: FileBadge, view: "zakat-xbrl", perm: "screen_zakat_xbrl" },
       // Task 109 — الفترات المالية والإقفال السنوي الموثق (قفل الشهور + قيد الإغلاق + الافتتاحية)

@@ -33,6 +33,7 @@ import { JournalEntriesView } from "./JournalEntriesView";
 import { LedgerView } from "./LedgerView";
 import { FiscalPeriodsView } from "./FiscalPeriodsView";
 import { FinancialStatementsView } from "./FinancialStatementsView";
+import { BankReconView } from "./BankReconView";
 import { ZakatXbrlView } from "./ZakatXbrlView";
 import { SubcontractorsView } from "./SubcontractorsView";
 import { ReportsView } from "./ReportsView";
@@ -393,6 +394,7 @@ function AppRoot() {
       {view === "ledger" && <LedgerView onAuthError={onAuthError} />}
       {view === "fiscal-close" && <FiscalPeriodsView user={user} onAuthError={onAuthError} />}
       {view === "financial-statements" && <FinancialStatementsView onAuthError={onAuthError} />}
+      {view === "bank-recon" && <BankReconView user={user} onAuthError={onAuthError} />}
       {view === "zakat-xbrl" && <ZakatXbrlView user={user} onAuthError={onAuthError} />}
       {view === "subcontractors" && <SubcontractorsView user={user} onAuthError={onAuthError} />}
       {view === "reports" && (

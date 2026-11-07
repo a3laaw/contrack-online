@@ -31,6 +31,7 @@ export type ViewName =
   | "ledger"
   | "fiscal-close"
   | "financial-statements"
+  | "bank-recon"
   | "zakat-xbrl"
   | "settings"
   | "users"

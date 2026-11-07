@@ -35,6 +35,9 @@ async function fullResetInTx(tx: Tx): Promise<Record<string, number>> {
   await step("sub_contract_items", () => tx.subContractItem.deleteMany({}));
   await step("claims", () => tx.claim.deleteMany({}));
   await step("fiscal_closings", () => tx.fiscalClosing.deleteMany({}));
+  // Task 113 — التسوية البنكية قبل الحسابات (FK account_id Cascade)
+  await step("bank_recons", () => tx.bankRecon.deleteMany({}));
+  await step("bank_maps", () => tx.bankMap.deleteMany({}));
   await step("journal_lines", () => tx.journalLine.deleteMany({}));
   await step("journal_entries", () => tx.journalEntry.deleteMany({}));
   await step("fiscal_periods", () => tx.fiscalPeriod.deleteMany({}));

@@ -21,6 +21,7 @@ import {
 } from "@/lib/report-server";
 import { buildGeneralLedger, buildTrialBalance, buildAging } from "@/lib/accounting-reports-server";
 import { buildFinancialStatements } from "@/lib/financial-statements-server";
+import { reportBankReconciliation } from "@/lib/bank-recon-server";
 import {
   glReportTable,
   tbReportTable,
@@ -131,6 +132,23 @@ const REPORT_BUILDERS: Record<
       const pick = (k: FsStatementKind) =>
         k === "bs" ? bsReportTable(fs.balanceSheet) : k === "is" ? isReportTable(fs.income) : k === "eq" ? eqReportTable(fs.equity) : cfReportTable(fs.cashflow);
       return pick(kindRaw);
+    },
+  },
+  // Task 113 — التسوية البنكية: تقرير الفوارق CSV/Excel
+  "bank-reconciliation": {
+    permKey: "screen_bank_recon",
+    build: async (p) => {
+      const bankAccountId = Number(p.bankAccountId || 0);
+      const asOf = (p.asOf || "").trim();
+      if (!bankAccountId) throw new Error("اختيار حساب البنك مطلوب.");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(asOf)) throw new Error("تاريخ التسوية (حتى) مطلوب بصيغة YYYY-MM-DD.");
+      return reportBankReconciliation({
+        bankAccountId,
+        asOf,
+        statementBalance: Number(p.statementBalance || 0),
+        tolerance: Number(p.tolerance || 0),
+        windowDays: Number(p.window || 15),
+      });
     },
   },
 };
