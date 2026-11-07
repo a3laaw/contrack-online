@@ -40,6 +40,15 @@ export const MODULE_CATALOG: ModuleDef[] = [
     navModules: ["clients", "subs", "reports"],
   },
   {
+    code: "consulting",
+    name: "الاستشارات الهندسية",
+    icon: "compass",
+    desc: "مكاتب الاستشارات: المهندسون بتخصصاتهم وتراخيصهم وإسنادهم للمشاريع وساعاتهم على المخططات والإشراف",
+    available: false,
+    core: false,
+    navModules: [],
+  },
+  {
     code: "warehouses",
     name: "المخازن",
     icon: "package",

@@ -1693,7 +1693,7 @@ model CompanyModule {
   id        Int      @id @default(autoincrement())
   companyId Int      @map("company_id")
   company   Company  @relation("CompanyModules", fields: [companyId], references: [id], onDelete: Cascade)
-  code      String // contracting | warehouses | sales | maintenance (الكور accounting مشمول دائمًا بلا صف)
+  code      String // contracting | consulting | warehouses | sales | maintenance (الكور accounting مشمول دائمًا بلا صف)
   status    String   @default("active") // active | disabled
   enabledBy String   @default("") @map("enabled_by") // اسم الفاعل (المطور أو اعتماد طلب انضمام)
   notes     String   @default("")

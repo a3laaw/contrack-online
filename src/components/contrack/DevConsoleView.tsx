@@ -31,6 +31,7 @@ import {
   UserRound,
   Wallet,
   Wrench,
+  DraftingCompass,
   XCircle,
 } from "lucide-react";
 
@@ -209,6 +210,7 @@ const CATALOG_ICONS: Record<string, React.ComponentType<{ className?: string }>>
   package: Package,
   store: Store,
   wrench: Wrench,
+  compass: DraftingCompass,
 };
 
 export function DevConsoleView({
