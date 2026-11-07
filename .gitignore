@@ -71,3 +71,6 @@ db/
 *.pyc
 restore_report.json
 restore_source.py
+
+# نسخ البيانات الاحتياطية المحلية
+backups/

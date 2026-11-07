@@ -47,6 +47,9 @@ let company1Ready: Promise<void> | null = null;
 export function ensureCompany1Subscription(): Promise<void> {
   company1Ready ??= (async () => {
     await ensurePlans();
+    // بعد المسح الشامل قد لا توجد أي شركات (نظام SaaS نظيف) — البذرة لا تعمل بلا الشركة 1
+    const c1 = await sysDb.company.findUnique({ where: { id: 1 }, select: { id: true } });
+    if (!c1) return;
     const ent = await sysDb.plan.findUnique({ where: { code: "enterprise" }, select: { id: true } });
     if (!ent) return;
     const existing = await sysDb.subscription.findUnique({ where: { companyId: 1 }, select: { id: true } });
