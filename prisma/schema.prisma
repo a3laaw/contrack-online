@@ -23,6 +23,8 @@ model Company {
   createdAt DateTime @default(now()) @map("created_at")
   users     User[]
   subscription Subscription? @relation("SubscriptionCompany")
+  modules      CompanyModule[] @relation("CompanyModules")
+  divisions    Division[]      @relation("CompanyDivisions")
 
   @@map("companies")
 }
@@ -1677,6 +1679,44 @@ model RegistrationRequest {
   processedAt       DateTime? @map("processed_at")
   createdAt         DateTime  @default(now()) @map("created_at")
 
+  modules           String    @default("[]") @map("modules") // الأنشطة المختارة JSON — ["contracting",…] (الكتالوج في modules-catalog.ts)
   @@index([status, createdAt])
   @@map("registration_requests")
+}
+
+/**
+ * موديول (نشاط) مفعّل لشركة — المرحلة A من خطة الأنشطة:
+ * الكتالوج يُعرّف في modules-catalog.ts (مصدر واحد للحقيقة)، وهنا حالة التفعيل لكل شركة.
+ * الإيقاف (disabled) = تجميد: الشاشات تختفي من الشل والبيانات محفوظة كاملة — لا حذف أبدًا.
+ */
+model CompanyModule {
+  id        Int      @id @default(autoincrement())
+  companyId Int      @map("company_id")
+  company   Company  @relation("CompanyModules", fields: [companyId], references: [id], onDelete: Cascade)
+  code      String // contracting | warehouses | sales | maintenance (الكور accounting مشمول دائمًا بلا صف)
+  status    String   @default("active") // active | disabled
+  enabledBy String   @default("") @map("enabled_by") // اسم الفاعل (المطور أو اعتماد طلب انضمام)
+  notes     String   @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([companyId, code])
+  @@index([code])
+  @@map("company_modules")
+}
+
+/** قسم (Division) — وحدة الفصل المالي داخل الشركة: قسم افتراضي يُبذر لكل موديول مفعّل (المرحلة B ستصل القيود به) */
+model Division {
+  id         Int      @id @default(autoincrement())
+  companyId  Int      @map("company_id")
+  company    Company  @relation("CompanyDivisions", fields: [companyId], references: [id], onDelete: Cascade)
+  code       String   @default("") // فريد داخل الشركة — نمط div-<module>
+  name       String
+  moduleCode String   @default("") @map("module_code") // النشاط المالك للقسم
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("divisions")
 }

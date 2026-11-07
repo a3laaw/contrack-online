@@ -8,6 +8,7 @@ import {
   roleDefaultAllowed,
 } from "@/lib/permissions-catalog";
 import { parseToken, SESSION_COOKIE, issueToken } from "@/lib/session-token";
+import { enabledModuleCodes } from "@/lib/modules-server";
 
 export { PERMISSIONS, roleDefaultAllowed, isSuperRole } from "@/lib/permissions-catalog";
 export type { PermissionSpec } from "@/lib/permissions-catalog";
@@ -24,6 +25,8 @@ export interface SessionUser {
   companyName: string;
   /** Task 100: الشركة الأم من سجل المستخدم — المطور بلا شركة (null دائمًا)، البقية = شركتهم */
   homeCompanyId: number | null;
+  /** خطة الأنشطة: أكواد الموديولات الفعّالة للشركة — null = المطور/الكل */
+  modules?: string[] | null;
 }
 
 // ===== كلمات المرور: PBKDF2-SHA256 بـ 200,000 دورة — الملح بايتاته الخام bytes.fromhex(salt) كما المكتبي حرفيًا =====
@@ -69,6 +72,7 @@ export async function getSessionUser(req: NextRequest): Promise<SessionUser | nu
       companyId: 0,
       companyName: "",
       homeCompanyId: user.companyId,
+      modules: null, // المطور — كل شيء
     };
   }
   const company = await db.company.findUnique({ where: { id: parsed.companyId } });
@@ -85,6 +89,7 @@ export async function getSessionUser(req: NextRequest): Promise<SessionUser | nu
     companyId: company.id,
     companyName: company.name,
     homeCompanyId: user.companyId,
+    modules: await enabledModuleCodes(company.id),
   };
 }
 

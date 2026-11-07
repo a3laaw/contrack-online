@@ -10,6 +10,8 @@ import { adminGuard, audit, jsonError, ok } from "@/lib/api-utils";
 import { ensurePostingRules } from "@/lib/posting-rules-server";
 import { getPlanByCode } from "@/lib/saas-server";
 import { addDays, validateAdminUsername } from "@/lib/saas-core";
+import { validateModuleSelection } from "@/lib/modules-catalog";
+import { parseRequestModules, seedCompanyModules } from "@/lib/modules-server";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -26,6 +28,7 @@ export async function POST(req: NextRequest, { params }: P) {
   const body = (await req.json().catch(() => ({}))) as {
     username?: string;
     planCode?: string;
+    modules?: string[]; // خطة الأنشطة — تعديل المطور لاختيار العميل قبل الاعتماد (افتراضيًا ما اختاره)
   };
 
   const request = await sysDb.registrationRequest.findUnique({ where: { id } });
@@ -53,6 +56,12 @@ export async function POST(req: NextRequest, { params }: P) {
   const plan = await getPlanByCode(String(body.planCode || "").trim() || "trial");
   if (!plan || !plan.isActive) return jsonError("الخطة المختارة غير معروفة");
 
+  // خطة الأنشطة: اختيار المطور (إن عدّله) أو ما اختاره العميل في الطلب
+  const modulesSel = validateModuleSelection(
+    Array.isArray(body.modules) && body.modules.length > 0 ? body.modules : parseRequestModules(request)
+  );
+  if (!modulesSel.ok) return jsonError(modulesSel.error);
+
   // إنشاء الشركة + البذر + المدير الأول + الاشتراك (بالترتيب نفسه لإنشاء الشركات اليدوي)
   const company = await db.company.create({
     data: {
@@ -62,6 +71,8 @@ export async function POST(req: NextRequest, { params }: P) {
     },
   });
   await ensurePostingRules(forCompany(company.id));
+  // خطة الأنشطة — المرحلة A: بذر الأنشطة (المعدّلة من المطور أو المطلوبة) + قسم لكل نشاط
+  await seedCompanyModules(company.id, modulesSel.codes, guard.user.username);
   await db.user.create({
     data: {
       companyId: company.id,
@@ -87,6 +98,7 @@ export async function POST(req: NextRequest, { params }: P) {
     data: {
       status: "approved",
       requestedUsername: username, // توثيق الاسم الفعلي المعتمد
+      modules: JSON.stringify(modulesSel.codes), // توثيق الأنشطة الفعلية المعتمدة
       createdCompanyId: company.id,
       processedBy: guard.user.username,
       processedAt: new Date(),
@@ -107,6 +119,7 @@ export async function POST(req: NextRequest, { params }: P) {
     username,
     planCode: plan.code,
     planName: plan.name,
+    modules: modulesSel.codes,
     message: `تم اعتماد الطلب — أُنشئت شركة «${request.companyName}» مع مدير «${username}» واشتراك ${plan.name}`,
   }, 201);
 }

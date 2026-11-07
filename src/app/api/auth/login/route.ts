@@ -19,6 +19,7 @@ import { audit, jsonError, ok } from "@/lib/api-utils";
 import { ensureSeedData } from "@/lib/seed-defaults";
 import { forCompany } from "@/lib/db";
 import { permsForUser } from "@/lib/auth";
+import { enabledModuleCodes } from "@/lib/modules-server";
 
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as { username?: string; password?: string };
@@ -113,6 +114,8 @@ export async function POST(req: NextRequest) {
       : null;
   // بند 5 (مواءمة PAGE_PERMS): الصلاحيات تعاد مع الدخول فتُصيَّر الشل مفلترة من أول لحظة
   const perms = await permsForUser(user.id, user.role);
+  // خطة الأنشطة: موديولات الشركة الفعّالة (المطور null = الكل) — تصفية تبويبات الشل من أول لحظة
+  const modules = await enabledModuleCodes(user.role === "developer" ? null : user.companyId ?? null);
   const res = ok({
     user: {
       id: user.id,
@@ -123,6 +126,7 @@ export async function POST(req: NextRequest) {
       companyId: user.companyId ?? 0,
       companyName: homeCompany?.name || "",
       homeCompanyId: user.companyId,
+      modules,
     },
     token,
     perms,

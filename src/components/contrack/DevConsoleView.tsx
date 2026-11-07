@@ -16,14 +16,21 @@ import {
   CheckCircle2,
   ClipboardList,
   CreditCard,
+  HardHat,
+  Layers,
   Loader2,
+  Lock,
+  Package,
   PauseCircle,
   PlayCircle,
   Plus,
   RefreshCw,
   ShieldCheck,
   Snowflake,
+  Store,
   UserRound,
+  Wallet,
+  Wrench,
   XCircle,
 } from "lucide-react";
 
@@ -87,6 +94,8 @@ interface SaasRequest {
   phone: string;
   email: string;
   activity: string;
+  modules: string[]; // خطة الأنشطة — الأكواد المطلوبة
+  modulesLabel: string; // التسمية العربية للعرض
   requestedUsername: string;
   adminFullName: string;
   status: "pending" | "approved" | "rejected";
@@ -95,6 +104,27 @@ interface SaasRequest {
   processedBy: string;
   processedAt: string | null;
   createdAt: string;
+}
+
+/** كتالوج الموديولات من الخادم (خطة الأنشطة) */
+interface CatalogModule {
+  code: string;
+  name: string;
+  icon: string;
+  desc: string;
+  available: boolean;
+  core: boolean;
+}
+
+/** حالة موديول لشركة */
+interface CompanyModuleState {
+  code: string;
+  name: string;
+  icon: string;
+  available: boolean;
+  status: "active" | "disabled" | "none";
+  enabledBy: string;
+  updatedAt: string | null;
 }
 
 interface SaasSubInfo {
@@ -116,6 +146,7 @@ interface SaasCompanySub {
   isActive: boolean;
   usersCount: number;
   contractsCount: number;
+  modules: CompanyModuleState[];
   subscription: SaasSubInfo | null;
 }
 
@@ -133,6 +164,7 @@ interface SaasData {
   plans: SaasPlan[];
   requests: SaasRequest[];
   subscriptions: SaasCompanySub[];
+  moduleCatalog: CatalogModule[];
 }
 
 // ===== شارة الحالة الفعلية =====
@@ -167,6 +199,16 @@ const EMPTY_FORM = {
   adminPassword: "",
   adminFullName: "",
   planCode: "", // فارغ = بلا اشتراك (كالسابق تمامًا)
+  modules: ["contracting"] as string[], // خطة الأنشطة — افتراضيًا مقاولات
+};
+
+/** خريطة أيقونات كتالوج الأنشطة (الكتالوج نقي — الأيقونات هنا) */
+const CATALOG_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  wallet: Wallet,
+  hardhat: HardHat,
+  package: Package,
+  store: Store,
+  wrench: Wrench,
 };
 
 export function DevConsoleView({
@@ -180,6 +222,7 @@ export function DevConsoleView({
   const qc = useQueryClient();
   const [createOpen, setCreateOpen] = React.useState(false);
   const [editTarget, setEditTarget] = React.useState<SaasCompanySub | null>(null);
+  const [modulesTarget, setModulesTarget] = React.useState<SaasCompanySub | null>(null);
   const [form, setForm] = React.useState(EMPTY_FORM);
 
   const q = useQuery({
@@ -192,13 +235,34 @@ export function DevConsoleView({
 
   const createM = useMutation({
     mutationFn: () =>
-      apiPost("/api/companies", { ...form, planCode: form.planCode || undefined }),
+      apiPost("/api/companies", {
+        ...form,
+        planCode: form.planCode || undefined,
+        modules: form.modules,
+      }),
     onSuccess: () => {
       toast({
         description: `تم إنشاء شركة «${form.name}»${form.planCode ? " مع اشتراكها" : ""}${form.adminUsername ? " ومديرها الأول" : ""}`,
       });
       setCreateOpen(false);
       setForm(EMPTY_FORM);
+      invalidate();
+    },
+    onError: (e) => {
+      if ((e as { status?: number }).status === 401) onAuthError();
+      toast({ variant: "destructive", description: errMessage(e) });
+    },
+  });
+
+  // خطة الأنشطة — تفعيل/إيقاف موديول لشركة (المطور حصريًا)
+  const moduleToggleM = useMutation({
+    mutationFn: (v: { companyId: number; code: string; enable: boolean }) =>
+      apiPost<{ message: string }>(`/api/dev/companies/${v.companyId}/modules`, {
+        code: v.code,
+        enable: v.enable,
+      }),
+    onSuccess: (res) => {
+      toast({ description: res.message });
       invalidate();
     },
     onError: (e) => {
@@ -361,6 +425,7 @@ export function DevConsoleView({
                 <TableRow>
                   <TableHead className="w-10">#</TableHead>
                   <TableHead>الشركة</TableHead>
+                  <TableHead>الأنشطة</TableHead>
                   <TableHead className="text-center">المستخدمون</TableHead>
                   <TableHead className="text-center">العقود</TableHead>
                   <TableHead className="text-center">الاشتراك</TableHead>
@@ -384,6 +449,36 @@ export function DevConsoleView({
                           <span className="font-medium">{c.companyName}</span>
                           {c.shortName && <span className="text-xs text-muted-foreground">({c.shortName})</span>}
                           {isCurrent && <Badge variant="secondary" className="text-[10px]">الحالية</Badge>}
+                        </div>
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <div className="flex flex-wrap items-center gap-1">
+                          {c.modules.filter((m) => m.status === "active").map((m) => (
+                            <Badge key={m.code} variant="secondary" className="gap-1 text-[10px]">
+                              {(() => { const I = CATALOG_ICONS[m.icon]; return I ? <I className="size-2.5" /> : null; })()}
+                              {m.name}
+                            </Badge>
+                          ))}
+                          {c.modules.filter((m) => m.status === "disabled").map((m) => (
+                            <Badge key={m.code} variant="outline" className="text-[10px] text-muted-foreground line-through">
+                              {m.name}
+                            </Badge>
+                          ))}
+                          {c.modules.every((m) => m.status !== "active" && m.status !== "disabled") && (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-[11px]"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setModulesTarget(c);
+                            }}
+                          >
+                            <Layers className="size-3" />
+                            إدارة
+                          </Button>
                         </div>
                       </TableCell>
                       <TableCell className="text-center tabular-nums">{c.usersCount}</TableCell>
@@ -512,6 +607,41 @@ export function DevConsoleView({
                 </SelectContent>
               </Select>
             </div>
+            {/* خطة الأنشطة — الأنشطة المفعّلة مع الإنشاء (الكور مشمول تلقائيًا) */}
+            <div className="space-y-1.5">
+              <Label>أنشطة الشركة (تُفعّل مع الإنشاء ويُبذر قسم لكل نشاط)</Label>
+              <div className="flex flex-wrap gap-2">
+                {(data?.moduleCatalog ?? []).filter((m) => !m.core && m.available).map((m) => {
+                  const on = form.modules.includes(m.code);
+                  const Icon = CATALOG_ICONS[m.icon];
+                  return (
+                    <button
+                      key={m.code}
+                      type="button"
+                      onClick={() =>
+                        setForm((f) => ({
+                          ...f,
+                          modules: on ? f.modules.filter((c) => c !== m.code) : [...f.modules, m.code],
+                        }))
+                      }
+                      aria-pressed={on}
+                      className={
+                        on
+                          ? "flex h-8 items-center gap-1.5 rounded-full border-2 border-primary bg-primary-soft px-3 text-xs font-bold text-primary-soft-foreground"
+                          : "flex h-8 items-center gap-1.5 rounded-full border bg-card px-3 text-xs text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                      }
+                    >
+                      {Icon && <Icon className="size-3.5" />}
+                      {m.name}
+                      {on && <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" />}
+                    </button>
+                  );
+                })}
+              </div>
+              {form.modules.length === 0 && (
+                <p className="text-[11px] text-destructive">اختر نشاطًا واحدًا على الأقل</p>
+              )}
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="dc-notes">ملاحظات (اختياري)</Label>
               <Textarea id="dc-notes" rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
@@ -552,7 +682,7 @@ export function DevConsoleView({
             <Button variant="outline" onClick={() => setCreateOpen(false)}>إلغاء</Button>
             <Button
               onClick={() => createM.mutate()}
-              disabled={!form.name.trim() || createM.isPending}
+              disabled={!form.name.trim() || form.modules.length === 0 || createM.isPending}
             >
               {createM.isPending ? (
                 <>
@@ -601,6 +731,77 @@ export function DevConsoleView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ===== إدارة أنشطة شركة — تفعيل/إيقاف الموديولات (خطة الأنشطة) ===== */}
+      <Dialog open={!!modulesTarget} onOpenChange={(o) => !o && setModulesTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>أنشطة شركة: {modulesTarget?.companyName}</DialogTitle>
+          </DialogHeader>
+          {(() => {
+            // الحالة الحية من الاستعلام بعد كل تبديل (لا لقطة جامدة)
+            const live = companies.find((c) => c.companyId === modulesTarget?.companyId) ?? modulesTarget;
+            if (!live) return null;
+            const catalog = data?.moduleCatalog ?? [];
+            const core = catalog.find((m) => m.core);
+            const stateOf = (code: string) => live.modules.find((m) => m.code === code)?.status ?? "none";
+            const CoreIcon = core ? CATALOG_ICONS[core.icon] ?? Wallet : Wallet;
+            return (
+              <div className="space-y-2">
+                {core && (
+                  <div className="flex items-center gap-3 rounded-lg border border-dashed bg-muted/40 p-3">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+                      <CoreIcon className="size-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-1.5 text-sm font-bold">
+                        {core.name}
+                        <Badge variant="secondary" className="gap-0.5 text-[10px]">
+                          <Lock className="size-2.5" />
+                          مشمولة دائمًا
+                        </Badge>
+                      </p>
+                      <p className="truncate text-[11px] text-muted-foreground">عمود النظام — لا تُوقف ولا تُشترى</p>
+                    </div>
+                  </div>
+                )}
+                {catalog.filter((m) => !m.core).map((m) => {
+                  const st = stateOf(m.code);
+                  const Icon = CATALOG_ICONS[m.icon] ?? Layers;
+                  return (
+                    <div key={m.code} className="flex items-center gap-3 rounded-lg border p-3">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+                        <Icon className="size-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="flex flex-wrap items-center gap-1.5 text-sm font-bold">
+                          {m.name}
+                          {!m.available && <Badge variant="outline" className="text-[10px]">قريبًا</Badge>}
+                          {st === "disabled" && (
+                            <Badge variant="outline" className="text-[10px] text-muted-foreground">موقوف — البيانات محفوظة</Badge>
+                          )}
+                        </p>
+                        <p className="truncate text-[11px] text-muted-foreground">{m.desc}</p>
+                      </div>
+                      <Switch
+                        checked={st === "active"}
+                        disabled={!m.available || moduleToggleM.isPending}
+                        onCheckedChange={(v) =>
+                          moduleToggleM.mutate({ companyId: live.companyId, code: m.code, enable: v })
+                        }
+                        aria-label={`${m.name}: ${st === "active" ? "مفعّل" : "غير مفعّل"}`}
+                      />
+                    </div>
+                  );
+                })}
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  الإيقاف يجمد شاشات النشاط ويخفيها من الشركة فورًا — وبياناته محفوظة كاملة وتعود بضغطة تفعيل.
+                </p>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -629,10 +830,11 @@ function RequestsTab({
   }, [data.requests, filter]);
 
   const approveM = useMutation({
-    mutationFn: (v: { id: number; username: string; planCode: string }) =>
+    mutationFn: (v: { id: number; username: string; planCode: string; modules: string[] }) =>
       apiPost<{ message: string }>(`/api/dev/requests/${v.id}/approve`, {
         username: v.username,
         planCode: v.planCode,
+        modules: v.modules,
       }),
     onSuccess: (res) => {
       toast({ description: res.message });
@@ -725,7 +927,20 @@ function RequestsTab({
                     <span>مسؤول التواصل: <span className="font-medium text-foreground">{r.contactName}</span></span>
                     {r.phone && <span dir="ltr" className="tabular-nums">{r.phone}</span>}
                     {r.email && <span dir="ltr">{r.email}</span>}
-                    {r.activity && <span>النشاط: {r.activity}</span>}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground">الأنشطة المطلوبة:</span>
+                    {r.modules.map((code) => {
+                      const cm = (data.moduleCatalog ?? []).find((m) => m.code === code);
+                      const Icon = cm ? CATALOG_ICONS[cm.icon] ?? Layers : Layers;
+                      return (
+                        <Badge key={code} variant={cm?.available ? "secondary" : "outline"} className="gap-1 text-[10px]">
+                          <Icon className="size-2.5" />
+                          {cm?.name ?? code}
+                          {cm && !cm.available && <span className="text-[9px]">قريبًا</span>}
+                        </Badge>
+                      );
+                    })}
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span>اسم المستخدم المطلوب: <span dir="ltr" className="font-mono">{r.requestedUsername}</span></span>
@@ -764,10 +979,11 @@ function RequestsTab({
       <ApproveDialog
         target={approveTarget}
         plans={data.plans}
+        moduleCatalog={data.moduleCatalog}
         pending={approveM.isPending}
         onClose={() => setApproveTarget(null)}
-        onConfirm={(username, planCode) =>
-          approveTarget && approveM.mutate({ id: approveTarget.id, username, planCode })
+        onConfirm={(username, planCode, modules) =>
+          approveTarget && approveM.mutate({ id: approveTarget.id, username, planCode, modules })
         }
       />
 
@@ -785,25 +1001,30 @@ function RequestsTab({
 function ApproveDialog({
   target,
   plans,
+  moduleCatalog,
   pending,
   onClose,
   onConfirm,
 }: {
   target: SaasRequest | null;
   plans: SaasPlan[];
+  moduleCatalog: CatalogModule[];
   pending: boolean;
   onClose: () => void;
-  onConfirm: (username: string, planCode: string) => void;
+  onConfirm: (username: string, planCode: string, modules: string[]) => void;
 }) {
   const [username, setUsername] = React.useState("");
   const [planCode, setPlanCode] = React.useState("trial");
+  const [modules, setModules] = React.useState<string[]>([]);
 
   React.useEffect(() => {
     if (target) {
       setUsername(target.requestedUsername);
       setPlanCode("trial");
+      // الأنشطة: ما اختاره العميل — والغير متاح منها يُستبعد فورًا (قريبًا)
+      setModules(target.modules.filter((c) => moduleCatalog.find((m) => m.code === c)?.available));
     }
-  }, [target]);
+  }, [target, moduleCatalog]);
 
   const plan = plans.find((p) => p.code === planCode);
 
@@ -815,7 +1036,43 @@ function ApproveDialog({
         </DialogHeader>
         <div className="space-y-3">
           <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground space-y-1">
-            <p>سيتم فور الاعتماد: إنشاء الشركة مع البذر الكامل (شجرة حسابات وقواعد قيد) · إنشاء حساب المدير · تفعيل الاشتراك المختار.</p>
+            <p>سيتم فور الاعتماد: إنشاء الشركة مع البذر الكامل (شجرة حسابات وقواعد قيد) · إنشاء حساب المدير · تفعيل الأنشطة مع قسم لكل نشاط · تفعيل الاشتراك المختار.</p>
+          </div>
+          {/* خطة الأنشطة — تعديل اختيار العميل قبل الاعتماد */}
+          <div className="space-y-1.5">
+            <Label>الأنشطة المعتمدة (يمكنك التعديل قبل الاعتماد)</Label>
+            <div className="flex flex-wrap gap-2">
+              {moduleCatalog.filter((m) => !m.core).map((m) => {
+                const on = modules.includes(m.code);
+                const Icon = CATALOG_ICONS[m.icon] ?? Layers;
+                return (
+                  <button
+                    key={m.code}
+                    type="button"
+                    disabled={!m.available}
+                    onClick={() =>
+                      setModules((prev) => (on ? prev.filter((c) => c !== m.code) : [...prev, m.code]))
+                    }
+                    aria-pressed={on}
+                    className={
+                      on
+                        ? "flex h-8 items-center gap-1.5 rounded-full border-2 border-primary bg-primary-soft px-3 text-xs font-bold text-primary-soft-foreground"
+                        : m.available
+                          ? "flex h-8 items-center gap-1.5 rounded-full border bg-card px-3 text-xs text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                          : "flex h-8 cursor-not-allowed items-center gap-1.5 rounded-full border bg-muted/40 px-3 text-xs text-muted-foreground/70"
+                    }
+                  >
+                    <Icon className="size-3.5" />
+                    {m.name}
+                    {!m.available && <span className="text-[9px]">قريبًا</span>}
+                    {on && <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" />}
+                  </button>
+                );
+              })}
+            </div>
+            {modules.length === 0 && (
+              <p className="text-[11px] text-destructive">نشاط واحد على الأقل مطلوب للاعتماد</p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="apr-user">اسم مستخدم المدير</Label>
@@ -851,8 +1108,8 @@ function ApproveDialog({
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>إلغاء</Button>
           <Button
-            onClick={() => onConfirm(username.trim(), planCode)}
-            disabled={pending || username.trim().length < 3}
+            onClick={() => onConfirm(username.trim(), planCode, modules)}
+            disabled={pending || username.trim().length < 3 || modules.length === 0}
           >
             {pending ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
             اعتماد وإنشاء الشركة

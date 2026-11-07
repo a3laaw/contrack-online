@@ -12,8 +12,9 @@ import { ROLE_LABEL, isManagerRole } from "./contrack-types";
 import { useFeatureFlags } from "./FeatureFlagsProvider";
 import { NotificationBell } from "./NotificationBell";
 import { CompanySwitcher } from "./CompanySwitcher";
-import { NAV_MODULES, findNavChild, type NavChild } from "./nav-structure";
+import { NAV_MODULES, findNavChild, type NavChild, type ModuleId } from "./nav-structure";
 import { permAllows, visibleChildren } from "./nav-perms";
+import { navModulesFor } from "@/lib/modules-catalog";
 
 interface AppShellProps {
   user: User;
@@ -92,12 +93,15 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
   const activeModuleId = active?.module.id ?? "clients";
 
   // الوحدات ذات بنود مرئية فقط
+  // خطة الأنشطة: تبويبات الشل تُحصر بأنشطة الشركة الفعّالة أولاً (user.modules —
+  // null/غياب = الكل: مطور أو جلسة قديمة) ثم الفلترة المعتادة بالصلاحيات والمزايا
+  const allowedNavIds = React.useMemo(() => navModulesFor(user.modules), [user.modules]);
   const modules = React.useMemo(
     () =>
-      NAV_MODULES.map((m) => ({ module: m, children: visibleChildren(m, manager, flagOn, permOn) })).filter(
-        (m) => m.children.length > 0
-      ),
-    [manager, flagOn, permOn]
+      NAV_MODULES.filter((m) => !allowedNavIds || allowedNavIds.has(m.id as ModuleId))
+        .map((m) => ({ module: m, children: visibleChildren(m, manager, flagOn, permOn) }))
+        .filter((m) => m.children.length > 0),
+    [manager, flagOn, permOn, allowedNavIds]
   );
 
   const currentModule = modules.find((m) => m.module.id === activeModuleId) ?? modules[0];

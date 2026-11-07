@@ -11,6 +11,8 @@ import { db, sysDb } from "@/lib/db";
 import { adminGuard, jsonError, ok } from "@/lib/api-utils";
 import { ensureCompany1Subscription, ensurePlans } from "@/lib/saas-server";
 import { daysLeft, effectiveSubscriptionStatus } from "@/lib/saas-core";
+import { MODULE_CATALOG } from "@/lib/modules-catalog";
+import { companyModulesState, parseRequestModules, requestModulesLabel } from "@/lib/modules-server";
 
 export async function GET(req: NextRequest) {
   const guard = await adminGuard(req);
@@ -35,6 +37,14 @@ export async function GET(req: NextRequest) {
     sysDb.contract.groupBy({ by: ["companyId"], _count: { _all: true } }),
   ]);
 
+  // خطة الأنشطة: حالة موديولات كل شركة (بالتوازي — استعلام صغير لكل شركة)
+  const modulesByCompany = new Map<number, Awaited<ReturnType<typeof companyModulesState>>>();
+  await Promise.all(
+    companies.map(async (c) => {
+      modulesByCompany.set(c.id, await companyModulesState(c.id));
+    })
+  );
+
   const contractsMap = new Map<number, number>(
     contractsByCompany.map((g) => [g.companyId, g._count._all])
   );
@@ -50,6 +60,7 @@ export async function GET(req: NextRequest) {
       isActive: c.isActive,
       usersCount: c.users.length,
       contractsCount: contractsMap.get(c.id) ?? 0,
+      modules: modulesByCompany.get(c.id) ?? [],
       subscription: sub
         ? {
             id: sub.id,
@@ -101,6 +112,8 @@ export async function GET(req: NextRequest) {
       phone: r.phone,
       email: r.email,
       activity: r.activity,
+      modules: parseRequestModules(r), // الأنشطة المطلوبة (أكواد)
+      modulesLabel: requestModulesLabel(r), // التسمية للعرض
       requestedUsername: r.requestedUsername,
       adminFullName: r.adminFullName,
       status: r.status,
@@ -111,5 +124,14 @@ export async function GET(req: NextRequest) {
       createdAt: r.createdAt,
     })),
     subscriptions,
+    // خطة الأنشطة: الكتالوج للواجهة (بطاقات لوحة المطور وبوابة الانضمام من مصدر واحد)
+    moduleCatalog: MODULE_CATALOG.map((m) => ({
+      code: m.code,
+      name: m.name,
+      icon: m.icon,
+      desc: m.desc,
+      available: m.available,
+      core: m.core,
+    })),
   });
 }

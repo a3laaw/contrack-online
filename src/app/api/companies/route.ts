@@ -13,6 +13,8 @@ import { ensurePostingRules } from "@/lib/posting-rules-server";
 import { forCompany } from "@/lib/db";
 import { getPlanByCode } from "@/lib/saas-server";
 import { addDays } from "@/lib/saas-core";
+import { validateModuleSelection } from "@/lib/modules-catalog";
+import { seedCompanyModules } from "@/lib/modules-server";
 
 export async function GET(req: NextRequest) {
   const guard = await adminGuard(req);
@@ -76,6 +78,7 @@ export async function POST(req: NextRequest) {
     adminFullName?: string;
     planCode?: string; // Task 115 — اشتراك اختياري مع الإنشاء اليدوي
     subscriptionDays?: number; // Task 115 — مدة مخصصة بدل مدة الخطة
+    modules?: string[]; // خطة الأنشطة — الأنشطة المفعّلة مع الإنشاء (افتراضيًا مقاولات)
   };
   const name = String(body.name || "").trim();
   if (!name) return jsonError("اسم الشركة مطلوب");
@@ -100,6 +103,9 @@ export async function POST(req: NextRequest) {
   }
 
   const h = wantsAdmin ? hashPassword(adminPassword) : null;
+  // خطة الأنشطة: تنظيف الاختيار (افتراضيًا مقاولات) قبل الإنشاء
+  const modulesSel = validateModuleSelection(body.modules);
+  if (!modulesSel.ok) return jsonError(modulesSel.error);
   const company = await db.company.create({
     data: {
       name,
@@ -109,6 +115,8 @@ export async function POST(req: NextRequest) {
   });
   // قواعد ترحيل السندات الافتراضية للشركة الجديدة (Task 106) — بسياق الشركة المُنشأة
   await ensurePostingRules(forCompany(company.id));
+  // خطة الأنشطة — المرحلة A: بذر الأنشطة المختارة + قسم افتراضي لكل نشاط
+  await seedCompanyModules(company.id, modulesSel.codes, guard.user.username);
   if (wantsAdmin && h) {
     // مدير الشركة الأول — admin بصلاحيات دور المدير الافتراضية كاملة داخل شركته
     await db.user.create({
