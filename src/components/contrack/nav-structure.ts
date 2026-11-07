@@ -21,6 +21,7 @@ import {
   HardHat,
   Layers,
   LayoutDashboard,
+  LayoutGrid,
   LayoutTemplate,
   ListChecks,
   ListTodo,
@@ -38,7 +39,7 @@ import {
 } from "lucide-react";
 
 import type { ViewName } from "./contrack-types";
-import { REPORTS } from "./reports-list";
+import { REPORTS, reportCategory } from "./reports-list";
 
 /**
  * مواءمة تقارير الويب (reports-list keys) مع مفاتيح الصلاحيات المكتبية — المرحلة 2/ب:
@@ -79,6 +80,8 @@ export interface NavChild {
   flag?: string;
   /** مفتاح الصلاحية (المواءمة المكتبية) الذي يخفي البند عن من لا يملكه — المرحلة 2/ب */
   perm?: string;
+  /** ترويسة مجموعة داخل القائمة الجانبية — تُعرض قبل البند أول مرة يتغير فيها (Task 114) */
+  groupLabel?: string;
 }
 
 export interface NavModule {
@@ -164,17 +167,22 @@ export const NAV_MODULES: NavModule[] = [
     id: "reports",
     label: "التقارير",
     icon: BarChart3,
-    /** التقارير الـ11 بنودًا حقيقية — القائمة الجانبية الرسمية كالمحاسبة (توجيه المستخدم — الخيار 2) */
-    children: REPORTS.map((r) => ({
-      id: `report-${r.key}`,
-      label: r.label,
-      icon: r.icon,
-      view: "reports" as ViewName,
-      report: r.key,
-      // المرحلة 3/ب: مفتاح الميزة rep_* لكل تقرير (كالشجرة المكتبية)، والأساس «reports»
-      flag: r.flag ?? "reports",
-      perm: REPORT_PERM[r.key],
-    })),
+    /** Task 114: «نظرة عامة» أول بند — كل التقارير مصنفة في شاشة واحدة + القائمة الجانبية بمجموعات */
+    children: [
+      { id: "reports-home", label: "نظرة عامة", icon: LayoutGrid, view: "reports-home", perm: "screen_reports" },
+      ...REPORTS.map((r) => ({
+        id: `report-${r.key}`,
+        label: r.label,
+        icon: r.icon,
+        view: "reports" as ViewName,
+        report: r.key,
+        // المرحلة 3/ب: مفتاح الميزة rep_* لكل تقرير (كالشجرة المكتبية)، والأساس «reports»
+        flag: r.flag ?? "reports",
+        perm: REPORT_PERM[r.key],
+        // Task 114: ترويسة التصنيف في القائمة الجانبية (العملاء والتحصيل/العقود/الخزينة/المحاسبة)
+        groupLabel: reportCategory(r.category).label,
+      })),
+    ],
   },
   {
     id: "settings",

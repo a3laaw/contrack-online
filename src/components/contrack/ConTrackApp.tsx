@@ -37,6 +37,7 @@ import { BankReconView } from "./BankReconView";
 import { ZakatXbrlView } from "./ZakatXbrlView";
 import { SubcontractorsView } from "./SubcontractorsView";
 import { ReportsView } from "./ReportsView";
+import { ReportsHomeView } from "./ReportsHomeView";
 import { DEFAULT_REPORT_KEY } from "./reports-list";
 import { StatementView } from "./StatementView";
 import { FollowupView } from "./FollowupView";
@@ -397,6 +398,17 @@ function AppRoot() {
       {view === "bank-recon" && <BankReconView user={user} onAuthError={onAuthError} />}
       {view === "zakat-xbrl" && <ZakatXbrlView user={user} onAuthError={onAuthError} />}
       {view === "subcontractors" && <SubcontractorsView user={user} onAuthError={onAuthError} />}
+      {view === "reports-home" && (
+        <ReportsHomeView
+          user={user}
+          perms={perms}
+          onOpenReport={(key) => {
+            setReportsKey(key);
+            navigate("reports");
+          }}
+          onOpenView={(v) => navigate(v as ViewName)}
+        />
+      )}
       {view === "reports" && (
         <ReportsView user={user} onAuthError={onAuthError} selected={reportsKey} onSelect={setReportsKey} />
       )}

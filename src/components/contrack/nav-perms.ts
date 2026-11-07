@@ -96,6 +96,7 @@ export const VIEW_PERMS: Partial<Record<ViewName, string>> = {
   "bank-recon": "screen_bank_recon",
   "zakat-xbrl": "screen_zakat_xbrl",
   reports: "screen_reports",
+  "reports-home": "screen_reports",
   settings: "screen_settings",
 };
 

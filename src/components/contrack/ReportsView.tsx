@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +20,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -37,7 +40,7 @@ import { ApiError, apiGet, getStoredToken } from "./api";
 import type { ReportCellValue, ReportResponse, User } from "./contrack-types";
 import { errMessage } from "./contrack-types";
 import { fetchBlobDownload } from "@/lib/download-blob";
-import { REPORTS, visibleReports } from "./reports-list";
+import { REPORTS, REPORT_CATEGORIES, reportCategory, visibleReports } from "./reports-list";
 import { useFeatureFlags } from "./FeatureFlagsProvider";
 import { formatKWD } from "@/lib/format";
 import { monthlyChartData } from "@/lib/cashflow-modes-core";
@@ -214,11 +217,21 @@ export function ReportsView({ user: _user, onAuthError, selected, onSelect }: Re
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {visReports.map((r) => (
-                <SelectItem key={r.key} value={r.key}>
-                  {r.label}
-                </SelectItem>
-              ))}
+              {/* Task 114: منسدلة الجوال مصنفة بمجموعات المركز نفسها (لا قائمة مسطحة) */}
+              {REPORT_CATEGORIES.map((cat) => {
+                const items = visReports.filter((r) => r.category === cat.id);
+                if (items.length === 0) return null;
+                return (
+                  <SelectGroup key={cat.id}>
+                    <SelectLabel>{cat.label}</SelectLabel>
+                    {items.map((r) => (
+                      <SelectItem key={r.key} value={r.key}>
+                        {r.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                );
+              })}
             </SelectContent>
           </Select>
         </div>
@@ -227,9 +240,12 @@ export function ReportsView({ user: _user, onAuthError, selected, onSelect }: Re
           <Card>
             <CardContent className="flex flex-wrap items-end gap-3 p-3">
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <def.icon className="size-4 text-primary" />
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <def.icon className="size-4 shrink-0 text-primary" />
                   <h2 className="text-sm font-bold">{data?.title || def.label}</h2>
+                  <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal text-muted-foreground">
+                    {reportCategory(def.category).label}
+                  </Badge>
                 </div>
                 <p className="mt-0.5 text-xs text-muted-foreground">{def.desc}</p>
               </div>

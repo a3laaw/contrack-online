@@ -137,15 +137,18 @@ describe("visibleChildren — فلتر الشل (نقل من AppShell بلا ت�
     const ids = kids.map((c) => c.id);
     expect(ids).not.toContain("report-vouchers");
     expect(ids).toContain("report-stage-dues");
+    // Task 114 — «نظرة عامة» أول بند في الوحدة (باب screen_reports) ثم التقارير مصنفة
+    // بترتيب التصنيفات: العملاء والتحصيل ← العقود والتنفيذ ← الخزينة ← المحاسبة
     // افتراضيات السكرتير المكتبية تخفي 4 تقارير أصلًا (secretary=false في الكتالوج):
     // العملاء والأرصدة · الإيرادات (المنعة هنا) · المصروفات · التدفق · اليومية
     expect(ids).toEqual([
+      "reports-home",
       "report-stage-dues",
-      "report-supervision-delays",
-      "report-subcontractors",
+      "report-leads",
       "report-contracts",
       "report-execution",
-      "report-leads",
+      "report-supervision-delays",
+      "report-subcontractors",
     ]);
   });
 });

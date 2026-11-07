@@ -261,11 +261,19 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
           </div>
           <nav className="flex-1 overflow-y-auto p-2">
             <ul className="space-y-0.5">
-              {currentModule.children.map((child) => {
+              {currentModule.children.map((child, idx) => {
                 const Icon = child.icon;
                 const isActive = child.id === activeNav;
+                // Task 114: ترويسة المجموعة قبل أول بند يتغير فيها (البنود المرئية فقط — مفلترة أعلاه)
+                const prevGroup = idx > 0 ? currentModule.children[idx - 1].groupLabel : undefined;
+                const showGroup = !collapsed && !!child.groupLabel && child.groupLabel !== prevGroup;
                 return (
                   <li key={child.id}>
+                    {showGroup && (
+                      <div className="px-3 pb-1 pt-2.5 text-[11px] font-semibold text-muted-foreground/70">
+                        {child.groupLabel}
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() => pick(child)}
@@ -322,11 +330,18 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
                   {module.label}
                 </div>
                 <ul className="space-y-0.5">
-                  {kids.map((child) => {
+                  {kids.map((child, idx) => {
                     const Icon = child.icon;
                     const isActive = child.id === activeNav;
+                    const prevGroup = idx > 0 ? kids[idx - 1].groupLabel : undefined;
+                    const showGroup = !!child.groupLabel && child.groupLabel !== prevGroup;
                     return (
                       <li key={child.id}>
+                        {showGroup && (
+                          <div className="px-3 pb-1 pt-2 text-[11px] font-semibold text-muted-foreground/70">
+                            {child.groupLabel}
+                          </div>
+                        )}
                         <button
                           type="button"
                           onClick={() => pick(child)}
