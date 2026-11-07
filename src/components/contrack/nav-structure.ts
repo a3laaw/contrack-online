@@ -5,6 +5,9 @@ import {
   ArrowLeftRight,
   BarChart3,
   BookText,
+  Compass,
+  Network,
+  Timer,
   Scale,
   Landmark,
   FileBadge,
@@ -60,7 +63,7 @@ export const REPORT_PERM: Record<string, string> = {
 };
 
 /** معرّف الوحدات المعتمدة (توجيه المستخدم — تبويبات علوية) */
-export type ModuleId = "clients" | "subs" | "accounting" | "reports" | "settings";
+export type ModuleId = "clients" | "subs" | "consulting" | "accounting" | "reports" | "settings";
 
 /** بند فرعي داخل وحدة — الشاشة الواحدة مستوى تنقل فرعي واحد فقط */
 export interface NavChild {
@@ -92,12 +95,13 @@ export interface NavModule {
 }
 
 /**
- * هيكل التنقل المعتمد (5 تبويبات — توجيه المستخدم 2026-10-19: مركز التقارير تاب علوي):
+ * هيكل التنقل المعتمد (6 تبويبات — تبويب الاستشارات موديول مستقل يظهر لمن فعّله):
  *   1. العقود: اللوحة، المستحقات، العملاء، العقود، مجموعات العقود، مركز النماذج، المهام، الزيارات، التعليقات، المتابعة
  *   2. الباطن: مقاولو الباطن (ملف المقاول: العقود والدفعات والأوامر)
- *   3. المحاسبة: سندات القبض/الصرف، كشف الحساب، العُهد، السلف، البوابة، الشركة الأخرى، المطالبات، الفواتير
- *   4. التقارير: التقارير الـ11 بنودًا حقيقية في القائمة الجانبية الرسمية كالمحاسبة (توجيه المستخدم — الخيار 2)
- *   5. الإعدادات: الشركة، الطباعة، الأمان، المستخدمون، الأنواع، المصروفات، المراحل، الزيارات، النسخ، أدوات المطور
+ *   3. الاستشارات: الفريق الهندسي، إسناد المشاريع، ساعات العمل، الإجازات (موديول consulting)
+ *   4. المحاسبة: سندات القبض/الصرف، كشف الحساب، العُهد، السلف، البوابة، الشركة الأخرى، المطالبات، الفواتير
+ *   5. التقارير: التقارير الـ11 بنودًا حقيقية في القائمة الجانبية الرسمية كالمحاسبة (توجيه المستخدم — الخيار 2)
+ *   6. الإعدادات: الشركة، الطباعة، الأمان، المستخدمون، الأنواع، المصروفات، المراحل، الزيارات، النسخ، أدوات المطور
  * خارج النطاق (لا يُضاف): المشاريع، عروض الأسعار، الأرشيف، الواتساب، الاستيراد من Excel.
  */
 export const NAV_MODULES: NavModule[] = [
@@ -126,6 +130,19 @@ export const NAV_MODULES: NavModule[] = [
     icon: HardHat,
     children: [
       { id: "subcontractors", label: "مقاولو الباطن", icon: HardHat, view: "subcontractors", flag: "subcontractors", perm: "screen_subcontractors" },
+    ],
+  },
+  {
+    // الاستشارات الهندسية — موديول مستقل (navModules للكتالوج) يظهر حصرًا للشركات التي فعّلته،
+    // ويختفي دفعة واحدة عند إيقافه (تجميد قراءة فقط) — كالمكتبية بلا أي شروط إضافية
+    id: "consulting",
+    label: "الاستشارات",
+    icon: Compass,
+    children: [
+      { id: "consulting-team", label: "الفريق الهندسي", icon: UsersRound, view: "consulting", section: "team", perm: "screen_consulting" },
+      { id: "consulting-assignments", label: "إسناد المشاريع", icon: Network, view: "consulting", section: "assignments", perm: "screen_consulting" },
+      { id: "consulting-timesheets", label: "ساعات العمل", icon: Timer, view: "consulting", section: "timesheets", perm: "screen_consulting" },
+      { id: "consulting-leaves", label: "الإجازات", icon: CalendarDays, view: "consulting", section: "leaves", perm: "screen_consulting" },
     ],
   },
   {

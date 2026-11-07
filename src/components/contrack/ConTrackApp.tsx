@@ -36,6 +36,7 @@ import { FinancialStatementsView } from "./FinancialStatementsView";
 import { BankReconView } from "./BankReconView";
 import { ZakatXbrlView } from "./ZakatXbrlView";
 import { SubcontractorsView } from "./SubcontractorsView";
+import { ConsultingView, type ConsultingSection } from "./ConsultingView";
 import { ReportsView } from "./ReportsView";
 import { ReportsHomeView } from "./ReportsHomeView";
 import { DEFAULT_REPORT_KEY } from "./reports-list";
@@ -117,11 +118,12 @@ function AppRoot() {
   // Task 106 — فتح قيد سند في القيود اليومية بالبحث برقمه
   const [journalPresetQ, setJournalPresetQ] = React.useState<string | null>(null);
 
-  // ===== وضع السندات وأقسام الإعدادات وإدارة البيانات والتقارير (هيكل التنقل المعتمد) =====
+  // ===== وضع السندات وأقسام الإعدادات وإدارة البيانات والتقارير والاستشارات (هيكل التنقل المعتمد) =====
   const [vouchersMode, setVouchersMode] = React.useState<"receipt" | "payment">("receipt");
   const [settingsSection, setSettingsSection] = React.useState<string>("company");
   const [dmSection, setDmSection] = React.useState<string>("backup");
   const [reportsKey, setReportsKey] = React.useState<string>(DEFAULT_REPORT_KEY);
+  const [consultingSection, setConsultingSection] = React.useState<ConsultingSection>("team");
 
   // معرّف البند النشط في القائمة الجانبية (يحدد الوحدة والبند المُبرز)
   const activeNav =
@@ -134,6 +136,9 @@ function AppRoot() {
         : view === "settings"
         ? (NAV_MODULES.flatMap((m) => m.children).find((c) => c.view === "settings" && c.section === settingsSection)?.id ??
           "settings-printing")
+        : view === "consulting"
+        ? (NAV_MODULES.flatMap((m) => m.children).find((c) => c.view === "consulting" && c.section === consultingSection)?.id ??
+          "consulting-team")
         : view === "data-mgmt"
           ? dmSection === "devtools"
             ? "devtools"
@@ -159,6 +164,7 @@ function AppRoot() {
       if (child.view === "settings" && child.section) setSettingsSection(child.section);
       if (child.view === "data-mgmt" && child.section) setDmSection(child.section);
       if (child.view === "reports" && child.report) setReportsKey(child.report);
+      if (child.view === "consulting" && child.section) setConsultingSection(child.section as ConsultingSection);
       setView(child.view);
       if (child.view !== "contract") setContractId(null);
       if (child.view !== "customer-file") setCustomerFileId(null);
@@ -398,6 +404,14 @@ function AppRoot() {
       {view === "bank-recon" && <BankReconView user={user} onAuthError={onAuthError} />}
       {view === "zakat-xbrl" && <ZakatXbrlView user={user} onAuthError={onAuthError} />}
       {view === "subcontractors" && <SubcontractorsView user={user} onAuthError={onAuthError} />}
+      {view === "consulting" && (
+        <ConsultingView
+          user={user}
+          onAuthError={onAuthError}
+          section={consultingSection}
+          onSectionChange={setConsultingSection}
+        />
+      )}
       {view === "reports-home" && (
         <ReportsHomeView
           user={user}

@@ -233,6 +233,9 @@ model Contract {
   contractScopes    ContractScope[]
   stageNotes        StageNote[]
   txMessages        TxMessage[]
+  // الاستشارات الهندسية — نقطة الربط HR↔العقود (إسنادات المهندسين وساعاتهم)
+  engAssignments    EngineerAssignment[]
+  engTimesheets     EngineerTimesheet[]
 
   @@index([customerId, status])
   @@unique([companyId, contractNumber])
@@ -1719,4 +1722,96 @@ model Division {
   @@unique([companyId, code])
   @@index([companyId])
   @@map("divisions")
+}
+
+// ==================== الاستشارات الهندسية (موديول consulting — خطة الأنشطة) ====================
+// كيان «المهندس» مستقل عن Employee (موظفو السلف في العُهد) — نطاقه موديول الاستشارات حصرًا.
+// إيقاف الموديول = تجميد قراءة فقط كما باقي الأنشطة — البيانات لا تُحذف أبدًا.
+
+/** المهندس/موظف الاستشارات — التخصص والترخيص المهني (عضوية الهيئة/الترخيص) مع تنبيه قبل انتهائه */
+model Engineer {
+  companyId     Int      @default(1) @map("company_id")
+  id            Int      @id @default(autoincrement())
+  name          String
+  jobTitle      String   @default("") @map("job_title") // المسمى: مدير مشروع / مهندس تصميم / مهندس إشراف…
+  specialty     String   @default("") // التخصص الهندسي: عمارة / إنشائي / كهرباء / ميكانيكا…
+  civilId       String   @default("") @map("civil_id") // الرقم المدني الكويتي
+  nationality   String   @default("")
+  phone         String   @default("")
+  email         String   @default("")
+  licenseNo     String   @default("") @map("license_no") // رقم العضوية/الترخيص المهني
+  licenseExpiry String   @default("") @map("license_expiry") // YYYY-MM-DD — مصدر تنبيه القرب
+  hireDate      String   @default("") @map("hire_date")
+  baseSalary    Decimal  @default(0) @map("base_salary") // استرشادي — مسير الرواتب بمرحلة لاحقة
+  status        String   @default("نشط") // نشط | في إجازة | موقوف | منتهي الخدمة
+  notes         String   @default("")
+  assignments   EngineerAssignment[]
+  timesheets    EngineerTimesheet[]
+  leaves        EngineerLeave[]
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("engineers")
+}
+
+/** إسناد مهندس إلى عقد/مشروع — نقطة الربط HR↔العقود (الأهم في تصميم الاستشارات) */
+model EngineerAssignment {
+  companyId     Int      @default(1) @map("company_id")
+  id            Int      @id @default(autoincrement())
+  engineerId    Int      @map("engineer_id")
+  engineer      Engineer @relation(fields: [engineerId], references: [id], onDelete: Cascade)
+  contractId    Int      @map("contract_id")
+  contract      Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  role          String   @default("") // الدور في المشروع: مدير المشروع / مصمم / مشرف…
+  allocationPct Decimal  @default(0) @map("allocation_pct") // نسبة الإخصاص %
+  startDate     String   @default("") @map("start_date")
+  endDate       String   @default("") @map("end_date")
+  status        String   @default("سارية") // سارية | منتهية
+  notes         String   @default("")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([engineerId])
+  @@index([contractId])
+  @@map("engineer_assignments")
+}
+
+/** ساعات العمل على المشاريع — المخططات والإشراف والمراجعات (ربط العقد اختياري للساعات الإدارية) */
+model EngineerTimesheet {
+  companyId  Int       @default(1) @map("company_id")
+  id         Int       @id @default(autoincrement())
+  engineerId Int       @map("engineer_id")
+  engineer   Engineer  @relation(fields: [engineerId], references: [id], onDelete: Cascade)
+  contractId Int?      @map("contract_id")
+  contract   Contract? @relation(fields: [contractId], references: [id])
+  workDate   String    @map("work_date") // YYYY-MM-DD
+  hours      Decimal   @default(0)
+  activity   String    @default("") // تصميم | إشراف | مراجعة | اجتماع | زيارة موقع | إداري
+  notes      String    @default("")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([engineerId, workDate])
+  @@index([contractId])
+  @@map("engineer_timesheets")
+}
+
+/** طلب إجازة مهندس — سير موافقة بسيط: معلقة ثم اعتماد/رفض بسبب موثق */
+model EngineerLeave {
+  companyId  Int      @default(1) @map("company_id")
+  id         Int      @id @default(autoincrement())
+  engineerId Int      @map("engineer_id")
+  engineer   Engineer @relation(fields: [engineerId], references: [id], onDelete: Cascade)
+  leaveType  String   @map("leave_type") // سنوية | مرضية | طارئة | بدون راتب
+  startDate  String   @map("start_date") // YYYY-MM-DD
+  endDate    String   @map("end_date") // YYYY-MM-DD
+  days       Decimal  @default(0)
+  status     String   @default("معلقة") // معلقة | معتمدة | مرفوضة
+  reason     String   @default("")
+  decisionBy String   @default("") @map("decision_by")
+  decisionAt String   @default("") @map("decision_at")
+  decisionNote String @default("") @map("decision_note") // سبب الرفض/ملاحظة الاعتماد — توثيق إلزامي عند الرفض
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([engineerId, status])
+  @@map("engineer_leaves")
 }

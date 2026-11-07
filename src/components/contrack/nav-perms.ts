@@ -80,6 +80,7 @@ export const VIEW_PERMS: Partial<Record<ViewName, string>> = {
   visits: "screen_visits",
   followup: "screen_followup",
   subcontractors: "screen_subcontractors",
+  consulting: "screen_consulting",
   vouchers: "screen_vouchers",
   statement: "screen_statement",
   custody: "screen_custody",

@@ -42,6 +42,8 @@ export const PERMISSIONS: { key: string; label: string; group: string; secretary
   { key: "screen_financial_statements", label: "شاشة القوائم المالية (القرار 44/2016)", group: "الشاشات", secretary: true },
   { key: "screen_bank_recon", label: "شاشة التسوية البنكية وتقرير الفوارق", group: "الشاشات", secretary: true },
   { key: "screen_zakat_xbrl", label: "شاشة الزكاة والتقديم الإلكتروني (XBRL)", group: "الشاشات", secretary: false },
+  // مفتاح ويب-فقط لموديول الاستشارات الهندسية (خطة الأنشطة) — بلا مقابل مكتبي: secretary:true للحفاظ على السلوك
+  { key: "screen_consulting", label: "شاشة الاستشارات الهندسية (الفريق/الإسناد/الساعات/الإجازات)", group: "الشاشات", secretary: true },
   // ---------- التقارير ----------
   { key: "report_customers_balances", label: "تقرير العملاء والأرصدة", group: "التقارير", secretary: false, desktop: "rep_customers" },
   { key: "report_stage_dues", label: "مستحقات المراحل", group: "التقارير", secretary: true, desktop: "rep_dues_board" },

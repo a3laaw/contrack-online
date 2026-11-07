@@ -43,10 +43,10 @@ export const MODULE_CATALOG: ModuleDef[] = [
     code: "consulting",
     name: "الاستشارات الهندسية",
     icon: "compass",
-    desc: "مكاتب الاستشارات: المهندسون بتخصصاتهم وتراخيصهم وإسنادهم للمشاريع وساعاتهم على المخططات والإشراف",
-    available: false,
+    desc: "مكاتب الاستشارات: الفريق الهندسي بتخصصاتهم وتراخيصهم، إسنادهم للمشاريع، ساعاتهم على المخططات والإشراف، وإجازاتهم",
+    available: true,
     core: false,
-    navModules: [],
+    navModules: ["consulting"],
   },
   {
     code: "warehouses",

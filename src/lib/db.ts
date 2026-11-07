@@ -56,6 +56,8 @@ const TENANT_MODELS = new Set<string>([
   "taxDeclaration",
   // Task 113 — التسوية البنكية: خرائط الكشوف وإقفالاتها لكل شركة
   "bankMap", "bankRecon",
+  // الاستشارات الهندسية (موديول consulting — خطة الأنشطة): الفريق والإسنادات والساعات والإجازات
+  "engineer", "engineerAssignment", "engineerTimesheet", "engineerLeave",
 ]);
 
 interface Ctx { companyId: number }

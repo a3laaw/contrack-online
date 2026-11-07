@@ -11,6 +11,7 @@ import {
   SessionUser,
 } from "@/lib/auth";
 import { currentCompanyId } from "@/lib/db";
+import { enabledModuleCodes } from "@/lib/modules-server";
 import { isEffectivelyEnabled } from "@/lib/feature-flags";
 
 export { unauthorized, forbidden } from "@/lib/auth";
@@ -42,6 +43,22 @@ export async function adminGuard(req: NextRequest): Promise<{ user: SessionUser 
   if (!user) return { response: unauthorized() };
   if (!isSuperRole(user.role)) return { response: forbidden("هذا الإجراء للمدير فقط") };
   return { user };
+}
+
+/**
+ * حارس الموديول (خطة الأنشطة) — يمنع مسارات نشاطٍ لم تُفعّله الشركة برسالة عربية (403)،
+ * ويسمح للمطور (companyId=0/بلا سياق) كما الشل. يُستدعى بعد authGuard في مسارات الموديولات.
+ * الإيقاف = تجميد: المسارات ترفض الكتابة والقراءة معًا والبيانات باقية كاملة.
+ */
+export async function moduleGuard(
+  companyId: number | null | undefined,
+  code: string,
+  label?: string
+): Promise<NextResponse | null> {
+  if (companyId == null || companyId <= 0) return null; // المطور بلا شركة — الكل
+  const codes = await enabledModuleCodes(companyId);
+  if (codes && codes.includes(code)) return null;
+  return jsonError(`نشاط «${label || code}» غير مفعّل لهذه الشركة — التفعيل من لوحة المطور`, 403);
 }
 
 /**
