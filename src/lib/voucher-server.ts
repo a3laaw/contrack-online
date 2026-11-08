@@ -1076,6 +1076,192 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
   return base;
 }
 
+/**
+ * النواة داخل المعاملة — إنشاء السند بترقيمه وقيدِه وتخصيص فواتيره وaudit داخل tx قائمة.
+ * تستهلكها createVoucher (بمعاملتها الخاصة وإعادة المحاولة) ونقاط البيع
+ * (داخل معاملة البيع الكبرى — docs/sales-design.md §5: فاتورة + سند + إذن صرف بمعاملة واحدة).
+ */
+export async function createVoucherTx(
+  tx: Tx,
+  prep: PreparedVoucher,
+  user: { id: number; username: string; role: string },
+  input: { links?: { lineId: number; amount: number }[] } = {}
+): Promise<{ id: number; voucherNumber: string }> {
+  const voucherNumber = await nextNumber(VOUCHER_PREFIX[prep.vtype], 4, tx);
+  const voucher = await tx.voucher.create({
+    data: {
+      voucherNumber,
+      vtype: prep.vtype,
+      vdate: prep.vdate,
+      party: prep.party,
+      partyType: prep.partyType,
+      partyId: prep.partyId,
+      method: prep.method,
+      account: prep.account,
+      accountId: prep.accountId,
+      accountSnapshot: prep.accountSnapshot || null,
+      custodyAccountId: prep.custodyAccountId,
+      advanceEmployeeId: prep.advanceEmployeeId,
+      amount: prep.amount,
+      description: prep.description,
+      notes: prep.notes,
+      contractId: prep.contractId,
+      subContractId: prep.subContractId,
+      boqItemId: prep.boqItemId,
+      costCenter: prep.costCenter,
+      expenseCustomerId: prep.expenseCustomerId,
+      chequeDueDate: prep.chequeDueDate,
+      allocation: prep.allocation,
+    },
+  });
+
+  // الروابط الصريحة (قبض على payment_plan / صرف على sub_payment_plan)
+  if ((prep.vtype === "receipt" || prep.vtype === "payment") && prep.lines) {
+    if ((input.links || []).length > 0) {
+      const chk = checkSelection((input.links || []).map((l) => intOr(l.lineId, 0)), prep.lines, prep.gatedIds);
+      if (!chk.valid) throw new VoucherError(chk.message);
+    }
+    const res = await applyLinks(tx, {
+      voucherId: voucher.id,
+      kind: prep.vtype === "receipt" ? "receipt" : "payment",
+      amount: prep.amount,
+      links: input.links || [],
+      lines: prep.lines,
+      gatedIds: prep.gatedIds,
+    });
+    if (res.advance > 0) {
+      await tx.voucher.update({ where: { id: voucher.id }, data: { advanceAmount: res.advance } });
+    }
+  }
+
+  // Task 107 — تخصيص القبض على فواتير العميل المفتوحة FIFO (المصدر الوحيد لحالة السداد)
+  let invoiceAllocations: VoucherJournalInvoiceAllocation[] = [];
+  if (prep.vtype === "receipt") {
+    invoiceAllocations = await reallocateVoucherInvoiceLinks(tx, {
+      id: voucher.id,
+      voucherNumber,
+      vtype: prep.vtype,
+      cancelled: false,
+      amount: Number(prep.amount),
+      customerId: prep.expenseCustomerId ?? (prep.partyType === "customer" ? prep.partyId : null),
+      contractId: prep.contractId,
+    });
+  }
+
+  // القيد المحاسبي التلقائي
+  await insertVoucherJournal(tx, {
+    id: voucher.id,
+    voucherNumber: voucher.voucherNumber,
+    vtype: prep.vtype,
+    vdate: prep.vdate,
+    amount: prep.amount,
+    account: prep.account,
+    method: prep.method,
+    contractId: prep.contractId,
+    subContractId: prep.subContractId,
+    accountId: prep.accountId,
+    custodyAccountId: prep.custodyAccountId,
+    accountSnapshot: prep.accountSnapshot,
+    partyType: prep.partyType,
+    // الأبعاد الكاملة على سطر القيد (Task 106)
+    customerId: prep.expenseCustomerId ?? (prep.partyType === "customer" ? prep.partyId : null),
+    boqItemId: prep.boqItemId,
+    employeeId: prep.advanceEmployeeId,
+    costCenter: prep.costCenter,
+    // تخصيص السداد على الفواتير (Task 107) — يفتح دائنًا إضافيًا على الذمم
+    invoiceAllocations,
+  });
+
+  // الرسوم البنكية للقبض
+  if (prep.vtype === "receipt") {
+    const settings = await getSettingsRow(tx);
+    const methods = await tx.paymentMethod.findMany();
+    const fee = receiptBankFee(
+      prep.method,
+      prep.amount,
+      methods.map((m) => ({ name: m.name, feeType: m.feeType, feeValue: Number(m.feeValue), isActive: m.isActive })),
+      {
+        bankFeeAmount: Number(settings.bankFeeAmount),
+        bankFeeMethod: settings.bankFeeMethod,
+        bankFeeEnabled: settings.bankFeeEnabled,
+      }
+    );
+    if (fee > EPS) {
+      if (prep.contractId) {
+        await createFeeChildVoucher(tx, {
+          parent: {
+            id: voucher.id,
+            voucherNumber: voucher.voucherNumber,
+            vdate: prep.vdate,
+            method: prep.method,
+            account: prep.account,
+            contractId: prep.contractId,
+          },
+          fee,
+        });
+      } else {
+        // قبض بلا عقد: سند ابن واحد + توزيع بالقيمة في القيود
+        const child = await createFeeChildVoucher(tx, {
+          parent: {
+            id: voucher.id,
+            voucherNumber: voucher.voucherNumber,
+            vdate: prep.vdate,
+            method: prep.method,
+            account: prep.account,
+            contractId: null,
+          },
+          fee,
+          allocationRows: [],
+        });
+        const allocContracts = await activeContractsForAllocation(tx);
+        const rows = allocateByValue(fee, allocContracts);
+        for (const row of rows) {
+          await postNamedEntry(tx, {
+            entryDate: prep.vdate,
+            description: `توزيع رسوم بنكية بالقيمة عن ${voucher.voucherNumber}`,
+            debit: { name: "عمولات بنكية" },
+            credit: { name: prep.account || "البنك" },
+            amount: row.amount,
+            dims: { contractId: row.contractId },
+            sourceType: "bank_fee_alloc",
+            sourceId: child.id,
+          });
+        }
+      }
+    }
+  }
+
+  // الأحداث والتعليق التلقائي
+  if (prep.contractId) {
+    await tx.contractEvent.create({
+      data: {
+        contractId: prep.contractId,
+        eventType: VOUCHER_TYPE_LABELS[prep.vtype],
+        description: `${VOUCHER_TYPE_LABELS[prep.vtype]} ${voucher.voucherNumber} بمبلغ ${prep.amount}${prep.party ? ` — ${prep.party}` : ""}`,
+        username: user.username,
+      },
+    });
+    if (prep.vtype === "receipt" && prep.newCollected !== undefined && prep.current !== undefined && prep.newCollected > prep.current + EPS) {
+      await tx.contractEvent.create({
+        data: {
+          contractId: prep.contractId,
+          eventType: "تعليق تلقائي",
+          description: `يوجد دفع مقدم/زيادة: ${r3(prep.newCollected - prep.current)}`,
+          username: user.username,
+        },
+      });
+    }
+  }
+  await audit(tx, {
+    username: user.username,
+    action: "إنشاء",
+    entityType: "voucher",
+    entityId: voucher.id,
+    entityName: voucher.voucherNumber,
+  });
+  return { id: voucher.id, voucherNumber: voucher.voucherNumber };
+}
+
 /** إنشاء السند داخل معاملة مع إعادة المحاولة عند تضارب الترقيم (5×) */
 export async function createVoucher(
   input: CreateVoucherInput,
@@ -1085,182 +1271,8 @@ export async function createVoucher(
   let lastError: unknown = null;
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      const created = await db.$transaction(async (tx) => {
-        const voucherNumber = await nextNumber(VOUCHER_PREFIX[prep.vtype], 4, tx);
-        const voucher = await tx.voucher.create({
-          data: {
-            voucherNumber,
-            vtype: prep.vtype,
-            vdate: prep.vdate,
-            party: prep.party,
-            partyType: prep.partyType,
-            partyId: prep.partyId,
-            method: prep.method,
-            account: prep.account,
-            accountId: prep.accountId,
-            accountSnapshot: prep.accountSnapshot || null,
-            custodyAccountId: prep.custodyAccountId,
-            advanceEmployeeId: prep.advanceEmployeeId,
-            amount: prep.amount,
-            description: prep.description,
-            notes: prep.notes,
-            contractId: prep.contractId,
-            subContractId: prep.subContractId,
-            boqItemId: prep.boqItemId,
-            costCenter: prep.costCenter,
-            expenseCustomerId: prep.expenseCustomerId,
-            chequeDueDate: prep.chequeDueDate,
-            allocation: prep.allocation,
-          },
-        });
-
-        // الروابط الصريحة (قبض على payment_plan / صرف على sub_payment_plan)
-        if ((prep.vtype === "receipt" || prep.vtype === "payment") && prep.lines) {
-          if ((input.links || []).length > 0) {
-            const chk = checkSelection((input.links || []).map((l) => intOr(l.lineId, 0)), prep.lines, prep.gatedIds);
-            if (!chk.valid) throw new VoucherError(chk.message);
-          }
-          const res = await applyLinks(tx, {
-            voucherId: voucher.id,
-            kind: prep.vtype === "receipt" ? "receipt" : "payment",
-            amount: prep.amount,
-            links: input.links || [],
-            lines: prep.lines,
-            gatedIds: prep.gatedIds,
-          });
-          if (res.advance > 0) {
-            await tx.voucher.update({ where: { id: voucher.id }, data: { advanceAmount: res.advance } });
-          }
-        }
-
-        // Task 107 — تخصيص القبض على فواتير العميل المفتوحة FIFO (المصدر الوحيد لحالة السداد)
-        let invoiceAllocations: VoucherJournalInvoiceAllocation[] = [];
-        if (prep.vtype === "receipt") {
-          invoiceAllocations = await reallocateVoucherInvoiceLinks(tx, {
-            id: voucher.id,
-            voucherNumber,
-            vtype: prep.vtype,
-            cancelled: false,
-            amount: Number(prep.amount),
-            customerId: prep.expenseCustomerId ?? (prep.partyType === "customer" ? prep.partyId : null),
-            contractId: prep.contractId,
-          });
-        }
-
-        // القيد المحاسبي التلقائي
-        await insertVoucherJournal(tx, {
-          id: voucher.id,
-          voucherNumber: voucher.voucherNumber,
-          vtype: prep.vtype,
-          vdate: prep.vdate,
-          amount: prep.amount,
-          account: prep.account,
-          method: prep.method,
-          contractId: prep.contractId,
-          subContractId: prep.subContractId,
-          accountId: prep.accountId,
-          custodyAccountId: prep.custodyAccountId,
-          accountSnapshot: prep.accountSnapshot,
-          partyType: prep.partyType,
-          // الأبعاد الكاملة على سطر القيد (Task 106)
-          customerId: prep.expenseCustomerId ?? (prep.partyType === "customer" ? prep.partyId : null),
-          boqItemId: prep.boqItemId,
-          employeeId: prep.advanceEmployeeId,
-          costCenter: prep.costCenter,
-          // تخصيص السداد على الفواتير (Task 107) — يفتح دائنًا إضافيًا على الذمم
-          invoiceAllocations,
-        });
-
-        // الرسوم البنكية للقبض
-        if (prep.vtype === "receipt") {
-          const settings = await getSettingsRow(tx);
-          const methods = await tx.paymentMethod.findMany();
-          const fee = receiptBankFee(
-            prep.method,
-            prep.amount,
-            methods.map((m) => ({ name: m.name, feeType: m.feeType, feeValue: Number(m.feeValue), isActive: m.isActive })),
-            {
-              bankFeeAmount: Number(settings.bankFeeAmount),
-              bankFeeMethod: settings.bankFeeMethod,
-              bankFeeEnabled: settings.bankFeeEnabled,
-            }
-          );
-          if (fee > EPS) {
-            if (prep.contractId) {
-              await createFeeChildVoucher(tx, {
-                parent: {
-                  id: voucher.id,
-                  voucherNumber: voucher.voucherNumber,
-                  vdate: prep.vdate,
-                  method: prep.method,
-                  account: prep.account,
-                  contractId: prep.contractId,
-                },
-                fee,
-              });
-            } else {
-              // قبض بلا عقد: سند ابن واحد + توزيع بالقيمة في القيود
-              const child = await createFeeChildVoucher(tx, {
-                parent: {
-                  id: voucher.id,
-                  voucherNumber: voucher.voucherNumber,
-                  vdate: prep.vdate,
-                  method: prep.method,
-                  account: prep.account,
-                  contractId: null,
-                },
-                fee,
-                allocationRows: [],
-              });
-              const allocContracts = await activeContractsForAllocation(tx);
-              const rows = allocateByValue(fee, allocContracts);
-              for (const row of rows) {
-                await postNamedEntry(tx, {
-                  entryDate: prep.vdate,
-                  description: `توزيع رسوم بنكية بالقيمة عن ${voucher.voucherNumber}`,
-                  debit: { name: "عمولات بنكية" },
-                  credit: { name: prep.account || "البنك" },
-                  amount: row.amount,
-                  dims: { contractId: row.contractId },
-                  sourceType: "bank_fee_alloc",
-                  sourceId: child.id,
-                });
-              }
-            }
-          }
-        }
-
-        // الأحداث والتعليق التلقائي
-        if (prep.contractId) {
-          await tx.contractEvent.create({
-            data: {
-              contractId: prep.contractId,
-              eventType: VOUCHER_TYPE_LABELS[prep.vtype],
-              description: `${VOUCHER_TYPE_LABELS[prep.vtype]} ${voucher.voucherNumber} بمبلغ ${prep.amount}${prep.party ? ` — ${prep.party}` : ""}`,
-              username: user.username,
-            },
-          });
-          if (prep.vtype === "receipt" && prep.newCollected !== undefined && prep.current !== undefined && prep.newCollected > prep.current + EPS) {
-            await tx.contractEvent.create({
-              data: {
-                contractId: prep.contractId,
-                eventType: "تعليق تلقائي",
-                description: `يوجد دفع مقدم/زيادة: ${r3(prep.newCollected - prep.current)}`,
-                username: user.username,
-              },
-            });
-          }
-        }
-        await audit(tx, {
-          username: user.username,
-          action: "إنشاء",
-          entityType: "voucher",
-          entityId: voucher.id,
-          entityName: voucher.voucherNumber,
-        });
-        return voucher;
-      });
-      return { id: created.id, voucherNumber: created.voucherNumber };
+      const created = await db.$transaction((tx) => createVoucherTx(tx, prep, user, input));
+      return created;
     } catch (e) {
       if (e instanceof VoucherError) throw e;
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002" && attempt < 4) {

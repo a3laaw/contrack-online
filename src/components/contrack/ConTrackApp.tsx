@@ -39,6 +39,7 @@ import { SubcontractorsView } from "./SubcontractorsView";
 import { ConsultingView, type ConsultingSection } from "./ConsultingView";
 import { HRView, type HRSection } from "./HRView";
 import { WarehousesView, type WarehousesSection } from "./WarehousesView";
+import { SalesView, type SalesSection } from "./SalesView";
 import { ReportsView } from "./ReportsView";
 import { ReportsHomeView } from "./ReportsHomeView";
 import { DEFAULT_REPORT_KEY } from "./reports-list";
@@ -129,6 +130,8 @@ function AppRoot() {
   const [hrSection, setHrSection] = React.useState<HRSection>("team");
   // المخازن — قسم الشاشة الموحدة (مرآة أقسام HR/الاستشارات)
   const [warehousesSection, setWarehousesSection] = React.useState<WarehousesSection>("items");
+  // المبيعات — قسم الشاشة الموحدة (عروض الأسعار / نقاط البيع)
+  const [salesSection, setSalesSection] = React.useState<SalesSection>("quotes");
 
   // معرّف البند النشط في القائمة الجانبية (يحدد الوحدة والبند المُبرز)
   const activeNav =
@@ -150,6 +153,9 @@ function AppRoot() {
         : view === "warehouses"
         ? (NAV_MODULES.flatMap((m) => m.children).find((c) => c.view === "warehouses" && c.section === warehousesSection)?.id ??
           "wh-items")
+        : view === "sales"
+        ? (NAV_MODULES.flatMap((m) => m.children).find((c) => c.view === "sales" && c.section === salesSection)?.id ??
+          "sales-quotes")
         : view === "data-mgmt"
           ? dmSection === "devtools"
             ? "devtools"
@@ -178,6 +184,7 @@ function AppRoot() {
       if (child.view === "consulting" && child.section) setConsultingSection(child.section as ConsultingSection);
       if (child.view === "hr" && child.section) setHrSection(child.section as HRSection);
       if (child.view === "warehouses" && child.section) setWarehousesSection(child.section as WarehousesSection);
+      if (child.view === "sales" && child.section) setSalesSection(child.section as SalesSection);
       setView(child.view);
       if (child.view !== "contract") setContractId(null);
       if (child.view !== "customer-file") setCustomerFileId(null);
@@ -428,6 +435,9 @@ function AppRoot() {
       {view === "hr" && <HRView user={user} onAuthError={onAuthError} section={hrSection} onSectionChange={setHrSection} />}
       {view === "warehouses" && (
         <WarehousesView user={user} onAuthError={onAuthError} section={warehousesSection} onSectionChange={setWarehousesSection} />
+      )}
+      {view === "sales" && (
+        <SalesView user={user} onAuthError={onAuthError} section={salesSection} onSectionChange={setSalesSection} />
       )}
       {view === "reports-home" && (
         <ReportsHomeView

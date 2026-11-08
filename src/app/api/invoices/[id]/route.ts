@@ -10,6 +10,7 @@ import {
   voidInvoiceTx,
   type InvoiceItemInputRow,
 } from "@/lib/invoice-server";
+import { voidPosLinkedTx } from "@/lib/sales-server";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -112,6 +113,10 @@ export async function PATCH(req: NextRequest, { params }: P) {
             include: { customer: { select: { name: true } }, contract: { select: { id: true, contractNumber: true } } },
           });
           if (!inv) throw new Error("الفاتورة غير موجودة");
+          // المبيعات (docs/sales-design.md د8): الإلغاء الشامل — إذن الصرف الآلي أولًا ثم
+          // سندات القبض المرتبطة بعكسها، ثم عكس الإصدار في voidInvoiceTx (الفاتورة العادية
+          // بلا saleDocs ولا سندات تمر كما كان حرفيًا — لا فحص إضافي).
+          const posUndo = await voidPosLinkedTx(tx, id, reason, guard.user.username);
           const res = await voidInvoiceTx(tx, id, reason, guard.user.username);
           if (inv.contractId) {
             await tx.contractEvent.create({
@@ -131,7 +136,7 @@ export async function PATCH(req: NextRequest, { params }: P) {
             entityName: res.invoiceNumber,
             reason,
           });
-          return { invoiceNumber: res.invoiceNumber, reversedEntryId: res.reversedEntryId };
+          return { invoiceNumber: res.invoiceNumber, reversedEntryId: res.reversedEntryId, posUndo };
         },
         { timeout: 30_000, maxWait: 10_000 }
       );

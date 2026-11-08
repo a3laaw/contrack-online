@@ -74,3 +74,7 @@ restore_source.py
 
 # نسخ البيانات الاحتياطية المحلية
 backups/
+
+# postgres محلي للتحقق الحي (بيئة التطوير فقط)
+.pgdata/
+.pgsock/

@@ -1199,6 +1199,7 @@ model Invoice {
   updatedAt     DateTime  @updatedAt @map("updated_at")
   items         InvoiceItem[]
   paymentLinks  InvoicePaymentLink[]
+  saleDocs      StockDoc[] @relation("SaleInvoiceDocs") // أذون الصرف المخزني الآلية للبيع (موديول المبيعات — docs/sales-design.md §3)
 
   @@unique([companyId, invoiceNo])
   @@unique([companyId, invoiceNumber])
@@ -1220,8 +1221,12 @@ model InvoiceItem {
   discountPct Decimal @default(0) @db.Decimal(5, 2) @map("discount_pct") // 0–100
   lineTotal   Decimal @default(0) @db.Decimal(18, 3) @map("line_total") // qty×price×(1−disc)
   sortOrder   Int     @default(0) @map("sort_order")
+  // موديول المبيعات (docs/sales-design.md §3): سطر مخزني بـitemId ⇒ صرف آلي بقيد تكلفة المبيعات — الفارغ سطر حر
+  itemId      Int?      @map("item_id")
+  item        StockItem? @relation(fields: [itemId], references: [id])
 
   @@index([invoiceId])
+  @@index([itemId])
   @@map("invoice_items")
 }
 
@@ -2133,6 +2138,7 @@ model StockItem {
   notes     String         @default("")
   createdAt DateTime       @default(now()) @map("created_at")
   docLines  StockDocLine[]
+  invoiceItems InvoiceItem[] // بنود الفواتير المخزنية (المبيعات — علاقة عكسية)
 
   @@unique([companyId, name])
   @@map("stock_items")
@@ -2158,6 +2164,9 @@ model StockDoc {
   payAccountName    String        @default("") @map("pay_account_name") // لقطة اسم حساب الدفع
   journalEntryId    Int?          @map("journal_entry_id")
   journalEntry      JournalEntry? @relation("StockDocEntry", fields: [journalEntryId], references: [id]) // القيد المرتبط (نمط السندات)
+  // موديول المبيعات (docs/sales-design.md §3): إذن الصرف الآلي للبيع — مرتبط بفاتورة بلا عقد، وSetNull مع حذف الفاتورة
+  saleInvoiceId     Int?          @map("sale_invoice_id")
+  saleInvoice       Invoice?      @relation("SaleInvoiceDocs", fields: [saleInvoiceId], references: [id])
   totalAmount       Decimal       @default(0) @db.Decimal(18, 3) @map("total_amount") // مجمّد على الرأس لحظة الحفظ
   status            String        @default("posted") // posted | cancelled — لا مسودات (د6)
   cancelReason      String        @default("") @map("cancel_reason")

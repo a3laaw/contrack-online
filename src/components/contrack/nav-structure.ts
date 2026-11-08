@@ -47,6 +47,9 @@ import {
   PackagePlus,
   Warehouse,
   Boxes,
+  // المبيعات — أيقونات موديول العروض والنقطة
+  Store,
+  Calculator,
 } from "lucide-react";
 
 import type { ViewName } from "./contrack-types";
@@ -71,7 +74,7 @@ export const REPORT_PERM: Record<string, string> = {
 };
 
 /** معرّف الوحدات المعتمدة (توجيه المستخدم — تبويبات علوية) */
-export type ModuleId = "clients" | "subs" | "consulting" | "hr" | "warehouses" | "accounting" | "reports" | "settings";
+export type ModuleId = "clients" | "subs" | "consulting" | "hr" | "warehouses" | "sales" | "accounting" | "reports" | "settings";
 
 /** بند فرعي داخل وحدة — الشاشة الواحدة مستوى تنقل فرعي واحد فقط */
 export interface NavChild {
@@ -181,6 +184,16 @@ export const NAV_MODULES: NavModule[] = [
       { id: "wh-items", label: "الأصناف والمستودعات", icon: Warehouse, view: "warehouses", section: "items", perm: "screen_warehouses" },
       { id: "wh-docs", label: "أذون المخازن", icon: PackagePlus, view: "warehouses", section: "docs", perm: "screen_warehouses" },
       { id: "wh-balances", label: "الأرصدة والتقارير", icon: Boxes, view: "warehouses", section: "balances", perm: "screen_warehouses" },
+    ],
+  },
+  {
+    // المبيعات (docs/sales-design.md §6): عروض الأسعار ببيت مستقل + نقاط البيع السريع — الفواتير تبقى بملكية المحاسبة
+    id: "sales" as ModuleId,
+    label: "المبيعات",
+    icon: Store,
+    children: [
+      { id: "sales-quotes", label: "عروض الأسعار", icon: FileText, view: "sales", section: "quotes", perm: "screen_sales" },
+      { id: "sales-pos", label: "نقاط البيع", icon: Calculator, view: "sales", section: "pos", perm: "screen_sales" },
     ],
   },
   {

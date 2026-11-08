@@ -53,6 +53,8 @@ export interface InvoiceItemInputRow {
   unitPrice: number;
   discountPct: number;
   lineTotal: number;
+  /** المبيعات (docs/sales-design.md د4): سطر مخزني بـitemId ⇒ صرف آلي — الفارغ سطر حر */
+  itemId?: number | null;
 }
 
 export interface BuiltInvoiceItems {
@@ -67,6 +69,7 @@ interface RawItemInput {
   quantity?: unknown;
   unitPrice?: unknown;
   discountPct?: unknown;
+  itemId?: unknown;
 }
 
 /** بناء وتحقق بنود الفاتورة — يعيد الأسطر الجاهزة + الإجماليات المحصلة (r3 لكل سطر) */
@@ -84,14 +87,18 @@ export function buildInvoiceItems(raw: unknown): { ok: true } & BuiltInvoiceItem
     if (discountPct < 0 || discountPct > 100) return { ok: false, error: "نسبة الخصم بين 0 و 100" };
     const gross = r3(quantity * unitPrice);
     const lineTotal = r3(gross * (1 - discountPct / 100));
-    items.push({ description, quantity, unitPrice, discountPct, lineTotal, gross });
+    // المبيعات: نية السطر المخزني محفوظة — حقل itemId موجود يقبل قيمة صحيحة موجبة حصرًا (صفر/سالب = رفض لاحق بالتحقق)
+    const rawItemId = Number(it?.itemId ?? 0);
+    const hasItemField = it?.itemId !== undefined && it?.itemId !== null && it?.itemId !== "";
+    const itemId = hasItemField ? (Number.isFinite(rawItemId) && rawItemId > 0 ? Math.trunc(rawItemId) : 0) : null;
+    items.push({ description, quantity, unitPrice, discountPct, lineTotal, gross, itemId });
   }
   const subtotal = r3(items.reduce((s, i) => s + i.gross, 0));
   const total = r3(items.reduce((s, i) => s + i.lineTotal, 0));
   if (!(total > 0)) return { ok: false, error: "صافي الفاتورة يجب أن يكون أكبر من صفر" };
   return {
     ok: true,
-    items: items.map(({ description, quantity, unitPrice, discountPct, lineTotal }) => ({ description, quantity, unitPrice, discountPct, lineTotal })),
+    items: items.map(({ description, quantity, unitPrice, discountPct, lineTotal, itemId }) => ({ description, quantity, unitPrice, discountPct, lineTotal, itemId })),
     subtotal,
     discountTotal: r3(subtotal - total),
     total,

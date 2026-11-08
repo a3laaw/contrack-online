@@ -69,13 +69,14 @@ export const MODULE_CATALOG: ModuleDef[] = [
     navModules: ["warehouses"],
   },
   {
+    // المبيعات (docs/sales-design.md) — صفر جداول جديدة: عروض الأسعار ببيت مستقل + نقاط البيع بمعاملة واحدة
     code: "sales",
     name: "المبيعات",
     icon: "store",
-    desc: "عروض الأسعار وفواتير المبيعات العامة ونقاط البيع",
-    available: false,
+    desc: "عروض الأسعار وتحويلها لفاتورة، ونقاط البيع السريع بفاتورة وسند وإذن صرف آلي بمعاملة واحدة",
+    available: true,
     core: false,
-    navModules: [],
+    navModules: ["sales"],
   },
   {
     code: "maintenance",

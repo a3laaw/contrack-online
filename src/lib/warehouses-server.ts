@@ -184,6 +184,7 @@ export interface PostedDocJournal {
  * نشر قيد الإذن حسب نوعه (الجدول §5 من التصميم) — عبر postJournalEntry حصرًا:
  * • إدخال نقدي: مدين 1160 ↔ دائن حساب الدفع · آجل: دائن 2111 · مرتجع موقع: دائن 5110 ببُعد العقد
  * • صرف: مدين 5110 بسطر لكل بند (بُعد العقد وبُعد بند BOQ عند الربط) ↔ دائن 1160
+ *   — وفرع البيع (docs/sales-design.md د4): صرف آلي مرتبط بفاتورة بيع ⇒ مدين **5116 تكلفة المبيعات** بلا بُعد عقد
  * • جرد: نقص مدين 5115/دائن 1160 والزيادة بعكسها — سطر لكل فرق
  * • تحويل: بلا قيد (نقل موقع لا قيمة)
  */
@@ -197,6 +198,11 @@ export async function postStockDocJournal(
     warehouseId: number;
     contractId: number | null;
     contractNumber?: string | null;
+    /** المبيعات: إذن الصرف الآلي المرتبط بفاتورة بيع — يبدّل مدين الصرف من 5110 إلى 5116 (د4) */
+    saleInvoiceId?: number | null;
+    saleInvoiceNumber?: string | null;
+    /** معرف حساب 5116 (يجب أن يمرّه مستدعي المبيعات بعد البذر المؤجل — لا استيراد معكوس) */
+    saleCostAccountId?: number | null;
     party: string;
     payAccountId: number | null;
     payAccountName: string;
@@ -250,6 +256,32 @@ export async function postStockDocJournal(
 
   if (doc.kind === "issue") {
     const stockAcc = accounts.stock;
+    // فرع البيع (docs/sales-design.md د4): صرف آلي على فاتورة بيع — تكلفة المبيعات 5116، بلا بُعد عقد.
+    // حساب 5116 يمرّر مسبقًا من مستدعي المبيعات (بذر مؤجل عنده — لا دورة استيراد مع sales-server).
+    if (doc.saleInvoiceId) {
+      if (!doc.saleCostAccountId) {
+        throw new Error("حساب تكلفة المبيعات مطلوب لإذن صرف البيع — بذِر المبيعات أولًا (د4)");
+      }
+      const saleLabel = doc.saleInvoiceNumber ? ` ${doc.saleInvoiceNumber}` : "";
+      const linesIn: JournalLineInput[] = lines.map((l) => ({
+        accountId: doc.saleCostAccountId as number,
+        debit: l.amount,
+        credit: 0,
+        description: `تكلفة المبيعات${saleLabel}`,
+      }));
+      linesIn.push({ accountId: stockAcc.id, debit: 0, credit: doc.totalAmount, description: "مخزون المواد" });
+      const salePosted = await postJournalEntry(
+        tx,
+        {
+          entryDate: doc.vdate,
+          description: `إذن صرف بيع آلي ${doc.docNumber}${saleLabel}`,
+          sourceType: "inventory_issue",
+          lines: linesIn,
+        },
+        actor
+      );
+      return { journalEntryId: salePosted.id };
+    }
     const materialsAcc = await requireAccount(tx, "5110", "expense");
     const linesIn: JournalLineInput[] = lines.map((l) => ({
       accountId: materialsAcc.id,

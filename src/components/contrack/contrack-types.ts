@@ -20,6 +20,7 @@ export type ViewName =
   | "consulting"
   | "hr"
   | "warehouses"
+  | "sales"
   | "reports"
   | "reports-home"
   | "statement"

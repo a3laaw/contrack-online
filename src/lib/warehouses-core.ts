@@ -34,6 +34,8 @@ export interface DocHeadInput {
   warehouseId: number;
   targetWarehouseId?: number | null;
   contractId?: number | null;
+  /** المبيعات (docs/sales-design.md د5): إذن الصرف الآلي للبيع — بلا عقد ومرتبط بفاتورة بيع */
+  saleInvoiceId?: number | null;
   payAccountId?: number | null;
   /** اسم المورد (الآجل يتطلبه — د11) — للتحقق النقي فقط */
   party?: string;
@@ -205,8 +207,8 @@ export function validateStockDoc(
     if (doc.entrySource === "credit" && !doc.party?.trim())
       errors.push("الشراء الآجل يتطلب اسم المورد");
   }
-  if (doc.kind === "issue" && (!doc.contractId || doc.contractId <= 0))
-    errors.push("إذن الصرف يتطلب تحديد العقد (الصرف على العقود حصرًا — د7)");
+  if (doc.kind === "issue" && (!doc.contractId || doc.contractId <= 0) && (!doc.saleInvoiceId || doc.saleInvoiceId <= 0))
+    errors.push("إذن الصرف يتطلب تحديد العقد أو فاتورة البيع (الصرف على العقود وفواتير البيع حصرًا — د7 المخازن ود5 المبيعات)");
   if (doc.kind === "transfer") {
     if (!doc.targetWarehouseId || doc.targetWarehouseId <= 0) errors.push("التحويل يتطلب المستودع المستهدف");
     if (doc.targetWarehouseId && doc.targetWarehouseId === doc.warehouseId)
