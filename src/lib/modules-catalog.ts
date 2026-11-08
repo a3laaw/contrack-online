@@ -59,13 +59,14 @@ export const MODULE_CATALOG: ModuleDef[] = [
     navModules: ["hr"],
   },
   {
+    // المخازن (docs/warehouses-design.md) — أصناف ومستودعات وأذون إدخال/صرف/تحويل/جرد وربط المواد بالعقود
     code: "warehouses",
     name: "المخازن",
     icon: "package",
     desc: "الأصناف والمستودعات وأذون الإدخال والصرف والجرد وربط المواد بالعقود",
-    available: false,
+    available: true,
     core: false,
-    navModules: [],
+    navModules: ["warehouses"],
   },
   {
     code: "sales",

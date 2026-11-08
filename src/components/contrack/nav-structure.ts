@@ -42,6 +42,11 @@ import {
   Banknote,
   Wallet,
   Wrench,
+  // المخازن — أيقونات موديول المستودعات
+  Package,
+  PackagePlus,
+  Warehouse,
+  Boxes,
 } from "lucide-react";
 
 import type { ViewName } from "./contrack-types";
@@ -66,7 +71,7 @@ export const REPORT_PERM: Record<string, string> = {
 };
 
 /** معرّف الوحدات المعتمدة (توجيه المستخدم — تبويبات علوية) */
-export type ModuleId = "clients" | "subs" | "consulting" | "hr" | "accounting" | "reports" | "settings";
+export type ModuleId = "clients" | "subs" | "consulting" | "hr" | "warehouses" | "accounting" | "reports" | "settings";
 
 /** بند فرعي داخل وحدة — الشاشة الواحدة مستوى تنقل فرعي واحد فقط */
 export interface NavChild {
@@ -165,6 +170,17 @@ export const NAV_MODULES: NavModule[] = [
       // HR-3 — الأطقم والتكليفات وتوزيع تكلفة العمالة على العقود
       { id: "hr-labor", label: "الأطقم والتكليفات", icon: Network, view: "hr", section: "labor", perm: "screen_hr" },
       { id: "hr-reports", label: "التقارير", icon: ClipboardList, view: "hr", section: "reports", perm: "screen_hr" },
+    ],
+  },
+  {
+    // المخازن (docs/warehouses-design.md) — أصناف ومستودعات وأذون الحركة الأربعة والأرصدة الاشتقاقية
+    id: "warehouses" as ModuleId,
+    label: "المخازن",
+    icon: Package,
+    children: [
+      { id: "wh-items", label: "الأصناف والمستودعات", icon: Warehouse, view: "warehouses", section: "items", perm: "screen_warehouses" },
+      { id: "wh-docs", label: "أذون المخازن", icon: PackagePlus, view: "warehouses", section: "docs", perm: "screen_warehouses" },
+      { id: "wh-balances", label: "الأرصدة والتقارير", icon: Boxes, view: "warehouses", section: "balances", perm: "screen_warehouses" },
     ],
   },
   {

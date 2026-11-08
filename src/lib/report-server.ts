@@ -1336,12 +1336,28 @@ export async function reportContracts(opts: { option?: string; from?: string; to
     for (const l of laborRows) {
       if (l.contractId != null) laborByContract.set(l.contractId, r3(Number(l._sum.amount ?? 0)));
     }
-    const heads = ["العميل", "العقد", "نوع العقد", "قيمة العقد", "المحصّل", "المنصرف الفعلي", "الربح الفعلي", "تكلفة العمالة", "الربح الشامل", "تكلفة متوقعة", "ربح متوقع", "الهامش %"];
+    // المخازن — تكلفة المواد: صرف المرحّل على العقد − مرتجعاته (لقطات مجففة على الرأس — د8)
+    const stockDocs = ids.length
+      ? await db.stockDoc.findMany({
+          where: { status: "posted", contractId: { in: ids }, kind: { in: ["issue", "entry"] } },
+          select: { contractId: true, kind: true, entrySource: true, totalAmount: true },
+        })
+      : [];
+    const materialsByContract = new Map<number, number>();
+    for (const d of stockDocs) {
+      if (d.contractId == null) continue;
+      const amt = r3(Number(d.totalAmount ?? 0));
+      if (d.kind === "issue") materialsByContract.set(d.contractId, r3((materialsByContract.get(d.contractId) ?? 0) + amt));
+      else if (d.kind === "entry" && d.entrySource === "return")
+        materialsByContract.set(d.contractId, r3((materialsByContract.get(d.contractId) ?? 0) - amt));
+    }
+    const heads = ["العميل", "العقد", "نوع العقد", "قيمة العقد", "المحصّل", "المنصرف الفعلي", "الربح الفعلي", "تكلفة العمالة", "تكلفة المواد", "الربح الشامل", "تكلفة متوقعة", "ربح متوقع", "الهامش %"];
     const rows: (string | number)[][] = [];
     const accentRows: number[] = [];
     let tActualProfit = 0;
     let tExpectedProfit = 0;
     let tLaborCost = 0;
+    let tMaterialsCost = 0;
     for (const f of finances) {
       // قيمة الربحية = amount + ملاحق معتمدة فقط (بلا تمديد إشراف) — B.7 حرفيًا
       const value = r3(f.amount + f.addNet);
@@ -1352,26 +1368,28 @@ export async function reportContracts(opts: { option?: string; from?: string; to
       const expectedProfit = r3(value - expectedCost);
       const actualProfit = r3(f.collected - paid);
       const laborCost = laborByContract.get(f.id) ?? 0;
-      const comprehensiveProfit = r3(actualProfit - laborCost);
+      const materialsCost = materialsByContract.get(f.id) ?? 0;
+      const comprehensiveProfit = r3(actualProfit - laborCost - materialsCost);
       const margin = f.collected > EPS ? r3((actualProfit / f.collected) * 100) : 0;
       if (actualProfit < -EPS) accentRows.push(rows.length);
       rows.push([
         f.customerName,
         `${f.contractNumber}${f.contractName ? ` — ${f.contractName}` : ""}`,
-        f.contractType, value, f.collected, paid, actualProfit, laborCost, comprehensiveProfit, expectedCost, expectedProfit, margin,
+        f.contractType, value, f.collected, paid, actualProfit, laborCost, materialsCost, comprehensiveProfit, expectedCost, expectedProfit, margin,
       ]);
       tActualProfit = r3(tActualProfit + actualProfit);
       tExpectedProfit = r3(tExpectedProfit + expectedProfit);
       tLaborCost = r3(tLaborCost + laborCost);
+      tMaterialsCost = r3(tMaterialsCost + materialsCost);
     }
     return {
       title: "تقرير ربحية العقود",
       heads,
       rows,
-      numberCols: [3, 4, 5, 6, 7, 8, 9, 10, 11],
+      numberCols: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
       accentRows,
-      totals: { actualProfit: tActualProfit, laborCost: tLaborCost, comprehensiveProfit: r3(tActualProfit - tLaborCost), expectedProfit: tExpectedProfit },
-      note: "الربح الفعلي = المحصّل − المنصرف (بحسابات ضمن الربحية فقط)؛ الشامل يخصم تكلفة العمالة المخصصة من مساير معتمدة/مدفوعة (تحليلي بلا قيد)؛ المتوقعة = القيمة − (الباطن + منصرف آخر)",
+      totals: { actualProfit: tActualProfit, laborCost: tLaborCost, materialsCost: tMaterialsCost, comprehensiveProfit: r3(tActualProfit - tLaborCost - tMaterialsCost), expectedProfit: tExpectedProfit },
+      note: "الربح الفعلي = المحصّل − المنصرف (بحسابات ضمن الربحية فقط)؛ الشامل يخصم تكلفة العمالة المخصصة وتكلفة المواد المصروفة من المخازن (تحليلي بلا قيد)؛ المتوقعة = القيمة − (الباطن + منصرف آخر)",
     };
   }
 

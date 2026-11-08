@@ -44,7 +44,7 @@ export async function GET(req: NextRequest, { params }: P) {
   if (!core) return jsonError("العقد غير موجود", 404);
   const c = core.contract;
 
-  const [payRows, subs, laborAllocs] = await Promise.all([
+  const [payRows, subs, laborAllocs, stockDocs] = await Promise.all([
     db.voucher.findMany({
       where: { contractId, vtype: "payment", cancelled: false },
       select: { amount: true, partyType: true },
@@ -58,12 +58,34 @@ export async function GET(req: NextRequest, { params }: P) {
       where: { contractId, batch: { status: { in: ["approved", "paid"] } } },
       select: { amount: true, employee: { select: { name: true } } },
     }),
+    // المخازن — تكلفة المواد وأذون الصرف/المرتجع المرحّلة على هذا العقد (لقطات مجففة — د8)
+    db.stockDoc.findMany({
+      where: { contractId, status: "posted", kind: { in: ["issue", "entry"] } },
+      orderBy: [{ vdate: "desc" }, { id: "desc" }],
+      take: 50,
+      select: { docNumber: true, kind: true, entrySource: true, vdate: true, totalAmount: true },
+    }),
   ]);
   const laborByEmployee = new Map<string, number>();
   for (const l of laborAllocs) {
     laborByEmployee.set(l.employee.name, r3((laborByEmployee.get(l.employee.name) ?? 0) + Number(l.amount)));
   }
   const laborCost = r3(laborAllocs.reduce((s, l) => s + Number(l.amount), 0));
+
+  // المخازن — تكلفة المواد = Σ صرف − Σ مرتجع موقعي (أذون posted حصرًا)
+  let materialsCost = 0;
+  const stockDocRows: { docNumber: string; kindLabel: string; vdate: string; amount: number }[] = [];
+  for (const d of stockDocs) {
+    const amt = r3(Number(d.totalAmount));
+    if (d.kind === "issue") materialsCost = r3(materialsCost + amt);
+    else if (d.kind === "entry" && d.entrySource === "return") materialsCost = r3(materialsCost - amt);
+    stockDocRows.push({
+      docNumber: d.docNumber,
+      kindLabel: d.kind === "issue" ? "صرف مواد" : d.entrySource === "return" ? "مرتجع للمستودع" : "إدخال",
+      vdate: d.vdate,
+      amount: d.kind === "entry" && d.entrySource === "return" ? -amt : amt,
+    });
+  }
 
   const payments = r3(payRows.reduce((s, v) => s + Number(v.amount), 0));
   const otherPayments = r3(
@@ -155,6 +177,9 @@ export async function GET(req: NextRequest, { params }: P) {
     laborByEmployee: Array.from(laborByEmployee.entries())
       .sort((a, b) => b[1] - a[1])
       .map(([name, amount]) => ({ name, amount })),
+    // المخازن — تكلفة المواد المصروفة من المستودع على هذا العقد
+    materialsCost,
+    stockDocs: stockDocRows.slice(0, 8),
     profit,
     expectedProfit,
     remaining,

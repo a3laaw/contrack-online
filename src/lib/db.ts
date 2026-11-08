@@ -64,6 +64,8 @@ const TENANT_MODELS = new Set<string>([
   "employeePermission", "employeeTermination",
   // HR-3 — الأطقم والتكليفات وتخصيص العمالة وتدقيق الملف: بنفس القاعدة بنفس الـcommit (درس T111)
   "employeeAuditLog", "workTeam", "workTeamMember", "employeeAssignment", "laborAllocation",
+  // المخازن (docs/warehouses-design.md §3): المستودعات والأصناف وأذون الحركة الأربعة — بنفس القاعدة بنفس الـcommit (درس T111)
+  "warehouse", "stockItem", "stockDoc", "stockDocLine",
 ]);
 
 interface Ctx { companyId: number }

@@ -161,6 +161,11 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "workTeamMember", table: "work_team_members", serial: true },
   { model: "employeeAssignment", table: "employee_assignments", serial: true },
   { model: "laborAllocation", table: "labor_allocations", serial: true }, // بعد payrollBatch (FK Cascade)
+  // ===== المخازن — بعد القيود والأقسام (FK: journal_entry SetNull · مستودع/صنف/عقد Cascade — كلها فوق) =====
+  { model: "warehouse", table: "warehouses", serial: true },
+  { model: "stockItem", table: "stock_items", serial: true },
+  { model: "stockDoc", table: "stock_docs", serial: true }, // بعد warehouse/stockItem/journalEntries/contracts
+  { model: "stockDocLine", table: "stock_doc_lines", serial: true }, // بعد stockDoc (FK Cascade)
   // ===== سجلات النظام (آخرًا لكي تُحذف أولًا عند الاستعادة) =====
   { model: "auditLog", table: "audit_log", serial: true },
   { model: "purgeAudit", table: "purge_audit", serial: true },
