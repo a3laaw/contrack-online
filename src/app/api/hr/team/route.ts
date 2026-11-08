@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
       paymentBasis: e.paymentBasis,
       paymentBasisLabel: e.paymentBasis === "daily" ? "يومي" : "شهري",
       dailyRate: Number(e.dailyRate),
+      monthlyCostRate: Number(e.monthlyCostRate),
       paymentMethodId: e.paymentMethodId,
       paymentMethodName: e.paymentMethod?.name ?? "",
       advanceBalance: balances.get(e.id) ?? 0,
@@ -82,6 +83,9 @@ export async function POST(req: NextRequest) {
   if (!Number.isFinite(salary) || salary < 0) return jsonError("الراتب الشهري يجب أن يكون رقمًا غير سالب");
   const dailyRate = body.dailyRate === undefined || body.dailyRate === "" ? 0 : Number(body.dailyRate);
   if (!Number.isFinite(dailyRate) || dailyRate < 0) return jsonError("الأجر اليومي يجب أن يكون رقمًا غير سالب");
+  // HR-3 — التكلفة الشهرية على الشركة (د2) — صفر = افتراضي الأجر الأساسي لحظة التخصيص
+  const monthlyCostRate = body.monthlyCostRate === undefined || body.monthlyCostRate === "" ? 0 : Number(body.monthlyCostRate);
+  if (!Number.isFinite(monthlyCostRate) || monthlyCostRate < 0) return jsonError("التكلفة الشهرية يجب أن تكون رقمًا غير سالب");
 
   const hireDate = body.hireDate ? parseDay(body.hireDate) : "";
   if (body.hireDate && !hireDate) return jsonError("تاريخ التعيين غير صالح");
@@ -117,6 +121,7 @@ export async function POST(req: NextRequest) {
         salary,
         paymentBasis,
         dailyRate,
+        monthlyCostRate,
         paymentMethodId,
       },
     });

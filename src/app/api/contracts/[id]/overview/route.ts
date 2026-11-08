@@ -44,7 +44,7 @@ export async function GET(req: NextRequest, { params }: P) {
   if (!core) return jsonError("العقد غير موجود", 404);
   const c = core.contract;
 
-  const [payRows, subs] = await Promise.all([
+  const [payRows, subs, laborAllocs] = await Promise.all([
     db.voucher.findMany({
       where: { contractId, vtype: "payment", cancelled: false },
       select: { amount: true, partyType: true },
@@ -53,7 +53,17 @@ export async function GET(req: NextRequest, { params }: P) {
       where: { contractId, status: { notIn: ["ملغى", "ملغي"] } },
       select: { id: true, amount: true },
     }),
+    // HR-3 — تكلفة العمالة المخصصة لهذا العقد من دفعات معتمدة/مدفوعة (تحليلي — د1)
+    db.laborAllocation.findMany({
+      where: { contractId, batch: { status: { in: ["approved", "paid"] } } },
+      select: { amount: true, employee: { select: { name: true } } },
+    }),
   ]);
+  const laborByEmployee = new Map<string, number>();
+  for (const l of laborAllocs) {
+    laborByEmployee.set(l.employee.name, r3((laborByEmployee.get(l.employee.name) ?? 0) + Number(l.amount)));
+  }
+  const laborCost = r3(laborAllocs.reduce((s, l) => s + Number(l.amount), 0));
 
   const payments = r3(payRows.reduce((s, v) => s + Number(v.amount), 0));
   const otherPayments = r3(
@@ -141,6 +151,10 @@ export async function GET(req: NextRequest, { params }: P) {
     totalPayments: payments,
     otherPayments,
     totalSubs: subsTotal,
+    laborCost,
+    laborByEmployee: Array.from(laborByEmployee.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, amount]) => ({ name, amount })),
     profit,
     expectedProfit,
     remaining,

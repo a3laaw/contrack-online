@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
   })
   const ids = contracts.map((c) => c.id)
 
-  const [addendums, receipts, payments, subTotals] = await Promise.all([
+  const [addendums, receipts, payments, subTotals, laborTotals] = await Promise.all([
     netAddendumsMap(ids),
     receiptsByContract(ids),
     // المنصرف الفعلي: صرف سارٍ على حسابات تُحتسب في الربحية (الافتراضي 1)
@@ -46,7 +46,19 @@ export async function GET(req: NextRequest) {
       where: { contractId: { in: ids }, status: { notIn: ['ملغى', 'ملغي'] } },
       _sum: { amount: true },
     }),
+    // HR-3 — تكلفة العمالة المخصصة: من دفعات مسير معتمدة/مدفوعة فقط (الملغاة شفافة — د1/د5)
+    ids.length
+      ? db.laborAllocation.groupBy({
+          by: ['contractId'],
+          where: { contractId: { in: ids }, batch: { status: { in: ['approved', 'paid'] } } },
+          _sum: { amount: true },
+        })
+      : Promise.resolve([] as { contractId: number; _sum: { amount: unknown } }[]),
   ])
+  const laborByContract = new Map<number, number>()
+  for (const l of laborTotals) {
+    if (l.contractId != null) laborByContract.set(l.contractId, round3(Number((l._sum as { amount?: unknown })?.amount ?? 0)))
+  }
   const subsByContract = new Map<number, number>()
   for (const s of subTotals) {
     if (s.contractId != null) subsByContract.set(s.contractId, round3(Number(s._sum.amount ?? 0)))
@@ -67,7 +79,7 @@ export async function GET(req: NextRequest) {
   type Calc = {
     value: number; collected: number; cost: number
     expectedCost: number; expectedProfit: number; actualProfit: number; margin: number
-    subcontracts: number; otherExpenses: number
+    subcontracts: number; otherExpenses: number; laborCost: number; comprehensiveProfit: number
   }
   const calc = new Map<number, Calc>()
   const contractRows: (ProfitabilityRow & { customerId: number; customerName: string })[] = []
@@ -78,18 +90,20 @@ export async function GET(req: NextRequest) {
     const paid = paidByContract.get(c.id) ?? 0
     const otherPaid = otherPaidByContract.get(c.id) ?? 0
     const subs = subsByContract.get(c.id) ?? 0
+    const laborCost = laborByContract.get(c.id) ?? 0
     const expectedCost = round3(subs + otherPaid)
     const expectedProfit = round3(value - expectedCost)
     const actualProfit = round3(collected - paid)
+    const comprehensiveProfit = round3(actualProfit - laborCost)
     const margin = collected > 0.001 ? round3((actualProfit / collected) * 100) : 0
-    calc.set(c.id, { value, collected, cost: paid, expectedCost, expectedProfit, actualProfit, margin, subcontracts: subs, otherExpenses: otherPaid })
+    calc.set(c.id, { value, collected, cost: paid, expectedCost, expectedProfit, actualProfit, margin, subcontracts: subs, otherExpenses: otherPaid, laborCost, comprehensiveProfit })
     const name = (c.description || '').trim() || (c.contractName || '').trim() || c.contractNumber
     contractRows.push({
       id: c.id, customerId: c.customer.id, customerName: c.customer.name,
       contractNumber: c.contractNumber, contractName: name,
       contractType: c.contractType || 'غير محدد',
       value, collected, subcontracts: subs, otherExpenses: otherPaid,
-      cost: paid, profit: actualProfit,
+      cost: paid, profit: actualProfit, laborCost, comprehensiveProfit,
       expectedCost, expectedProfit, margin,
     })
   }
@@ -109,11 +123,12 @@ export async function GET(req: NextRequest) {
           value: round3(a.value + r.value),
           collected: round3(a.collected + r.collected),
           cost: round3(a.cost + r.cost),
+          laborCost: round3(a.laborCost + r.laborCost),
           expectedCost: round3(a.expectedCost + r.expectedCost),
           expectedProfit: round3(a.expectedProfit + r.expectedProfit),
           profit: round3(a.profit + r.profit),
         }),
-        { value: 0, collected: 0, cost: 0, expectedCost: 0, expectedProfit: 0, profit: 0 },
+        { value: 0, collected: 0, cost: 0, laborCost: 0, expectedCost: 0, expectedProfit: 0, profit: 0 },
       )
       const margin = agg.collected > 0.001 ? round3((agg.profit / agg.collected) * 100) : 0
       rows.push({
@@ -127,6 +142,7 @@ export async function GET(req: NextRequest) {
         subcontracts: round3(list.reduce((s, r) => s + r.subcontracts, 0)),
         otherExpenses: round3(list.reduce((s, r) => s + r.otherExpenses, 0)),
         cost: agg.cost, profit: agg.profit,
+        laborCost: agg.laborCost, comprehensiveProfit: round3(agg.profit - agg.laborCost),
         expectedCost: agg.expectedCost, expectedProfit: agg.expectedProfit,
         margin,
       })
@@ -145,16 +161,19 @@ export async function GET(req: NextRequest) {
       collected: round3(a.collected + r.collected),
       cost: round3(a.cost + r.cost),
       profit: round3(a.profit + r.profit),
+      laborCost: round3(a.laborCost + r.laborCost),
       expectedCost: round3(a.expectedCost + r.expectedCost),
       expectedProfit: round3(a.expectedProfit + r.expectedProfit),
     }),
-    { value: 0, collected: 0, cost: 0, profit: 0, expectedCost: 0, expectedProfit: 0 },
+    { value: 0, collected: 0, cost: 0, profit: 0, laborCost: 0, expectedCost: 0, expectedProfit: 0 },
   )
   const body: ProfitabilityDTO = {
     groupBy,
     rows,
     totals: {
       ...t,
+      laborCost: t.laborCost,
+      comprehensiveProfit: round3(t.profit - t.laborCost),
       margin: t.collected > 0.001 ? round3((t.profit / t.collected) * 100) : 0,
       expectedMargin: t.expectedProfit !== 0 && t.value !== 0
         ? round3((t.expectedProfit / t.value) * 100)

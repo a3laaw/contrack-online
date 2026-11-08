@@ -1324,11 +1324,24 @@ export async function reportContracts(opts: { option?: string; from?: string; to
           .reduce((s, p) => s + Number(p.amount), 0)
       );
     };
-    const heads = ["العميل", "العقد", "نوع العقد", "قيمة العقد", "المحصّل", "المنصرف الفعلي", "الربح الفعلي", "تكلفة متوقعة", "ربح متوقع", "الهامش %"];
+    // HR-3 — تكلفة العمالة المخصصة: من دفعات مسير معتمدة/مدفوعة فقط (طبقة تحليلية — د1/د4)
+    const laborRows = ids.length
+      ? await db.laborAllocation.groupBy({
+          by: ["contractId"],
+          where: { contractId: { in: ids }, batch: { status: { in: ["approved", "paid"] } } },
+          _sum: { amount: true },
+        })
+      : [];
+    const laborByContract = new Map<number, number>();
+    for (const l of laborRows) {
+      if (l.contractId != null) laborByContract.set(l.contractId, r3(Number(l._sum.amount ?? 0)));
+    }
+    const heads = ["العميل", "العقد", "نوع العقد", "قيمة العقد", "المحصّل", "المنصرف الفعلي", "الربح الفعلي", "تكلفة العمالة", "الربح الشامل", "تكلفة متوقعة", "ربح متوقع", "الهامش %"];
     const rows: (string | number)[][] = [];
     const accentRows: number[] = [];
     let tActualProfit = 0;
     let tExpectedProfit = 0;
+    let tLaborCost = 0;
     for (const f of finances) {
       // قيمة الربحية = amount + ملاحق معتمدة فقط (بلا تمديد إشراف) — B.7 حرفيًا
       const value = r3(f.amount + f.addNet);
@@ -1338,24 +1351,27 @@ export async function reportContracts(opts: { option?: string; from?: string; to
       const expectedCost = r3(subsTotal + otherPaid);
       const expectedProfit = r3(value - expectedCost);
       const actualProfit = r3(f.collected - paid);
+      const laborCost = laborByContract.get(f.id) ?? 0;
+      const comprehensiveProfit = r3(actualProfit - laborCost);
       const margin = f.collected > EPS ? r3((actualProfit / f.collected) * 100) : 0;
       if (actualProfit < -EPS) accentRows.push(rows.length);
       rows.push([
         f.customerName,
         `${f.contractNumber}${f.contractName ? ` — ${f.contractName}` : ""}`,
-        f.contractType, value, f.collected, paid, actualProfit, expectedCost, expectedProfit, margin,
+        f.contractType, value, f.collected, paid, actualProfit, laborCost, comprehensiveProfit, expectedCost, expectedProfit, margin,
       ]);
       tActualProfit = r3(tActualProfit + actualProfit);
       tExpectedProfit = r3(tExpectedProfit + expectedProfit);
+      tLaborCost = r3(tLaborCost + laborCost);
     }
     return {
       title: "تقرير ربحية العقود",
       heads,
       rows,
-      numberCols: [3, 4, 5, 6, 7, 8, 9],
+      numberCols: [3, 4, 5, 6, 7, 8, 9, 10, 11],
       accentRows,
-      totals: { actualProfit: tActualProfit, expectedProfit: tExpectedProfit },
-      note: "الربح الفعلي = المحصّل − المنصرف (بحسابات ضمن الربحية فقط)؛ المتوقعة = القيمة − (الباطن + منصرف آخر)",
+      totals: { actualProfit: tActualProfit, laborCost: tLaborCost, comprehensiveProfit: r3(tActualProfit - tLaborCost), expectedProfit: tExpectedProfit },
+      note: "الربح الفعلي = المحصّل − المنصرف (بحسابات ضمن الربحية فقط)؛ الشامل يخصم تكلفة العمالة المخصصة من مساير معتمدة/مدفوعة (تحليلي بلا قيد)؛ المتوقعة = القيمة − (الباطن + منصرف آخر)",
     };
   }
 

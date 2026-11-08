@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   if (!e) return jsonError("الموظف غير موجود", 404);
 
   const year = new Date().getUTCFullYear();
-  const [attendanceRows, leaves, permissions, payrollRecords, terminations] = await Promise.all([
+  const [attendanceRows, leaves, permissions, payrollRecords, terminations, assignments, auditTrail] = await Promise.all([
     db.employeeAttendance.findMany({
       where: { employeeId: id },
       orderBy: { workDate: "asc" },
@@ -39,6 +39,14 @@ export async function GET(req: NextRequest) {
       include: { batch: { select: { month: true, status: true, batchNo: true } } },
     }),
     db.employeeTermination.findMany({ where: { employeeId: id }, orderBy: { id: "desc" } }),
+    // HR-3 — التكليفات (سارية أولًا)
+    db.employeeAssignment.findMany({
+      where: { employeeId: id },
+      orderBy: [{ status: "desc" }, { id: "desc" }],
+      include: { contract: { select: { contractNumber: true, contractName: true, description: true } } },
+    }),
+    // HR-3 — سجل تغييرات الملف: آخر 100 سطر (تُعرض تصاعديًا)
+    db.employeeAuditLog.findMany({ where: { employeeId: id }, orderBy: { editedAt: "desc" }, take: 100 }),
   ]);
 
   // تجميع الحضور بالشهور (آخر 12 شهرًا)
@@ -81,6 +89,7 @@ export async function GET(req: NextRequest) {
       salary: Number(e.salary),
       paymentBasis: e.paymentBasis,
       dailyRate: Number(e.dailyRate),
+      monthlyCostRate: Number(e.monthlyCostRate),
       paymentMethod: e.paymentMethod?.name ?? "",
     },
     annualBalance,
@@ -106,6 +115,26 @@ export async function GET(req: NextRequest) {
       id: t.id, endDate: t.endDate, scenario: t.scenario, serviceYears: Number(t.serviceYears),
       eosAmount: Number(t.eosAmount), leaveEncashment: Number(t.leaveEncashment), total: Number(t.total),
       status: t.status, entryId: t.entryId,
+    })),
+    // HR-3 — التكليفات وسجل تغييرات الملف
+    assignments: assignments.map((a) => ({
+      id: a.id,
+      contractNumber: a.contract.contractNumber,
+      contractName: a.contract.description || a.contract.contractName || a.contract.contractNumber,
+      role: a.role,
+      allocationPct: Number(a.allocationPct),
+      startDate: a.startDate,
+      endDate: a.endDate,
+      status: a.status,
+    })),
+    auditTrail: auditTrail.reverse().map((l) => ({
+      id: l.id,
+      field: l.field,
+      fieldLabel: l.fieldLabel,
+      oldValue: l.oldValue,
+      newValue: l.newValue,
+      editedBy: l.editedBy,
+      editedAt: l.editedAt.toISOString().slice(0, 16).replace("T", " "),
     })),
   });
 }

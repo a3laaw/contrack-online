@@ -23,6 +23,7 @@ import {
   DoorOpen,
   HandCoins,
   Loader2,
+  Network,
   Phone,
   Play,
   Plus,
@@ -71,6 +72,8 @@ import {
   PAYROLL_BATCH_LABELS,
   SICK_LEAVE_TIERS,
 } from "@/lib/hr-constants";
+// HR-3 — قسم الأطقم والتكليفات + حوار توزيع التكلفة (يُعاد استخدامه من بطاقة المسير)
+import { LaborSection, AllocationDialog, type AllocationView } from "./hr/LaborSection";
 
 // ==================== أنواع الـAPI ====================
 
@@ -101,6 +104,7 @@ interface HREmployee {
   paymentBasis: string;
   paymentBasisLabel: string;
   dailyRate: number;
+  monthlyCostRate: number;
   paymentMethodId: number | null;
   paymentMethodName: string;
   advanceBalance: number;
@@ -235,7 +239,7 @@ interface PaymentMethodItem {
   isActive: boolean;
 }
 
-export type HRSection = "team" | "attendance" | "leaves" | "permissions" | "payroll" | "advances" | "eos" | "reports";
+export type HRSection = "team" | "attendance" | "leaves" | "permissions" | "payroll" | "advances" | "eos" | "labor" | "reports";
 
 interface HRViewProps {
   user: User;
@@ -360,6 +364,7 @@ const SECTION_META: { key: HRSection; label: string; icon: React.ComponentType<{
   { key: "payroll", label: "المسير", icon: Banknote },
   { key: "advances", label: "السلف", icon: HandCoins },
   { key: "eos", label: "نهاية الخدمة", icon: DoorOpen },
+  { key: "labor", label: "الأطقم والتكليفات", icon: Network },
   { key: "reports", label: "التقارير", icon: ClipboardList },
 ];
 
@@ -533,6 +538,7 @@ export function HRView({ onAuthError, section, onSectionChange }: HRViewProps) {
       {section === "payroll" && <PayrollSection onErr={onErr} invalidate={invalidate} setDeleteTarget={setDeleteTarget} />}
       {section === "advances" && <AdvancesSection onErr={onErr} invalidate={invalidate} />}
       {section === "eos" && <EosSection employeeOptsActive={employeeOptsActive} onErr={onErr} invalidate={invalidate} />}
+      {section === "labor" && <LaborSection employeeOpts={employeeOpts} onErr={onErr} invalidate={invalidate} />}
       {section === "reports" && <ReportsSection employeeOpts={employeeOpts} onErr={onErr} />}
 
       {/* تأكيد الحذف الموحد */}
@@ -595,6 +601,7 @@ function SectionAction({
     payroll: "توليد مسير",
     advances: "صرف سلفة",
     eos: "توثيق نهاية خدمة",
+    labor: "فريق جديد",
     reports: "تقرير ملف موظف",
   };
   return (
@@ -892,6 +899,7 @@ function EmployeeDialog({
     paymentBasis: "monthly",
     salary: "",
     dailyRate: "",
+    monthlyCostRate: "",
     paymentMethodId: "",
     notes: "",
   });
@@ -921,6 +929,7 @@ function EmployeeDialog({
         paymentBasis: editing?.paymentBasis ?? "monthly",
         salary: editing?.salary ? String(editing.salary) : "",
         dailyRate: editing?.dailyRate ? String(editing.dailyRate) : "",
+        monthlyCostRate: editing?.monthlyCostRate ? String(editing.monthlyCostRate) : "",
         paymentMethodId: editing?.paymentMethodId ? String(editing.paymentMethodId) : "",
         notes: editing?.notes ?? "",
       });
@@ -945,6 +954,7 @@ function EmployeeDialog({
       paymentBasis: form.paymentBasis,
       salary: isMonthly ? Number(form.salary) || 0 : 0,
       dailyRate: isMonthly ? 0 : Number(form.dailyRate) || 0,
+      monthlyCostRate: Number(form.monthlyCostRate) || 0,
       paymentMethodId: form.paymentMethodId ? Number(form.paymentMethodId) : null,
       notes: form.notes,
     });
@@ -1016,6 +1026,19 @@ function EmployeeDialog({
               <Input type="number" min="0" step="0.001" value={form.dailyRate} onChange={set("dailyRate")} dir="ltr" placeholder="0.000" />
             </div>
           )}
+          <div className="space-y-1.5">
+            <Label>التكلفة الشهرية على الشركة</Label>
+            <Input
+              type="number"
+              min="0"
+              step="0.001"
+              value={form.monthlyCostRate}
+              onChange={set("monthlyCostRate")}
+              dir="ltr"
+              placeholder="افتراضي: الأجر الأساسي"
+            />
+            <p className="text-[10px] text-muted-foreground">HR-3 — أساس توزيع تكلفة العمالة على العقود (د2)</p>
+          </div>
           <div className="space-y-1.5">
             <Label>وسيلة الدفع</Label>
             <SearchableSelect
@@ -1884,7 +1907,16 @@ function PayrollSection({ onErr, invalidate, setDeleteTarget }: SectionCommon) {
   const [generateOpen, setGenerateOpen] = React.useState(false);
   const [payTarget, setPayTarget] = React.useState<PayrollBatchDetail | null>(null);
   const [cancelTarget, setCancelTarget] = React.useState<PayrollBatchDetail | null>(null);
+  const [allocTarget, setAllocTarget] = React.useState<PayrollBatchDetail | null>(null);
   useAddEvent("payroll", React.useCallback(() => setGenerateOpen(true), [setGenerateOpen]));
+
+  // HR-3 — تغطية توزيع التكلفة للمسير المختار (شارة بالرأس + زر في شريط الإجراءات)
+  const allocViewQuery = useQuery<AllocationView>({
+    queryKey: ["hr", "labor", "allocations", selectedId],
+    queryFn: () => apiGet<AllocationView>(`/api/hr/labor/allocations?batchId=${selectedId}`),
+    enabled: selectedId != null,
+  });
+  const allocView = allocViewQuery.data ?? null;
 
   const batchesQuery = useQuery<{ batches: PayrollBatchItem[] }>({
     queryKey: ["hr", "payroll"],
@@ -2054,6 +2086,16 @@ function PayrollSection({ onErr, invalidate, setDeleteTarget }: SectionCommon) {
                   قيد الاعتماد #{detail.journalEntryId}
                 </Badge>
               )}
+              {allocView && (
+                <Badge variant="outline" className="h-6 gap-1 px-2 text-[11px] tabular-nums">
+                  <Network className="size-3" />
+                  التوزيع: {fmtMoney(allocView.totals.allocatedTotal)} من {fmtMoney(allocView.totals.fullCostTotal)}
+                </Badge>
+              )}
+              <Button variant="outline" className="gap-1.5" onClick={() => setAllocTarget(detail)}>
+                <Network className="size-4" />
+                توزيع التكلفة
+              </Button>
             </div>
 
             {/* سجلات الموظفين */}
@@ -2130,6 +2172,13 @@ function PayrollSection({ onErr, invalidate, setDeleteTarget }: SectionCommon) {
             )}
           </>
         ) : null}
+        <AllocationDialog
+          open={!!allocTarget}
+          batchId={allocTarget?.id ?? null}
+          batchLabel={allocTarget ? `${allocTarget.monthLabel} — PR-${allocTarget.batchNo}` : ""}
+          onClose={() => setAllocTarget(null)}
+          onErr={onErr}
+        />
       </div>
     );
   }
@@ -3571,7 +3620,7 @@ interface EmployeeReport {
   employee: {
     id: number; name: string; jobNumber: string; employeeType: string; department: string; jobTitle: string;
     civilId: string; nationality: string; hireDate: string; phone: string; active: boolean;
-    salary: number; paymentBasis: string; dailyRate: number; paymentMethod: string;
+    salary: number; paymentBasis: string; dailyRate: number; monthlyCostRate: number; paymentMethod: string;
   };
   annualBalance: { allowance: number; consumed: number; balance: number; probation: boolean };
   advanceRemaining: number;
@@ -3580,6 +3629,9 @@ interface EmployeeReport {
   permissions: { id: number; permDate: string; kind: string; minutes: number; reason: string; status: string }[];
   payroll: { month: string; batchNo: number; batchStatus: string; baseAmount: number; absenceDeduction: number; sickDeduction: number; lateDeduction: number; advanceDeduction: number; netAmount: number }[];
   terminations: { id: number; endDate: string; scenario: string; serviceYears: number; eosAmount: number; leaveEncashment: number; total: number; status: string; entryId: number | null }[];
+  // HR-3 — التكليفات وسجل تغييرات الملف (د9)
+  assignments: { id: number; contractNumber: string; contractName: string; role: string; allocationPct: number; startDate: string; endDate: string; status: string }[];
+  auditTrail: { id: number; field: string; fieldLabel: string; oldValue: string; newValue: string; editedBy: string; editedAt: string }[];
 }
 
 interface AttendanceMatrix {
@@ -3800,6 +3852,46 @@ function ReportsSection({ employeeOpts, onErr }: { employeeOpts: { value: string
                         <StatusPill label={t.status} tone={TERM_STATUS_TONE[t.status] ?? TERM_STATUS_TONE["محسوبة"]} />
                         {t.entryId && <span className="text-[10px] text-muted-foreground">قيد #{t.entryId}</span>}
                       </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {/* HR-3 — التكليفات */}
+            {r.assignments.length > 0 && (
+              <Card className="p-4">
+                <p className="mb-2 text-sm font-bold">التكليفات بالعقود</p>
+                <div className="space-y-1.5">
+                  {r.assignments.map((a) => (
+                    <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2 text-[12px]">
+                      <span className="tabular-nums" dir="ltr">{a.contractNumber}</span>
+                      <span className="text-muted-foreground">{a.contractName}</span>
+                      <span>{a.role ? `${a.role} · ` : ""}<span className="font-bold tabular-nums">{a.allocationPct}%</span></span>
+                      <span className="text-[10px] tabular-nums text-muted-foreground" dir="ltr">
+                        {a.startDate || "—"} → {a.endDate || "—"} · {a.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-2 text-[10px] text-muted-foreground">
+                  التكلفة الشهرية على الشركة: {fmtMoney(r.employee.monthlyCostRate > 0 ? r.employee.monthlyCostRate : r.employee.paymentBasis === "monthly" ? r.employee.salary : r.employee.dailyRate)}
+                </p>
+              </Card>
+            )}
+
+            {/* HR-3 — سجل تغييرات الملف (د9 — آخر 100 تصاعديًا) */}
+            {r.auditTrail.length > 0 && (
+              <Card className="p-4">
+                <p className="mb-2 text-sm font-bold">سجل تغييرات الملف</p>
+                <div className="space-y-1">
+                  {r.auditTrail.map((l) => (
+                    <div key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-2 py-1.5 text-[11px]">
+                      <span className="font-bold">{l.fieldLabel}</span>
+                      <span className="tabular-nums text-muted-foreground">
+                        «{l.oldValue}» ← <span className="text-status-done font-bold">«{l.newValue}»</span>
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">{l.editedBy} · {l.editedAt}</span>
                     </div>
                   ))}
                 </div>

@@ -162,6 +162,8 @@ export const NAV_MODULES: NavModule[] = [
       { id: "hr-payroll", label: "مسير الرواتب", icon: Banknote, view: "hr", section: "payroll", perm: "screen_hr" },
       { id: "hr-advances", label: "سلف الموظفين", icon: HandCoins, view: "hr", section: "advances", perm: "screen_hr" },
       { id: "hr-eos", label: "نهاية الخدمة", icon: DoorOpen, view: "hr", section: "eos", perm: "screen_hr" },
+      // HR-3 — الأطقم والتكليفات وتوزيع تكلفة العمالة على العقود
+      { id: "hr-labor", label: "الأطقم والتكليفات", icon: Network, view: "hr", section: "labor", perm: "screen_hr" },
       { id: "hr-reports", label: "التقارير", icon: ClipboardList, view: "hr", section: "reports", perm: "screen_hr" },
     ],
   },

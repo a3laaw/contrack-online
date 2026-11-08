@@ -360,3 +360,57 @@ export function overlapDaysInMonth(start: string, end: string, first: string, la
   const e = end < last ? end : last;
   return leaveDaysBetween(s, e);
 }
+
+// ==================== HR-3 — تدقيق الملف حقلًا-بحقل + التعرفة المعرفية (د2/د8) ====================
+
+/** القائمة المغلقة لحقول ملف الموظف المتعقوبة (د8) — ترتيبها ثابت للعرض والتكرار */
+export const EMPLOYEE_FIELD_LABELS: Record<string, string> = {
+  name: "الاسم",
+  active: "الحالة",
+  employeeType: "نوع الموظف",
+  paymentBasis: "أساس الأجر",
+  salary: "الراتب الشهري",
+  dailyRate: "الأجر اليومي",
+  monthlyCostRate: "التكلفة الشهرية على الشركة",
+  department: "القسم",
+  jobTitle: "المسمى الوظيفي",
+  nationality: "الجنسية",
+  civilId: "الرقم المدني",
+  hireDate: "تاريخ التعيين",
+  phone: "الهاتف",
+  paymentMethodId: "وسيلة الدفع",
+  notes: "ملاحظات",
+};
+
+/**
+ * تنسيق قيمة حقل للتدقيق — نص عربي مقروء (الفراغ الصريح = «فراغ»).
+ * paymentMethodId يُمرَّر بأسمائه المحلولة عبر ctx (المسار يحل الاسم قبل النواة).
+ */
+export function formatEmployeeFieldValue(
+  field: string,
+  value: unknown,
+  ctx?: { paymentMethodNames?: Record<number, string> }
+): string {
+  if (value == null || value === "") return "فراغ";
+  switch (field) {
+    case "active":
+      return value ? "نشط" : "موقوف";
+    case "employeeType":
+      return EMPLOYEE_TYPES.find((t) => t.value === value)?.label ?? String(value);
+    case "paymentBasis":
+      return PAYMENT_BASES.find((t) => t.value === value)?.label ?? String(value);
+    case "paymentMethodId": {
+      const n = Number(value);
+      if (Number.isFinite(n) && ctx?.paymentMethodNames?.[n]) return ctx.paymentMethodNames[n];
+      return `#${String(value)}`;
+    }
+    case "salary":
+    case "dailyRate":
+    case "monthlyCostRate": {
+      const n = Number(value);
+      return Number.isFinite(n) ? String(r3(n)) : String(value);
+    }
+    default:
+      return String(value);
+  }
+}

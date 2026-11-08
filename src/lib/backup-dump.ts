@@ -155,6 +155,12 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "payrollBatch", table: "payroll_batches", serial: true }, // FK journal/provision_entry_id + payment_voucher_id SetNull
   { model: "payrollRecord", table: "payroll_records", serial: true }, // بعد batch (FK Cascade)
   { model: "employeeTermination", table: "employee_terminations", serial: true }, // HR-2 — نهاية الخدمة (بعد القيود — FK entry_id SetNull)
+  // ===== HR-3 — تدقيق الملف والأطقم والتكليفات والتخصيص (FK: موظف/عقد/دفعة — كلها فوق) =====
+  { model: "employeeAuditLog", table: "employee_audit_logs", serial: true },
+  { model: "workTeam", table: "work_teams", serial: true },
+  { model: "workTeamMember", table: "work_team_members", serial: true },
+  { model: "employeeAssignment", table: "employee_assignments", serial: true },
+  { model: "laborAllocation", table: "labor_allocations", serial: true }, // بعد payrollBatch (FK Cascade)
   // ===== سجلات النظام (آخرًا لكي تُحذف أولًا عند الاستعادة) =====
   { model: "auditLog", table: "audit_log", serial: true },
   { model: "purgeAudit", table: "purge_audit", serial: true },

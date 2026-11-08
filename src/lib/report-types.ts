@@ -252,6 +252,10 @@ export interface ProfitabilityRow {
   cost: number
   /** الربح الفعلي = collected − cost */
   profit: number
+  /** HR-3 — تكلفة العمالة المخصصة من مساير معتمدة/مدفوعة (طبقة تحليلية بلا قيد — د1/د4) */
+  laborCost: number
+  /** الربح الشامل = collected − cost − laborCost */
+  comprehensiveProfit: number
   expectedCost: number
   expectedProfit: number
   margin: number
@@ -265,6 +269,8 @@ export interface ProfitabilityDTO {
     collected: number
     cost: number
     profit: number
+    laborCost: number
+    comprehensiveProfit: number
     expectedCost: number
     expectedProfit: number
     margin: number

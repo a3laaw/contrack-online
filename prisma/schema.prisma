@@ -236,6 +236,9 @@ model Contract {
   // الاستشارات الهندسية — نقطة الربط HR↔العقود (إسنادات المهندسين وساعاتهم)
   engAssignments    EngineerAssignment[]
   engTimesheets     EngineerTimesheet[]
+  // HR-3 — تكليفات الموظفين وتخصيص العمالة
+  employeeAssignments EmployeeAssignment[]
+  laborAllocations    LaborAllocation[]
 
   @@index([customerId, status])
   @@unique([companyId, contractNumber])
@@ -1257,6 +1260,7 @@ model Employee {
   salary          Decimal @default(0) // الأساسي الشهري — صفر = مستثنى من المسير
   paymentBasis    String  @default("monthly") @map("payment_basis") // monthly | daily
   dailyRate       Decimal @default(0) @map("daily_rate") // لأساس الأجر اليومي
+  monthlyCostRate Decimal @default(0) @map("monthly_cost_rate") // HR-3 — التكلفة الشهرية على الشركة (د2) — 0 ⇒ افتراضي الراتب الأساسي لحظة التخصيص
   paymentMethodId Int?    @map("payment_method_id")
   paymentMethod   PaymentMethod? @relation("EmployeePaymentMethod", fields: [paymentMethodId], references: [id])
   attendances     EmployeeAttendance[]
@@ -1264,6 +1268,11 @@ model Employee {
   permissions     EmployeePermission[]
   payrollRecords  PayrollRecord[]
   terminations    EmployeeTermination[]
+  // HR-3 — الأطقم والتكليفات والتخصيص وتدقيق الملف
+  auditLogs       EmployeeAuditLog[]
+  teamMemberships WorkTeamMember[]
+  assignments     EmployeeAssignment[]
+  laborAllocations LaborAllocation[]
 
   @@unique([companyId, name])
   @@index([companyId, active])
@@ -1937,6 +1946,7 @@ model PayrollBatch {
   cancelledAt      DateTime? @map("cancelled_at")
   cancelReason     String   @default("") @map("cancel_reason")
   records          PayrollRecord[]
+  laborAllocations LaborAllocation[] // HR-3 — أسطر توزيع تكلفة الشهر (تحليلي — د1)
   createdAt        DateTime @default(now()) @map("created_at")
 
   @@index([month, status])
@@ -1995,4 +2005,93 @@ model EmployeeTermination {
   @@index([employeeId])
   @@index([status])
   @@map("employee_terminations")
+}
+
+/// HR-3 — تدقيق ملف الموظف حقلًا-بحقل (د9) — NovaFlow employeeAuditLogs معرفيًا لا نصيًا
+model EmployeeAuditLog {
+  companyId  Int      @default(1) @map("company_id")
+  id         Int      @id @default(autoincrement())
+  employeeId Int      @map("employee_id")
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  field      String   // اسم الحقل المعرفي (salary) — قائمة مغلقة معلنة في hr-constants
+  fieldLabel String   @map("field_label") // العنوان العربي لحظة الكتابة (لقطة)
+  oldValue   String   @default("") @map("old_value") // قيمة منسقة نصيًا (نموذج جديد أو «فراغ»)
+  newValue   String   @default("") @map("new_value")
+  editedBy   String   @map("edited_by")
+  editedAt   DateTime @default(now()) @map("edited_at")
+
+  @@index([employeeId, editedAt])
+  @@map("employee_audit_logs")
+}
+
+/// HR-3 — فريق عمل تشغيلي (د6) — توليد تكليفات جماعية وفلترة عرض، بلا أثر مالي مباشر
+model WorkTeam {
+  companyId Int      @default(1) @map("company_id")
+  id        Int      @id @default(autoincrement())
+  name      String
+  active    Boolean  @default(true)
+  notes     String   @default("")
+  members   WorkTeamMember[]
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([companyId, name])
+  @@map("work_teams")
+}
+
+/// عضو الفريق — فريد ثنائي، حذف الفريق/الموظف يجرف العضوية
+model WorkTeamMember {
+  companyId  Int      @default(1) @map("company_id")
+  id         Int      @id @default(autoincrement())
+  teamId     Int      @map("team_id")
+  team       WorkTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  employeeId Int      @map("employee_id")
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, employeeId])
+  @@map("work_team_members")
+}
+
+/// HR-3 — تكليف موظف بعقد — مرآة EngineerAssignment حرفيًا (نمط مجرّب داخليًا)
+model EmployeeAssignment {
+  companyId     Int      @default(1) @map("company_id")
+  id            Int      @id @default(autoincrement())
+  employeeId    Int      @map("employee_id")
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  contractId    Int      @map("contract_id")
+  contract      Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  role          String   @default("")
+  allocationPct Decimal  @default(100) @map("allocation_pct") // النسبة الافتراضية عند توليد التخصيص
+  startDate     String   @default("") @map("start_date")
+  endDate       String   @default("") @map("end_date")
+  status        String   @default("سارية") // سارية | منتهية
+  notes         String   @default("")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([employeeId, status])
+  @@index([contractId])
+  @@map("employee_assignments")
+}
+
+/// HR-3 — سطر التوزيع الشهري المجمّد — طبقة تحليلية بلا قيد (د1) بSnapshot (Cost Snapping)
+/// غير الموزع لا يُخزّن — يُحسب: rate×100% − ∑ الأسطر
+model LaborAllocation {
+  companyId       Int          @default(1) @map("company_id")
+  id              Int          @id @default(autoincrement())
+  batchId         Int          @map("batch_id")
+  batch           PayrollBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  employeeId      Int          @map("employee_id")
+  employee        Employee     @relation(fields: [employeeId], references: [id])
+  contractId      Int          @map("contract_id")
+  contract        Contract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  sharePercent    Decimal      @default(0) @map("share_percent") // نسبة شهر تكلفة الموظف
+  snapMonthlyRate Decimal      @default(0) @map("snap_monthly_rate") // لقطة التكلفة لحظة الكتابة
+  amount          Decimal      @default(0) @db.Decimal(18, 3) // = rate × share% مجمّد
+  note            String       @default("")
+  createdBy       String       @default("") @map("created_by")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  @@unique([batchId, employeeId, contractId])
+  @@index([contractId])
+  @@index([batchId])
+  @@map("labor_allocations")
 }

@@ -6,8 +6,10 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { postJournalEntry } from "@/lib/journal-server";
 import { HR_PROVISION_ACCOUNTS, sumProvisions, type ProvisionEmployee } from "@/lib/hr-provision-core";
-import { scheduleMinutesFromPunches, monthEndDate, recountAnnualBalance } from "@/lib/hr-constants";
+import { scheduleMinutesFromPunches, monthEndDate, recountAnnualBalance, r3 } from "@/lib/hr-constants";
 import { eosServiceYears, computeEos } from "@/lib/hr-eos-core";
+// HR-3 — تكلفة العمالة: نواة التخصيص النقية + كاتب الأسطر (د1/د3/د5/د7)
+import { allocationAmountOf, effectiveMonthlyRate, buildAllocationPlan } from "@/lib/hr-labor-core";
 
 type Tx = Prisma.TransactionClient;
 type Client = Tx | PrismaClient;
@@ -258,4 +260,155 @@ export async function minutesForCompanyPunches(
     graceMinutes: s.hrGraceMinutes,
   });
   return { lateMinutes: m.late, earlyLeaveMinutes: m.early };
+}
+
+// ==================== HR-3 — توزيع تكلفة العمالة على العقود (طبقة تحليلية — د1) ====================
+
+export interface AllocationWriteRow {
+  employeeId: number;
+  contractId: number;
+  sharePercent: number;
+  note?: string;
+}
+
+/**
+ * كاتب التخصيصات الموحد — استبدال كامل لأسطر الدفعة (نفس نمط تحرير الشبكة):
+ * يُعاد حساب اللقطة (snapMonthlyRate/amount) لحظة الحفظ من ملف الموظف الحالي (د5 — التجميد عند الدفع).
+ * التحقق: الدفعة قابلة للتحرير (draft|approved) · الموظف له سجل بالدفعة · العقد موجود · نسبة سطر 0<s≤100 · مجموع الموظف ≤100 (د7).
+ */
+export async function writeBatchAllocations(
+  client: Client,
+  batchId: number,
+  rows: AllocationWriteRow[],
+  username: string
+): Promise<{ created: number }> {
+  const batch = await client.payrollBatch.findUnique({ where: { id: batchId }, select: { id: true, status: true } });
+  if (!batch) throw new Error("الدفعة غير موجودة");
+  if (batch.status === "paid") throw new Error("الدفعة مدفوعة — التخصيص مجمّد للقراءة فقط (د5)");
+  if (batch.status === "cancelled") throw new Error("الدفعة ملغاة — لا تخصيص عليها");
+
+  if (rows.length > 0) {
+    const [records, contractIds, employeeIds] = await Promise.all([
+      client.payrollRecord.findMany({ where: { batchId }, select: { employeeId: true } }),
+      client.contract.findMany({ where: { id: { in: rows.map((r) => r.contractId) } }, select: { id: true } }),
+      client.employee.findMany({
+        where: { id: { in: Array.from(new Set(rows.map((r) => r.employeeId))) } },
+        select: { id: true, salary: true, monthlyCostRate: true },
+      }),
+    ]);
+    const batchEmployees = new Set(records.map((r) => r.employeeId));
+    const contracts = new Set(contractIds.map((c) => c.id));
+    const empById = new Map(employeeIds.map((e) => [e.id, e]));
+
+    // فحص سقف المجموع لكل موظف داخل الدفعة (د7)
+    const sumByEmployee = new Map<number, number>();
+    for (const r of rows) {
+      const share = Number(r.sharePercent) || 0;
+      if (!(share > 0 && share <= 100)) throw new Error("نسبة السطر يجب أن تكون بين 0 و100 حصريًا");
+      if (!batchEmployees.has(r.employeeId)) throw new Error(`الموظف #${r.employeeId} ليس ضمن سجلات هذه الدفعة`);
+      if (!contracts.has(r.contractId)) throw new Error(`العقد #${r.contractId} غير موجود`);
+      sumByEmployee.set(r.employeeId, r3((sumByEmployee.get(r.employeeId) ?? 0) + share));
+    }
+    for (const [employeeId, sum] of sumByEmployee) {
+      if (sum > 100 + 1e-9) throw new Error(`مجموع نسب الموظف #${employeeId} داخل الدفعة ${r3(sum)}% — السقف 100% (د7)`);
+    }
+
+    // حذف القديم وكتابة الجديد بلقطات جديدة
+    await client.laborAllocation.deleteMany({ where: { batchId } });
+    const data = rows.map((r) => {
+      const emp = empById.get(r.employeeId);
+      const rate = emp ? effectiveMonthlyRate({ monthlyCostRate: Number(emp.monthlyCostRate), salary: Number(emp.salary) }) : 0;
+      if (rate <= 0) throw new Error(`الموظف #${r.employeeId} بلا تكلفة شهرية معرّفة (التكلفة أو الراتب)`);
+      return {
+        batchId,
+        employeeId: r.employeeId,
+        contractId: r.contractId,
+        sharePercent: r3(Number(r.sharePercent) || 0),
+        snapMonthlyRate: rate,
+        amount: allocationAmountOf(rate, Number(r.sharePercent) || 0),
+        note: String(r.note ?? "").trim(),
+        createdBy: username,
+      };
+    });
+    await client.laborAllocation.createMany({ data });
+    return { created: data.length };
+  }
+
+  // قائمة فارغة = مسح توزيع الدفعة
+  await client.laborAllocation.deleteMany({ where: { batchId } });
+  return { created: 0 };
+}
+
+/**
+ * توليد التخصيصات آليًا من التكليفات السارية المتقاطعة مع شهر الدفعة (د3/د7):
+ * يعيد النتيجة بلا كتابة عند مخالفات السقف (رسائل بالأسماء من طبقة المسار).
+ */
+export async function generateBatchAllocations(
+  client: Client,
+  batchId: number
+): Promise<{ plan: ReturnType<typeof buildAllocationPlan>; employeeNames: Map<number, string> }> {
+  const batch = await client.payrollBatch.findUnique({ where: { id: batchId }, select: { status: true, month: true } });
+  if (!batch) throw new Error("الدفعة غير موجودة");
+  if (batch.status === "paid") throw new Error("الدفعة مدفوعة — التخصيص مجمّد للقراءة فقط (د5)");
+  if (batch.status === "cancelled") throw new Error("الدفعة ملغاة — لا تخصيص عليها");
+
+  const records = await client.payrollRecord.findMany({ where: { batchId }, select: { employeeId: true } });
+  const employeeIds = Array.from(new Set(records.map((r) => r.employeeId)));
+  const [employees, assignments] = await Promise.all([
+    employeeIds.length
+      ? client.employee.findMany({
+          where: { id: { in: employeeIds } },
+          select: { id: true, name: true, salary: true, monthlyCostRate: true },
+        })
+      : Promise.resolve([] as { id: number; name: string; salary: unknown; monthlyCostRate: unknown }[]),
+    employeeIds.length
+      ? client.employeeAssignment.findMany({
+          where: { employeeId: { in: employeeIds } },
+          select: { employeeId: true, contractId: true, allocationPct: true, status: true, startDate: true, endDate: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  // موظفو التعرفة الصفرية (يوميون بلا تكلفة معرفة) يُستبعدون من المخطط ويظهرون مع المتخطيين
+  const planEmployees: { employeeId: number; salary: number; monthlyCostRate: number }[] = [];
+  const zeroRateIds: number[] = [];
+  for (const e of employees) {
+    const plain = { employeeId: e.id, salary: Number(e.salary), monthlyCostRate: Number(e.monthlyCostRate) };
+    if (effectiveMonthlyRate(plain) > 0) planEmployees.push(plain);
+    else zeroRateIds.push(e.id);
+  }
+
+  const plan = buildAllocationPlan(
+    planEmployees,
+    assignments.map((a) => ({
+      employeeId: a.employeeId,
+      contractId: a.contractId,
+      allocationPct: Number(a.allocationPct),
+      status: a.status,
+      startDate: a.startDate,
+      endDate: a.endDate,
+    })),
+    batch.month
+  );
+  plan.skipped = Array.from(new Set([...plan.skipped, ...zeroRateIds])).sort((a, b) => a - b);
+  return { plan, employeeNames: new Map(employees.map((e) => [e.id, e.name])) };
+}
+
+/** فحص سقف تكليف قبل الإنشاء/التعديل — رسالة عربية بالاسم (د7) */
+export async function assertAssignmentShareCap(
+  client: Client,
+  employeeId: number,
+  excludeAssignmentId: number,
+  newPct: number
+): Promise<void> {
+  const rows = await client.employeeAssignment.findMany({
+    where: { employeeId, status: "سارية", ...(excludeAssignmentId ? { id: { not: excludeAssignmentId } } : {}) },
+    select: { allocationPct: true },
+  });
+  const others = rows.reduce((s, r) => s + (Number(r.allocationPct) || 0), 0);
+  const sum = r3(others + Math.max(0, newPct));
+  if (sum > 100 + 1e-9) {
+    const emp = await client.employee.findUnique({ where: { id: employeeId }, select: { name: true } });
+    throw new Error(`مجموع تكليفات «${emp?.name ?? employeeId}» السارية سيبلغ ${sum}% — السقف 100% (د7). أنِه تكليفًا قائمًا أولًا.`);
+  }
 }
