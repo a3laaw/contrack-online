@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { audit, authGuard, jsonError, moduleGuard, ok, parseDay, todayStr } from "@/lib/api-utils";
 import { ATTENDANCE_STATUSES, attendanceLabel, monthKeyOf } from "@/lib/hr-constants";
+import { minutesForCompanyPunches } from "@/lib/hr-server";
 
 const STATUS_VALUES = ATTENDANCE_STATUSES.map((s) => s.value) as readonly string[];
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -47,6 +48,9 @@ export async function GET(req: NextRequest) {
       statusLabel: attendanceLabel(r.status),
       checkIn: r.checkIn,
       checkOut: r.checkOut,
+      lateMinutes: r.lateMinutes,
+      earlyLeaveMinutes: r.earlyLeaveMinutes,
+      source: r.source,
       note: r.note,
     })),
   });
@@ -79,8 +83,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // HR-2 — الدقائق تُحسب آليًا من الجدول (بلا جدول صالح = أصفار) — المصدر manual (د7)
+    const mins = await minutesForCompanyPunches(db, guard.user.companyId, checkIn, checkOut);
     const created = await db.employeeAttendance.create({
-      data: { employeeId, workDate, status, checkIn, checkOut, note: String(body.note || "").trim() },
+      data: { employeeId, workDate, status, checkIn, checkOut, note: String(body.note || "").trim(), ...mins, source: "manual" },
     });
     await audit(db, {
       username: guard.user.username,

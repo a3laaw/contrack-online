@@ -1,23 +1,30 @@
 /**
- * اختبارات نواة HR-1 — الموارد البشرية — bun test.
- * الرصيد السنوي (recount) · آلة حالات الإجازة · سلّم المرضية · حساب المسير والخصومات.
+ * اختبارات نواة HR — الموارد البشرية — bun test.
+ * HR-1: الرصيد السنوي (recount) · آلة حالات الإجازة · سلّم المرضية · حساب المسير والخصومات.
+ * HR-2: جدول الدوام والدقائق · الخصم الدقائقي · المرضية الفعلية · الدمج بالمسير.
  */
 import { describe, expect, test } from "bun:test";
 import {
   ANNUAL_LEAVE_PER_YEAR,
   canTransitionLeave,
   computePayrollRecord,
+  lateDeductionFor,
   leaveDaysBetween,
+  minuteRateOf,
   monthEndDate,
   monthKeyOf,
   monthLabelAr,
+  netChargeableMinutes,
   overlapDaysInMonth,
   PayrollCalcEmployee,
   recountAnnualBalance,
   r3,
+  scheduleMinutesFromPunches,
+  sickDeductionFor,
   sickTierFor,
-  SICK_LEAVE_TIERS,
   sumPayrollRecords,
+  workHoursOfSchedule,
+  SICK_LEAVE_TIERS,
 } from "../src/lib/hr-constants";
 
 // ==================== الرصيد السنوي ====================
@@ -232,5 +239,128 @@ describe("تجميعات الدفعة والشهور", () => {
   test("r3 التقريب الثلاثي", () => {
     expect(r3(1.0005)).toBe(1.001);
     expect(r3(2.675)).toBe(2.675);
+  });
+});
+
+// ==================== HR-2 — جدول الدوام والدقائق والمرضية الفعلية ====================
+
+describe("HR-2 — دقائق البصمات مقابل جدول الدوام", () => {
+  const schedule = { start: "08:00", end: "17:00", graceMinutes: 15 };
+
+  test("دخول بعد السماحية ⇒ تأخير بالدقائق", () => {
+    const m = scheduleMinutesFromPunches("08:40", "17:00", schedule);
+    expect(m.late).toBe(25); // 08:40 − (08:00+15)
+    expect(m.early).toBe(0);
+  });
+
+  test("دخول داخل السماحية ⇒ صفر", () => {
+    expect(scheduleMinutesFromPunches("08:15", "17:00", schedule).late).toBe(0);
+  });
+
+  test("انصراف مبكر بعد السماحية ⇒ دقائق", () => {
+    const m = scheduleMinutesFromPunches("08:00", "16:20", schedule);
+    expect(m.early).toBe(25); // (17:00−15) − 16:20
+    expect(m.late).toBe(0);
+  });
+
+  test("بصمة ناقصة ⇒ صفر (التصحيح يدوي)", () => {
+    expect(scheduleMinutesFromPunches("", "17:00", schedule).late).toBe(0);
+    expect(scheduleMinutesFromPunches("08:00", "", schedule).early).toBe(0);
+  });
+
+  test("جدول باطل ⇒ صفر (أمان)", () => {
+    const bad = { start: "17:00", end: "08:00", graceMinutes: 15 };
+    expect(scheduleMinutesFromPunches("09:00", "16:00", bad)).toEqual({ late: 0, early: 0 });
+  });
+
+  test("ساعات اليوم من الجدول + الأمان", () => {
+    expect(workHoursOfSchedule(schedule)).toBe(9);
+    expect(workHoursOfSchedule(null)).toBe(8);
+    expect(workHoursOfSchedule({ start: "باطل", end: "17:00", graceMinutes: 0 })).toBe(8);
+  });
+});
+
+describe("HR-2 — الخصم الدقائقي (د3)", () => {
+  test("معدل الدقيقة = الأساسي ÷ (30 × ساعات اليوم)", () => {
+    expect(minuteRateOf(900, 9)).toBeCloseTo(900 / 270);
+  });
+
+  test("الخصم = الدقائق × المعدل", () => {
+    // 60 دقيقة × (900/270) = 200
+    expect(lateDeductionFor(900, 9, 60)).toBe(200);
+  });
+
+  test("الإعفاء يقلل القابل للخصم ولا يجعله سالبًا", () => {
+    expect(netChargeableMinutes(40, 60)).toBe(0);
+    expect(netChargeableMinutes(70, 30)).toBe(40);
+    expect(netChargeableMinutes(-5, 0)).toBe(0);
+  });
+
+  test("اليومي يخرج صفرًا من computePayrollRecord حتى مع دقائق", () => {
+    const r = computePayrollRecord({
+      employeeId: 1, name: "س", jobTitle: "", employeeType: "internal",
+      paymentBasis: "daily", salary: 0, dailyRate: 30,
+      presentDays: 20, unjustifiedAbsenceDays: 0, unpaidLeaveDays: 0,
+      advanceRemaining: 0, lateDeduction: 500,
+    }) as { lateDeduction: number; sickDeduction: number };
+    expect(r.lateDeduction).toBe(0);
+    expect(r.sickDeduction).toBe(0);
+  });
+});
+
+describe("HR-2 — الخصم المرضي الفعلي (شرائح م66)", () => {
+  test("الشريحة الثانية (75%) تخصم ربع قيمة اليوم لكل يوم", () => {
+    // 10 أيام × (900/30) × 25% = 75
+    expect(sickDeductionFor(900, [{ tier: 1, days: 10 }])).toBe(75);
+  });
+
+  test("الشريحة الأولى كاملة الأجر ⇒ صفر", () => {
+    expect(sickDeductionFor(900, [{ tier: 0, days: 15 }])).toBe(0);
+  });
+
+  test("الشرائح تتجمّع: ثانية + ثالثة", () => {
+    // 10×(900/30)×25% + 10×(900/30)×50% = 75 + 150
+    expect(sickDeductionFor(900, [{ tier: 1, days: 10 }, { tier: 2, days: 10 }])).toBe(225);
+  });
+
+  test("شريحة null (لقطات HR-1 القديمة) = كامل الأجر ⇒ صفر", () => {
+    expect(sickDeductionFor(900, [{ tier: null, days: 5 }])).toBe(0);
+  });
+
+  test("شريحة خارج السلّم (−1 تجاوز قانوني) تعامل بلا أجر ⇒ خصم كامل", () => {
+    // tier −1 ⇒ pct 0 ⇒ (1−0) = كامل قيمة اليوم
+    expect(sickDeductionFor(900, [{ tier: -1, days: 2 }])).toBe(60);
+  });
+});
+
+describe("HR-2 — المسير يدمج المرضية والدقائق في الصافي", () => {
+  test("السقف للسلف يخصم المرضية والتأخير قبل السلف", () => {
+    const r = computePayrollRecord({
+      employeeId: 1, name: "س", jobTitle: "", employeeType: "internal",
+      paymentBasis: "monthly", salary: 900, dailyRate: 0,
+      presentDays: 0, unjustifiedAbsenceDays: 0, unpaidLeaveDays: 0,
+      advanceRemaining: 100, sickDeduction: 75, lateDeduction: 25,
+    }) as { advanceDeduction: number; netAmount: number };
+    // earned = 900 − 75 − 25 = 800 ⇒ سقف السلف 800 ⇒ تخصم 100 كاملة
+    expect(r.advanceDeduction).toBe(100);
+    expect(r.netAmount).toBe(700);
+  });
+
+  test("deductionTotal يتضمن المرضية والتأخير", () => {
+    const a = computePayrollRecord({
+      employeeId: 1, name: "أ", jobTitle: "", employeeType: "internal",
+      paymentBasis: "monthly", salary: 900, dailyRate: 0,
+      presentDays: 0, unjustifiedAbsenceDays: 0, unpaidLeaveDays: 0,
+      advanceRemaining: 0, sickDeduction: 75, lateDeduction: 25,
+    }) as { baseAmount: number; absenceDeduction: number; sickDeduction: number; lateDeduction: number; advanceDeduction: number; netAmount: number };
+    const b = computePayrollRecord({
+      employeeId: 2, name: "س", jobTitle: "", employeeType: "internal",
+      paymentBasis: "monthly", salary: 300, dailyRate: 0,
+      presentDays: 0, unjustifiedAbsenceDays: 0, unpaidLeaveDays: 0,
+      advanceRemaining: 50, sickDeduction: 0, lateDeduction: 0,
+    }) as typeof a;
+    const s = sumPayrollRecords([a, b]);
+    expect(s.deductionTotal).toBe(100); // 75+25 + 0
+    expect(s.netTotal).toBe(1050); // 800 + (300−50)
   });
 });

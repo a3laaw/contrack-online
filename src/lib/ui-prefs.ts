@@ -7,17 +7,18 @@ import { db, currentCompanyId } from '@/lib/db'
 
 export type UiPrefs = Record<string, unknown>
 
-/** يضمن وجود صف الإعدادات لشركة السياق ويعيد uiPrefs مفكوكة بأمان */
+/** يضمن وجود صف الإعدادات لشركة السياق ويعيد uiPrefs مفكوكة بأمان
+ *  (نمط updateMany/create — الغلاف المحمي يفشل مع upsert بمفتاح companyId) */
 export async function getUiPrefs(): Promise<{ prefs: UiPrefs }> {
   const companyId = await currentCompanyId()
   if (companyId == null) return { prefs: {} }
-  const s = await db.setting.upsert({
-    where: { companyId },
-    create: { companyId },
-    update: {},
-  })
+  let s = await db.setting.findUnique({ where: { companyId } })
+  if (!s) {
+    await db.setting.create({ data: {} })
+    s = await db.setting.findUnique({ where: { companyId } })
+  }
   let prefs: UiPrefs = {}
-  if (s.uiPrefs) {
+  if (s?.uiPrefs) {
     try {
       const parsed: unknown = JSON.parse(s.uiPrefs)
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
@@ -36,6 +37,6 @@ export async function updateUiPrefs(patch: UiPrefs): Promise<UiPrefs> {
   if (companyId == null) throw new Error('سياق الشركة مفقود لتفضيلات الواجهة')
   const { prefs } = await getUiPrefs()
   const next = { ...prefs, ...patch }
-  await db.setting.update({ where: { companyId }, data: { uiPrefs: JSON.stringify(next) } })
+  await db.setting.updateMany({ where: { companyId }, data: { uiPrefs: JSON.stringify(next) } })
   return next
 }

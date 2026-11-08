@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * HRView.tsx — شاشة موديول «الموارد البشرية» (HR-1):
- * خمسة أقسام يملكها تبويب الشل «الموارد البشرية» (nav-structure → section):
- *   الموظفون · الحضور · الإجازات · مسير الرواتب · سلف الموظفين
+ * HRView.tsx — شاشة موديول «الموارد البشرية» (HR-1 + HR-2):
+ * ثمانية أقسام يملكها تبويب الشل «الموارد البشرية» (nav-structure → section):
+ *   الموظفون · الحضور (باستيراد البصمة وجدول الدوام) · الإجازات · الأذونات · مسير الرواتب · سلف الموظفين · نهاية الخدمة · التقارير
  * + بطاقات مؤشرات (ملخص /api/hr-summary) تظهر في كل الأقسام.
  * الموديول يظهر حصرًا للشركات التي فعّلته (navModules) — والإيقاف يرجع 403 برسالة عربية.
  * الأرصدة السنوية تأتي جاهزة من الخادم (balances) — لا تُعاد حسابيًا في العميل.
@@ -18,6 +18,9 @@ import {
   CalendarDays,
   Check,
   ChevronLeft,
+  ClipboardList,
+  Clock,
+  DoorOpen,
   HandCoins,
   Loader2,
   Phone,
@@ -26,9 +29,12 @@ import {
   Power,
   PowerOff,
   Pencil,
+  Printer,
   Search,
+  Timer,
   Trash2,
   Undo2,
+  Upload,
   Users,
   X,
 } from "lucide-react";
@@ -114,6 +120,9 @@ interface AttendanceRecord {
   statusLabel: string;
   checkIn: string;
   checkOut: string;
+  lateMinutes: number;
+  earlyLeaveMinutes: number;
+  source: string;
   note: string;
 }
 
@@ -167,8 +176,12 @@ interface PayrollRecordItem {
   snapBasisLabel: string;
   presentDays: number;
   absenceDays: number;
+  snapSickDays: number;
+  snapLateMinutes: number;
   baseAmount: number;
   absenceDeduction: number;
+  sickDeduction: number;
+  lateDeduction: number;
   advanceDeduction: number;
   netAmount: number;
   deductionVoucherId: number | null;
@@ -222,7 +235,7 @@ interface PaymentMethodItem {
   isActive: boolean;
 }
 
-export type HRSection = "team" | "attendance" | "leaves" | "payroll" | "advances";
+export type HRSection = "team" | "attendance" | "leaves" | "permissions" | "payroll" | "advances" | "eos" | "reports";
 
 interface HRViewProps {
   user: User;
@@ -343,8 +356,11 @@ const SECTION_META: { key: HRSection; label: string; icon: React.ComponentType<{
   { key: "team", label: "الموظفون", icon: Users },
   { key: "attendance", label: "الحضور", icon: CalendarCheck2 },
   { key: "leaves", label: "الإجازات", icon: CalendarDays },
+  { key: "permissions", label: "الأذونات", icon: Timer },
   { key: "payroll", label: "المسير", icon: Banknote },
   { key: "advances", label: "السلف", icon: HandCoins },
+  { key: "eos", label: "نهاية الخدمة", icon: DoorOpen },
+  { key: "reports", label: "التقارير", icon: ClipboardList },
 ];
 
 // ==================== الشاشة الرئيسية ====================
@@ -417,7 +433,7 @@ export function HRView({ onAuthError, section, onSectionChange }: HRViewProps) {
         <div>
           <h1 className="text-lg font-extrabold tracking-tight sm:text-xl">الموارد البشرية</h1>
           <p className="text-xs text-muted-foreground">
-            الموظفون وأسس أجورهم · الحضور اليومي · الإجازات بأرصدتها القانونية · مسير الرواتب · سلف الموظفين
+            الموظفون وأسس أجورهم · الحضور والبصمة · الإجازات والأذونات · مسير الرواتب · السلف · نهاية الخدمة والتقارير
           </p>
         </div>
         <SectionAction
@@ -511,8 +527,13 @@ export function HRView({ onAuthError, section, onSectionChange }: HRViewProps) {
           setDeleteTarget={setDeleteTarget}
         />
       )}
+      {section === "permissions" && (
+        <PermissionsSection employeeOpts={employeeOptsActive} onErr={onErr} invalidate={invalidate} setDeleteTarget={setDeleteTarget} />
+      )}
       {section === "payroll" && <PayrollSection onErr={onErr} invalidate={invalidate} setDeleteTarget={setDeleteTarget} />}
       {section === "advances" && <AdvancesSection onErr={onErr} invalidate={invalidate} />}
+      {section === "eos" && <EosSection employeeOptsActive={employeeOptsActive} onErr={onErr} invalidate={invalidate} />}
+      {section === "reports" && <ReportsSection employeeOpts={employeeOpts} onErr={onErr} />}
 
       {/* تأكيد الحذف الموحد */}
       <Dialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
@@ -552,6 +573,7 @@ const LABELS_DELETE: Record<string, string> = {
   team: "حُذف الموظف",
   attendance: "حُذف سجل الحضور",
   leaves: "حُذف طلب الإجازة",
+  permissions: "حُذف طلب الإذن",
   payroll: "حُذف مسير المسودة",
 };
 
@@ -569,13 +591,16 @@ function SectionAction({
     team: "موظف جديد",
     attendance: "تسجيل حضور",
     leaves: "طلب إجازة",
+    permissions: "طلب إذن",
     payroll: "توليد مسير",
     advances: "صرف سلفة",
+    eos: "توثيق نهاية خدمة",
+    reports: "تقرير ملف موظف",
   };
   return (
     <Button
       onClick={() => {
-        if ((section === "attendance" || section === "leaves" || section === "advances") && !employeesReady) {
+        if ((section === "attendance" || section === "leaves" || section === "permissions" || section === "advances") && !employeesReady) {
           onNoEmployees();
           return;
         }
@@ -604,6 +629,12 @@ interface SectionCommon {
   onErr: (e: unknown, title: string) => void;
   invalidate: () => void;
   setDeleteTarget: (v: { kind: string; id: number; label: string } | null) => void;
+}
+
+/** أقسام بلا حذف (نهاية الخدمة) — لا تحتاج setDeleteTarget */
+interface SectionCommonPartial {
+  onErr: (e: unknown, title: string) => void;
+  invalidate: () => void;
 }
 
 // ==================== قسم الموظفون ====================
@@ -1045,6 +1076,8 @@ function AttendanceSection({
   const records = listQuery.data?.records ?? [];
 
   const [editor, setEditor] = React.useState<{ editing: AttendanceRecord | null } | null>(null);
+  const [importOpen, setImportOpen] = React.useState(false);
+  const [scheduleOpen, setScheduleOpen] = React.useState(false);
   useAddEvent("attendance", React.useCallback(() => setEditor({ editing: null }), [setEditor]));
 
   const saveMutation = useMutation({
@@ -1069,6 +1102,19 @@ function AttendanceSection({
 
   return (
     <div className="space-y-3">
+      {/* HR-2 — شريط البصمة وجدول الدوام */}
+      <Card className="flex flex-wrap items-center gap-2 p-3 sm:p-4">
+        <span className="text-xs font-bold">البصمة والدوام</span>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setImportOpen(true)}>
+          <Upload className="size-3.5" />
+          استيراد بصمة
+        </Button>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setScheduleOpen(true)}>
+          <Clock className="size-3.5" />
+          جدول الدوام
+        </Button>
+        <span className="text-[11px] text-muted-foreground">دقائق التأخير/الانصراف تُحسب آليًا من الجدول — والاستيراد لا يلمس الأيام اليدوية</span>
+      </Card>
       {/* الفلاتر */}
       <Card className="gap-3 p-3 sm:p-4">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-[auto_1fr_1fr]">
@@ -1147,6 +1193,13 @@ function AttendanceSection({
                     </td>
                     <td className="px-3 py-2.5 tabular-nums text-muted-foreground" dir="ltr">
                       {r.checkIn || "—"} ← {r.checkOut || "—"}
+                      {(r.lateMinutes > 0 || r.earlyLeaveMinutes > 0) && (
+                        <span className="mt-0.5 flex flex-wrap gap-1">
+                          {r.lateMinutes > 0 && <Badge className="h-5 bg-status-warn-bg px-1.5 text-[10px] text-status-warn">متأخر {r.lateMinutes}د</Badge>}
+                          {r.earlyLeaveMinutes > 0 && <Badge className="h-5 bg-status-warn-bg px-1.5 text-[10px] text-status-warn">انصراف مبكر {r.earlyLeaveMinutes}د</Badge>}
+                        </span>
+                      )}
+                      {r.source === "import" && <Badge variant="outline" className="mt-0.5 h-5 px-1.5 text-[10px]">بصمة مستوردة</Badge>}
                     </td>
                     <td className="max-w-[220px] truncate px-3 py-2.5 text-[11px] text-muted-foreground">{r.note || "—"}</td>
                     <td className="px-3 py-2.5">
@@ -1187,6 +1240,8 @@ function AttendanceSection({
                     </div>
                     <p className="text-[11px] tabular-nums text-muted-foreground" dir="ltr">
                       {r.checkIn || "—"} ← {r.checkOut || "—"}
+                      {r.lateMinutes > 0 ? ` · متأخر ${r.lateMinutes}د` : ""}
+                      {r.earlyLeaveMinutes > 0 ? ` · انصراف مبكر ${r.earlyLeaveMinutes}د` : ""}
                     </p>
                     {r.note && <p className="text-[11px] text-muted-foreground">{r.note}</p>}
                   </div>
@@ -1219,6 +1274,11 @@ function AttendanceSection({
         onClose={() => setEditor(null)}
         onSave={(data) => saveMutation.mutate({ id: editor?.editing?.id, data })}
       />
+
+      {/* HR-2 — نافذة استيراد البصمة */}
+      <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} onErr={onErr} invalidate={invalidate} />
+      {/* HR-2 — نافذة جدول الدوام */}
+      <ScheduleDialog open={scheduleOpen} onClose={() => setScheduleOpen(false)} onErr={onErr} invalidate={invalidate} />
     </div>
   );
 }
@@ -2011,6 +2071,8 @@ function PayrollSection({ onErr, invalidate, setDeleteTarget }: SectionCommon) {
                         <Th>حاضر / غياب</Th>
                         <Th>المستحق</Th>
                         <Th>خصم غياب</Th>
+                        <Th>خصم مرضية</Th>
+                        <Th>خصم تأخير</Th>
                         <Th>خصم سلف</Th>
                         <Th>الصافي</Th>
                       </tr>
@@ -2030,6 +2092,8 @@ function PayrollSection({ onErr, invalidate, setDeleteTarget }: SectionCommon) {
                           </td>
                           <td className="px-3 py-2.5 tabular-nums">{fmtMoney(r.baseAmount)}</td>
                           <td className={cn("px-3 py-2.5 tabular-nums", r.absenceDeduction > 0 ? "text-status-warn" : "text-muted-foreground")}>{fmtMoney(r.absenceDeduction)}</td>
+                          <td className={cn("px-3 py-2.5 tabular-nums", r.sickDeduction > 0 ? "text-status-warn" : "text-muted-foreground")} title={r.snapSickDays > 0 ? `${r.snapSickDays} يوم مرضي` : undefined}>{fmtMoney(r.sickDeduction)}</td>
+                          <td className={cn("px-3 py-2.5 tabular-nums", r.lateDeduction > 0 ? "text-status-warn" : "text-muted-foreground")} title={r.snapLateMinutes > 0 ? `${r.snapLateMinutes} دقيقة مجردة` : undefined}>{fmtMoney(r.lateDeduction)}</td>
                           <td className={cn("px-3 py-2.5 tabular-nums", r.advanceDeduction > 0 ? "text-status-warn" : "text-muted-foreground")}>{fmtMoney(r.advanceDeduction)}</td>
                           <td className="px-3 py-2.5 font-bold tabular-nums">{fmtMoney(r.netAmount)}</td>
                         </tr>
@@ -2054,6 +2118,8 @@ function PayrollSection({ onErr, invalidate, setDeleteTarget }: SectionCommon) {
                       <div className="mt-2 grid grid-cols-2 gap-1.5 text-[11px] tabular-nums">
                         <span className="text-muted-foreground">المستحق: <span className="text-foreground">{fmtMoney(r.baseAmount)}</span></span>
                         <span className="text-muted-foreground">خصم غياب: <span className={r.absenceDeduction > 0 ? "text-status-warn" : ""}>{fmtMoney(r.absenceDeduction)}</span></span>
+                        <span className="text-muted-foreground">خصم مرضية: <span className={r.sickDeduction > 0 ? "text-status-warn" : ""}>{fmtMoney(r.sickDeduction)}</span></span>
+                        <span className="text-muted-foreground">خصم تأخير: <span className={r.lateDeduction > 0 ? "text-status-warn" : ""}>{fmtMoney(r.lateDeduction)}</span></span>
                         <span className="text-muted-foreground">خصم سلف: <span className={r.advanceDeduction > 0 ? "text-status-warn" : ""}>{fmtMoney(r.advanceDeduction)}</span></span>
                         <span className="font-bold">الصافي: {fmtMoney(r.netAmount)}</span>
                       </div>
@@ -2646,5 +2712,1147 @@ function AdvanceDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ==================== HR-2 — نافذة جدول الدوام ====================
+
+function ScheduleDialog({ open, onClose, onErr, invalidate }: { open: boolean; onClose: () => void; onErr: (e: unknown, t: string) => void; invalidate: () => void }) {
+  const { toast } = useToast();
+  const q = useQuery<{ schedule: { start: string; end: string; graceMinutes: number }; workHoursPerDay: number }>({
+    queryKey: ["hr", "schedule"],
+    queryFn: () => apiGet("/api/hr/schedule"),
+    enabled: open,
+  });
+  const [form, setForm] = React.useState({ start: "08:00", end: "17:00", graceMinutes: 15 });
+  React.useEffect(() => {
+    if (q.data) setForm(q.data.schedule);
+  }, [q.data]);
+
+  const save = useMutation({
+    mutationFn: () => apiPutRaw("/api/hr/schedule", form),
+    onSuccess: () => {
+      invalidate();
+      onClose();
+      toast({ title: "حُفظ جدول الدوام", description: "دقائق الحضور الجديدة تُحسب بالجدول المحدّث" });
+    },
+    onError: (e) => onErr(e, "تعذر حفظ الجدول"),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>جدول الدوام الرسمي</DialogTitle>
+          <DialogDescription>
+            أساس حساب دقائق التأخير والانصراف المبكر — ساعات اليوم: {q.data ? q.data.workHoursPerDay : "—"}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs">البداية</Label>
+            <Input type="time" value={form.start} onChange={(e) => setForm((f) => ({ ...f, start: e.target.value }))} dir="ltr" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">النهاية</Label>
+            <Input type="time" value={form.end} onChange={(e) => setForm((f) => ({ ...f, end: e.target.value }))} dir="ltr" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">السماحية (دقيقة)</Label>
+            <Input
+              type="number"
+              min={0}
+              max={120}
+              value={form.graceMinutes}
+              onChange={(e) => setForm((f) => ({ ...f, graceMinutes: Number(e.target.value) }))}
+              dir="ltr"
+            />
+          </div>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          التأخير داخل السماحية لا يُخصم. الإذن المعتمد يعفي دقائقه المعلنة. الباقي يُخصم بساعة العمل: الأساسي ÷ 30 ÷ ساعات اليوم (د3).
+        </p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            إلغاء
+          </Button>
+          <Button onClick={() => save.mutate()} disabled={save.isPending}>
+            {save.isPending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+            حفظ
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** PUT مساعد — apiPatch يُستخدم للتعديلات المحددة، والجدول PUT كامل */
+async function apiPutRaw(url: string, body: unknown): Promise<unknown> {
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const j = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new ApiError(j.error || "تعذر الطلب", res.status);
+  }
+  return res.json();
+}
+
+// ==================== HR-2 — نافذة استيراد البصمة ====================
+
+interface ImportPreviewRow {
+  line: number;
+  jobNumber: string;
+  workDate: string;
+  employeeName: string;
+  checkIn: string;
+  checkOut: string;
+  lateMinutes: number;
+  earlyLeaveMinutes: number;
+  note: string;
+  action: "create" | "update" | "skip_manual" | "skip_leave" | "rejected";
+  reason: string;
+}
+
+const IMPORT_ACTION_LABELS: Record<string, { label: string; cls: string }> = {
+  create: { label: "جديد", cls: "bg-status-done-bg text-status-done" },
+  update: { label: "تحديث", cls: "bg-status-info-bg text-status-info" },
+  skip_manual: { label: "يدوي محمي", cls: "bg-muted text-muted-foreground" },
+  skip_leave: { label: "إجازة", cls: "bg-status-info-bg text-status-info" },
+  rejected: { label: "مرفوض", cls: "bg-status-danger-bg text-status-danger" },
+};
+
+function ImportDialog({ open, onClose, onErr, invalidate }: { open: boolean; onClose: () => void; onErr: (e: unknown, t: string) => void; invalidate: () => void }) {
+  const { toast } = useToast();
+  const [text, setText] = React.useState("");
+  const [fileName, setFileName] = React.useState("");
+  const [preview, setPreview] = React.useState<{ totals: Record<string, number>; rows: ImportPreviewRow[]; rejected: { line: number; reason: string }[] } | null>(null);
+
+  const reset = () => {
+    setText("");
+    setFileName("");
+    setPreview(null);
+  };
+
+  const onFile = async (f: File | null) => {
+    if (!f) return;
+    setFileName(f.name);
+    const t = await f.text();
+    setText(t);
+    setPreview(null);
+  };
+
+  const previewMutation = useMutation({
+    mutationFn: () => apiPost<{ preview: boolean; totals: Record<string, number>; rows: ImportPreviewRow[]; rejected: { line: number; reason: string }[] }>("/api/hr/attendance/import", { mode: "preview", text }),
+    onSuccess: (r) => setPreview({ totals: r.totals, rows: r.rows, rejected: r.rejected }),
+    onError: (e) => onErr(e, "تعذر تحليل الملف"),
+  });
+
+  const commitMutation = useMutation({
+    mutationFn: () => apiPost<{ committed: boolean; created: number; updated: number; skippedManual: number; skippedLeave: number; rejectedLines: number }>("/api/hr/attendance/import", { mode: "commit", text }),
+    onSuccess: (r) => {
+      invalidate();
+      onClose();
+      reset();
+      toast({
+        title: `ثُبتت الحضور: ${r.created} جديد · ${r.updated} تحديث`,
+        description: `يدوي محمي: ${r.skippedManual} · إجازة: ${r.skippedLeave} · مرفوض: ${r.rejectedLines}`,
+      });
+    },
+    onError: (e) => onErr(e, "تعذر تثبيت الاستيراد"),
+  });
+
+  const totals = preview?.totals;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>استيراد بصمة الحضور</DialogTitle>
+          <DialogDescription>
+            قالب CSV/TXT: <span dir="ltr" className="font-mono text-[11px]">jobNumber,YYYY-MM-DD,in,out,in2,out2</span> — الدمج يأخذ أقدم دخول وأحدث خروج
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Input type="file" accept=".csv,.txt,.dat" onChange={(e) => onFile(e.target.files?.[0] ?? null)} className="h-9 flex-1" dir="ltr" />
+            {fileName && <Badge variant="outline" className="h-6 text-[11px]">{fileName}</Badge>}
+          </div>
+          <textarea
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              setPreview(null);
+            }}
+            rows={4}
+            dir="ltr"
+            placeholder={"1001,2026-11-01,08:05,17:00\n1001,2026-11-02,08:10,16:45,16:50,17:10"}
+            className="w-full rounded-lg border bg-background p-2 font-mono text-[11px]"
+          />
+
+          {totals && (
+            <div className="flex flex-wrap gap-1.5">
+              <Badge className="h-6 bg-status-done-bg text-[11px] text-status-done">جديد: {totals.create}</Badge>
+              <Badge className="h-6 bg-status-info-bg text-[11px] text-status-info">تحديث: {totals.update}</Badge>
+              <Badge className="h-6 bg-muted text-[11px] text-muted-foreground">يدوي محمي: {totals.skippedManual}</Badge>
+              <Badge className="h-6 bg-status-info-bg text-[11px] text-status-info">إجازة: {totals.skippedLeave}</Badge>
+              <Badge className="h-6 bg-status-danger-bg text-[11px] text-status-danger">مرفوض: {totals.rejectedLines}</Badge>
+            </div>
+          )}
+
+          {preview && preview.rows.length > 0 && (
+            <div className="max-h-56 overflow-y-auto rounded-lg border" dir="ltr">
+              <table className="w-full text-[11px]">
+                <thead className="sticky top-0 bg-muted/60">
+                  <tr>
+                    <th className="px-2 py-1.5 text-start">#</th>
+                    <th className="px-2 py-1.5 text-start">الوظيفي</th>
+                    <th className="px-2 py-1.5 text-start">التاريخ</th>
+                    <th className="px-2 py-1.5 text-start">دخول←خروج</th>
+                    <th className="px-2 py-1.5 text-start">التأخير</th>
+                    <th className="px-2 py-1.5 text-start">الإجراء</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.rows.slice(0, 100).map((r) => {
+                    const a = IMPORT_ACTION_LABELS[r.action];
+                    return (
+                      <tr key={`${r.line}`} className="border-t">
+                        <td className="px-2 py-1 tabular-nums text-muted-foreground">{r.line}</td>
+                        <td className="px-2 py-1 tabular-nums">{r.jobNumber}</td>
+                        <td className="px-2 py-1 tabular-nums">{r.workDate}</td>
+                        <td className="px-2 py-1 tabular-nums">{r.checkIn || "—"}←{r.checkOut || "—"}</td>
+                        <td className="px-2 py-1 tabular-nums">{r.lateMinutes > 0 ? `${r.lateMinutes}د` : "—"}</td>
+                        <td className="px-2 py-1">
+                          <span className={cn("rounded px-1.5 py-0.5 text-[10px]", a.cls)}>{a.label}</span>
+                          {r.reason && <span className="ms-1 text-[10px] text-muted-foreground">{r.reason}</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { onClose(); reset(); }}>
+            إغلاق
+          </Button>
+          <Button variant="outline" onClick={() => previewMutation.mutate()} disabled={previewMutation.isPending || !text.trim()}>
+            {previewMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
+            معاينة
+          </Button>
+          <Button onClick={() => commitMutation.mutate()} disabled={commitMutation.isPending || !preview || (totals?.create ?? 0) + (totals?.update ?? 0) === 0}>
+            {commitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+            تثبيت
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ==================== HR-2 — قسم الأذونات ====================
+
+interface HRPermission {
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  jobTitle: string;
+  permDate: string;
+  kind: string;
+  kindLabel: string;
+  minutes: number;
+  reason: string;
+  status: string;
+  decisionBy: string;
+  decisionAt: string;
+  decisionNote: string;
+}
+
+const PERM_STATUS_TONE: Record<string, { text: string; bg: string }> = {
+  "معلقة": { text: "text-status-warn", bg: "bg-status-warn-bg" },
+  "معتمدة": { text: "text-status-info", bg: "bg-status-info-bg" },
+  "مرفوضة": { text: "text-status-danger", bg: "bg-status-danger-bg" },
+};
+
+function PermissionsSection({
+  employeeOpts,
+  onErr,
+  invalidate,
+  setDeleteTarget,
+}: SectionCommon & { employeeOpts: { value: string; label: string }[] }) {
+  const { toast } = useToast();
+
+  const [monthFilter, setMonthFilter] = React.useState(thisMonth());
+  const [tab, setTab] = React.useState<string>("الكل");
+  const [q, setQ] = React.useState("");
+
+  const listQuery = useQuery<{ permissions: HRPermission[] }>({
+    queryKey: ["hr", "permissions", monthFilter],
+    queryFn: () => {
+      const sp = new URLSearchParams();
+      if (monthFilter) sp.set("month", monthFilter);
+      const qs = sp.toString();
+      return apiGet<{ permissions: HRPermission[] }>(`/api/hr/permissions${qs ? `?${qs}` : ""}`);
+    },
+  });
+  const permissions = listQuery.data?.permissions ?? [];
+
+  const filtered = React.useMemo(() => {
+    const needle = normSearch(q.trim());
+    return permissions.filter((p) => {
+      if (tab !== "الكل" && p.status !== tab) return false;
+      if (needle && !normSearch(`${p.employeeName} ${p.reason} ${p.kindLabel}`).includes(needle)) return false;
+      return true;
+    });
+  }, [permissions, tab, q]);
+
+  const [editor, setEditor] = React.useState(false);
+  const [rejectTarget, setRejectTarget] = React.useState<HRPermission | null>(null);
+  const [rejectNote, setRejectNote] = React.useState("");
+  useAddEvent("permissions", React.useCallback(() => setEditor(true), [setEditor]));
+
+  const saveMutation = useMutation({
+    mutationFn: (v: Record<string, unknown>) => apiPost("/api/hr/permissions", v),
+    onSuccess: () => {
+      setEditor(false);
+      invalidate();
+      toast({ title: "سُجل طلب الإذن", description: "بانتظار القرار" });
+    },
+    onError: (e) => onErr(e, "تعذر الحفظ"),
+  });
+
+  const decideMutation = useMutation({
+    mutationFn: (v: { id: number; action: "approve" | "reject"; decisionNote?: string }) =>
+      apiPatch(`/api/hr/permissions/${v.id}`, { action: v.action, ...(v.decisionNote ? { decisionNote: v.decisionNote } : {}) }),
+    onSuccess: (_r, v) => {
+      setRejectTarget(null);
+      setRejectNote("");
+      invalidate();
+      toast({ title: v.action === "approve" ? "اعتُمد الإذن — يعفي دقائقه من الخصم" : "رُفض الإذن" });
+    },
+    onError: (e) => onErr(e, "تعذر تنفيذ الإجراء"),
+  });
+
+  const statusCount = (s: string) => permissions.filter((p) => p.status === s).length;
+
+  return (
+    <div className="space-y-3">
+      <Card className="gap-3 p-3 sm:p-4">
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList className="h-9 w-full justify-start overflow-x-auto sm:w-auto">
+            <TabsTrigger value="الكل">الكل ({permissions.length})</TabsTrigger>
+            {["معلقة", "معتمدة", "مرفوضة"].map((s) => (
+              <TabsTrigger key={s} value={s}>
+                {s} ({statusCount(s)})
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[auto_1fr]">
+          <div className="flex items-center gap-1.5">
+            <Label className="shrink-0 text-xs text-muted-foreground">الشهر</Label>
+            <Input type="month" value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} className="h-9 w-40" dir="ltr" />
+          </div>
+          <div className="relative">
+            <Search className="absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث بالموظف/العلة…" className="ps-8" />
+          </div>
+        </div>
+      </Card>
+
+      {listQuery.isLoading ? (
+        <SkeletonRows h="h-14" />
+      ) : listQuery.isError ? (
+        <Card className="p-8 text-center text-sm text-destructive">تعذر تحميل الأذونات — {errMessage(listQuery.error)}</Card>
+      ) : filtered.length === 0 ? (
+        <EmptyState icon={Timer} title="لا أذونات بهذا الشهر بالفلاتر الحالية" hint="الأذونات المعتمدة تعفي دقائقها من الخصم الدقائقي في المسير" />
+      ) : (
+        <>
+          <div className="hidden overflow-hidden rounded-xl border md:block">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr>
+                  <Th>التاريخ</Th>
+                  <Th>الموظف</Th>
+                  <Th>النوع</Th>
+                  <Th>المدة</Th>
+                  <Th>العلة</Th>
+                  <Th>الحالة</Th>
+                  <Th>إجراءات</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((p) => (
+                  <tr key={p.id} className="border-t">
+                    <td className="px-3 py-2.5 tabular-nums">{p.permDate}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="font-bold">{p.employeeName}</div>
+                      {p.jobTitle && <div className="text-[11px] text-muted-foreground">{p.jobTitle}</div>}
+                    </td>
+                    <td className="px-3 py-2.5">{p.kindLabel}</td>
+                    <td className="px-3 py-2.5 tabular-nums">{p.minutes} دقيقة</td>
+                    <td className="max-w-[200px] truncate px-3 py-2.5 text-[11px] text-muted-foreground" title={p.reason}>{p.reason}</td>
+                    <td className="px-3 py-2.5">
+                      <StatusPill label={p.status} tone={PERM_STATUS_TONE[p.status] ?? PERM_STATUS_TONE["معلقة"]} />
+                      {p.status === "مرفوضة" && p.decisionNote && (
+                        <div className="mt-0.5 text-[10px] text-muted-foreground">السبب: {p.decisionNote}</div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-0.5">
+                        {p.status === "معلقة" && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-status-done hover:text-status-done"
+                              title="اعتماد"
+                              onClick={() => decideMutation.mutate({ id: p.id, action: "approve" })}
+                            >
+                              <Check className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-status-danger hover:text-status-danger"
+                              title="رفض"
+                              onClick={() => setRejectTarget(p)}
+                            >
+                              <X className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-destructive hover:text-destructive"
+                              title="حذف المعلق"
+                              onClick={() => setDeleteTarget({ kind: "permissions", id: p.id, label: `إذن ${p.employeeName} — ${p.permDate}` })}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </>
+                        )}
+                        {p.status !== "معلقة" && <span className="text-[10px] text-muted-foreground">قرار: {p.decisionBy || "—"}</span>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="space-y-2 md:hidden">
+            {filtered.map((p) => (
+              <Card key={p.id} className="p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-sm font-bold">{p.employeeName}</span>
+                      <StatusPill label={p.status} tone={PERM_STATUS_TONE[p.status] ?? PERM_STATUS_TONE["معلقة"]} />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {p.permDate} · {p.kindLabel} · {p.minutes} دقيقة
+                    </p>
+                    <p className="truncate text-[11px] text-muted-foreground">{p.reason}</p>
+                  </div>
+                  {p.status === "معلقة" && (
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <Button variant="ghost" size="icon" className="size-8 text-status-done hover:text-status-done" title="اعتماد" onClick={() => decideMutation.mutate({ id: p.id, action: "approve" })}>
+                        <Check className="size-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="size-8 text-status-danger hover:text-status-danger" title="رفض" onClick={() => setRejectTarget(p)}>
+                        <X className="size-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* نافذة طلب إذن */}
+      <PermissionDialog open={editor} employeeOpts={employeeOpts} pending={saveMutation.isPending} onClose={() => setEditor(false)} onSave={(v) => saveMutation.mutate(v)} />
+
+      {/* نافذة الرفض بقرار موثق */}
+      <Dialog open={!!rejectTarget} onOpenChange={(v) => !v && setRejectTarget(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>رفض الإذن</DialogTitle>
+            <DialogDescription>سبب الرفض إلزامي — يوثق مع القرار (نمط الإجازات)</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label className="text-xs">سبب الرفض *</Label>
+            <Input value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} placeholder="مثال: الضغط التشغيلي في هذا التوقيت" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectTarget(null)}>تراجع</Button>
+            <Button
+              variant="destructive"
+              disabled={!rejectNote.trim() || decideMutation.isPending}
+              onClick={() => rejectTarget && decideMutation.mutate({ id: rejectTarget.id, action: "reject", decisionNote: rejectNote.trim() })}
+            >
+              {decideMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <X className="size-4" />}
+              رفض موثق
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function PermissionDialog({
+  open,
+  employeeOpts,
+  pending,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  employeeOpts: { value: string; label: string }[];
+  pending: boolean;
+  onClose: () => void;
+  onSave: (v: Record<string, unknown>) => void;
+}) {
+  const [form, setForm] = React.useState({ employeeId: "", permDate: todayStr(), kind: "late", minutes: 30, reason: "" });
+  React.useEffect(() => {
+    if (open) setForm({ employeeId: "", permDate: todayStr(), kind: "late", minutes: 30, reason: "" });
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>طلب إذن تأخير / انصراف مبكر</DialogTitle>
+          <DialogDescription>الإذن المعتمد يعفي دقائقه المعلنة من الخصم الدقائقي (د3)</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">الموظف *</Label>
+            <SearchableSelect value={form.employeeId} onValueChange={(v) => setForm((f) => ({ ...f, employeeId: v }))} options={employeeOpts} placeholder="اختر الموظف" />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">التاريخ *</Label>
+              <Input type="date" value={form.permDate} onChange={(e) => setForm((f) => ({ ...f, permDate: e.target.value }))} dir="ltr" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">النوع</Label>
+              <SearchableSelect
+                value={form.kind}
+                onValueChange={(v) => setForm((f) => ({ ...f, kind: v }))}
+                options={[
+                  { value: "late", label: "تأخير صباحي" },
+                  { value: "early", label: "انصراف مبكر" },
+                ]}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">المدة (دقيقة) *</Label>
+              <Input type="number" min={5} max={240} value={form.minutes} onChange={(e) => setForm((f) => ({ ...f, minutes: Number(e.target.value) }))} dir="ltr" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">العلة *</Label>
+            <Input value={form.reason} onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))} placeholder="سبب الإذن — إلزامي" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>إلغاء</Button>
+          <Button disabled={pending || !form.employeeId || !form.reason.trim()} onClick={() => onSave(form)}>
+            {pending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+            تسجيل الطلب
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ==================== HR-2 — قسم نهاية الخدمة ====================
+
+const EOS_SCENARIOS_LOCAL = [
+  "انتهاء عقد",
+  "استقالة",
+  "فصل (م41)",
+  "انصراف (م44)",
+  "وفاة",
+  "زواج",
+  "ولادة",
+  "اتفاق الطرفين",
+] as const;
+
+interface HRTermination {
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  jobNumber: string;
+  jobTitle: string;
+  endDate: string;
+  scenario: string;
+  serviceYears: number;
+  wageAtEnd: number;
+  eosAmount: number;
+  leaveEncashment: number;
+  total: number;
+  status: string;
+  entryId: number | null;
+  decidedBy: string;
+  decidedAt: string;
+  notes: string;
+  cancelReason: string;
+}
+
+const TERM_STATUS_TONE: Record<string, { text: string; bg: string }> = {
+  "محسوبة": { text: "text-status-warn", bg: "bg-status-warn-bg" },
+  "مستقرة": { text: "text-status-done", bg: "bg-status-done-bg" },
+};
+
+function EosSection({
+  employeeOptsActive,
+  onErr,
+  invalidate,
+}: SectionCommonPartial & { employeeOptsActive: { value: string; label: string }[] }) {
+  const { toast } = useToast();
+
+  const listQuery = useQuery<{ terminations: HRTermination[] }>({
+    queryKey: ["hr", "eos"],
+    queryFn: () => apiGet<{ terminations: HRTermination[] }>("/api/hr/eos"),
+  });
+  const terminations = listQuery.data?.terminations ?? [];
+
+  const [editor, setEditor] = React.useState(false);
+  useAddEvent("eos", React.useCallback(() => setEditor(true), [setEditor]));
+
+  const settleMutation = useMutation({
+    mutationFn: (v: { id: number }) => apiPost<{ settled: boolean; total: number; entryNo: number }>(`/api/hr/eos/${v.id}/settle`, {}),
+    onSuccess: (r) => {
+      invalidate();
+      toast({ title: "استقرت التسوية — الموظف مُعطّل", description: `قيد #${r.entryNo} — الإجمالي ${fmtMoney(r.total)} · الدفع عبر PV من 2160` });
+    },
+    onError: (e) => onErr(e, "تعذر الاستقرار"),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: (v: { id: number; reason: string }) => apiDelete(`/api/hr/eos/${v.id}?reason=${encodeURIComponent(v.reason)}`),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "أُلغى التوثيق المحسوب" });
+    },
+    onError: (e) => onErr(e, "تعذر الإلغاء"),
+  });
+
+  const [cancelTarget, setCancelTarget] = React.useState<HRTermination | null>(null);
+  const [cancelReason, setCancelReason] = React.useState("");
+
+  return (
+    <div className="space-y-3">
+      <Card className="p-3 sm:p-4">
+        <p className="text-xs text-muted-foreground">
+          حاسبة نهاية الخدمة بقانون العمل الكويتي 6/2010: م53 كامل المكافأة (نصف شهر أول 5 سنوات + شهر كامل بعدها — سقف 18 شهرًا) · م51 سلالم الاستقالة (3/5/10) ·
+          م41 الفصل للسبب = صفر · م44 الانصراف المشروع = كامل — مع بدل الإجازات غير المستهلكة (الأساسي ÷ 26). الاستقرار يقيد التسوية ويعطل الموظف — الدفع بعدها بسند PV من 2160.
+        </p>
+      </Card>
+
+      {listQuery.isLoading ? (
+        <SkeletonRows h="h-16" />
+      ) : listQuery.isError ? (
+        <Card className="p-8 text-center text-sm text-destructive">تعذر تحميل السجل — {errMessage(listQuery.error)}</Card>
+      ) : terminations.length === 0 ? (
+        <EmptyState icon={DoorOpen} title="لا توثيقات نهاية خدمة" hint="وثّق نهاية خدمة موظف بزر «توثيق نهاية خدمة» — تُحسب الحسبة قبل التوثيق" />
+      ) : (
+        <div className="space-y-2">
+          {terminations.map((t) => (
+            <Card key={t.id} className="p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-sm font-bold">{t.employeeName}</span>
+                    {t.jobNumber && <Badge variant="outline" className="h-5 text-[10px] tabular-nums">{t.jobNumber}</Badge>}
+                    <StatusPill label={t.status} tone={TERM_STATUS_TONE[t.status] ?? TERM_STATUS_TONE["محسوبة"]} />
+                    <Badge variant="outline" className="h-5 text-[10px]">{t.scenario}</Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground sm:grid-cols-4">
+                    <span>النهاية: <span className="tabular-nums">{t.endDate}</span></span>
+                    <span>الخدمة: <span className="tabular-nums">{fmtNum(t.serviceYears)} سنة</span></span>
+                    <span>المكافأة: <span className="tabular-nums">{fmtMoney(t.eosAmount)}</span></span>
+                    <span>بدل الإجازات: <span className="tabular-nums">{fmtMoney(t.leaveEncashment)}</span></span>
+                  </div>
+                  <p className="text-[11px] font-bold text-foreground">الإجمالي المستحق: <span className="tabular-nums">{fmtMoney(t.total)}</span></p>
+                  {t.entryId && <p className="text-[11px] text-muted-foreground">قيد التسوية: #{t.entryId} — الدفع بسند PV من 2160</p>}
+                </div>
+                {t.status === "محسوبة" && (
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <Button size="sm" className="gap-1.5" onClick={() => settleMutation.mutate({ id: t.id })} disabled={settleMutation.isPending}>
+                      {settleMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                      استقرار وقيد
+                    </Button>
+                    <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive" onClick={() => setCancelTarget(t)}>
+                      <X className="size-3.5" />
+                      إلغاء
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <EosDialog open={editor} employeeOpts={employeeOptsActive} onClose={() => setEditor(false)} invalidate={invalidate} onErr={onErr} />
+
+      {/* إلغاء توثيق محسوب */}
+      <Dialog open={!!cancelTarget} onOpenChange={(v) => !v && setCancelTarget(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>إلغاء التوثيق المحسوب</DialogTitle>
+            <DialogDescription>التوثيق «محسوبة» بلا أثر مالي — سبب الإلغاء إلزامي</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label className="text-xs">السبب *</Label>
+            <Input value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelTarget(null)}>تراجع</Button>
+            <Button
+              variant="destructive"
+              disabled={!cancelReason.trim()}
+              onClick={() => cancelTarget && cancelMutation.mutate({ id: cancelTarget.id, reason: cancelReason.trim() })}
+            >
+              إلغاء التوثيق
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+interface EosCalcResult {
+  years: number;
+  fullGratuity: number;
+  capped: boolean;
+  fractionApplied: number;
+  gratuity: number;
+  leaveEncashment: number;
+  total: number;
+  leaveBalance: number;
+}
+
+function EosDialog({
+  open,
+  employeeOpts,
+  onClose,
+  invalidate,
+  onErr,
+}: {
+  open: boolean;
+  employeeOpts: { value: string; label: string }[];
+  onClose: () => void;
+  invalidate: () => void;
+  onErr: (e: unknown, t: string) => void;
+}) {
+  const { toast } = useToast();
+  const [form, setForm] = React.useState({ employeeId: "", endDate: todayStr(), scenario: "استقالة", agreementAmount: "", notes: "" });
+  const [calc, setCalc] = React.useState<EosCalcResult | null>(null);
+
+  React.useEffect(() => {
+    if (open) {
+      setForm({ employeeId: "", endDate: todayStr(), scenario: "استقالة", agreementAmount: "", notes: "" });
+      setCalc(null);
+    }
+  }, [open]);
+
+  const previewMutation = useMutation({
+    mutationFn: () =>
+      apiPost<{ calc: EosCalcResult }>("/api/hr/eos/preview", {
+        employeeId: Number(form.employeeId),
+        endDate: form.endDate,
+        scenario: form.scenario,
+        agreementAmount: form.scenario === "اتفاق الطرفين" && form.agreementAmount ? Number(form.agreementAmount) : undefined,
+      }),
+    onSuccess: (r) => setCalc(r.calc),
+    onError: (e) => onErr(e, "تعذر الحساب"),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      apiPost("/api/hr/eos", {
+        employeeId: Number(form.employeeId),
+        endDate: form.endDate,
+        scenario: form.scenario,
+        agreementAmount: form.scenario === "اتفاق الطرفين" && form.agreementAmount ? Number(form.agreementAmount) : undefined,
+        notes: form.notes,
+      }),
+    onSuccess: () => {
+      invalidate();
+      onClose();
+      toast({ title: "وُثّقت نهاية الخدمة (محسوبة)", description: "راجع الحسبة ثم استقرها بقيد التسوية" });
+    },
+    onError: (e) => onErr(e, "تعذر التوثيق"),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>توثيق نهاية خدمة</DialogTitle>
+          <DialogDescription>الحسبة نقية بالقانون 6/2010 — ورصيد الإجازات يُعاد حسابه لحظة النهاية</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">الموظف *</Label>
+            <SearchableSelect value={form.employeeId} onValueChange={(v) => { setForm((f) => ({ ...f, employeeId: v })); setCalc(null); }} options={employeeOpts} placeholder="اختر الموظف" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">تاريخ النهاية *</Label>
+              <Input type="date" value={form.endDate} onChange={(e) => { setForm((f) => ({ ...f, endDate: e.target.value })); setCalc(null); }} dir="ltr" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">السيناريو *</Label>
+              <SearchableSelect
+                value={form.scenario}
+                onValueChange={(v) => { setForm((f) => ({ ...f, scenario: v })); setCalc(null); }}
+                options={EOS_SCENARIOS_LOCAL.map((s) => ({ value: s, label: s }))}
+              />
+            </div>
+          </div>
+          {form.scenario === "اتفاق الطرفين" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">مبلغ الاتفاق (اتركه فارغًا للكامل)</Label>
+              <Input type="number" min={0} value={form.agreementAmount} onChange={(e) => { setForm((f) => ({ ...f, agreementAmount: e.target.value })); setCalc(null); }} dir="ltr" />
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label className="text-xs">ملاحظات</Label>
+            <Input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+          </div>
+
+          <Button variant="outline" className="w-full gap-1.5" onClick={() => previewMutation.mutate()} disabled={!form.employeeId || previewMutation.isPending}>
+            {previewMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
+            احسب قبل التوثيق
+          </Button>
+
+          {calc && (
+            <Card className="space-y-1 bg-muted/30 p-3 text-[12px]">
+              <div className="flex justify-between"><span className="text-muted-foreground">سنوات الخدمة</span><span className="font-bold tabular-nums">{fmtNum(calc.years)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">المكافأة الكاملة (م53{calc.capped ? " — ضُرب السقف" : ""})</span><span className="tabular-nums">{fmtMoney(calc.fullGratuity)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">النسبة المطبقة حسب السيناريو</span><span className="tabular-nums">{fmtNum(Math.round(calc.fractionApplied * 1000) / 10)}%</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">مكافأة مستحقة</span><span className="font-bold tabular-nums">{fmtMoney(calc.gratuity)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">بدل الإجازات (رصيد {fmtNum(calc.leaveBalance)} يوم ÷ 26)</span><span className="tabular-nums">{fmtMoney(calc.leaveEncashment)}</span></div>
+              <div className="flex justify-between border-t pt-1 text-sm"><span className="font-bold">الإجمالي</span><span className="font-extrabold tabular-nums">{fmtMoney(calc.total)}</span></div>
+            </Card>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>إلغاء</Button>
+          <Button disabled={!form.employeeId || !calc || createMutation.isPending} onClick={() => createMutation.mutate()}>
+            {createMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+            توثيق (محسوبة)
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ==================== HR-2 — قسم التقارير ====================
+
+interface EmployeeReport {
+  employee: {
+    id: number; name: string; jobNumber: string; employeeType: string; department: string; jobTitle: string;
+    civilId: string; nationality: string; hireDate: string; phone: string; active: boolean;
+    salary: number; paymentBasis: string; dailyRate: number; paymentMethod: string;
+  };
+  annualBalance: { allowance: number; consumed: number; balance: number; probation: boolean };
+  advanceRemaining: number;
+  attendanceByMonth: { month: string; present: number; absent: number; justified: number; leave: number; holiday: number; lateMinutes: number; early: number }[];
+  leaves: { id: number; leaveType: string; startDate: string; endDate: string; days: number; status: string; decisionNote: string }[];
+  permissions: { id: number; permDate: string; kind: string; minutes: number; reason: string; status: string }[];
+  payroll: { month: string; batchNo: number; batchStatus: string; baseAmount: number; absenceDeduction: number; sickDeduction: number; lateDeduction: number; advanceDeduction: number; netAmount: number }[];
+  terminations: { id: number; endDate: string; scenario: string; serviceYears: number; eosAmount: number; leaveEncashment: number; total: number; status: string; entryId: number | null }[];
+}
+
+interface AttendanceMatrix {
+  month: string;
+  monthLabel: string;
+  days: string[];
+  rows: {
+    employeeId: number;
+    name: string;
+    jobNumber: string;
+    jobTitle: string;
+    cells: ({ status: string; statusLabel: string; lateMinutes: number } | null)[];
+    totals: { present: number; absent: number; justified: number; leave: number; holiday: number; lateMinutes: number };
+  }[];
+}
+
+const MATRIX_CELL: Record<string, string> = {
+  present: "bg-status-done-bg text-status-done",
+  absent: "bg-status-danger-bg text-status-danger",
+  justified_absent: "bg-status-warn-bg text-status-warn",
+  leave: "bg-status-info-bg text-status-info",
+  holiday: "bg-muted text-muted-foreground",
+};
+
+function ReportsSection({ employeeOpts, onErr }: { employeeOpts: { value: string; label: string }[]; onErr: (e: unknown, t: string) => void }) {
+  const [tab, setTab] = React.useState<"employee" | "attendance">("employee");
+  const [employeeId, setEmployeeId] = React.useState("");
+  const [month, setMonth] = React.useState(thisMonth());
+
+  const empQuery = useQuery<EmployeeReport>({
+    queryKey: ["hr", "report-employee", employeeId],
+    queryFn: () => apiGet<EmployeeReport>(`/api/hr/reports/employee?id=${employeeId}`),
+    enabled: !!employeeId,
+  });
+  const matrixQuery = useQuery<AttendanceMatrix>({
+    queryKey: ["hr", "report-attendance", month],
+    queryFn: () => apiGet<AttendanceMatrix>(`/api/hr/reports/attendance?month=${month}`),
+    enabled: tab === "attendance",
+  });
+
+  const r = empQuery.data;
+
+  const print = () => window.print();
+
+  return (
+    <div className="space-y-3">
+      <Card className="gap-3 p-3 sm:p-4">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "employee" | "attendance")}>
+          <TabsList className="h-9">
+            <TabsTrigger value="employee">ملف موظف</TabsTrigger>
+            <TabsTrigger value="attendance">حضور شهري مجمّع</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="flex flex-wrap items-center gap-2">
+          {tab === "employee" ? (
+            <>
+              <div className="min-w-[220px] flex-1">
+                <SearchableSelect value={employeeId} onValueChange={setEmployeeId} options={employeeOpts} placeholder="اختر الموظف لعرض ملفه" allowClear clearLabel="بلا اختيار" />
+              </div>
+              {r && (
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={print}>
+                  <Printer className="size-3.5" />
+                  طباعة
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              <Label className="text-xs text-muted-foreground">الشهر</Label>
+              <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-9 w-40" dir="ltr" />
+              {matrixQuery.data && matrixQuery.data.rows.length > 0 && (
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={print}>
+                  <Printer className="size-3.5" />
+                  طباعة
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      </Card>
+
+      {tab === "employee" && (
+        !employeeId ? (
+          <EmptyState icon={ClipboardList} title="اختر موظفًا لعرض ملفه" hint="الملف يجمع البيانات والرصيد والحضور والإجازات والأذونات والمساير والسلف ونهاية الخدمة" />
+        ) : empQuery.isLoading ? (
+          <SkeletonRows h="h-20" />
+        ) : empQuery.isError ? (
+          <Card className="p-8 text-center text-sm text-destructive">تعذر تحميل التقرير — {errMessage(empQuery.error)}</Card>
+        ) : !r ? null : (
+          <div className="space-y-3">
+            {/* بطاقة الملف */}
+            <Card className="p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-base font-extrabold">{r.employee.name}</span>
+                {r.employee.jobNumber && <Badge variant="outline" className="h-5 text-[10px] tabular-nums">{r.employee.jobNumber}</Badge>}
+                <Badge variant="outline" className="h-5 text-[10px]">{r.employee.employeeType === "external" ? "خارجي" : "داخلي"}</Badge>
+                <Badge variant="outline" className="h-5 text-[10px]">{r.employee.active ? "نشط" : "موقوف"}</Badge>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-[12px] text-muted-foreground sm:grid-cols-4">
+                <span>الوظيفة: {r.employee.jobTitle || "—"}</span>
+                <span>القسم: {r.employee.department || "—"}</span>
+                <span>التعيين: <span className="tabular-nums">{r.employee.hireDate || "—"}</span></span>
+                <span>المدني: <span className="tabular-nums">{r.employee.civilId || "—"}</span></span>
+                <span>{r.employee.paymentBasis === "daily" ? "الأجر اليومي" : "الراتب الأساسي"}: <span className="tabular-nums font-bold">{fmtMoney(r.employee.paymentBasis === "daily" ? r.employee.dailyRate : r.employee.salary)}</span></span>
+                <span>طريقة الدفع: {r.employee.paymentMethod || "—"}</span>
+                <span>رصيد السلفة: <span className="tabular-nums font-bold">{fmtMoney(r.advanceRemaining)}</span></span>
+                <span>الهاتف: <span className="tabular-nums" dir="ltr">{r.employee.phone || "—"}</span></span>
+              </div>
+            </Card>
+
+            {/* الرصيد السنوي */}
+            <Card className="flex flex-wrap items-center gap-x-6 gap-y-1 p-4">
+              <span className="text-sm font-bold">الرصيد السنوي {r.annualBalance.probation ? "(فترة تجربة — بلا استحقاق بعد)" : ""}</span>
+              <span className="text-xs text-muted-foreground">الاستحقاق: <span className="tabular-nums font-bold text-foreground">{fmtNum(r.annualBalance.allowance)}</span> يوم</span>
+              <span className="text-xs text-muted-foreground">المستهلك: <span className="tabular-nums">{fmtNum(r.annualBalance.consumed)}</span></span>
+              <span className="text-xs text-muted-foreground">المتبقي: <span className="tabular-nums font-bold text-foreground">{fmtNum(r.annualBalance.balance)}</span></span>
+            </Card>
+
+            {/* الحضور بالشهور */}
+            <Card className="p-4">
+              <p className="mb-2 text-sm font-bold">الحضور بالشهور (آخر 12)</p>
+              {r.attendanceByMonth.length === 0 ? (
+                <p className="text-xs text-muted-foreground">بلا سجلات حضور</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[12px]">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <Th>الشهر</Th><Th>حاضر</Th><Th>غياب</Th><Th>مبرر</Th><Th>إجازة</Th><Th>عطلة</Th><Th>تأخير (د)</Th><Th>انصراف (د)</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {r.attendanceByMonth.map((m) => (
+                        <tr key={m.month} className="border-t">
+                          <td className="px-3 py-1.5 tabular-nums">{m.month}</td>
+                          <td className="px-3 py-1.5 tabular-nums">{m.present}</td>
+                          <td className="px-3 py-1.5 tabular-nums">{m.absent}</td>
+                          <td className="px-3 py-1.5 tabular-nums">{m.justified}</td>
+                          <td className="px-3 py-1.5 tabular-nums">{m.leave}</td>
+                          <td className="px-3 py-1.5 tabular-nums">{m.holiday}</td>
+                          <td className="px-3 py-1.5 tabular-nums">{m.lateMinutes}</td>
+                          <td className="px-3 py-1.5 tabular-nums">{m.early}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+
+            {/* المساير */}
+            <Card className="p-4">
+              <p className="mb-2 text-sm font-bold">سجلات المساير (آخر 36)</p>
+              {r.payroll.length === 0 ? (
+                <p className="text-xs text-muted-foreground">بلا سجلات مسير</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[12px]">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <Th>الشهر</Th><Th>المسير</Th><Th>الأساسي</Th><Th>غياب</Th><Th>مرضية</Th><Th>تأخير</Th><Th>سلف</Th><Th>الصافي</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {r.payroll.map((p, i) => (
+                        <tr key={`${p.month}-${i}`} className="border-t">
+                          <td className="px-3 py-1.5 tabular-nums">{p.month}</td>
+                          <td className="px-3 py-1.5 tabular-nums">PR-{p.batchNo}</td>
+                          <td className="px-3 py-1.5 tabular-nums">{fmtNum(p.baseAmount)}</td>
+                          <td className="px-3 py-1.5 tabular-nums text-status-danger">{fmtNum(p.absenceDeduction)}</td>
+                          <td className="px-3 py-1.5 tabular-nums text-status-warn">{fmtNum(p.sickDeduction)}</td>
+                          <td className="px-3 py-1.5 tabular-nums text-status-warn">{fmtNum(p.lateDeduction)}</td>
+                          <td className="px-3 py-1.5 tabular-nums text-status-info">{fmtNum(p.advanceDeduction)}</td>
+                          <td className="px-3 py-1.5 font-bold tabular-nums">{fmtNum(p.netAmount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+
+            {/* الإجازات والأذونات */}
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              <Card className="p-4">
+                <p className="mb-2 text-sm font-bold">الإجازات ({r.leaves.length})</p>
+                <div className="max-h-52 space-y-1.5 overflow-y-auto">
+                  {r.leaves.length === 0 ? <p className="text-xs text-muted-foreground">بلا إجازات</p> : r.leaves.map((l) => (
+                    <div key={l.id} className="flex items-center justify-between gap-2 rounded-lg border p-2 text-[12px]">
+                      <span>{l.leaveType} — <span className="tabular-nums">{l.startDate}</span> ← <span className="tabular-nums">{l.endDate}</span> ({fmtNum(l.days)} يوم)</span>
+                      <StatusPill label={l.status} tone={LEAVE_STATUS_TONE[l.status] ?? LEAVE_STATUS_TONE["معلقة"]} />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+              <Card className="p-4">
+                <p className="mb-2 text-sm font-bold">الأذونات ({r.permissions.length})</p>
+                <div className="max-h-52 space-y-1.5 overflow-y-auto">
+                  {r.permissions.length === 0 ? <p className="text-xs text-muted-foreground">بلا أذونات</p> : r.permissions.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between gap-2 rounded-lg border p-2 text-[12px]">
+                      <span className="tabular-nums">{p.permDate} · {p.kind === "late" ? "تأخير" : "انصراف"} {p.minutes}د</span>
+                      <StatusPill label={p.status} tone={PERM_STATUS_TONE[p.status] ?? PERM_STATUS_TONE["معلقة"]} />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+
+            {/* نهاية الخدمة */}
+            {r.terminations.length > 0 && (
+              <Card className="p-4">
+                <p className="mb-2 text-sm font-bold">نهاية الخدمة</p>
+                <div className="space-y-1.5">
+                  {r.terminations.map((t) => (
+                    <div key={t.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2 text-[12px]">
+                      <span>{t.scenario} — <span className="tabular-nums">{t.endDate}</span> · {fmtNum(t.serviceYears)} سنة · الإجمالي <span className="font-bold tabular-nums">{fmtMoney(t.total)}</span></span>
+                      <div className="flex items-center gap-1.5">
+                        <StatusPill label={t.status} tone={TERM_STATUS_TONE[t.status] ?? TERM_STATUS_TONE["محسوبة"]} />
+                        {t.entryId && <span className="text-[10px] text-muted-foreground">قيد #{t.entryId}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </div>
+        )
+      )}
+
+      {tab === "attendance" && (
+        matrixQuery.isLoading ? (
+          <SkeletonRows h="h-20" />
+        ) : matrixQuery.isError ? (
+          <Card className="p-8 text-center text-sm text-destructive">تعذر تحميل المصفوفة — {errMessage(matrixQuery.error)}</Card>
+        ) : !matrixQuery.data || matrixQuery.data.rows.length === 0 ? (
+          <EmptyState icon={ClipboardList} title="بلا موظفين نشطين أو بلا سجلات لهذا الشهر" hint="المصفوفة تعرض موظفي الشل النشطين × أيام الشهر" />
+        ) : (
+          <Card className="overflow-x-auto p-4">
+            <p className="mb-2 text-sm font-bold">مصفوفة الحضور — {matrixQuery.data.monthLabel}</p>
+            <table className="w-full text-[11px]">
+              <thead className="bg-muted/50">
+                <tr>
+                  <Th>الموظف</Th>
+                  {matrixQuery.data.days.map((d) => (
+                    <th key={d} className="px-1 py-2 text-center text-[10px] tabular-nums text-muted-foreground">{d.slice(8)}</th>
+                  ))}
+                  <Th>ح/غ/ت</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {matrixQuery.data.rows.map((row) => (
+                  <tr key={row.employeeId} className="border-t">
+                    <td className="whitespace-nowrap px-2 py-1.5 font-bold">{row.name}</td>
+                    {row.cells.map((c, i) => (
+                      <td key={i} className="px-0.5 py-1">
+                        <span className={cn("flex h-6 w-6 items-center justify-center rounded text-[9px] font-bold tabular-nums", c ? MATRIX_CELL[c.status] : "bg-muted/40 text-muted-foreground/40")}>
+                          {c ? (c.status === "present" ? "✓" : c.status === "absent" ? "✗" : c.status === "leave" ? "إ" : c.status === "holiday" ? "ع" : "م") : "·"}
+                        </span>
+                      </td>
+                    ))}
+                    <td className="whitespace-nowrap px-2 py-1.5 text-[10px] tabular-nums text-muted-foreground">
+                      {row.totals.present}/{row.totals.absent}/{row.totals.justified}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+              <span>✓ حاضر</span><span>✗ غياب غير مبرر</span><span>م غياب مبرر</span><span>إ إجازة</span><span>ع عطلة</span><span>· بلا سجل</span>
+            </div>
+          </Card>
+        )
+      )}
+    </div>
   );
 }

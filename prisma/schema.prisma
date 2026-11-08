@@ -816,6 +816,9 @@ model Setting {
   headerTitle           String   @default("نظام إدارة العقود والمحاسبة") @map("header_title")
   currency              String   @default("د.ك")
   companyLicense        String   @default("") @map("company_license") // Task 111 — رقم الترخيص المدني للبيانات الوصفية XBRL
+  hrWorkStart           String   @default("08:00") @map("hr_work_start") // HR-2 — بداية الدوام الرسمي
+  hrWorkEnd             String   @default("17:00") @map("hr_work_end") // HR-2 — نهاية الدوام الرسمي
+  hrGraceMinutes        Int      @default(15) @map("hr_grace_minutes") // HR-2 — سماحية اليوم بالدقائق (د3)
   entryApprovalMode     Boolean  @default(false) @map("entry_approval_mode") // Task 112 — وضع الاعتماد: قيود المحاسب تُحفظ مسودة حتى اعتماد المحاسب الرئيسي
   bankFeeAmount         Decimal  @default(0.150) @map("bank_fee_amount")
   bankFeeMethod         String   @default("تحويل بنكي") @map("bank_fee_method")
@@ -1083,6 +1086,7 @@ model JournalEntry {
   invoices     Invoice[]     @relation("InvoiceEntry") // فواتير أصدرت هذا القيد (Task 107)
   taxDeclarations TaxDeclaration[] @relation("TaxDeclarationEntry") // مخصصات زكاة/ضريبة وثّقت بهذا القيد (Task 111)
   payrollBatches PayrollBatch[] @relation("PayrollBatchEntry") // HR-1 — مساير اعتمدت بقيد هذا (المدين 5210/الدائن 2160)
+  payrollProvisionBatches PayrollBatch[] @relation("PayrollBatchProvisionEntry") // HR-2 — قيود المخصصات المصاحبة
   closingRecord FiscalClosing? @relation("FiscalClosingEntry") // إقفال سنوي وثّق بهذا القيد (Task 109)
   createdAt    DateTime      @default(now()) @map("created_at")
 
@@ -1257,7 +1261,9 @@ model Employee {
   paymentMethod   PaymentMethod? @relation("EmployeePaymentMethod", fields: [paymentMethodId], references: [id])
   attendances     EmployeeAttendance[]
   leaves          EmployeeLeave[]
+  permissions     EmployeePermission[]
   payrollRecords  PayrollRecord[]
+  terminations    EmployeeTermination[]
 
   @@unique([companyId, name])
   @@index([companyId, active])
@@ -1841,18 +1847,21 @@ model EngineerLeave {
 // الموظف الموحد = توسعة employees · خط أنابيب واحد: مسير → قيد (5210/2160) → PV
 // ============================================================
 
-/// الحضور اليدوي اليومي — HR-1 يدوي، الاستيراد من البصمة في HR-2
+/// الحضور اليومي — يدوي أو مستورد من البصمة (HR-2) — الدقائق تُحسب آليًا من جدول الدوام
 model EmployeeAttendance {
-  companyId  Int      @default(1) @map("company_id")
-  id         Int      @id @default(autoincrement())
-  employeeId Int      @map("employee_id")
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  workDate   String   @map("work_date") // YYYY-MM-DD
-  status     String   @default("present") // present | absent | justified_absent | leave | holiday
-  checkIn    String   @default("") @map("check_in") // HH:MM — يُسجل ولا يُحتسب في مسير HR-1
-  checkOut   String   @default("") @map("check_out")
-  note       String   @default("")
-  createdAt  DateTime @default(now()) @map("created_at")
+  companyId         Int      @default(1) @map("company_id")
+  id                Int      @id @default(autoincrement())
+  employeeId        Int      @map("employee_id")
+  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  workDate          String   @map("work_date") // YYYY-MM-DD
+  status            String   @default("present") // present | absent | justified_absent | leave | holiday
+  checkIn           String   @default("") @map("check_in") // HH:MM
+  checkOut          String   @default("") @map("check_out")
+  lateMinutes       Int      @default(0) @map("late_minutes") // دقائق تأخير بعد السماحية — محسوبة آليًا من جدول الدوام
+  earlyLeaveMinutes Int      @default(0) @map("early_leave_minutes") // دقائق انصراف مبكر بعد السماحية
+  source            String   @default("manual") // manual | import — يحكم أولوية الاستيراد (د7)
+  note              String   @default("")
+  createdAt         DateTime @default(now()) @map("created_at")
 
   @@unique([companyId, employeeId, workDate])
   @@index([workDate])
@@ -1881,6 +1890,28 @@ model EmployeeLeave {
   @@map("employee_leaves")
 }
 
+/// أذونات التأخير والانصراف المبكر (HR-2) — آلة أخف من الإجازات: معلقة → معتمدة | مرفوضة
+/// الإذن لا ينشئ سجل حضور — هو مُعفٍ من الخصم الدقائقي (د3 من docs/hr-2-design.md)
+model EmployeePermission {
+  companyId    Int      @default(1) @map("company_id")
+  id           Int      @id @default(autoincrement())
+  employeeId   Int      @map("employee_id")
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  permDate     String   @map("perm_date") // YYYY-MM-DD
+  kind         String   @map("kind") // late | early
+  minutes      Int      @default(0) // المدة المعلنة للإذن — سقف الإعفاء لليوم
+  reason       String   @default("") // العلة — إلزامية
+  status       String   @default("معلقة") // معلقة | معتمدة | مرفوضة
+  decisionBy   String   @default("") @map("decision_by")
+  decisionAt   String   @default("") @map("decision_at")
+  decisionNote String   @default("") @map("decision_note") // إلزامي عند الرفض
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([employeeId, status])
+  @@index([permDate, status])
+  @@map("employee_permissions")
+}
+
 /// مسير الرواتب الشهري — لقطة مجمّدة: شهر واحد بحالة نشطة (مسودة/معتمد/مدفوع)
 model PayrollBatch {
   companyId        Int      @default(1) @map("company_id")
@@ -1894,6 +1925,8 @@ model PayrollBatch {
   netTotal         Decimal  @default(0) @db.Decimal(18, 3) @map("net_total")
   journalEntryId   Int?     @map("journal_entry_id") // قيد الاعتماد: مدين 5210 / دائن 2160 + 1140 عبر سندات SD
   journalEntry     JournalEntry? @relation("PayrollBatchEntry", fields: [journalEntryId], references: [id])
+  provisionEntryId Int?     @map("provision_entry_id") // HR-2 — قيد المخصصات المصاحب: مدين 5210/5211 · دائن 2161/2211
+  provisionEntry   JournalEntry? @relation("PayrollBatchProvisionEntry", fields: [provisionEntryId], references: [id])
   paymentVoucherId Int?     @map("payment_voucher_id") // سند PV للدفع من 2160
   paymentVoucher   Voucher? @relation("PayrollPaymentVoucher", fields: [paymentVoucherId], references: [id])
   generatedBy      String   @default("") @map("generated_by")
@@ -1923,8 +1956,12 @@ model PayrollRecord {
   snapPaymentBasis   String       @default("monthly") @map("snap_payment_basis") // monthly | daily
   presentDays        Decimal      @default(0) // أيام الحضور (أساس اليومي + عرض)
   absenceDays        Decimal      @default(0) // غياب غير مبرر + بدون راتب (عرض)
+  snapSickDays       Decimal      @default(0) @map("snap_sick_days") // HR-2 — أيام مرضية متقاطعة (عرض)
+  snapLateMinutes    Int          @default(0) @map("snap_late_minutes") // HR-2 — ∑ دقائق مجردة بعد الإعفاءات (عرض)
   baseAmount         Decimal      @default(0) @db.Decimal(18, 3) @map("base_amount")
   absenceDeduction   Decimal      @default(0) @db.Decimal(18, 3) @map("absence_deduction")
+  sickDeduction      Decimal      @default(0) @db.Decimal(18, 3) @map("sick_deduction") // HR-2 — مرضية بشرائح <100%
+  lateDeduction      Decimal      @default(0) @db.Decimal(18, 3) @map("late_deduction") // HR-2 — دقائق مجردة بعد الإعفاءات
   advanceDeduction   Decimal      @default(0) @db.Decimal(18, 3) @map("advance_deduction") // خطة خصم السلف
   netAmount          Decimal      @default(0) @db.Decimal(18, 3) @map("net_amount")
   deductionVoucherId Int?         @map("deduction_voucher_id") // سند SD لخصم السلف (مدين 2160/دائن 1140)
@@ -1932,4 +1969,30 @@ model PayrollRecord {
   @@index([batchId])
   @@index([employeeId])
   @@map("payroll_records")
+}
+
+/// توثيق نهاية الخدمة (HR-2) — السيناريو + لقطة الحساب + قيد التسوية (نرفض سلوك NovaFlow «حاسبة بلا مستند» — درس G8)
+model EmployeeTermination {
+  companyId       Int      @default(1) @map("company_id")
+  id              Int      @id @default(autoincrement())
+  employeeId      Int      @map("employee_id")
+  employee        Employee @relation(fields: [employeeId], references: [id])
+  endDate         String   @map("end_date") // YYYY-MM-DD
+  scenario        String   // انتهاء عقد | استقالة | فصل (م41) | انصراف (م44) | وفاة | زواج | ولادة | اتفاق الطرفين
+  serviceYears    Decimal  @default(0) @map("service_years") // لقطة سنوات الخدمة عند الحساب
+  wageAtEnd       Decimal  @default(0) @map("wage_at_end") // لقطة آخر أجر أساسي
+  eosAmount       Decimal  @default(0) @map("eos_amount") // مكافأة نهاية الخدمة
+  leaveEncashment Decimal  @default(0) @map("leave_encashment") // بدل الإجازات غير المستهلكة
+  total           Decimal  @default(0) // eos + encashment
+  status          String   @default("محسوبة") // محسوبة | مستقرة
+  entryId         Int?     @map("entry_id") // قيد التسوية بعد الاستقرار — رابط مطلق
+  decidedBy       String   @default("") @map("decided_by")
+  decidedAt       String   @default("") @map("decided_at")
+  notes           String   @default("")
+  cancelReason    String   @default("") @map("cancel_reason") // إلغاء «محسوبة» فقط بسببه
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([employeeId])
+  @@index([status])
+  @@map("employee_terminations")
 }

@@ -4,6 +4,7 @@ import { audit, adminGuard, jsonError, moduleGuard, nextNumber, ok } from "@/lib
 import { TX_OPTS, postJournalEntry, postNamedEntry } from "@/lib/journal-server";
 import { VOUCHER_PREFIX, VOUCHER_TYPE_LABELS } from "@/lib/voucher-server";
 import { ensureEmployeeAdvanceAccount } from "@/lib/custody-server";
+import { postPayrollProvisions } from "@/lib/hr-server";
 import { monthEndDate, monthLabelAr } from "@/lib/hr-constants";
 
 type P = { params: Promise<{ id: string }> };
@@ -27,10 +28,22 @@ export async function POST(req: NextRequest, { params }: P) {
 
   const batch = await db.payrollBatch.findUnique({
     where: { id },
-    include: { records: { where: { advanceDeduction: { gt: 0 } } } },
+    include: {
+      records: { where: { advanceDeduction: { gt: 0 } } },
+    },
   });
   if (!batch) return jsonError("المسير غير موجود", 404);
   if (batch.status !== "draft") return jsonError("الاعتماد للمسودات حصرًا");
+
+  // HR-2 — كل سجلات المسير للمخصصات (الرواتب الشهرية فقط تُحسب داخل postPayrollProvisions)
+  const allRecords = await db.payrollRecord.findMany({
+    where: { batchId: id },
+    select: { employeeId: true, snapPaymentBasis: true, baseAmount: true },
+  });
+  const employeesForProvisions = await db.employee.findMany({
+    where: { id: { in: allRecords.map((r) => r.employeeId) } },
+    select: { id: true, salary: true, hireDate: true },
+  });
 
   // دبابيس الحسابات — بالكود من دليل الشركة (شجرة البذر تضمنهما)
   const acc5210 = await db.account.findFirst({ where: { code: "5210", type: "expense" }, select: { id: true, code: true, name: true } });
@@ -63,7 +76,17 @@ export async function POST(req: NextRequest, { params }: P) {
           actor
         );
 
-        // 2) سندات SD لخصم السلف — الطرفان مثبتان صراحةً: مدين 2160 / دائن حساب السلف الفعلي
+        // 2) HR-2 — قيد المخصصات المصاحب (يُتخطى بصمت إن كانت الفئات صفرًا — §7)
+        const provisionEntryId = await postPayrollProvisions(tx, {
+          batchId: batch.id,
+          month: batch.month,
+          records: allRecords,
+          employees: employeesForProvisions,
+          actor,
+          batchLabel,
+        });
+
+        // 3) سندات SD لخصم السلف — الطرفان مثبتان صراحةً: مدين 2160 / دائن حساب السلف الفعلي
         //    (نفس حساب منح السلف ensureEmployeeAdvanceAccount — لا اعتماد على قاعدة 1140 الافتراضية
         //     حتى لا يتباعد حساب المنح عن حساب الخصم — درس مُصحح أثناء التحقق الحي)
         const advanceAccount = await ensureEmployeeAdvanceAccount(tx);
@@ -109,10 +132,16 @@ export async function POST(req: NextRequest, { params }: P) {
           });
         }
 
-        // 3) توثيق الاعتماد
+        // 4) توثيق الاعتماد
         await tx.payrollBatch.update({
           where: { id: batch.id },
-          data: { status: "approved", approvedBy: actor, approvedAt: new Date(), journalEntryId: posted.id },
+          data: {
+            status: "approved",
+            approvedBy: actor,
+            approvedAt: new Date(),
+            journalEntryId: posted.id,
+            provisionEntryId,
+          },
         });
         await audit(tx, {
           username: actor,
@@ -121,15 +150,15 @@ export async function POST(req: NextRequest, { params }: P) {
           entityId: batch.id,
           entityName: batchLabel,
           oldStatus: "draft",
-          newStatus: `approved / قيد #${posted.entryNo}`,
+          newStatus: `approved / قيد #${posted.entryNo}${provisionEntryId ? " + مخصصات" : ""}`,
           reason: String(body.reason || "").trim(),
         });
-        return { entryNo: posted.entryNo, entryId: posted.id };
+        return { entryNo: posted.entryNo, entryId: posted.id, provisionEntryId };
       },
       TX_OPTS
     );
 
-    return ok({ approved: true, entryId: result.entryId, entryNo: result.entryNo });
+    return ok({ approved: true, entryId: result.entryId, entryNo: result.entryNo, provisionEntryId: result.provisionEntryId });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
     if (msg.includes("مقفلة")) return jsonError(msg);

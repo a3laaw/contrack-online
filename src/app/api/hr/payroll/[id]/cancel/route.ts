@@ -35,6 +35,7 @@ export async function POST(req: NextRequest, { params }: P) {
   if (batch.status === "paid") return jsonError("المسير مدفوع — الاسترداد عبر سند عكسي من الخزينة (حدود HR-1)");
   if (!batch.journalEntryId) return jsonError("قيد الاعتماد مفقود — لا يمكن الإلغاء الموثق");
   const journalEntryId: number = batch.journalEntryId;
+  const provisionEntryId: number | null = batch.provisionEntryId; // HR-2 — قيد المخصصات المصاحب
 
   const batchLabel = `مسير رواتب ${monthLabelAr(batch.month)} — PR-${batch.batchNo}`;
   const actor = guard.user.username;
@@ -49,6 +50,10 @@ export async function POST(req: NextRequest, { params }: P) {
       }
       // 2) إلغاء قيد الاعتماد (توثيق الحالة — بلا حذف فيزيائي)
       await cancelJournalEntry(tx, journalEntryId, `إلغاء ${batchLabel}: ${reason}`);
+      // 2-ب) HR-2 — عكس قيد المخصصات المصاحب إن وجد (نمط الزكاة — بلا حذف فيزيائي)
+      if (provisionEntryId != null) {
+        await cancelJournalEntry(tx, provisionEntryId, `إلغاء ${batchLabel} — قيد المخصصات المصاحب: ${reason}`);
+      }
       // 3) حالة الدفعة
       await tx.payrollBatch.update({
         where: { id: batch.id },

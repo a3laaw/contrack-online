@@ -146,7 +146,85 @@ export function sickTierFor(daysUsedBefore: number): { tier: number; pct: number
   return { tier: -1, pct: 0, label: "تجاوز السلّم القانوني", exhausted: true };
 }
 
-// ==================== المسير: الحساب النقي (لقطة مجمّدة) ====================
+// ==================== HR-2 — جدول الدوام والدقائق (د1/د2/د3) ====================
+
+/** قيمة اليوم لبدل الإجازات (د1 — أيام العمل بالكويت) */
+export const LEAVE_DAY_DIVISOR = 26;
+
+/** HH:MM ⇒ دقائق من منتصف الليل — غير صالح ⇒ null */
+export function minutesOfTime(t: string | null | undefined): number | null {
+  const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(String(t ?? "").trim());
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
+
+export interface WorkSchedule {
+  start: string; // HH:MM
+  end: string; // HH:MM
+  graceMinutes: number; // سماحية اليوم (تُطبق على الطرفين)
+}
+
+/**
+ * دقائق التأخير/الانصراف المبكر من البصمات مقابل جدول الدوام (د3-أ):
+ * التأخير = checkIn − (start + سماحية) · الانصراف = (end − سماحية) − checkOut — السالب = صفر.
+ * بصمة ناقصة ⇒ صفر (التصحيح يدوي — موثق في التقرير). دوام يومي بسيط — لا مسارات ليلية في HR-2.
+ */
+export function scheduleMinutesFromPunches(
+  checkIn: string,
+  checkOut: string,
+  schedule: WorkSchedule
+): { late: number; early: number } {
+  const inMin = minutesOfTime(checkIn);
+  const outMin = minutesOfTime(checkOut);
+  const startMin = minutesOfTime(schedule.start);
+  const endMin = minutesOfTime(schedule.end);
+  const grace = Math.max(0, schedule.graceMinutes || 0);
+  if (!startMin || !endMin || endMin <= startMin) return { late: 0, early: 0 };
+  const late = inMin != null ? Math.max(0, inMin - (startMin + grace)) : 0;
+  const early = outMin != null ? Math.max(0, endMin - grace - outMin) : 0;
+  return { late, early };
+}
+
+/** ساعات اليوم من الجدول — بلا جدول صالح ⇒ 8 (أمان الحساب) */
+export function workHoursOfSchedule(schedule: WorkSchedule | null): number {
+  if (!schedule) return 8;
+  const s = minutesOfTime(schedule.start);
+  const e = minutesOfTime(schedule.end);
+  if (s == null || e == null || e <= s) return 8;
+  return (e - s) / 60;
+}
+
+/** معدل الدقيقة للموظف الشهري: الأساسي ÷ (30 × ساعات اليوم) — د2 */
+export function minuteRateOf(salary: number, workHoursPerDay: number): number {
+  const hours = Math.max(1, workHoursPerDay || 8);
+  return Math.max(0, salary || 0) / (30 * hours);
+}
+
+/** صافي الدقائق القابلة للخصم بعد الإعفاء (د3: الإذن المعتمد يعفي دقائقه المعلنة بحدّ الفعلي) */
+export function netChargeableMinutes(gross: number, exempt: number): number {
+  return Math.max(0, Math.floor(Math.max(0, gross || 0)) - Math.floor(Math.max(0, exempt || 0)));
+}
+
+/** الخصم الدقائقي الشهري للموظف الشهري — ر3 */
+export function lateDeductionFor(salary: number, workHoursPerDay: number, netMinutes: number): number {
+  return r3(minuteRateOf(salary, workHoursPerDay) * Math.max(0, netMinutes || 0));
+}
+
+/**
+ * الخصم المرضي الفعلي (§8): أيام كل شريحة × قيمة اليوم (÷30) × (1 − نسبة الشريحة).
+ * شريحة غير معروفة/null (لقطات قديمة) = أجر كامل ⇒ صفر خصم.
+ */
+export function sickDeductionFor(salary: number, sickDaysByTier: { tier: number | null; days: number }[]): number {
+  let total = 0;
+  for (const s of sickDaysByTier) {
+    const days = Math.max(0, s.days || 0);
+    if (days <= 0) continue;
+    // null (لقطات HR-1 القديمة) = كامل الأجر بلا خصم · −1 (تجاوز السلّم) = بلا أجر ⇒ خصم كامل
+    const pct = s.tier == null ? 100 : s.tier >= 0 ? (SICK_LEAVE_TIERS[s.tier]?.pct ?? 100) : 0;
+    total += days * (Math.max(0, salary || 0) / 30) * (1 - pct / 100);
+  }
+  return r3(total);
+}
 
 export const PAYROLL_BATCH_STATUSES = ["draft", "approved", "paid", "cancelled"] as const;
 export const PAYROLL_BATCH_LABELS: Record<string, string> = {
@@ -193,6 +271,8 @@ export interface PayrollCalcEmployee {
   unpaidLeaveDays: number; // أيام إجازات «بدون راتب» المعتمدة المتقاطعة مع الشهر
   advanceRemaining: number; // رصيد السلف المفتوح (من الخادم — سندات PV−CV−SD)
   advancePlan?: number | null; // خطة خصم مقترحة — null/غياب = كامل الرصيد ضمن السقف
+  sickDeduction?: number; // HR-2 — الخصم المرضي الفعلي (محسوب بالسيرفر عبر sickDeductionFor)
+  lateDeduction?: number; // HR-2 — الخصم الدقائقي بعد الإعفاءات (عبر lateDeductionFor)
 }
 
 export interface PayrollCalcResult {
@@ -200,6 +280,8 @@ export interface PayrollCalcResult {
   excluded: false;
   baseAmount: number;
   absenceDeduction: number;
+  sickDeduction: number;
+  lateDeduction: number;
   advanceDeduction: number;
   netAmount: number;
 }
@@ -236,16 +318,20 @@ export function computePayrollRecord(e: PayrollCalcEmployee): PayrollCalcResult 
     baseAmount = r3(dailyRate * Math.max(0, e.presentDays || 0));
   }
 
-  const capForAdvance = r3(Math.max(0, baseAmount - absenceDeduction));
+  // HR-2 — المرضية والدقائق: خصومات فعالية للأساس الشهري فقط (اليومي بلا أجر للوقت الغائب أصلًا)
+  const sickDeduction = basis === "monthly" ? r3(Math.max(0, e.sickDeduction || 0)) : 0;
+  const lateDeduction = basis === "monthly" ? r3(Math.max(0, e.lateDeduction || 0)) : 0;
+
+  const capForAdvance = r3(Math.max(0, baseAmount - absenceDeduction - sickDeduction - lateDeduction));
   const remaining = Math.max(0, e.advanceRemaining || 0);
   let advanceDeduction = e.advancePlan == null ? remaining : Math.max(0, Number(e.advancePlan) || 0);
   advanceDeduction = r3(Math.min(advanceDeduction, remaining, capForAdvance));
 
   const netAmount = r3(Math.max(0, capForAdvance - advanceDeduction));
-  return { employeeId: e.employeeId, excluded: false, baseAmount, absenceDeduction, advanceDeduction, netAmount };
+  return { employeeId: e.employeeId, excluded: false, baseAmount, absenceDeduction, sickDeduction, lateDeduction, advanceDeduction, netAmount };
 }
 
-/** تجميعات الدفعة من سجلات محسوبة */
+/** تجميعات الدفعة من سجلات محسوبة — deductionTotal = غياب + مرضية + تأخير (HR-2) */
 export function sumPayrollRecords(records: PayrollCalcResult[]): {
   grossTotal: number;
   deductionTotal: number;
@@ -258,7 +344,7 @@ export function sumPayrollRecords(records: PayrollCalcResult[]): {
   let netTotal = 0;
   for (const r of records) {
     grossTotal += r.baseAmount;
-    deductionTotal += r.absenceDeduction;
+    deductionTotal += r.absenceDeduction + r.sickDeduction + r.lateDeduction;
     advanceTotal += r.advanceDeduction;
     netTotal += r.netAmount;
   }

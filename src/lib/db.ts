@@ -59,7 +59,9 @@ const TENANT_MODELS = new Set<string>([
   // الاستشارات الهندسية (موديول consulting — خطة الأنشطة): الفريق والإسنادات والساعات والإجازات
   "engineer", "engineerAssignment", "engineerTimesheet", "engineerLeave",
   // HR-1 — الموارد البشرية (الموظف الموحد + الحضور + الإجازات + المسير): فصل الشركات إلزامي منذ اليوم الأول (درس T111)
+  // HR-2 — الأذونات ونهاية الخدمة: بنفس القاعدة بنفس الـcommit
   "employeeAttendance", "employeeLeave", "payrollBatch", "payrollRecord",
+  "employeePermission", "employeeTermination",
 ]);
 
 interface Ctx { companyId: number }

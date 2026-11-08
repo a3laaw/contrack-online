@@ -1055,6 +1055,21 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
   if (amount > bal + 1e-9) {
     throw new VoucherError(`المبلغ يتجاوز رصيد سلفة الموظف (${bal} د.ك فقط)`);
   }
+  // HR-2 — المنع الصارم (docs/hr-2-design.md §8): موظف مشمول بمسير غير ملغى لشهر السند
+  // ⇒ خصم السلف يجري آليًا ضمن المسير، وSD اليدوي يفكك خط الأنابيب الموحد — 409 عربي واضح.
+  const sdMonth = String(input.vdate || "").slice(0, 7);
+  if (/^\d{4}-\d{2}$/.test(sdMonth)) {
+    const inBatch = await db.payrollRecord.findFirst({
+      where: { employeeId: emp.id, batch: { month: sdMonth, status: { not: "cancelled" } } },
+      select: { id: true },
+    });
+    if (inBatch) {
+      throw new VoucherError(
+        `الموظف «${emp.name}» مشمول بمسير شهر ${sdMonth} — خصم سلفته يتم آليًا ضمن المسير، ولا يُقبل سند خصم يدوي`,
+        409
+      );
+    }
+  }
   base.advanceEmployeeId = emp.id;
   base.party = base.party || emp.name;
   base.account = normalizeAccount(input.account, base.method);

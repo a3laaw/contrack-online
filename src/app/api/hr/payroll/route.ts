@@ -5,13 +5,18 @@ import { audit, authGuard, jsonError, moduleGuard, ok } from "@/lib/api-utils";
 import { employeeAdvanceRemaining } from "@/lib/voucher-server";
 import {
   computePayrollRecord,
+  lateDeductionFor,
   monthEndDate,
   monthLabelAr,
+  netChargeableMinutes,
   overlapDaysInMonth,
   PayrollCalcEmployee,
   PayrollCalcExcluded,
   PayrollCalcResult,
+  r3,
+  sickDeductionFor,
   sumPayrollRecords,
+  workHoursOfSchedule,
 } from "@/lib/hr-constants";
 
 /** GET: قائمة المساير (الأحدث أولًا — 36 دفعة) */
@@ -68,7 +73,10 @@ export async function POST(req: NextRequest) {
     where: { active: true },
     orderBy: { name: "asc" },
     include: {
-      attendances: { where: { workDate: { gte: `${month}-01`, lte: `${month}-31` } }, select: { status: true } },
+      attendances: {
+        where: { workDate: { gte: `${month}-01`, lte: `${month}-31` } },
+        select: { workDate: true, status: true, lateMinutes: true, earlyLeaveMinutes: true },
+      },
     },
   });
   if (employees.length === 0) return jsonError("لا يوجد موظفون نشطون — أضف الفريق أولًا");
@@ -83,7 +91,25 @@ export async function POST(req: NextRequest) {
     select: { employeeId: true, startDate: true, endDate: true },
   });
 
+  // HR-2 — الإجازات المرضية المتقاطعة (بشرائحها) + الأذونات المعتمدة للإعفاء الدقائقي
+  const sickLeaves = await db.employeeLeave.findMany({
+    where: { leaveType: "مرضية", status: { in: ["معتمدة", "بدأت", "منتهية"] }, startDate: { lte: last }, endDate: { gte: first } },
+    select: { employeeId: true, startDate: true, endDate: true, sickTier: true },
+  });
+  const approvedPermissions = await db.employeePermission.findMany({
+    where: { status: "معتمدة", permDate: { gte: first, lte: last } },
+    select: { employeeId: true, permDate: true, kind: true, minutes: true },
+  });
+
+  // HR-2 — جدول الدوام (حقول Setting الثلاثة) — بلا جدول صالح = بلا دقائق (أمان د3-4)
+  const setting = await db.setting.findUnique({ where: { companyId: guard.user.companyId }, select: { hrWorkStart: true, hrWorkEnd: true, hrGraceMinutes: true } });
+  const schedule = setting
+    ? { start: setting.hrWorkStart, end: setting.hrWorkEnd, graceMinutes: setting.hrGraceMinutes }
+    : null;
+  const workHours = workHoursOfSchedule(schedule);
+
   const calcInputs: PayrollCalcEmployee[] = [];
+  const snapshotsById = new Map<number, { sickDays: number; lateMinutes: number }>();
   for (const e of employees) {
     const presentDays = e.attendances.filter((a) => a.status === "present").length;
     const unjustifiedAbsenceDays = e.attendances.filter((a) => a.status === "absent").length;
@@ -91,6 +117,53 @@ export async function POST(req: NextRequest) {
       .filter((l) => l.employeeId === e.id)
       .reduce((s, l) => s + overlapDaysInMonth(l.startDate, l.endDate, first, last), 0);
     const advanceRemaining = await employeeAdvanceRemaining(db, e.id);
+
+    // HR-2 — المرضية الفعلية: تجميع أيام الشهر بشرائحها ثم الخصم بالنواة (شهري فقط)
+    const sickByTier = new Map<number | null, number>();
+    let snapSickDays = 0;
+    if (e.paymentBasis !== "daily") {
+      for (const l of sickLeaves) {
+        if (l.employeeId !== e.id) continue;
+        const d = overlapDaysInMonth(l.startDate, l.endDate, first, last);
+        if (d <= 0) continue;
+        snapSickDays += d;
+        sickByTier.set(l.sickTier, (sickByTier.get(l.sickTier) ?? 0) + d);
+      }
+    }
+    const sickDeduction = sickDeductionFor(
+      Number(e.salary),
+      Array.from(sickByTier.entries()).map(([tier, days]) => ({ tier, days }))
+    );
+
+    // HR-2 — الدقائق المجردة: لكل يوم ∑ (تأخير + انصراف) − إعفاء الأذونات المعتمدة (حدّ مدة الإذن وبحدّ الفعلي)
+    let grossLateMinutes = 0;
+    for (const a of e.attendances) grossLateMinutes += Math.max(0, a.lateMinutes) + Math.max(0, a.earlyLeaveMinutes);
+    let netLateMinutes = 0;
+    if (grossLateMinutes > 0 && schedule) {
+      const byDay = new Map<string, { late: number; early: number; exemptLate: number; exemptEarly: number }>();
+      for (const a of e.attendances) {
+        byDay.set(a.workDate, {
+          late: Math.max(0, a.lateMinutes),
+          early: Math.max(0, a.earlyLeaveMinutes),
+          exemptLate: 0,
+          exemptEarly: 0,
+        });
+      }
+      for (const p of approvedPermissions) {
+        if (p.employeeId !== e.id) continue;
+        const day = byDay.get(p.permDate);
+        if (!day) continue;
+        if (p.kind === "late") day.exemptLate += Math.max(0, p.minutes);
+        else day.exemptEarly += Math.max(0, p.minutes);
+      }
+      for (const d of byDay.values()) {
+        netLateMinutes += netChargeableMinutes(d.late, Math.min(d.exemptLate, d.late));
+        netLateMinutes += netChargeableMinutes(d.early, Math.min(d.exemptEarly, d.early));
+      }
+    }
+    const lateDeduction = e.paymentBasis !== "daily" && schedule ? lateDeductionFor(Number(e.salary), workHours, netLateMinutes) : 0;
+
+    snapshotsById.set(e.id, { sickDays: r3(snapSickDays), lateMinutes: netLateMinutes });
     calcInputs.push({
       employeeId: e.id,
       name: e.name,
@@ -104,6 +177,8 @@ export async function POST(req: NextRequest) {
       unpaidLeaveDays,
       advanceRemaining,
       advancePlan: plans && plans[String(e.id)] != null ? Number(plans[String(e.id)]) : null,
+      sickDeduction,
+      lateDeduction,
     });
   }
 
@@ -145,8 +220,12 @@ export async function POST(req: NextRequest) {
             snapPaymentBasis: c.paymentBasis,
             presentDays: c.presentDays,
             absenceDays: r3sum(c.unjustifiedAbsenceDays, c.unpaidLeaveDays),
+            snapSickDays: snapshotsById.get(r.employeeId)?.sickDays ?? 0,
+            snapLateMinutes: snapshotsById.get(r.employeeId)?.lateMinutes ?? 0,
             baseAmount: r.baseAmount,
             absenceDeduction: r.absenceDeduction,
+            sickDeduction: r.sickDeduction,
+            lateDeduction: r.lateDeduction,
             advanceDeduction: r.advanceDeduction,
             netAmount: r.netAmount,
           };
