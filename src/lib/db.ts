@@ -58,6 +58,8 @@ const TENANT_MODELS = new Set<string>([
   "bankMap", "bankRecon",
   // الاستشارات الهندسية (موديول consulting — خطة الأنشطة): الفريق والإسنادات والساعات والإجازات
   "engineer", "engineerAssignment", "engineerTimesheet", "engineerLeave",
+  // NOVA 4 — رادار المواعيد: حجز الخانات الزمنية للمهندسين (فصل الشركات بنفس قاعدة الاستشارات)
+  "engineerAppointment",
   // HR-1 — الموارد البشرية (الموظف الموحد + الحضور + الإجازات + المسير): فصل الشركات إلزامي منذ اليوم الأول (درس T111)
   // HR-2 — الأذونات ونهاية الخدمة: بنفس القاعدة بنفس الـcommit
   "employeeAttendance", "employeeLeave", "payrollBatch", "payrollRecord",

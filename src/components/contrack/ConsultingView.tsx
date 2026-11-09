@@ -4,6 +4,7 @@
  * ConsultingView.tsx — شاشة موديول «الاستشارات الهندسية» (خطة الأنشطة):
  * أربعة أقسام يملكها تبويب الشل «الاستشارات» (nav-structure → section):
  *   الفريق الهندسي · إسناد المشاريع (الربط HR↔العقود) · ساعات العمل · الإجازات
+ * + رادار المواعيد (NOVA 4 — سلوتس مشتقة من إعدادات الدوام)
  * + بطاقات مؤشرات وتنبيه تراخيص (ملخص /api/consulting/summary) تظهر في كل الأقسام.
  * الموديول يظهر حصرًا للشركات التي فعّلته (navModules) — والإيقاف يخفي التبويب كله (تجميد).
  */
@@ -22,6 +23,7 @@ import {
   Pencil,
   Phone,
   Plus,
+  Radar,
   Search,
   Timer,
   Trash2,
@@ -42,10 +44,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { ApiError, api as apiLite, apiDelete, apiGet, apiPatch, apiPost, type ContractOption } from "./api";
+import { ApiError, api as apiLite, apiDelete, apiGet, apiPatch, apiPost, apiPut, type ContractOption } from "./api";
 import { errMessage, type User } from "./contrack-types";
 import { cn } from "@/lib/utils";
 import { SearchableSelect } from "./SearchableSelect";
@@ -63,6 +67,7 @@ import {
   TIMESHEET_ACTIVITIES,
   licenseDaysLeft,
 } from "@/lib/consulting-constants";
+import { RADAR_SLOT_MINUTES } from "@/lib/consulting-radar-core";
 
 // ==================== أنواع الـAPI ====================
 
@@ -178,7 +183,7 @@ interface RevisionItem {
   notes: string;
 }
 
-export type ConsultingSection = "team" | "assignments" | "timesheets" | "revisions" | "leaves";
+export type ConsultingSection = "team" | "assignments" | "timesheets" | "revisions" | "leaves" | "radar";
 
 interface ConsultingViewProps {
   user: User;
@@ -261,13 +266,16 @@ const SECTION_META: { key: ConsultingSection; label: string }[] = [
   { key: "timesheets", label: "ساعات العمل" },
   { key: "revisions", label: "مراجعات المخططات" },
   { key: "leaves", label: "الإجازات" },
+  { key: "radar", label: "رادار المواعيد" },
 ];
 
 // ==================== الشاشة الرئيسية ====================
 
-export function ConsultingView({ onAuthError, section, onSectionChange }: ConsultingViewProps) {
+export function ConsultingView({ user, onAuthError, section, onSectionChange }: ConsultingViewProps) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  // مدة الخانة في الرادار تُضبط للمدير فقط (كإعدادات الزيارات)
+  const isAdmin = user.role === "admin" || user.role === "developer";
 
   const invalidate = React.useCallback(() => {
     qc.invalidateQueries({ queryKey: ["consulting"] });
@@ -342,7 +350,7 @@ export function ConsultingView({ onAuthError, section, onSectionChange }: Consul
         <div>
           <h1 className="text-lg font-extrabold tracking-tight sm:text-xl">الاستشارات الهندسية</h1>
           <p className="text-xs text-muted-foreground">
-            الفريق بتخصصاتهم وتراخيصهم · إسنادهم للمشاريع · ساعاتهم على المخططات والإشراف · الإجازات
+            الفريق بتخصصاتهم وتراخيصهم · إسنادهم للمشاريع · ساعاتهم على المخططات والإشراف · الإجازات · رادار المواعيد
           </p>
         </div>
         <SectionAction section={section} engineersReady={engineers.length > 0} onNoEngineers={() => onSectionChange("team")} />
@@ -470,6 +478,16 @@ export function ConsultingView({ onAuthError, section, onSectionChange }: Consul
           setDeleteTarget={setDeleteTarget}
         />
       )}
+      {section === "radar" && (
+        <RadarSection
+          isAdmin={isAdmin}
+          contractOpts={contractOpts}
+          onErr={onErr}
+          onAuthError={onAuthError}
+          invalidate={invalidate}
+          setDeleteTarget={setDeleteTarget}
+        />
+      )}
 
       {/* تأكيد الحذف الموحد */}
       <Dialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
@@ -523,11 +541,12 @@ function SectionAction({
     timesheets: "تسجيل ساعات",
     revisions: "دورة مراجعة جديدة",
     leaves: "طلب إجازة",
+    radar: "حجز موعد",
   };
   return (
     <Button
       onClick={() => {
-        if ((section === "assignments" || section === "timesheets" || section === "leaves") && !engineersReady) {
+        if ((section === "assignments" || section === "timesheets" || section === "leaves" || section === "radar") && !engineersReady) {
           onNoEngineers();
           return;
         }
@@ -2160,6 +2179,441 @@ function RevisionDialog({
           <Button onClick={submit} disabled={pending || !form.title.trim() || (!editing && !form.contractId)}>
             {pending && <Loader2 className="size-4 animate-spin" />}
             {editing ? "حفظ التعديلات" : "تسجيل الإصدار"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ==================== القسم الخامس: رادار المواعيد (NOVA 4 — docs/consulting-radar-design.md) ====================
+// شبكة اليوم: صفوف = خانات مشتقة من إعدادات دوام HR (hrWorkStart/hrWorkEnd) بخطوة مدة الخانة
+// (uiPrefs.radar_slot_minutes)، والأعمدة = المهندسون النشطون — حجزٌ واحد لكل خانة،
+// والعمود يعطَّل كليًا في يوم إجازة معتمدة، والتعارض خطأ صريح بلا force.
+
+interface RadarCell {
+  id: number;
+  customerId: number | null;
+  customerName: string;
+  contractId: number | null;
+  contractNumber: string;
+  note: string;
+  createdBy: string;
+}
+
+interface RadarResponse {
+  date: string;
+  config: { workStart: string; workEnd: string; slotMinutes: number };
+  slots: string[];
+  engineers: { id: number; name: string; specialty: string; jobTitle: string }[];
+  cells: Record<string, Record<number, RadarCell>>;
+  leaveEngineerIds: number[];
+  total: number;
+}
+
+/** سياق نافذة الحجز: مهندس/خانة محددان من النقر على خلية — أو nullان للاختيار الحر من زر الإضافة */
+interface RadarSlotCtx {
+  engineerId: number | null;
+  hourSlot: string | null;
+}
+
+function RadarSection({
+  isAdmin,
+  contractOpts,
+  onErr,
+  invalidate,
+}: SectionCommon & { isAdmin: boolean; contractOpts: { value: string; label: string }[] }) {
+  const { toast } = useToast();
+
+  const [date, setDate] = React.useState(todayStr());
+  const [slotCtx, setSlotCtx] = React.useState<RadarSlotCtx | null>(null);
+  const [confirmFree, setConfirmFree] = React.useState<{ hourSlot: string; engineerId: number; label: string } | null>(null);
+
+  const radarQuery = useQuery<RadarResponse>({
+    queryKey: ["consulting", "radar", date],
+    queryFn: () => apiGet<RadarResponse>(`/api/consulting/radar?date=${date}`),
+  });
+  const data = radarQuery.data;
+  const engineers = data?.engineers ?? [];
+  const slots = data?.slots ?? [];
+  const cells = data?.cells ?? {};
+  const leaveIds = data?.leaveEngineerIds ?? [];
+  const cfg = data?.config;
+
+  // خيارات العملاء للاختيار — من نهاية العملاء الجاهزة (كبقية الأقسام)
+  const [customerOpts, setCustomerOpts] = React.useState<{ value: string; label: string }[]>([]);
+  React.useEffect(() => {
+    let alive = true;
+    apiLite
+      .customers("")
+      .then((rows) => alive && setCustomerOpts(rows.map((c) => ({ value: String(c.id), label: c.name }))))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useAddEvent("radar", React.useCallback(() => setSlotCtx({ engineerId: null, hourSlot: null }), []));
+
+  // ضبط مدة الخانة — للمدير فقط، والخانات تُعاد بناؤها من نطاق الدوام بعد الحفظ
+  const configMutation = useMutation({
+    mutationFn: (slotMinutes: number) => apiPut<{ slotMinutes: number }>("/api/consulting/radar/config", { slotMinutes }),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "حُفظت مدة الخانة", description: "أُعيد بناء خانات النطاق وفق المدة الجديدة" });
+    },
+    onError: (e) => onErr(e, "تعذر حفظ الإعداد"),
+  });
+
+  const bookMutation = useMutation({
+    mutationFn: (v: { engineerId: number; hourSlot: string; customerId: number | null; contractId: number | null; note: string }) =>
+      apiPost("/api/consulting/radar", { appointmentDate: date, ...v }),
+    onSuccess: () => {
+      setSlotCtx(null);
+      invalidate();
+      toast({ title: "حُجز الموعد" });
+    },
+    onError: (e) => onErr(e, "تعذر الحجز"),
+  });
+
+  const freeMutation = useMutation({
+    mutationFn: (v: { hourSlot: string; engineerId: number }) =>
+      apiDelete<{ deleted: number }>(
+        `/api/consulting/radar?appointmentDate=${date}&hourSlot=${encodeURIComponent(v.hourSlot)}&engineerId=${v.engineerId}`
+      ),
+    onSuccess: (r) => {
+      setConfirmFree(null);
+      invalidate();
+      toast({ title: "فُرِّغت الخانة" });
+    },
+    onError: (e) => onErr(e, "تعذر التفريغ"),
+  });
+
+  const cellAt = (slot: string, engineerId: number): RadarCell | undefined => cells[slot]?.[engineerId];
+  const ctxCell = slotCtx?.engineerId && slotCtx?.hourSlot ? cellAt(slotCtx.hourSlot, slotCtx.engineerId) ?? null : null;
+
+  return (
+    <div className="space-y-3">
+      {/* الترويسة: التاريخ + شرائح الإعدادات المشتقة + مدة الخانة للمدير */}
+      <Card className="gap-3 p-3 sm:p-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1.5">
+              <Label>التاريخ</Label>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value || todayStr())} className="w-44" />
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 pb-1.5">
+              <Badge variant="secondary" className="gap-1 text-[11px]">
+                <Clock className="size-3" />
+                نطاق الدوام {cfg?.workStart ?? "—"}–{cfg?.workEnd ?? "—"}
+              </Badge>
+              <Badge variant="secondary" className="text-[11px]">مدة الخانة {cfg?.slotMinutes ?? "—"} دقيقة</Badge>
+              <Badge variant="secondary" className="text-[11px] tabular-nums">{data?.total ?? 0} موعدًا</Badge>
+              <Badge variant="secondary" className="text-[11px] tabular-nums">{engineers.length} مهندسًا</Badge>
+            </div>
+          </div>
+          {isAdmin && (
+            <div className="space-y-1.5">
+              <Label>مدة الخانة (دقيقة)</Label>
+              <Select
+                value={String(cfg?.slotMinutes ?? 60)}
+                onValueChange={(v) => configMutation.mutate(Number(v))}
+                disabled={configMutation.isPending}
+              >
+                <SelectTrigger className="w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {RADAR_SLOT_MINUTES.map((m) => (
+                    <SelectItem key={m} value={String(m)}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          نطاق الدوام يُضبط من إعدادات الموارد البشرية — والخانات تُشتق منه بخطوة مدة الخانة
+        </p>
+      </Card>
+
+      {/* شبكة الرادار */}
+      {radarQuery.isLoading ? (
+        <Skeleton className="h-72 w-full" />
+      ) : radarQuery.isError ? (
+        <Card className="p-8 text-center text-sm text-destructive">تعذر تحميل الرادار — {errMessage(radarQuery.error)}</Card>
+      ) : engineers.length === 0 ? (
+        <EmptyState
+          icon={Radar}
+          title="لا مهندسين نشطين"
+          hint="أضف مهندسين من قسم «الفريق الهندسي» لتظهر أعمدة الرادار"
+        />
+      ) : (
+        <Card className="p-0">
+          <CardContent className="overflow-x-auto p-0">
+            <div className="max-h-[70vh] overflow-y-auto">
+              <Table className="min-w-[640px]">
+                <TableHeader className="sticky top-0 z-10 bg-card">
+                  <TableRow>
+                    <TableHead className="w-16 text-center">الوقت</TableHead>
+                    {engineers.map((e) => (
+                      <TableHead key={e.id} className="min-w-36 text-center">
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-bold">{e.name}</p>
+                          {e.specialty && <p className="text-[10px] font-normal text-muted-foreground">{e.specialty}</p>}
+                          {leaveIds.includes(e.id) && (
+                            <Badge className="h-4 bg-status-warn-bg px-1 text-[9px] text-status-warn">في إجازة</Badge>
+                          )}
+                        </div>
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {slots.map((s) => (
+                    <TableRow key={s}>
+                      <TableCell className="text-center font-mono text-xs tabular-nums text-muted-foreground">{s}</TableCell>
+                      {engineers.map((e) => {
+                        const onLeave = leaveIds.includes(e.id);
+                        const cell = cellAt(s, e.id);
+                        if (!cell) {
+                          return (
+                            <TableCell key={e.id} className="p-1">
+                              <button
+                                type="button"
+                                disabled={onLeave}
+                                onClick={() => setSlotCtx({ engineerId: e.id, hourSlot: s })}
+                                className="flex min-h-14 w-full items-center justify-center rounded-md border border-dashed text-muted-foreground/50 transition-colors hover:border-primary/40 hover:bg-muted/50 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                                title={onLeave ? "المهندس في إجازة معتمدة هذا اليوم" : `حجز ${s} — ${e.name}`}
+                              >
+                                <Plus className="size-4" />
+                              </button>
+                            </TableCell>
+                          );
+                        }
+                        return (
+                          <TableCell key={e.id} className="p-1">
+                            <div className="min-h-14 space-y-0.5 rounded-md bg-status-done-bg p-2 ring-1 ring-status-done/40">
+                              <p className="truncate text-xs font-bold text-status-done" title={cell.customerName}>
+                                {cell.customerName || "موعد بلا عميل"}
+                              </p>
+                              {cell.note && (
+                                <p className="truncate text-[10px] text-status-done/80" title={cell.note}>
+                                  {cell.note}
+                                </p>
+                              )}
+                              {cell.contractNumber && (
+                                <p className="truncate text-[10px] tabular-nums text-status-done/80">{cell.contractNumber}</p>
+                              )}
+                              <div className="flex items-center gap-0.5 pt-0.5">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-6 text-muted-foreground hover:text-foreground"
+                                  title="تعديل الموعد"
+                                  onClick={() => setSlotCtx({ engineerId: e.id, hourSlot: s })}
+                                >
+                                  <Pencil className="size-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-6 text-destructive hover:text-destructive"
+                                  title="تفريغ الخانة"
+                                  onClick={() => setConfirmFree({ hourSlot: s, engineerId: e.id, label: `${s} — ${e.name}` })}
+                                >
+                                  <Trash2 className="size-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <RadarBookingDialog
+        open={!!slotCtx}
+        ctx={slotCtx}
+        cell={ctxCell}
+        date={date}
+        slots={slots}
+        engineerOpts={engineers.map((e) => ({
+          value: String(e.id),
+          label: e.specialty ? `${e.name} — ${e.specialty}` : e.name,
+        }))}
+        customerOpts={customerOpts}
+        contractOpts={contractOpts}
+        pending={bookMutation.isPending}
+        onClose={() => setSlotCtx(null)}
+        onSave={(v) => bookMutation.mutate(v)}
+      />
+
+      {/* تأكيد التفريغ */}
+      <Dialog open={!!confirmFree} onOpenChange={(v) => !v && setConfirmFree(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-destructive">تفريغ الخانة</DialogTitle>
+            <DialogDescription>سيُحذف موعد «{confirmFree?.label}» من رادار يوم {date}.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmFree(null)} disabled={freeMutation.isPending}>
+              تراجع
+            </Button>
+            <Button
+              className="border-0 bg-status-danger-bg text-status-danger hover:bg-status-danger-bg/80"
+              disabled={freeMutation.isPending}
+              onClick={() => confirmFree && freeMutation.mutate({ hourSlot: confirmFree.hourSlot, engineerId: confirmFree.engineerId })}
+            >
+              {freeMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              تفريغ نهائي
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/** نافذة حجز/تعديل موعد — المهندس والتاريخ والخانة نص ثابت عند الحجز من خلية، وقوائم اختيار من زر الإضافة */
+function RadarBookingDialog({
+  open,
+  ctx,
+  cell,
+  date,
+  slots,
+  engineerOpts,
+  customerOpts,
+  contractOpts,
+  pending,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  ctx: RadarSlotCtx | null;
+  cell: RadarCell | null;
+  date: string;
+  slots: string[];
+  engineerOpts: { value: string; label: string }[];
+  customerOpts: { value: string; label: string }[];
+  contractOpts: { value: string; label: string }[];
+  pending: boolean;
+  onClose: () => void;
+  onSave: (v: { engineerId: number; hourSlot: string; customerId: number | null; contractId: number | null; note: string }) => void;
+}) {
+  const [form, setForm] = React.useState({ engineerId: "", hourSlot: "", customerId: "", contractId: "", note: "" });
+
+  React.useEffect(() => {
+    if (open && ctx) {
+      setForm({
+        engineerId: ctx.engineerId ? String(ctx.engineerId) : "",
+        hourSlot: ctx.hourSlot || "",
+        customerId: cell?.customerId ? String(cell.customerId) : "",
+        contractId: cell?.contractId ? String(cell.contractId) : "",
+        note: cell?.note ?? "",
+      });
+    }
+  }, [open, ctx, cell]);
+
+  const ctxEngineerName = engineerOpts.find((o) => o.value === form.engineerId)?.label || "";
+
+  const submit = () => {
+    onSave({
+      engineerId: Number(form.engineerId) || 0,
+      hourSlot: form.hourSlot,
+      customerId: form.customerId ? Number(form.customerId) : null,
+      contractId: form.contractId ? Number(form.contractId) : null,
+      note: form.note,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{cell ? "تعديل الموعد" : "حجز موعد"}</DialogTitle>
+          <DialogDescription>
+            خانة واحدة لمهندس واحد — والموعد داخل نطاق دوام الشركة حصرًا (بلا تعارض ولا force).
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label>المهندس *</Label>
+            {ctx?.engineerId ? (
+              <Input value={ctxEngineerName} disabled />
+            ) : (
+              <SearchableSelect
+                value={form.engineerId}
+                onValueChange={(v) => setForm((f) => ({ ...f, engineerId: v }))}
+                options={engineerOpts}
+                placeholder="اختر المهندس"
+                searchPlaceholder="ابحث بالاسم…"
+              />
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <Label>التاريخ *</Label>
+            <Input value={date} disabled dir="ltr" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>الخانة *</Label>
+            {ctx?.hourSlot ? (
+              <Input value={ctx.hourSlot} disabled dir="ltr" />
+            ) : (
+              <Select value={form.hourSlot} onValueChange={(v) => setForm((f) => ({ ...f, hourSlot: v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="اختر الخانة" />
+                </SelectTrigger>
+                <SelectContent>
+                  {slots.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <Label>العميل</Label>
+            <SearchableSelect
+              value={form.customerId}
+              onValueChange={(v) => setForm((f) => ({ ...f, customerId: v === "none" ? "" : v }))}
+              options={[{ value: "none", label: "— بلا عميل —" }, ...customerOpts]}
+              placeholder="اختياري"
+              searchPlaceholder="ابحث بالاسم…"
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>العقد</Label>
+            <SearchableSelect
+              value={form.contractId}
+              onValueChange={(v) => setForm((f) => ({ ...f, contractId: v === "none" ? "" : v }))}
+              options={[{ value: "none", label: "— بلا عقد —" }, ...contractOpts]}
+              placeholder="اختياري"
+              searchPlaceholder="ابحث برقم العقد/الاسم…"
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>ملاحظة</Label>
+            <Input value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="اختياري — مثال: زيارة موقع" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            إلغاء
+          </Button>
+          <Button onClick={submit} disabled={pending || !form.engineerId || !form.hourSlot}>
+            {pending && <Loader2 className="size-4 animate-spin" />}
+            {cell ? "حفظ التعديلات" : "حجز الموعد"}
           </Button>
         </DialogFooter>
       </DialogContent>

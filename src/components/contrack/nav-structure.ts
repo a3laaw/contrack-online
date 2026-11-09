@@ -53,6 +53,8 @@ import {
   // الصيانة والتشغيل — أيقونات الموديول
   FileSignature,
   NotebookPen,
+  // الاستشارات — رادار المواعيد (NOVA 4)
+  Radar,
 } from "lucide-react";
 
 import type { ViewName } from "./contrack-types";
@@ -158,6 +160,7 @@ export const NAV_MODULES: NavModule[] = [
       { id: "consulting-timesheets", label: "ساعات العمل", icon: Timer, view: "consulting", section: "timesheets", perm: "screen_consulting" },
       { id: "consulting-revisions", label: "مراجعات المخططات", icon: FileStack, view: "consulting", section: "revisions", perm: "screen_consulting" },
       { id: "consulting-leaves", label: "الإجازات", icon: CalendarDays, view: "consulting", section: "leaves", perm: "screen_consulting" },
+      { id: "consulting-radar", label: "رادار المواعيد", icon: Radar, view: "consulting", section: "radar", perm: "screen_consulting" },
     ],
   },
   {

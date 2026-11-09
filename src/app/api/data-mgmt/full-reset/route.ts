@@ -63,6 +63,8 @@ async function fullResetInTx(tx: Tx): Promise<Record<string, number>> {
   await step("contract_stages", () => tx.contractStage.deleteMany({}));
   // مراجعات المخططات (docs/revisions-ipc-design.md) — FK لعقود ومهندسين: قبل الاثنين
   await step("consulting_revisions", () => tx.consultingRevision.deleteMany({}));
+  // رادار المواعيد (docs/consulting-radar-design.md) — FK لعقود وعملاء ومهندسين: قبلها جميعًا
+  await step("engineer_appointments", () => tx.engineerAppointment.deleteMany({}));
   await step("contracts", () => tx.contract.deleteMany({}));
   await step("customers", () => tx.customer.deleteMany({}));
   await step("subcontractors", () => tx.subcontractor.deleteMany({}));

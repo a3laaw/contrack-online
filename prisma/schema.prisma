@@ -179,6 +179,8 @@ model Customer {
   contractGroups ContractGroup[]
   projects       Project[]
   quotations     Quotation[]
+  // رادار المواعيد — مواعيد المهندسين المرتبطة بالعميل (docs/consulting-radar-design.md)
+  engineerAppointments EngineerAppointment[] @relation("EngineerAppointmentCustomer")
 
   @@unique([companyId, customerCode])
   @@map("customers")
@@ -246,6 +248,8 @@ model Contract {
   workOrders       WorkOrder[]
   // الاستشارات — دورات مراجعة المخططات على العقود (docs/revisions-ipc-design.md §1)
   consultingRevisions ConsultingRevision[]
+  // رادار المواعيد — مواعيد المهندسين على العقد (docs/consulting-radar-design.md)
+  engineerAppointments EngineerAppointment[] @relation("EngineerAppointmentContract")
 
   @@index([customerId, status])
   @@unique([companyId, contractNumber])
@@ -1810,6 +1814,8 @@ model Engineer {
   leaves        EngineerLeave[]
   // مراجعات المخططات — إصدارات المخطط التي أعدّها المهندس (docs/revisions-ipc-design.md §1)
   revisions     ConsultingRevision[]
+  // رادار المواعيد — الخانات المحجوزة للمهندس (docs/consulting-radar-design.md)
+  appointments  EngineerAppointment[]
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -1876,6 +1882,27 @@ model EngineerLeave {
 
   @@index([engineerId, status])
   @@map("engineer_leaves")
+}
+
+/// رادار المواعيد — حجز خانة زمنية لمهندس (بند NOVA 4 — سلوتس مشتقة من إعدادات الدوام)
+model EngineerAppointment {
+  companyId       Int       @default(1) @map("company_id")
+  id              Int       @id @default(autoincrement())
+  engineerId      Int       @map("engineer_id")
+  engineer        Engineer  @relation(fields: [engineerId], references: [id], onDelete: Cascade)
+  appointmentDate String    @map("appointment_date") // YYYY-MM-DD
+  hourSlot        String    @map("hour_slot") // HH:mm — داخل نطاق دوام الشركة
+  customerId      Int?      @map("customer_id")
+  customer        Customer? @relation("EngineerAppointmentCustomer", fields: [customerId], references: [id])
+  contractId      Int?      @map("contract_id")
+  contract        Contract? @relation("EngineerAppointmentContract", fields: [contractId], references: [id])
+  note            String    @default("")
+  createdBy       String    @default("") @map("created_by")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@unique([appointmentDate, hourSlot, engineerId])
+  @@index([engineerId, appointmentDate])
+  @@map("engineer_appointments")
 }
 
 /**

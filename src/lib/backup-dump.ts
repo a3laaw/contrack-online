@@ -148,6 +148,8 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "engineerAssignment", table: "engineer_assignments", serial: true },
   { model: "engineerTimesheet", table: "engineer_timesheets", serial: true },
   { model: "engineerLeave", table: "engineer_leaves", serial: true },
+  // NOVA 4 — رادار المواعيد: بعد المهندسين والعملاء والعقود (FK: engineer Cascade · customer/contract)
+  { model: "engineerAppointment", table: "engineer_appointments", serial: true },
   // ===== HR-1 — الموارد البشرية: بعد employees (فوق) وقب�� القيود (FK batch→entry/voucher) =====
   { model: "employeeAttendance", table: "employee_attendance", serial: true },
   { model: "employeeLeave", table: "employee_leaves", serial: true },
