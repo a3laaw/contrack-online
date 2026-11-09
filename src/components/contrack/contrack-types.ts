@@ -812,12 +812,65 @@ export interface BoqItemDTO {
   qty: number;
   unit: string;
   unitPrice: number;
+  plannedQty?: number;
   amount: number;
   sortOrder?: number;
 }
 
 export interface BoqResponse {
   items: BoqItemDTO[];
+}
+
+// ==================== التنفيذ الميداني — مقايسة التنفيذ (بند NOVA 5) ====================
+
+export interface TakeoffItemDTO {
+  boqItemId: number;
+  description: string;
+  unit: string;
+  stageName: string;
+  contractQty: number;
+  changeQty: number;
+  effectiveQty: number;
+  plannedQty: number;
+  executedQty: number;
+  documentedQty: number;
+  unitPrice: number;
+  executedAmount: number;
+  progressPct: number;
+}
+
+export interface TakeoffTotalsDTO {
+  contractAmount: number;
+  changeAmount: number;
+  plannedAmount: number;
+  executedAmount: number;
+  documentedAmount: number;
+  invoicedAmount: number;
+  collectedAmount: number;
+  progressPct: number;
+}
+
+export interface ExecutionLogDTO {
+  id: number;
+  boqItemId: number;
+  description: string;
+  unit: string;
+  executionDate: string;
+  qty: number;
+  documented: boolean;
+  gpsLat: string;
+  gpsLng: string;
+  attachmentId: number | null;
+  attachmentName: string;
+  note: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface TakeoffResponse {
+  items: TakeoffItemDTO[];
+  totals: TakeoffTotalsDTO;
+  executions: ExecutionLogDTO[];
 }
 
 // ==================== الأحداث ====================

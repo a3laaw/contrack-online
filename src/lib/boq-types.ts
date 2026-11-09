@@ -10,6 +10,7 @@ export interface BoqItemDTO {
   qty: number
   unit: string
   unitPrice: number
+  plannedQty?: number
   total: number
   stageId: number | null
   stageName: string | null
@@ -20,6 +21,7 @@ export interface BoqInput {
   qty: number
   unit?: string
   unitPrice: number
+  plannedQty?: number
   stageId?: number | null
 }
 

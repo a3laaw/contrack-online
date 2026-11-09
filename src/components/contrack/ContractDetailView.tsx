@@ -86,6 +86,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost, getStoredToken } from "./api";
 import { fetchBlobDownload } from "@/lib/download-blob";
@@ -94,6 +95,7 @@ import type {
   ContractDetailResponse,
   ContractOverviewResponse,
   ContractPayViewResponse,
+  ExecutionLogDTO,
   PayViewLine,
   PayViewSubLine,
   PlanLine,
@@ -101,6 +103,8 @@ import type {
   StatementTarget,
   SubContractsResponse,
   SupervisionResponse,
+  TakeoffItemDTO,
+  TakeoffResponse,
   User,
 } from "./contrack-types";
 import { STATUS_CHANGE_OPTIONS, STATUS_REASON_REQUIRED, errMessage, isManagerRole } from "./contrack-types";
@@ -923,6 +927,8 @@ export function ContractDetailView({
         <PayPage
           manager={manager}
           cur={cur}
+          contractId={contractId}
+          onActionError={fail}
           payView={payViewQuery.data ?? null}
           payViewLoading={payViewQuery.isLoading}
           payViewError={payViewQuery.error ? errMessage(payViewQuery.error) : ""}
@@ -2389,6 +2395,8 @@ function FollowupPanelCompact({
 function PayPage({
   manager,
   cur,
+  contractId,
+  onActionError,
   payView,
   payViewLoading,
   payViewError,
@@ -2409,6 +2417,9 @@ function PayPage({
 }: {
   manager: boolean;
   cur: string;
+  contractId: number;
+  /** أخطاء أقسام التنفيذ الميداني — نفس fail في الجذر (401 + توست) */
+  onActionError: (e: unknown, title: string) => void;
   payView: ContractPayViewResponse | null;
   payViewLoading: boolean;
   payViewError: string;
@@ -2673,6 +2684,7 @@ function PayPage({
                     <TableRow>
                       <TableHead className="min-w-40">الوصف</TableHead>
                       <TableHead className="w-20 text-center">الكمية</TableHead>
+                      <TableHead className="w-20 text-center">مخطط</TableHead>
                       <TableHead className="w-20 text-center">الوحدة</TableHead>
                       <TableHead className="w-28 text-end">سعر الوحدة</TableHead>
                       <TableHead className="w-28 text-end">الإجمالي</TableHead>
@@ -2687,6 +2699,7 @@ function PayPage({
                           {it.stageName && <div className="text-xs text-muted-foreground">المرحلة: {it.stageName}</div>}
                         </TableCell>
                         <TableCell className="text-center tabular-nums" dir="ltr">{Number(it.qty)}</TableCell>
+                        <TableCell className="text-center tabular-nums" dir="ltr">{Number(it.plannedQty || 0) || "—"}</TableCell>
                         <TableCell className="text-center">{it.unit || "—"}</TableCell>
                         <TableCell className="text-end tabular-nums" dir="ltr">{formatKWD(it.unitPrice)}</TableCell>
                         <TableCell className="text-end font-bold tabular-nums" dir="ltr">{formatKWD(it.amount)}</TableCell>
@@ -2712,7 +2725,376 @@ function PayPage({
           )}
         </CardContent>
       </Card>
+
+      {/* ⑥ التنفيذ الميداني — مقايسة مشتقة لحظيًا + سجل تنفيذ (بند NOVA 5 — docs/field-execution-design.md) */}
+      <FieldExecutionSection contractId={contractId} manager={manager} cur={cur} onActionError={onActionError} />
     </div>
+  );
+}
+
+/**
+ * FieldExecutionSection — قسم ⑥ «التنفيذ الميداني» (بند NOVA 5 — docs/field-execution-design.md):
+ * مقايسة التنفيذ المشتقة لحظيًا من الصفوف (درس G9 — لا عدّاد مخزّن) + سجل آخر 15 تنفيذ +
+ * نافذة تسجيل (تاريخ/كمية/موثق/GPS/صورة/ملاحظة). لا نافذة تعديل — التصحيح حذف وإعادة
+ * إضافة (G3/G5) والعدادات تُشتق من جديد. الأزرار الحساسة للمدير كما أقسام بنود الكميات.
+ */
+function FieldExecutionSection({
+  contractId,
+  manager,
+  cur,
+  onActionError,
+}: {
+  contractId: number;
+  manager: boolean;
+  cur: string;
+  onActionError: (e: unknown, title: string) => void;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const takeoffQuery = useQuery<TakeoffResponse>({
+    queryKey: ["contract", contractId, "takeoff"],
+    queryFn: () => apiGet<TakeoffResponse>(`/api/contracts/${contractId}/takeoff`),
+  });
+  const t = takeoffQuery.data?.totals;
+
+  // ===== نافذة تسجيل تنفيذ =====
+  const [target, setTarget] = React.useState<TakeoffItemDTO | null>(null);
+  const [form, setForm] = React.useState({ executionDate: "", qty: "", documented: false, gpsLat: "", gpsLng: "", note: "" });
+  const [attFile, setAttFile] = React.useState<File | null>(null);
+  const [attName, setAttName] = React.useState("");
+
+  const openCreate = (it: TakeoffItemDTO) => {
+    setTarget(it);
+    setForm({ executionDate: new Date().toISOString().slice(0, 10), qty: "", documented: false, gpsLat: "", gpsLng: "", note: "" });
+    setAttFile(null);
+    setAttName("");
+  };
+
+  // التقاط الموقع من المتصفح — عند الرفض/الفشل تُدخل الإحداثيات يدويًا
+  const captureGps = () => {
+    if (!navigator.geolocation) {
+      toast({ title: "تعذر تحديد الموقع — أدخل الإحداثيات يدويًا" });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setForm((f) => ({ ...f, gpsLat: pos.coords.latitude.toFixed(6), gpsLng: pos.coords.longitude.toFixed(6) })),
+      () => toast({ title: "تعذر تحديد الموقع — أدخل الإحداثيات يدويًا" }),
+      { enableHighAccuracy: true, timeout: 8000 },
+    );
+  };
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      // الصورة تُرفع أولًا عبر مرفقات العقود القائمة (نمط ملف العميل) ثم يُربط معرفها بالسجل
+      let attachmentId: number | undefined;
+      if (attFile) {
+        const b64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || "").replace(/^data:[^;]+;base64,/, ""));
+          reader.onerror = () => reject(new ApiError("تعذر قراءة الصورة", 400));
+          reader.readAsDataURL(attFile);
+        });
+        const up = await apiPost<{ attachment?: { id: number } }>("/api/attachments", {
+          contractId,
+          fileName: attFile.name,
+          dataBase64: b64,
+        });
+        attachmentId = up.attachment?.id;
+      }
+      return apiPost(`/api/contracts/${contractId}/executions`, {
+        boqItemId: target?.boqItemId,
+        executionDate: form.executionDate,
+        qty: Number(form.qty || 0),
+        documented: form.documented,
+        gpsLat: form.gpsLat.trim(),
+        gpsLng: form.gpsLng.trim(),
+        note: form.note.trim(),
+        ...(attachmentId ? { attachmentId } : {}),
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contract", contractId, "takeoff"] });
+      toast({ title: "تم تسجيل التنفيذ", description: "أُضيف السجل وتحدّثت عدادات المقايسة" });
+      setTarget(null);
+    },
+    onError: (e) => onActionError(e, "تعذر تسجيل التنفيذ"),
+  });
+
+  // ===== حذف سجل بنافذة تأكيد — الحذف آمن: العدادات تُشتق من الصفوف لحظيًا (G9) =====
+  const [deleteRow, setDeleteRow] = React.useState<ExecutionLogDTO | null>(null);
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiDelete(`/api/contracts/${contractId}/executions?executionId=${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contract", contractId, "takeoff"] });
+      toast({ title: "تم الحذف", description: "أُعيد احتساب عدادات المقايسة من الصفوف" });
+      setDeleteRow(null);
+    },
+    onError: (e) => {
+      setDeleteRow(null);
+      onActionError(e, "تعذر حذف السجل");
+    },
+  });
+
+  const items = takeoffQuery.data?.items ?? [];
+  const executions = takeoffQuery.data?.executions ?? [];
+
+  return (
+    <>
+      <Card className="p-4">
+        <CardHeader className="p-0 pb-2">
+          <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+            <span>📐 التنفيذ الميداني</span>
+            {t && (
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <Badge variant="outline" className="tabular-nums">التعاقدي {formatKWD(t.contractAmount)}</Badge>
+                <Badge variant="outline" className="tabular-nums">التغييري {formatKWD(t.changeAmount)}</Badge>
+                <Badge variant="outline" className="bg-status-done-bg tabular-nums text-status-done">
+                  المنفذ {formatKWD(t.executedAmount)} ({t.progressPct}%)
+                </Badge>
+                <Badge variant="outline" className="tabular-nums">الموثق {formatKWD(t.documentedAmount)}</Badge>
+                <Badge variant="outline" className="tabular-nums">المفوتر {formatKWD(t.invoicedAmount)}</Badge>
+              </div>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {takeoffQuery.isLoading ? (
+            <Skeleton className="h-24 rounded-lg" />
+          ) : items.length === 0 ? (
+            <p className="p-2 text-center text-sm text-muted-foreground">
+              لا بنود كميات على هذا العقد — أضف بنودًا أولًا لتسجيل التنفيذ عليها.
+            </p>
+          ) : (
+            <Card className="overflow-hidden">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-40">البند</TableHead>
+                      <TableHead className="w-16 text-center">الوحدة</TableHead>
+                      <TableHead className="w-20 text-center">التعاقدي</TableHead>
+                      <TableHead className="w-20 text-center">مخطط</TableHead>
+                      <TableHead className="w-20 text-center">تغييري</TableHead>
+                      <TableHead className="w-32 text-center">منفذ</TableHead>
+                      <TableHead className="w-20 text-center">الموثق</TableHead>
+                      {manager && <TableHead className="w-20 text-center">تسجيل</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((r) => (
+                      <TableRow key={r.boqItemId}>
+                        <TableCell>
+                          <div className="font-medium">{r.description}</div>
+                          {r.stageName && <div className="text-xs text-muted-foreground">المرحلة: {r.stageName}</div>}
+                        </TableCell>
+                        <TableCell className="text-center">{r.unit || "—"}</TableCell>
+                        <TableCell className="text-center tabular-nums" dir="ltr">{r.contractQty}</TableCell>
+                        <TableCell className="text-center tabular-nums" dir="ltr">{r.plannedQty || "—"}</TableCell>
+                        <TableCell className="text-center tabular-nums" dir="ltr">{r.changeQty || "—"}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <span className="tabular-nums" dir="ltr">{r.executedQty || "—"}</span>
+                            <div className="h-1.5 w-14 overflow-hidden rounded-full bg-muted">
+                              <div className="h-full bg-status-done-bg" style={{ width: `${Math.max(0, Math.min(100, r.progressPct))}%` }} />
+                            </div>
+                            <span className="text-[10px] tabular-nums text-muted-foreground" dir="ltr">{r.progressPct}%</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center tabular-nums" dir="ltr">{r.documentedQty || "—"}</TableCell>
+                        {manager && (
+                          <TableCell className="text-center">
+                            <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => openCreate(r)}>
+                              <Plus className="size-3.5" />
+                              تسجيل
+                            </Button>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </Card>
+          )}
+
+          {/* سجل التنفيذ — آخر 15 سجلًا (الحذف يعيد اشتقاق العدادات آليًا — G9) */}
+          <div className="space-y-1.5 pt-3">
+            <p className="text-xs text-muted-foreground">
+              آخر {executions.length} من سجلات التنفيذ — العدادات تُشتق من الصفوف لحظيًا، وحذف أي سجل يعيد الاحتساب آليًا.
+            </p>
+            {executions.length === 0 ? (
+              <p className="text-center text-xs text-muted-foreground">لا سجلات تنفيذ بعد.</p>
+            ) : (
+              <div className="max-h-72 space-y-1.5 overflow-y-auto pe-1">
+                {executions.map((e) => (
+                  <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 px-2.5 py-1.5 text-xs">
+                    <div className="min-w-0">
+                      <p className="truncate font-bold">
+                        <span className="tabular-nums" dir="ltr">{e.executionDate}</span>
+                        {" · "}
+                        {e.description}
+                        {" — "}
+                        <span className="tabular-nums" dir="ltr">{e.qty}</span> {e.unit || ""}
+                        {e.documented && <Badge className="ms-1 bg-status-done-bg text-status-done">موثق</Badge>}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {e.note ? e.note : "بلا ملاحظة"} · بواسطة {e.createdBy || "—"}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {e.gpsLat && e.gpsLng && (
+                        <a
+                          href={`https://maps.google.com/?q=${e.gpsLat},${e.gpsLng}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          📍 الموقع
+                        </a>
+                      )}
+                      {e.attachmentId && (
+                        <a
+                          href={`/api/attachments?id=${e.attachmentId}&download=1`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          {e.attachmentName || "صورة"}
+                        </a>
+                      )}
+                      {manager && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteRow(e)}
+                          aria-label="حذف السجل"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* نافذة تسجيل تنفيذ ميداني — سجل جديد يغذي المقايسة المشتقة فورًا */}
+      <Dialog open={!!target} onOpenChange={(v) => !v && setTarget(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>تسجيل تنفيذ ميداني</DialogTitle>
+            <DialogDescription>
+              سجل كمّي ميداني يغذي عدادات المقايسة المشتقة — الحذف/التعديل آمن لأن الاحتساب من الصفوف دائمًا.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="rounded-lg bg-muted/60 px-3 py-2 text-sm">
+            البند: <span className="font-bold">{target?.description}</span>
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>التاريخ *</Label>
+              <Input type="date" value={form.executionDate} onChange={(e) => setForm((f) => ({ ...f, executionDate: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>الكمية *</Label>
+              <Input
+                type="number"
+                min="0"
+                step="any"
+                dir="ltr"
+                className="tabular-nums"
+                value={form.qty}
+                onChange={(e) => setForm((f) => ({ ...f, qty: e.target.value }))}
+              />
+            </div>
+            <div className="flex items-center gap-2 sm:col-span-2">
+              <Switch id="fx-documented" checked={form.documented} onCheckedChange={(v) => setForm((f) => ({ ...f, documented: v }))} />
+              <Label htmlFor="fx-documented">موثق من مهندس الموقع</Label>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>الموقع (GPS)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  className="h-9"
+                  dir="ltr"
+                  placeholder="lat"
+                  aria-label="خط العرض"
+                  value={form.gpsLat}
+                  onChange={(e) => setForm((f) => ({ ...f, gpsLat: e.target.value }))}
+                />
+                <Input
+                  className="h-9"
+                  dir="ltr"
+                  placeholder="lng"
+                  aria-label="خط الطول"
+                  value={form.gpsLng}
+                  onChange={(e) => setForm((f) => ({ ...f, gpsLng: e.target.value }))}
+                />
+                <Button type="button" variant="outline" size="sm" className="h-9 shrink-0 gap-1" onClick={captureGps}>
+                  📍 التقاط الموقع
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="fx-photo">صورة الموقع (اختياري)</Label>
+              <Input
+                id="fx-photo"
+                type="file"
+                accept="image/*"
+                className="h-9"
+                onChange={(e) => {
+                  setAttFile(e.target.files?.[0] ?? null);
+                  setAttName(e.target.files?.[0]?.name ?? "");
+                }}
+              />
+              {attName && <p className="text-[11px] text-muted-foreground">الصورة المختارة: {attName}</p>}
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>ملاحظة</Label>
+              <Input value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="اختياري" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTarget(null)} disabled={createMutation.isPending}>
+              تراجع
+            </Button>
+            <Button
+              onClick={() => createMutation.mutate()}
+              disabled={createMutation.isPending || !form.executionDate || !(Number(form.qty) > 0)}
+            >
+              {createMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              تسجيل
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* تأكيد حذف سجل تنفيذ */}
+      <AlertDialog open={!!deleteRow} onOpenChange={(v) => !v && setDeleteRow(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف سجل التنفيذ؟</AlertDialogTitle>
+            <AlertDialogDescription>
+              سيُحذف سجل {deleteRow?.executionDate} — {deleteRow?.description} ({deleteRow?.qty}). العدادات تُشتق من الصفوف فتعود لحظيًا بعد الحذف.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-9">إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteRow) deleteMutation.mutate(deleteRow.id);
+              }}
+            >
+              حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 

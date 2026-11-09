@@ -224,6 +224,8 @@ model Contract {
   components        ContractComponent[]
   events            ContractEvent[]
   attachments       ContractAttachment[]
+  // التنفيذ الميداني — سجلات الكميات الميدانية على العقد (بند NOVA 5)
+  fieldExecutions   FieldExecution[] @relation("FieldExecutionContract")
   invoices          Invoice[]
   claims            Claim[]
   subContracts      SubContract[]
@@ -299,6 +301,7 @@ model BoqItem {
   qty               Decimal           @default(1)
   unit              String            @default("")
   unitPrice         Decimal           @default(0) @map("unit_price")
+  plannedQty        Decimal           @default(0) @map("planned_qty") // الكمية المخططة للتنفيذ — عداد «مخطط» في مقايسة التنفيذ (بند NOVA 5)
   amount            Decimal           @default(0)
   sortOrder         Int               @default(0) @map("sort_order")
   deleted           Boolean           @default(false)
@@ -307,6 +310,7 @@ model BoqItem {
   addendumItems     AddendumItem[]
   vouchers          Voucher[]
   stockDocLines     StockDocLine[]    // المخازن — أسطر صرف مرتبطة بهذا البند (تقرير الانحراف — G1)
+  fieldExecutions   FieldExecution[]
 
   @@index([contractId])
   @@map("boq_items")
@@ -1400,8 +1404,33 @@ model ContractAttachment {
   fileName   String   @map("file_name")
   storedPath String   @map("stored_path")
   addedAt    String   @default("") @map("added_at")
+  fieldExecutions FieldExecution[]
 
   @@map("contract_attachments")
+}
+
+/// التنفيذ الميداني — سجل كمّي ميداني يغذي عدادات المقايسة المشتقة (بند NOVA 5 — درس G9: الاشتقاق من الصفوف لا عدادات مخزنة)
+model FieldExecution {
+  companyId      Int                 @default(1) @map("company_id")
+  id             Int                 @id @default(autoincrement())
+  contractId     Int                 @map("contract_id")
+  contract       Contract            @relation("FieldExecutionContract", fields: [contractId], references: [id], onDelete: Cascade)
+  boqItemId      Int                 @map("boq_item_id")
+  boqItem        BoqItem             @relation(fields: [boqItemId], references: [id])
+  executionDate  String              @map("execution_date") // YYYY-MM-DD
+  qty            Decimal             @default(0) @db.Decimal(18, 3)
+  documented     Boolean             @default(false) // موثق من مهندس الموقع
+  gpsLat         String              @default("") @map("gps_lat")
+  gpsLng         String              @default("") @map("gps_lng")
+  attachmentId   Int?                @map("attachment_id")
+  attachment     ContractAttachment? @relation(fields: [attachmentId], references: [id])
+  note           String              @default("")
+  createdBy      String              @default("") @map("created_by")
+  createdAt      DateTime            @default(now()) @map("created_at")
+
+  @@index([contractId])
+  @@index([boqItemId, executionDate])
+  @@map("field_executions")
 }
 
 // ==================== البوابة المالية ====================

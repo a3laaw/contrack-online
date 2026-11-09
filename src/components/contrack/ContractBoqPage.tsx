@@ -32,8 +32,8 @@ export function ContractBoqPage({ contractId, contractNumber, onAuthError, onSav
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  // نفس حقول النافذة (تُهيأ فارغة عند كل فتح كما كانت)
-  const [boqForm, setBoqForm] = React.useState({ description: "", qty: "1", unit: "", unitPrice: "" });
+  // نفس حقول النافذة (تُهيأ فارغة عند كل فتح كما كانت) — plannedQty: الكمية المخططة للتنفيذ (بند NOVA 5)
+  const [boqForm, setBoqForm] = React.useState({ description: "", qty: "1", unit: "", unitPrice: "", plannedQty: "" });
 
   // نفس الـmutation حرفيًا
   const addBoqMutation = useMutation({
@@ -43,11 +43,13 @@ export function ContractBoqPage({ contractId, contractNumber, onAuthError, onSav
         qty: Number(boqForm.qty || 1),
         unit: boqForm.unit.trim(),
         unitPrice: Number(boqForm.unitPrice || 0),
+        // الكمية المخططة تُرسل فقط عند إدخالها (> 0) — اختيارية بأرضية صفر
+        ...(Number(boqForm.plannedQty || 0) > 0 ? { plannedQty: Number(boqForm.plannedQty) } : {}),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["contract", contractId, "boq"] });
       toast({ title: "تمت الإضافة", description: "أُضيف البند لبنود الكميات" });
-      setBoqForm({ description: "", qty: "1", unit: "", unitPrice: "" });
+      setBoqForm({ description: "", qty: "1", unit: "", unitPrice: "", plannedQty: "" });
       onSaved();
     },
     onError: (e) => {
@@ -119,6 +121,19 @@ export function ContractBoqPage({ contractId, contractNumber, onAuthError, onSav
                 step="0.001"
                 value={boqForm.unitPrice}
                 onChange={(e) => setBoqForm((f) => ({ ...f, unitPrice: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="bq-planned">الكمية المخططة</Label>
+              <Input
+                id="bq-planned"
+                className="h-9"
+                dir="ltr"
+                type="number"
+                min="0"
+                step="any"
+                value={boqForm.plannedQty}
+                onChange={(e) => setBoqForm((f) => ({ ...f, plannedQty: e.target.value }))}
               />
             </div>
           </div>

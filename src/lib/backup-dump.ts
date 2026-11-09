@@ -119,6 +119,8 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "visit", table: "visits", serial: true },
   { model: "comment", table: "customer_comments", serial: true },
   { model: "contractAttachment", table: "contract_attachments", serial: true },
+  // NOVA 5 — التنفيذ الميداني: بعد العقود وبنود الكميات (فوق) وبعد المرفقات (FK attachment_id)
+  { model: "fieldExecution", table: "field_executions", serial: true },
   // ===== البوابة المالية =====
   { model: "gatewayOp", table: "gateway_ops", serial: true },
   { model: "bankLine", table: "bank_lines", serial: true },

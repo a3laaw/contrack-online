@@ -34,6 +34,8 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = base
 const TENANT_MODELS = new Set<string>([
   "transactionParticipant", "stageMove", "numberSequence", "customer", "contract",
   "contractStage", "boqItem", "paymentPlanItem", "voucher", "project",
+  // NOVA 5 — التنفيذ الميداني (docs/field-execution-design.md): سجلات الكميات الميدانية — FK عقود وبنود كميات
+  "fieldExecution",
   "quotation", "quotationItem", "voucherPaymentLink", "addendum", "addendumItem",
   "claim", "subcontractor", "subContract", "subContractItem", "subPaymentPlanItem",
   "subPaymentSource", "contractType", "typePaymentTemplate", "typePaymentStage", "typeBundleComponent",

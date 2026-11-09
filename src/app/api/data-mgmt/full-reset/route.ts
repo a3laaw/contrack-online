@@ -59,6 +59,8 @@ async function fullResetInTx(tx: Tx): Promise<Record<string, number>> {
   await step("sub_contracts", () => tx.subContract.deleteMany({}));
   await step("addendums", () => tx.addendum.deleteMany({}));
   await step("payment_plan", () => tx.paymentPlanItem.deleteMany({}));
+  // NOVA 5 — التنفيذ الميداني قبل بنود الكميات مباشرة (FK boq_item_id Restrict — درس T111)
+  await step("field_executions", () => tx.fieldExecution.deleteMany({}));
   await step("boq_items", () => tx.boqItem.deleteMany({}));
   await step("contract_stages", () => tx.contractStage.deleteMany({}));
   // مراجعات المخططات (docs/revisions-ipc-design.md) — FK لعقود ومهندسين: قبل الاثنين

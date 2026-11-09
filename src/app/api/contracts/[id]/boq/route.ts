@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { authGuard, jsonError, ok } from "@/lib/api-utils";
+import { r3 } from "@/lib/contrack-core";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -30,6 +31,7 @@ export async function GET(req: NextRequest, { params }: P) {
       qty: Number(it.qty),
       unit: it.unit,
       unitPrice: Number(it.unitPrice),
+      plannedQty: Number(it.plannedQty),
       amount: Number(it.amount),
       sortOrder: it.sortOrder,
     })),
@@ -54,6 +56,8 @@ export async function POST(req: NextRequest, { params }: P) {
   const qty = Number(body.qty) || 1;
   const unitPrice = Number(body.unitPrice) || 0;
   const amount = body.amount !== undefined && Number(body.amount) ? Number(body.amount) : qty * unitPrice;
+  // الكمية المخططة للتنفيذ (عداد «مخطط» — بند NOVA 5) — اختيارية بأرضية صفر
+  const plannedQty = Math.max(0, r3(Number(body.plannedQty) || 0));
 
   let stageId: number | null = null;
   if (body.stageId !== undefined && body.stageId !== null && body.stageId !== "") {
@@ -72,11 +76,12 @@ export async function POST(req: NextRequest, { params }: P) {
       qty,
       unit: String(body.unit || ""),
       unitPrice,
+      plannedQty,
       amount,
       sortOrder: body.sortOrder !== undefined ? Math.trunc(Number(body.sortOrder)) : (max._max.sortOrder ?? -1) + 1,
     },
   });
-  return ok({ item: { ...item, qty: Number(item.qty), unitPrice: Number(item.unitPrice), amount: Number(item.amount) } }, 201);
+  return ok({ item: { ...item, qty: Number(item.qty), unitPrice: Number(item.unitPrice), plannedQty: Number(item.plannedQty), amount: Number(item.amount) } }, 201);
 }
 
 /** تعديل بند كميات — ?itemId= */
@@ -103,6 +108,7 @@ export async function PATCH(req: NextRequest, { params }: P) {
   if (body.qty !== undefined) data.qty = qty;
   if (body.unit !== undefined) data.unit = String(body.unit || "");
   if (body.unitPrice !== undefined) data.unitPrice = unitPrice;
+  if (body.plannedQty !== undefined) data.plannedQty = Math.max(0, r3(Number(body.plannedQty) || 0));
   if (body.qty !== undefined || body.unitPrice !== undefined || body.amount !== undefined) {
     data.amount = body.amount !== undefined && Number(body.amount) ? Number(body.amount) : qty * unitPrice;
   }
