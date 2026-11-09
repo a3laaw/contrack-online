@@ -1721,7 +1721,8 @@ model RegistrationRequest {
   contactName       String    @map("contact_name")
   phone             String    @default("")
   email             String    @default("")
-  activity          String    @default("") // النشاط المطلوب — نص حر في هذه المرحلة
+  activity          String    @default("") // النشاط المطلوب — تسمية مشتقة من اختيار الموديولات (للعرض والتوافق)
+  activityType      String    @default("") @map("activity_type") // كود نوع النشاط (الكتالوج في activity-types.ts) — فارغ لطلبات ما قبل التقسيم
   requestedUsername String    @map("requested_username")
   passwordHash      String    @map("password_hash")
   salt              String

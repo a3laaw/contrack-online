@@ -96,6 +96,8 @@ interface SaasRequest {
   phone: string;
   email: string;
   activity: string;
+  activityType: string; // كود نوع النشاط — فارغ لطلبات ما قبل التقسيم
+  activityTypeName: string; // التسمية العربية — «غير محدد» للطلبات القديمة
   modules: string[]; // خطة الأنشطة — الأكواد المطلوبة
   modulesLabel: string; // التسمية العربية للعرض
   requestedUsername: string;
@@ -933,7 +935,12 @@ function RequestsTab({
                     {r.email && <span dir="ltr">{r.email}</span>}
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-xs text-muted-foreground">الأنشطة المطلوبة:</span>
+                    <span className="text-xs text-muted-foreground">نوع النشاط:</span>
+                    <Badge variant="secondary" className="gap-1 text-[10px]">
+                      <Layers className="size-2.5" />
+                      {r.activityTypeName}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">— الأنشطة المطلوبة:</span>
                     {r.modules.map((code) => {
                       const cm = (data.moduleCatalog ?? []).find((m) => m.code === code);
                       const Icon = cm ? CATALOG_ICONS[cm.icon] ?? Layers : Layers;

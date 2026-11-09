@@ -9,6 +9,7 @@ import {
   Send,
   CheckCircle2,
   ArrowRight,
+  ArrowLeft,
   HardHat,
   Package,
   Store,
@@ -18,6 +19,8 @@ import {
   Users,
   ShieldCheck,
   Info,
+  Layers,
+  Sparkles,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +32,13 @@ import { apiPost } from "./api";
 import type { User } from "./contrack-types";
 import { errMessage } from "./contrack-types";
 import { MODULE_CATALOG, CORE_MODULE_CODE, moduleByCode } from "@/lib/modules-catalog";
+import {
+  ACTIVITY_TYPES,
+  activityTypeByCode,
+  activityTypeName,
+  suggestedModulesFor,
+  suggestedModulesLabel,
+} from "@/lib/activity-types";
 
 /** خريطة أيقونات الكتالوج (الكتالوج نقي — الأيقونات هنا) */
 const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -39,6 +49,7 @@ const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
   wrench: Wrench,
   compass: DraftingCompass,
   users: Users,
+  layers: Layers,
 };
 
 interface LoginViewProps {
@@ -65,9 +76,12 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
 
   // بوابة الانضمام (صفحة الزيارة الأولى) — takeover كامل بدل الحوار:
   // تُفتح من رابط صفحة الدخول أو مباشرة عبر ?join=1 (رابط قابل للمشاركة مع العملاء)
+  // مقسّمة مرحلتين: ① نوع النشاط ⇒ ② الموديولات المقترحة منه + البيانات (قرار التقسيم)
   const [joinOpen, setJoinOpen] = React.useState(false);
+  const [joinStep, setJoinStep] = React.useState<1 | 2>(1);
+  const [activityType, setActivityType] = React.useState(""); // كود نوع النشاط — يقود الاقتراح
   const [join, setJoin] = React.useState(EMPTY_JOIN);
-  const [selected, setSelected] = React.useState<string[]>(["contracting"]); // الأنشطة المختارة
+  const [selected, setSelected] = React.useState<string[]>([]); // الأنشطة المختارة — تُملأ من اقتراح النوع
   const [joinError, setJoinError] = React.useState("");
   const [joinDone, setJoinDone] = React.useState<number | null>(null); // رقم الطلب المرجعي
   const [joinLoading, setJoinLoading] = React.useState(false);
@@ -117,8 +131,45 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
     );
   };
 
+  /** اختيار نوع النشاط — الاقتراح يُطبّق فورًا (اشتقاقي من النوع حصرًا) وتعديلات سابقة تُستبدل */
+  const pickActivityType = (code: string) => {
+    setActivityType(code);
+    setSelected(suggestedModulesFor(code));
+    setJoinError("");
+  };
+
+  const goStep2 = () => {
+    if (!activityType) {
+      setJoinError("اختر نوع نشاط شركتكم أولًا");
+      return;
+    }
+    setJoinError("");
+    setJoinStep(2);
+    // انزلارية لأعلى المحتوى — بداية مرحلة نظيفة
+    try {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {
+      /* لا شيء */
+    }
+  };
+
+  const goStep1 = () => {
+    setJoinError("");
+    setJoinStep(1);
+    try {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {
+      /* لا شيء */
+    }
+  };
+
   const submitJoin = async () => {
     setJoinError("");
+    if (!activityType) {
+      setJoinError("اختر نوع نشاط شركتكم أولًا");
+      setJoinStep(1);
+      return;
+    }
     if (selected.length === 0) {
       setJoinError("اختر نشاطًا واحدًا على الأقل");
       return;
@@ -148,6 +199,7 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
         phone: join.phone.trim(),
         email: join.email.trim(),
         adminFullName: join.adminFullName.trim() || join.contactName.trim(),
+        activityType,
         modules: selected,
         requestedUsername: join.requestedUsername.trim(),
         password: join.password,
@@ -163,8 +215,10 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
   const closeJoin = (open: boolean) => {
     setJoinOpen(open);
     if (!open) {
+      setJoinStep(1);
+      setActivityType("");
       setJoin(EMPTY_JOIN);
-      setSelected(["contracting"]);
+      setSelected([]);
       setJoinError("");
       setJoinDone(null);
       // تنظيف الرابط من ?join=1 حتى لا تعود البوابة عند تحديث الصفحة
@@ -178,11 +232,13 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
     }
   };
 
-  // ===== بوابة الانضمام — صفحة الزيارة الأولى الكاملة =====
+  // ===== بوابة الانضمام — صفحة الزيارة الأولى الكاملة (مرحلتان) =====
   if (joinOpen) {
     const core = MODULE_CATALOG.find((m) => m.code === CORE_MODULE_CODE)!;
     const CoreIcon = MODULE_ICONS[core.icon] ?? Wallet;
     const selectable = MODULE_CATALOG.filter((m) => !m.core);
+    const chosenType = activityTypeByCode(activityType);
+    const suggestedSet = new Set(suggestedModulesFor(activityType));
 
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -223,6 +279,9 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
                     — احتفظوا به
                   </p>
                   <p className="text-muted-foreground">
+                    نوع النشاط: <span className="font-bold text-foreground">{activityTypeName(activityType)}</span>
+                  </p>
+                  <p className="text-muted-foreground">
                     سيراجع إدارة النظام الطلب ويُنشأ حسابكم بجميع ما اخترتم:
                     <span className="mx-1 font-bold text-foreground">
                       {selected.map((c) => moduleByCode(c)?.name).filter(Boolean).join(" + ")}
@@ -235,18 +294,128 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
                 </Button>
               </div>
             ) : (
-              <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
+              <>
+                {/* ===== مؤشر المراحل — مرحلتان ===== */}
+                <ol aria-label="مراحل طلب الانضمام" className="mb-6 flex items-center gap-2 sm:gap-3">
+                  {[
+                    { n: 1, label: "نوع النشاط" },
+                    { n: 2, label: "الموديولات والبيانات" },
+                  ].map((s) => {
+                    const active = joinStep === s.n;
+                    return (
+                      <li key={s.n} className="flex min-w-0 items-center gap-2 sm:gap-3">
+                        <span
+                          aria-current={active ? "step" : undefined}
+                          className={
+                            active
+                              ? "flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground"
+                              : "flex items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground"
+                          }
+                        >
+                          <span
+                            className={`flex size-5 items-center justify-center rounded-full text-[10px] font-bold ${
+                              active ? "bg-primary-foreground/20" : "bg-secondary text-secondary-foreground"
+                            }`}
+                          >
+                            {s.n === 1 ? "١" : "٢"}
+                          </span>
+                          {s.label}
+                        </span>
+                        {s.n === 1 && <span aria-hidden className="h-px flex-1 bg-border" />}
+                      </li>
+                    );
+                  })}
+                </ol>
+
+                {joinStep === 1 ? (
+                  /* ===== المرحلة ① نوع النشاط — القطاع الذي تمارسه الشركة، ومنه يُقترح كل شيء ===== */
+                  <section aria-labelledby="join-type-h" className="mx-auto w-full max-w-3xl space-y-4">
+                    <div className="text-center">
+                      <h1 id="join-type-h" className="text-2xl font-extrabold">
+                        ما نوع نشاط شركتكم؟
+                      </h1>
+                      <p className="mt-1.5 text-sm text-muted-foreground">
+                        نقترح لكم الموديولات المناسبة بناءً عليه — والمحاسبة والخزينة مشمولة تلقائيًا مع كل الأنواع
+                      </p>
+                    </div>
+                    <div role="radiogroup" aria-label="نوع النشاط" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {ACTIVITY_TYPES.map((t) => {
+                        const Icon = MODULE_ICONS[t.icon] ?? Layers;
+                        const isOn = activityType === t.code;
+                        return (
+                          <button
+                            key={t.code}
+                            type="button"
+                            role="radio"
+                            aria-checked={isOn}
+                            onClick={() => pickActivityType(t.code)}
+                            className={
+                              isOn
+                                ? "rounded-xl border-2 border-primary bg-primary-soft/60 p-4 text-start transition-all shadow-sm"
+                                : "rounded-xl border bg-card p-4 text-start transition-all hover:border-primary/50 hover:shadow-sm"
+                            }
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <span className={`flex size-11 items-center justify-center rounded-lg ${isOn ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
+                                <Icon className="size-5" />
+                              </span>
+                              {isOn && (
+                                <Badge className="gap-1 bg-primary text-primary-foreground">
+                                  <CheckCircle2 className="size-3" />
+                                  نوعكم
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="mt-3 font-bold">{t.name}</p>
+                            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t.desc}</p>
+                            <p className="mt-2.5 flex items-start gap-1 border-t pt-2.5 text-[11px] leading-relaxed text-muted-foreground">
+                              <Sparkles className="mt-0.5 size-3 shrink-0 text-primary" />
+                              <span>
+                                <span className="font-bold text-foreground">المقترح: </span>
+                                {suggestedModulesLabel(t.code)}
+                              </span>
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {joinError && (
+                      <p role="alert" className="rounded-md bg-status-danger-bg px-3 py-2 text-sm text-status-danger">
+                        {joinError}
+                      </p>
+                    )}
+
+                    <div className="flex justify-center pt-2">
+                      <Button size="lg" className="gap-2 px-8" onClick={goStep2} disabled={!activityType}>
+                        متابعة — اقتراح الموديولات
+                        <ArrowLeft className="size-4" />
+                      </Button>
+                    </div>
+                  </section>
+                ) : (
+                  <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
                 {/* ===== الأقسام ===== */}
                 <div className="space-y-6 min-w-0">
-                  {/* ① الأنشطة */}
+                  {/* ① الموديولات — المقترح من نوع النشاط مع حرية التعديل */}
                   <section aria-labelledby="join-sec-1" className="space-y-3">
                     <div>
+                      <button
+                        type="button"
+                        onClick={goStep1}
+                        className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
+                      >
+                        <ArrowRight className="size-3.5" />
+                        تغيير نوع النشاط ({activityTypeName(activityType)})
+                      </button>
                       <h2 id="join-sec-1" className="text-lg font-bold">
                         <span className="me-2 inline-flex size-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">1</span>
-                        أنشطتكم — اختروا واحدًا أو أكثر
+                        الموديولات — بناءً على نوع نشاطكم
                       </h2>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        تفتحون شركتكم بنشاط وتضيفون عليه وقتما شئتم — المحاسبة والخزينة مشمولة تلقائيًا مع كل نشاط
+                        {chosenType
+                          ? `بناءً على «${chosenType.name}» اقترحنا لكم: ${suggestedModulesLabel(chosenType.code)} — عدّلوا الاختيار كما تشاؤون ويمكنكم الإضافة وقتما شئتم`
+                          : "اختاروا واحدًا أو أكثر — المحاسبة والخزينة مشمولة تلقائيًا مع كل نشاط"}
                       </p>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -285,7 +454,15 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
                                 <Badge variant="outline" className="text-[10px]">قريبًا</Badge>
                               )}
                             </div>
-                            <p className="mt-3 font-bold">{m.name}</p>
+                            <p className="mt-3 flex flex-wrap items-center gap-1.5 font-bold">
+                              {m.name}
+                              {suggestedSet.has(m.code) && (
+                                <Badge variant="secondary" className="gap-0.5 text-[10px]">
+                                  <Sparkles className="size-2.5" />
+                                  مقترح لكم
+                                </Badge>
+                              )}
+                            </p>
                             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{m.desc}</p>
                           </button>
                         );
@@ -411,6 +588,9 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
                     <p className="text-sm font-bold">⚑ ملخص طلبكم</p>
                     <div className="space-y-1.5 text-sm">
                       <p className="text-muted-foreground">
+                        نوع النشاط: <span className="font-bold text-foreground">{activityTypeName(activityType)}</span>
+                      </p>
+                      <p className="text-muted-foreground">
                         الأنشطة: <span className="font-bold text-foreground tabular-nums">{selected.length}</span>
                       </p>
                       <ul className="space-y-1">
@@ -444,24 +624,44 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
                     </p>
                   </div>
                 </aside>
-              </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </main>
 
-        {/* شريط التقديم السفلي — الموبايل */}
+        {/* شريط التقديم السفلي — الموبايل (مرحلة ١: متابعة · مرحلة ٢: تقديم) */}
         {joinDone == null && (
           <div className="sticky bottom-0 border-t bg-card p-3 lg:hidden" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
-            <div className="flex items-center gap-3">
-              <span className="flex-1 text-xs text-muted-foreground">
-                الأنشطة: <span className="font-bold text-foreground tabular-nums">{selected.length}</span>
-                {selected.length > 0 && ` — ${selected.map((c) => moduleByCode(c)?.name).filter(Boolean).join(" + ")}`}
-              </span>
-              <Button onClick={submitJoin} disabled={joinLoading || selected.length === 0} className="gap-2">
-                {joinLoading ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                تقديم
-              </Button>
-            </div>
+            {joinStep === 1 ? (
+              <div className="flex items-center gap-3">
+                <span className="flex-1 text-xs text-muted-foreground">
+                  {activityType ? (
+                    <>
+                      نوعكم: <span className="font-bold text-foreground">{activityTypeName(activityType)}</span>
+                    </>
+                  ) : (
+                    "اختاروا نوع نشاط شركتكم للمتابعة"
+                  )}
+                </span>
+                <Button onClick={goStep2} disabled={!activityType} className="gap-2">
+                  متابعة
+                  <ArrowLeft className="size-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <span className="flex-1 text-xs text-muted-foreground">
+                  الأنشطة: <span className="font-bold text-foreground tabular-nums">{selected.length}</span>
+                  {selected.length > 0 && ` — ${selected.map((c) => moduleByCode(c)?.name).filter(Boolean).join(" + ")}`}
+                </span>
+                <Button onClick={submitJoin} disabled={joinLoading || selected.length === 0} className="gap-2">
+                  {joinLoading ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                  تقديم
+                </Button>
+              </div>
+            )}
           </div>
         )}
 

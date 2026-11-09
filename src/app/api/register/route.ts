@@ -11,6 +11,7 @@ import { jsonError, ok } from "@/lib/api-utils";
 import { hashPassword } from "@/lib/auth";
 import { validateRegistrationInput } from "@/lib/saas-core";
 import { validateModuleSelection, moduleSelectionLabel } from "@/lib/modules-catalog";
+import { validateActivityType } from "@/lib/activity-types";
 
 // حد معدل بسيط في الذاكرة — يكفي لبوابة تقديم الطلبات (الإعادة عند النشر المتعدد مقبولة)
 const hits = new Map<string, { count: number; resetAt: number }>();
@@ -49,6 +50,10 @@ export async function POST(req: NextRequest) {
 
   const invalid = validateRegistrationInput(input);
   if (invalid) return jsonError(invalid);
+
+  // نوع النشاط (الخطوة الأولى في البوابة المقسّمة): يُحقق ضد الكتالوج النقي — مطلوب بلا تراجع
+  const activityTypeSel = validateActivityType(body.activityType);
+  if (!activityTypeSel.ok) return jsonError(activityTypeSel.error);
 
   // خطة الأنشطة: الأنشطة المختارة من بوابة الانضمام — تُنظف وتُتحقق ضد الكتالوج
   // (activity النص الحر صار مشتقًا من الاختيار للعرض والتوافق)
@@ -90,6 +95,7 @@ export async function POST(req: NextRequest) {
       phone: input.phone,
       email: input.email,
       activity: activityLabel,
+      activityType: activityTypeSel.code,
       modules: modulesJson,
       requestedUsername: input.requestedUsername,
       passwordHash: h.hash,

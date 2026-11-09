@@ -12,6 +12,7 @@ import { adminGuard, jsonError, ok } from "@/lib/api-utils";
 import { ensureCompany1Subscription, ensurePlans } from "@/lib/saas-server";
 import { daysLeft, effectiveSubscriptionStatus } from "@/lib/saas-core";
 import { MODULE_CATALOG } from "@/lib/modules-catalog";
+import { activityTypeName } from "@/lib/activity-types";
 import { companyModulesState, parseRequestModules, requestModulesLabel } from "@/lib/modules-server";
 
 export async function GET(req: NextRequest) {
@@ -112,6 +113,8 @@ export async function GET(req: NextRequest) {
       phone: r.phone,
       email: r.email,
       activity: r.activity,
+      activityType: r.activityType,
+      activityTypeName: activityTypeName(r.activityType), // تسمية عربية — «غير محدد» لطلبات ما قبل التقسيم
       modules: parseRequestModules(r), // الأنشطة المطلوبة (أكواد)
       modulesLabel: requestModulesLabel(r), // التسمية للعرض
       requestedUsername: r.requestedUsername,
