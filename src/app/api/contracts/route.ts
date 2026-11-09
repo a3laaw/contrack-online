@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { audit, authGuard, featureOn, jsonError, normalizeArabic, ok, parseDay } from "@/lib/api-utils";
 import { EPS, r3, contractCurrentValue, supervisionExtension } from "@/lib/contrack-core";
 import { actualSupervisionEnd, intOr, nextNumberByKey, numOr } from "@/lib/contrack-server";
+import { ensureContractSubsidiaries } from "@/lib/subsidiary-server";
 import {
   AMOUNT_POLICIES,
   amountGuardProblems,
@@ -267,6 +268,14 @@ export async function POST(req: NextRequest) {
             status: "نشط",
           },
         });
+        // البند الثالث NOVA — ضمان الحسابات الفرعية للعقد (ذمم 1121xxxx + WIP 1125xxxx)
+        // في نفس المعاملة — ضمان رخو: أي فشل لا يُسقط إنشاء العقد، وأول ترحيل
+        // يعيد المحاولة خاملًا (self-healing — docs/subsidiary-wip-design.md §1.2)
+        try {
+          await ensureContractSubsidiaries(tx, contract);
+        } catch {
+          // بلا شيء — الضمان الخامل في نقاط الترحيل يغطيها
+        }
         // لقطة مكوّنات الشامل (المكتبي contract_components عند الإنشاء) — compKey = اسم نوع المكوّن
         for (const c of componentsIn) {
           const label = String(c.label || c.compKey || "").trim();

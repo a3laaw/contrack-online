@@ -78,3 +78,7 @@ backups/
 # postgres محلي للتحقق الحي (بيئة التطوير فقط)
 .pgdata/
 .pgsock/
+
+# بند NOVA 3 — بيانات Postgres المضمّن وسجل التحقق الحي لا تُتتبع
+.embedded-pgdata/
+dev-verify.log

@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "./api";
+import SubsidiariesLedger from "./SubsidiariesLedger";
 import type { AccountDTO, ChartAccountsResponse } from "./contrack-types";
 import { errMessage } from "./contrack-types";
 import { formatKWD } from "@/lib/format";
@@ -385,6 +386,7 @@ export function ChartOfAccountsView({ onAuthError }: { onAuthError: () => void }
         <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
           <TabsTrigger value="tree">الدليل</TabsTrigger>
           <TabsTrigger value="xbrl">خريطة XBRL</TabsTrigger>
+          <TabsTrigger value="subs">الذمم الفرعية</TabsTrigger>
         </TabsList>
 
         {/* ============ تبويب الدليل ============ */}
@@ -580,6 +582,11 @@ export function ChartOfAccountsView({ onAuthError }: { onAuthError: () => void }
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* ============ تبويب الذمم الفرعية (البند الثالث NOVA) ============ */}
+        <TabsContent value="subs" className="space-y-3">
+          <SubsidiariesLedger />
+        </TabsContent>
       </Tabs>
     </div>
   );

@@ -104,6 +104,7 @@ export const ACCOUNT_SEED: AccountSeedNode[] = [
             children: [
               { code: "1121", name: "العملاء", type: "asset", xbrl: "ifrs-full:TradeAccountsReceivableCurrent", notes: "أرصدة العملاء المستحقة على العقود" },
               { code: "1122", name: "محتجزات العملاء", type: "asset", xbrl: "kw:CustomerRetentionsReceivable", notes: "المحتجزات البنكية/التعاقدية على المستخلصات" },
+              { code: "1125", name: "أعمال تحت التنفيذ (WIP)", type: "asset", xbrl: "ifrs-full:ContractAssets", notes: "حساب التحكم بأعمال تحت التنفيذ — الحسابات الفرعية الآلية لكل عقد تُنشأ تحته (docs/subsidiary-wip-design.md)" },
             ],
           },
           { code: "1130", name: "أوراق القبض", type: "asset", xbrl: "kw:NotesReceivableCurrent" },

@@ -7,6 +7,7 @@ import {
 } from "@/lib/posting-rules-core";
 import { loadChartCandidates, loadPostingRules, type VoucherJournalInvoiceAllocation } from "@/lib/posting-rules-server";
 import { postNamedEntry, reverseJournalEntry } from "@/lib/journal-server";
+import { resolveContractSubsidiary } from "@/lib/subsidiary-server";
 
 /** تحويل آمن لرقم (مرآة numOr — محلية لكسر دورة الاستيراد مع contrack-server) */
 const numOr = (v: unknown, d: number): number => {
@@ -152,12 +153,24 @@ export async function postInvoiceIssueEntry(
   actor = "النظام (آلي)"
 ): Promise<{ id: number; entryNo: number }> {
   const sides = await resolveInvoiceIssueSides(tx);
+  // البند الثالث NOVA — مدين الإصدار يذهب إلى الفرعي الآلي لعقد الفاتورة
+  // (1121xxxx) عند توفر العقد — وإلا السلوك القائم حرفيًا (القاعدة/النصي).
+  // ضمان رخو: أي فشل في الضمان يعيد المسار القائم بلا إسقاط للترحيل.
+  let debitSide = sides.debit;
+  if (invoice.contractId) {
+    try {
+      const sub = await resolveContractSubsidiary(tx, invoice.contractId, "ar");
+      if (sub) debitSide = { accountId: sub.id, name: sub.name };
+    } catch {
+      // الفرعي غير متاح — مدين الحساب الأب كما كان
+    }
+  }
   const amount = r3(invoice.total);
   const dims = { customerId: invoice.customerId, contractId: invoice.contractId ?? null };
   const result = await postNamedEntry(tx, {
     entryDate: invoice.invoiceDate,
     description: `فاتورة ${invoice.invoiceNumber} — ${customerName}`,
-    debit: { name: sides.debit.name, accountId: sides.debit.accountId },
+    debit: { name: debitSide.name, accountId: debitSide.accountId },
     credit: { name: sides.credit.name, accountId: sides.credit.accountId },
     amount,
     dims,

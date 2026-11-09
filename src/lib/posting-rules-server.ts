@@ -21,6 +21,8 @@ import {
   type JournalLineInput,
 } from "@/lib/journal-server";
 import { r3 } from "@/lib/contrack-core";
+import { routeAllocations } from "@/lib/subsidiary-core";
+import { resolveContractSubsidiaryId } from "@/lib/subsidiary-server";
 
 /**
  * تسميات أنواع السندات لوصف القيد — نسخة محلية لكسر دورة الاستيراد
@@ -304,6 +306,27 @@ export async function insertVoucherJournal(
       resolver
     );
 
+    // البند الثالث NOVA — دائن كل تخصيص يذهب إلى الفرعي الآلي لعقد فاتورته
+    // (1121xxxx) — وإلا حساب الذمم المحسوم أعلاه (docs/subsidiary-wip-design.md §2.2).
+    // ضمان رخو: فشل جلب/ضمان الفرعيات يُبقي كل التخصيصات على الحساب الأب كما كان.
+    const contractIdByInvoiceId = new Map<number, number | null>();
+    const subIdByContractId = new Map<number, number>();
+    try {
+      const invRows = await tx.invoice.findMany({
+        where: { id: { in: allocs.map((a) => a.invoiceId) } },
+        select: { id: true, contractId: true },
+      });
+      for (const inv of invRows) contractIdByInvoiceId.set(inv.id, inv.contractId);
+      const contractIds = [...new Set(invRows.map((i) => i.contractId).filter((x): x is number => x != null))];
+      for (const cid of contractIds) {
+        const subId = await resolveContractSubsidiaryId(tx, cid, "ar");
+        if (subId) subIdByContractId.set(cid, subId);
+      }
+    } catch {
+      // بلا فرعيات — التوجيه كله إلى الحساب الأب
+    }
+    const routedAllocs = routeAllocations(allocs, contractIdByInvoiceId, subIdByContractId, arId);
+
     const lines: JournalLineInput[] = [
       {
         accountId: debitId,
@@ -312,11 +335,11 @@ export async function insertVoucherJournal(
         description: debitRes?.name || builtinDebitName(v.vtype, sideCtx),
         ...dims,
       },
-      ...allocs.map((a) => ({
-        accountId: arId,
+      ...routedAllocs.map((r) => ({
+        accountId: r.accountId,
         debit: 0,
-        credit: a.amount,
-        description: `سداد فاتورة ${a.invoiceNumber}`,
+        credit: r.amount,
+        description: r.description,
         ...dims,
       })),
     ];
