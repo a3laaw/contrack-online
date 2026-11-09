@@ -50,6 +50,9 @@ import {
   // المبيعات — أيقونات موديول العروض والنقطة
   Store,
   Calculator,
+  // الصيانة والتشغيل — أيقونات الموديول
+  FileSignature,
+  NotebookPen,
 } from "lucide-react";
 
 import type { ViewName } from "./contrack-types";
@@ -74,7 +77,7 @@ export const REPORT_PERM: Record<string, string> = {
 };
 
 /** معرّف الوحدات المعتمدة (توجيه المستخدم — تبويبات علوية) */
-export type ModuleId = "clients" | "subs" | "consulting" | "hr" | "warehouses" | "sales" | "accounting" | "reports" | "settings";
+export type ModuleId = "clients" | "subs" | "consulting" | "hr" | "warehouses" | "sales" | "maintenance" | "accounting" | "reports" | "settings";
 
 /** بند فرعي داخل وحدة — الشاشة الواحدة مستوى تنقل فرعي واحد فقط */
 export interface NavChild {
@@ -194,6 +197,17 @@ export const NAV_MODULES: NavModule[] = [
     children: [
       { id: "sales-quotes", label: "عروض الأسعار", icon: FileText, view: "sales", section: "quotes", perm: "screen_sales" },
       { id: "sales-pos", label: "نقاط البيع", icon: Calculator, view: "sales", section: "pos", perm: "screen_sales" },
+    ],
+  },
+  {
+    // الصيانة والتشغيل (docs/maintenance-design.md §6): عقود الصيانة بنوع موسوم · الجدول الوقائي المولّد · أوامر العمل MO
+    id: "maintenance" as ModuleId,
+    label: "الصيانة والتشغيل",
+    icon: Wrench,
+    children: [
+      { id: "mt-contracts", label: "عقود الصيانة", icon: FileSignature, view: "maintenance", section: "contracts", perm: "screen_maintenance" },
+      { id: "mt-schedule", label: "الجدول الوقائي", icon: CalendarClock, view: "maintenance", section: "schedule", perm: "screen_maintenance" },
+      { id: "mt-orders", label: "أوامر العمل", icon: NotebookPen, view: "maintenance", section: "orders", perm: "screen_maintenance" },
     ],
   },
   {

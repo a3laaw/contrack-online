@@ -21,6 +21,7 @@ export type ViewName =
   | "hr"
   | "warehouses"
   | "sales"
+  | "maintenance"
   | "reports"
   | "reports-home"
   | "statement"

@@ -5,6 +5,7 @@ import { EPS, r3 } from "@/lib/contrack-core";
 import { loadContractCore } from "@/lib/contrack-server";
 import { computeSubPlan } from "@/lib/voucher-server";
 import { getContractMode } from "@/lib/contract-components-server";
+import { occurrenceStatusOf } from "@/lib/maintenance-core";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest, { params }: P) {
   if (!core) return jsonError("العقد غير موجود", 404);
   const c = core.contract;
 
-  const [payRows, subs, laborAllocs, stockDocs] = await Promise.all([
+  const [payRows, subs, laborAllocs, stockDocs, maintPlans, maintOrders] = await Promise.all([
     db.voucher.findMany({
       where: { contractId, vtype: "payment", cancelled: false },
       select: { amount: true, partyType: true },
@@ -64,6 +65,27 @@ export async function GET(req: NextRequest, { params }: P) {
       orderBy: [{ vdate: "desc" }, { id: "desc" }],
       take: 50,
       select: { docNumber: true, kind: true, entrySource: true, vdate: true, totalAmount: true },
+    }),
+    // الصيانة والتشغيل — خطة العقد وأوامره (كتلة الصيانة بنظرة العقد — د12)
+    db.maintenancePlan.findMany({
+      where: { contractId },
+      select: {
+        id: true, name: true, intervalMonths: true, occurrencesCount: true,
+        startDate: true, active: true,
+        occurrences: {
+          orderBy: { dueDate: "asc" as const },
+          select: { dueDate: true, skipped: true, workOrder: { select: { status: true } } },
+        },
+      },
+    }),
+    db.workOrder.findMany({
+      where: { contractId },
+      orderBy: { id: "desc" },
+      take: 5,
+      select: {
+        docNumber: true, title: true, status: true, scheduledDate: true,
+        completedAt: true, technician: { select: { name: true } },
+      },
     }),
   ]);
   const laborByEmployee = new Map<string, number>();
@@ -156,6 +178,51 @@ export async function GET(req: NextRequest, { params }: P) {
 
   const timeline = contractTimeline(c.startDate || "", c.endDate || "");
 
+  // الصيانة والتشغيل (د12) — كتلة العقد فقط إن كان موسومًا صيانة وله بيانات (بلا تكلفة على غيره)
+  const plan = maintPlans[0] ?? null;
+  const todayStrLocal2 = todayStrLocal;
+  let maintenance: {
+    plan: { name: string; intervalMonths: number; occurrencesCount: number; startDate: string; active: boolean } | null;
+    nextDue: string | null;
+    overdue: number;
+    doneCount: number;
+    totalCount: number;
+    recentOrders: { docNumber: string; title: string; status: string; scheduledDate: string; completedAt: string; technicianName: string | null }[];
+  } | null = null;
+  if (plan) {
+    let nextDue: string | null = null;
+    let overdue = 0;
+    let doneCount = 0;
+    for (const o of plan.occurrences) {
+      const st = occurrenceStatusOf({ skipped: o.skipped }, o.workOrder);
+      if (st === "منجزة") doneCount += 1;
+      if (st !== "مجدولة") continue;
+      if (o.dueDate < todayStrLocal2) overdue += 1;
+      else if (nextDue === null || o.dueDate < nextDue) nextDue = o.dueDate;
+    }
+    maintenance = {
+      plan: {
+        name: plan.name,
+        intervalMonths: plan.intervalMonths,
+        occurrencesCount: plan.occurrencesCount,
+        startDate: plan.startDate,
+        active: plan.active,
+      },
+      nextDue,
+      overdue,
+      doneCount,
+      totalCount: plan.occurrences.length,
+      recentOrders: maintOrders.map((w) => ({
+        docNumber: w.docNumber,
+        title: w.title,
+        status: w.status,
+        scheduledDate: w.scheduledDate,
+        completedAt: w.completedAt,
+        technicianName: w.technician?.name ?? null,
+      })),
+    };
+  }
+
   // G6 — نمط تسعير هذا العقد تحديدًا (الترتيب الخمسي — لا نمط النوع وحده)
   const pricing = await getContractMode(contractId);
 
@@ -180,6 +247,8 @@ export async function GET(req: NextRequest, { params }: P) {
     // المخازن — تكلفة المواد المصروفة من المستودع على هذا العقد
     materialsCost,
     stockDocs: stockDocRows.slice(0, 8),
+    // الصيانة والتشغيل — الخطة والحدث القادم وآخر الأوامر (د12)
+    maintenance,
     profit,
     expectedProfit,
     remaining,

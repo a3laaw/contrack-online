@@ -166,6 +166,10 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "stockItem", table: "stock_items", serial: true },
   { model: "stockDoc", table: "stock_docs", serial: true }, // بعد warehouse/stockItem/journalEntries/contracts
   { model: "stockDocLine", table: "stock_doc_lines", serial: true }, // بعد stockDoc (FK Cascade)
+  // ===== الصيانة والتشغيل — بعد العقود والفواتير والأذون (FK: contract Cascade · occurrence/invoice/stockDoc/visitStaff) =====
+  { model: "maintenancePlan", table: "maintenance_plans", serial: true }, // بعد contracts
+  { model: "maintenanceOccurrence", table: "maintenance_occurrences", serial: true }, // بعد maintenancePlan (FK Cascade)
+  { model: "workOrder", table: "work_orders", serial: true }, // أخيرًا — بعد occurrences/invoices/stock_docs/visit_staff لارتباطاته
   // ===== سجلات النظام (آخرًا لكي تُحذف أولًا عند الاستعادة) =====
   { model: "auditLog", table: "audit_log", serial: true },
   { model: "purgeAudit", table: "purge_audit", serial: true },

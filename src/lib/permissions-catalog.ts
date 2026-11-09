@@ -50,6 +50,8 @@ export const PERMISSIONS: { key: string; label: string; group: string; secretary
   { key: "screen_warehouses", label: "شاشة المخازن (الأصناف/المستودعات/الأذون/الأرصدة)", group: "الشاشات", secretary: true },
   // مفتاح ويب-فقط لموديول المبيعات (docs/sales-design.md) — بلا مقابل مكتبي: secretary:true (شاشة تشغيلية)
   { key: "screen_sales", label: "شاشة المبيعات (عروض الأسعار/نقاط البيع)", group: "الشاشات", secretary: true },
+  // مفتاح ويب-فقط لموديول الصيانة والتشغيل (docs/maintenance-design.md د10) — بلا مقابل مكتبي: secretary:true (شاشة تشغيلية)
+  { key: "screen_maintenance", label: "شاشة الصيانة والتشغيل (العقود/الجدول الوقائي/أوامر العمل)", group: "الشاشات", secretary: true },
   // ---------- التقارير ----------
   { key: "report_customers_balances", label: "تقرير العملاء والأرصدة", group: "التقارير", secretary: false, desktop: "rep_customers" },
   { key: "report_stage_dues", label: "مستحقات المراحل", group: "التقارير", secretary: true, desktop: "rep_dues_board" },

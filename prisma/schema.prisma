@@ -241,6 +241,9 @@ model Contract {
   laborAllocations    LaborAllocation[]
   // المخازن — أذون الصرف/المرتجع على العقد (docs/warehouses-design.md §3)
   stockDocs StockDoc[]
+  // الصيانة والتشغيل — خطط الصيانة وأوامر العمل على العقد (docs/maintenance-design.md §3)
+  maintenancePlans MaintenancePlan[]
+  workOrders       WorkOrder[]
 
   @@index([customerId, status])
   @@unique([companyId, contractNumber])
@@ -690,6 +693,7 @@ model ContractType {
   unitPrice        Decimal               @default(0) @map("unit_price")
   pricingMode      String                @default("lump") @map("pricing_mode") // lump|unit|items|bundle
   isSupervision    Boolean               @default(false) @map("is_supervision")
+  isMaintenance    Boolean               @default(false) @map("is_maintenance") // موديول الصيانة (docs/maintenance-design.md د2) — مرآة isSupervision: أقسام الموديول لا ترى غير الموسوم
   paymentTemplates TypePaymentTemplate[]
   bundleParents    TypeBundleComponent[] @relation("bundleParent")
   bundleComponents TypeBundleComponent[] @relation("bundleComponent")
@@ -1200,6 +1204,7 @@ model Invoice {
   items         InvoiceItem[]
   paymentLinks  InvoicePaymentLink[]
   saleDocs      StockDoc[] @relation("SaleInvoiceDocs") // أذون الصرف المخزني الآلية للبيع (موديول المبيعات — docs/sales-design.md §3)
+  workOrders    WorkOrder[] // فواتير الزيارات المولدة من أوامر الصيانة (docs/maintenance-design.md §3)
 
   @@unique([companyId, invoiceNo])
   @@unique([companyId, invoiceNumber])
@@ -1323,6 +1328,7 @@ model VisitStaff {
   active Boolean @default(true)
   sort   Int     @default(0)
   visits Visit[]
+  workOrders WorkOrder[] // فنيو الصيانة — عرض وتقويم فقط (docs/maintenance-design.md د7)
 
   @@map("visit_staff")
 }
@@ -2175,6 +2181,7 @@ model StockDoc {
   createdBy         String        @default("") @map("created_by")
   createdAt         DateTime      @default(now()) @map("created_at")
   lines             StockDocLine[]
+  workOrders        WorkOrder[] // أوامر الصيانة المرتبطة بهذا الإذن (docs/maintenance-design.md د8)
 
   @@unique([companyId, docNumber])
   @@index([companyId, kind])
@@ -2205,4 +2212,80 @@ model StockDocLine {
   @@index([itemId])
   @@index([boqItemId])
   @@map("stock_doc_lines")
+}
+
+// ==================== موديول الصيانة والتشغيل (docs/maintenance-design.md §3) ====================
+// موديول تشغيلي صافٍ: صفر قيود وصفر حسابات — كل المال عبر محركات الفواتير والسندات والمخازن القائمة.
+// درس G9 ثالثًا: حالة الحدث اشتقاقية من أمره + علم تخطٍّ صريح — لا أعمدة حالة مخزنة ولا عدادات.
+// الجداول الثلاثة تُسجَّل في TENANT_MODELS/BACKUP_MODELS بنفس الـcommit (درس T111) بالترتيب الطوبولوجي:
+// maintenance_plans (بعد contracts) ⇐ maintenance_occurrences ⇐ work_orders (بعد invoices/stock_docs لارتباطاته).
+
+/** خطة الصيانة الوقائية (د5) — مولِّد لا تقويم: فاصل شهري + عدد زيارات ⇒ أحداث بتواريخ معايرة نهاية الشهر */
+model MaintenancePlan {
+  companyId        Int      @default(1) @map("company_id")
+  id               Int      @id @default(autoincrement())
+  contractId       Int      @map("contract_id")
+  contract         Contract @relation(fields: [contractId], references: [id], onDelete: Cascade) // عقد صيانة موسوم حصرًا (د2 — G8)
+  name             String   @default("") // «زيارات شهرية 2025» — عرض فقط
+  intervalMonths   Int      @map("interval_months") // من {1,2,3,6,12} — تحقق مغلق (د5)
+  occurrencesCount Int      @map("occurrences_count") // 1..60 — سقف سلامة
+  startDate        String   @map("start_date") // YYYY-MM-DD — نقطة الارتكاز الأولى
+  active           Boolean  @default(true) // تعطيل الخطة يوقف مؤشر «متأخر» لأحداثها
+  notes            String   @default("")
+  createdAt        DateTime @default(now()) @map("created_at")
+  occurrences      MaintenanceOccurrence[]
+
+  @@index([contractId])
+  @@map("maintenance_plans")
+}
+
+/** الحدث الوقائي (د6) — تاريخ فقط، وحالته اشتقاقية من وجود أمره وحالته + علم تخطٍّ صريح (لا عمود حالة مخزن — G9) */
+model MaintenanceOccurrence {
+  companyId Int             @default(1) @map("company_id")
+  id        Int             @id @default(autoincrement())
+  planId    Int             @map("plan_id")
+  plan      MaintenancePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  dueDate   String          @map("due_date") // YYYY-MM-DD — معاير لنهاية الشهر
+  skipped   Boolean         @default(false) // علم «متخطاة» الصريح (د6)
+  note      String          @default("")
+  createdAt DateTime        @default(now()) @map("created_at")
+  workOrder WorkOrder? // علاقة عكسية — الفريد على جهة الأمر (حدث واحد ⇒ أمر واحد)
+
+  @@unique([planId, dueDate])
+  @@index([planId])
+  @@map("maintenance_occurrences")
+}
+
+/** أمر العمل (د3) — وحدة تشغيل بلا أسطر: المواد إذن صرف مخزني مرتبط والفاتورة فاتورة قائمة مرتبطة (د8/د9) */
+model WorkOrder {
+  companyId      Int      @default(1) @map("company_id")
+  id             Int      @id @default(autoincrement())
+  docNumber      String   @map("doc_number") // MO-#### عبر nextNumber لكل شركة (د10 — متميز عن WO- المخزني)
+  title          String // «صيانة تكييف — فيلا السالم»
+  description    String   @default("")
+  contractId     Int      @map("contract_id")
+  contract       Contract @relation(fields: [contractId], references: [id]) // عقد صيانة نشط حصرًا (د2 — G8)
+  occurrenceId   Int?     @unique @map("occurrence_id") // من حدث وقائي — اختياري (أوامر مباشرة ممكنة)
+  occurrence     MaintenanceOccurrence? @relation(fields: [occurrenceId], references: [id])
+  technicianId   Int?     @map("technician_id")
+  technician     VisitStaff? @relation(fields: [technicianId], references: [id]) // د7 — عرض وتقويم فقط، لا payroll
+  scheduledDate  String   @default("") @map("scheduled_date") // YYYY-MM-DD
+  status         String   @default("مفتوحة") // مفتوحة|جارية|منجزة|ملغاة — آلة مغلقة (د4 — G7)
+  completedAt    String   @default("") @map("completed_at") // يثبت عند الإنهاء حصرًا
+  completedNote  String   @default("") @map("completed_note")
+  cancelReason   String   @default("") @map("cancel_reason")
+  cancelledAt    String   @default("") @map("cancelled_at")
+  invoiceId      Int?     @map("invoice_id")
+  invoice        Invoice? @relation(fields: [invoiceId], references: [id]) // فاتورة الزيارة — بعد الإنهاء حصرًا (د9)
+  materialsDocId Int?     @map("materials_doc_id")
+  materialsDoc   StockDoc? @relation(fields: [materialsDocId], references: [id]) // إذن الصرف المخزني — بمحرك المخازن حرفًا (د8)
+  notes          String   @default("")
+  createdBy      String   @default("") @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([companyId, docNumber])
+  @@index([contractId])
+  @@index([status])
+  @@index([scheduledDate])
+  @@map("work_orders")
 }

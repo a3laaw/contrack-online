@@ -79,13 +79,14 @@ export const MODULE_CATALOG: ModuleDef[] = [
     navModules: ["sales"],
   },
   {
+    // الصيانة والتشغيل (docs/maintenance-design.md) — عقود الصيانة بنوع موسوم وأوامر عمل MO وجدول وقائي مولِّد
     code: "maintenance",
     name: "الصيانة والتشغيل",
     icon: "wrench",
-    desc: "عقود الصيانة الدورية وأوامر العمل وجدول الصيانة الوقائية",
-    available: false,
+    desc: "عقود الصيانة الدورية بنوع موسوم، أوامر العمل بموادّها عبر المخازن وفوترتها بمحرك الفواتير، والجدول الوقائي المولّد",
+    available: true,
     core: false,
-    navModules: [],
+    navModules: ["maintenance"],
   },
 ];
 

@@ -66,6 +66,9 @@ const TENANT_MODELS = new Set<string>([
   "employeeAuditLog", "workTeam", "workTeamMember", "employeeAssignment", "laborAllocation",
   // المخازن (docs/warehouses-design.md §3): المستودعات والأصناف وأذون الحركة الأربعة — بنفس القاعدة بنفس الـcommit (درس T111)
   "warehouse", "stockItem", "stockDoc", "stockDocLine",
+  // الصيانة والتشغيل (docs/maintenance-design.md §3): الخطة والأحداث وأوامر العمل — بنفس القاعدة بنفس الـcommit (درس T111)
+  // بالترتيب الطوبولوجي: maintenancePlan (بعد contract) ⇐ maintenanceOccurrence ⇐ workOrder (بعد invoice/stockDoc/visitStaff لارتباطاته)
+  "maintenancePlan", "maintenanceOccurrence", "workOrder",
 ]);
 
 interface Ctx { companyId: number }

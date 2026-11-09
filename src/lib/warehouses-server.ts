@@ -7,9 +7,10 @@
 import "server-only";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { db } from "@/lib/db";
+import { audit, nextNumber } from "@/lib/api-utils";
 import { postJournalEntry, type Tx } from "@/lib/journal-server";
 import type { JournalLineDims, JournalLineInput } from "@/lib/journal-server";
-import { r3 } from "@/lib/warehouses-constants";
+import { DOC_PREFIXES, r3, type DocKind } from "@/lib/warehouses-constants";
 import { WAREHOUSE_ACCOUNTS } from "@/lib/warehouses-constants";
 import {
   computeBalances,
@@ -330,6 +331,118 @@ export async function postStockDocJournal(
     actor
   );
   return { journalEntryId: posted.id };
+}
+
+// ==================== إنشاء الإذن — المعاملة الواحدة المشتركة (د8 الصيانة) ====================
+// مستخلصة من مسار POST /api/warehouses/docs وتُستهلك من الموقعين (مسار المخازن وأوامر الصيانة)
+// — خط كتابة واحد: ترقيم + رأس + أسطر بلقطاتها + قيد عبر postStockDocJournal + audit.
+
+export interface CreateStockDocLine {
+  itemId: number;
+  boqItemId: number | null;
+  qty: number;
+  countedQty: number;
+  snapUnitCost: number;
+  note: string;
+}
+
+export interface CreateStockDocParams {
+  kind: DocKind;
+  entrySource: string;
+  vdate: string;
+  warehouseId: number;
+  targetWarehouseId: number | null;
+  contractId: number | null;
+  contractNumber: string | null;
+  party: string;
+  payAccountId: number | null;
+  payAccountName: string;
+  totalAmount: number;
+  notes: string;
+  actor: string;
+  /** سياق الـaudit داخل القوس — الافتراضي تسمية النوع (مثال الصيانة: «صرف مواد أمر عمل MO-0001») */
+  auditLabel?: string;
+  lines: CreateStockDocLine[];
+}
+
+const DOC_KIND_AUDIT_LABELS: Record<DocKind, string> = {
+  entry: "إدخال",
+  issue: "صرف",
+  transfer: "تحويل",
+  count: "جرد",
+};
+
+export async function createStockDocTx(
+  tx: Tx,
+  p: CreateStockDocParams
+): Promise<{ docId: number; docNumber: string; journalEntryId: number | null; totalAmount: number }> {
+  const docNumber = await nextNumber(DOC_PREFIXES[p.kind], 4, tx);
+  const doc = await tx.stockDoc.create({
+    data: {
+      docNumber,
+      kind: p.kind,
+      entrySource: p.entrySource,
+      vdate: p.vdate,
+      warehouseId: p.warehouseId,
+      targetWarehouseId: p.targetWarehouseId,
+      contractId: p.contractId,
+      party: p.party,
+      payAccountId: p.payAccountId,
+      payAccountName: p.payAccountName,
+      totalAmount: p.totalAmount,
+      status: "posted",
+      notes: p.notes,
+      createdBy: p.actor,
+    },
+  });
+  await tx.stockDocLine.createMany({
+    data: p.lines.map((l) => ({
+      docId: doc.id,
+      itemId: l.itemId,
+      boqItemId: l.boqItemId ?? null,
+      qty: l.qty,
+      countedQty: p.kind === "count" ? l.countedQty : 0,
+      snapUnitCost: l.snapUnitCost,
+      amount: r3(l.qty * l.snapUnitCost),
+      note: l.note ?? "",
+    })),
+  });
+  const journal = await postStockDocJournal(
+    tx,
+    {
+      docNumber,
+      kind: p.kind,
+      entrySource: p.entrySource,
+      vdate: p.vdate,
+      warehouseId: p.warehouseId,
+      contractId: p.contractId,
+      contractNumber: p.contractNumber,
+      party: p.party,
+      payAccountId: p.payAccountId,
+      payAccountName: p.payAccountName,
+      totalAmount: p.totalAmount,
+    },
+    p.lines.map((l) => ({
+      itemId: l.itemId,
+      boqItemId: l.boqItemId ?? null,
+      qty: l.qty,
+      snapUnitCost: l.snapUnitCost,
+      amount: r3(l.qty * l.snapUnitCost),
+    })),
+    p.actor
+  );
+  if (journal.journalEntryId) {
+    await tx.stockDoc.update({ where: { id: doc.id }, data: { journalEntryId: journal.journalEntryId } });
+  }
+  await audit(tx, {
+    username: p.actor,
+    action: "إنشاء",
+    entityType: "stock_doc",
+    entityId: doc.id,
+    entityName: `${docNumber} (${p.auditLabel || DOC_KIND_AUDIT_LABELS[p.kind]})`,
+    newStatus: "posted",
+  });
+  return { docId: doc.id, docNumber, journalEntryId: journal.journalEntryId, totalAmount: p.totalAmount };
 }
 
 /** أبعاد سطر القيد الموثقة — مرجع داخلي */

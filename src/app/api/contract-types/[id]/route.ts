@@ -55,6 +55,8 @@ export async function PATCH(req: NextRequest, { params }: P) {
   if (body.unitPrice !== undefined) data.unitPrice = effUnitPrice;
   if (body.pricingMode !== undefined) data.pricingMode = effMode;
   if (body.isSupervision !== undefined) data.isSupervision = effSup;
+  // موديول الصيانة (docs/maintenance-design.md د11) — وسم/إزالة وسم النوع كصيانة
+  if (body.isMaintenance !== undefined) data.isMaintenance = Boolean(body.isMaintenance);
   // Task 95 — التصنيف من القائمة المشتقة (تطبيع وحصر طول)
   if (body.category !== undefined) data.category = normalizeTypeCategory(body.category);
 

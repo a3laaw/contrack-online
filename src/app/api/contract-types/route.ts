@@ -49,6 +49,8 @@ export async function GET(req: NextRequest) {
       unitPrice: Number(t.unitPrice),
       pricingMode: t.pricingMode,
       isSupervision: t.isSupervision,
+      // موديول الصيانة (docs/maintenance-design.md د11) — وسم النوع كصيانة
+      isMaintenance: t.isMaintenance,
       templatesCount: t._count.paymentTemplates,
       contractsCount: countMap.get(t.name) ?? 0,
       // Task 89b — قوالب دفع النوع (لتوليد الدفعات في وضع التلقائي مع تعديل المبالغ)
@@ -111,6 +113,8 @@ export async function POST(req: NextRequest) {
       unitPrice,
       pricingMode,
       isSupervision: Boolean(body.isSupervision),
+      // موديول الصيانة (د11) — وسم النوع كصيانة عند الإنشاء
+      isMaintenance: Boolean(body.isMaintenance),
     },
   });
   await audit(db, {

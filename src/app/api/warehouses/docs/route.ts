@@ -2,9 +2,9 @@
 // docs/warehouses-design.md §4/§5 — المعاملة الواحدة: ترقيم + رأس + أسطر + لقطات + قيد + audit.
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { audit, authGuard, jsonError, moduleGuard, nextNumber, ok, parseDay } from "@/lib/api-utils";
+import { authGuard, jsonError, moduleGuard, ok, parseDay } from "@/lib/api-utils";
 import { TX_OPTS } from "@/lib/journal-server";
-import { DOC_KINDS, DOC_PREFIXES, r3, type DocKind } from "@/lib/warehouses-constants";
+import { DOC_KINDS, r3, type DocKind } from "@/lib/warehouses-constants";
 import {
   docMovements,
   validateAvailability,
@@ -12,7 +12,11 @@ import {
   type DocHeadInput,
   type DocLineInput,
 } from "@/lib/warehouses-core";
-import { loadBalances, loadStockMovements, postStockDocJournal } from "@/lib/warehouses-server";
+import {
+  createStockDocTx,
+  loadBalances,
+  loadStockMovements,
+} from "@/lib/warehouses-server";
 
 const KIND_LABELS: Record<DocKind, string> = { entry: "إدخال", issue: "صرف", transfer: "تحويل", count: "جرد" };
 
@@ -206,79 +210,36 @@ export async function POST(req: NextRequest) {
 
   const totalAmount = r3(parsedLines.reduce((s, l) => s + Math.abs(r3(l.qty * l.snapUnitCost)), 0));
 
-  // 5) المعاملة الواحدة: ترقيم + رأس + أسطر + قيد + audit (نمط payroll approve)
-  const result = await db.$transaction(async (tx) => {
-    const docNumber = await nextNumber(DOC_PREFIXES[kind as DocKind], 4, tx);
-    const payAccountName = payAccountId
-      ? ((await tx.account.findFirst({ where: { id: payAccountId }, select: { name: true } }))?.name ?? "")
-      : "";
-    const doc = await tx.stockDoc.create({
-      data: {
-        docNumber,
-        kind,
+  // 5) المعاملة الواحدة عبر الدالة المشتركة (ترقيم + رأس + أسطر + قيد + audit — د8 الصيانة: مسار كتابة واحد)
+  const result = await db.$transaction(
+    async (tx) =>
+      createStockDocTx(tx, {
+        kind: kind as DocKind,
         entrySource,
         vdate,
         warehouseId,
         targetWarehouseId,
         contractId,
-        party,
-        payAccountId,
-        payAccountName,
-        totalAmount,
-        status: "posted",
-        notes,
-        createdBy: guard.user.username,
-      },
-    });
-    await tx.stockDocLine.createMany({
-      data: parsedLines.map((l) => ({
-        docId: doc.id,
-        itemId: l.itemId,
-        boqItemId: l.boqItemId ?? null,
-        qty: l.qty,
-        countedQty: kind === "count" ? l.countedQty ?? 0 : 0,
-        snapUnitCost: l.snapUnitCost,
-        amount: r3(l.qty * l.snapUnitCost),
-        note: l.note ?? "",
-      })),
-    });
-    const journal = await postStockDocJournal(
-      tx,
-      {
-        docNumber,
-        kind,
-        entrySource,
-        vdate,
-        warehouseId,
-        contractId,
         contractNumber,
         party,
         payAccountId,
-        payAccountName,
+        payAccountName: payAccountId
+          ? ((await tx.account.findFirst({ where: { id: payAccountId }, select: { name: true } }))?.name ?? "")
+          : "",
         totalAmount,
-      },
-      parsedLines.map((l) => ({
-        itemId: l.itemId,
-        boqItemId: l.boqItemId ?? null,
-        qty: l.qty,
-        snapUnitCost: l.snapUnitCost,
-        amount: r3(l.qty * l.snapUnitCost),
-      })),
-      guard.user.username
-    );
-    if (journal.journalEntryId) {
-      await tx.stockDoc.update({ where: { id: doc.id }, data: { journalEntryId: journal.journalEntryId } });
-    }
-    await audit(tx, {
-      username: guard.user.username,
-      action: "إنشاء",
-      entityType: "stock_doc",
-      entityId: doc.id,
-      entityName: `${docNumber} (${KIND_LABELS[kind as DocKind]})`,
-      newStatus: "posted",
-    });
-    return { docId: doc.id, docNumber, journalEntryId: journal.journalEntryId, totalAmount };
-  }, TX_OPTS);
+        notes,
+        actor: guard.user.username,
+        lines: parsedLines.map((l) => ({
+          itemId: l.itemId,
+          boqItemId: l.boqItemId ?? null,
+          qty: l.qty,
+          countedQty: kind === "count" ? l.countedQty ?? 0 : 0,
+          snapUnitCost: l.snapUnitCost,
+          note: l.note ?? "",
+        })),
+      }),
+    TX_OPTS
+  );
 
   return ok(result, 201);
 }
