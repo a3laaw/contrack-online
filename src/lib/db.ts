@@ -69,6 +69,8 @@ const TENANT_MODELS = new Set<string>([
   // الصيانة والتشغيل (docs/maintenance-design.md §3): الخطة والأحداث وأوامر العمل — بنفس القاعدة بنفس الـcommit (درس T111)
   // بالترتيب الطوبولوجي: maintenancePlan (بعد contract) ⇐ maintenanceOccurrence ⇐ workOrder (بعد invoice/stockDoc/visitStaff لارتباطاته)
   "maintenancePlan", "maintenanceOccurrence", "workOrder",
+  // الاستشارات — مراجعات المخططات (docs/revisions-ipc-design.md §1): بعد contract/engineer لارتباطاته
+  "consultingRevision",
 ]);
 
 interface Ctx { companyId: number }

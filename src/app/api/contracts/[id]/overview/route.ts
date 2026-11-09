@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { authGuard, jsonError, ok } from "@/lib/api-utils";
-import { EPS, r3 } from "@/lib/contrack-core";
+import { EPS, filterReadyIpcLines, r3 } from "@/lib/contrack-core";
 import { loadContractCore } from "@/lib/contrack-server";
 import { computeSubPlan } from "@/lib/voucher-server";
 import { getContractMode } from "@/lib/contract-components-server";
@@ -226,6 +226,29 @@ export async function GET(req: NextRequest, { params }: P) {
   // G6 — نمط تسعير هذا العقد تحديدًا (الترتيب الخمسي — لا نمط النوع وحده)
   const pricing = await getContractMode(contractId);
 
+  // جسر الإنجاز إلى الفوترة (docs/revisions-ipc-design.md §2.3) — سطور مُثارة بمراحل مغلقة
+  // بلا فاتورة نشطة: الاشتقاق من الحالة الحية حصرًا (G9 — لا حالة مخزنة)
+  const linkedInvoices = await db.invoice.findMany({
+    where: { contractId, paymentId: { not: null }, status: { not: "void" } },
+    select: { paymentId: true },
+  });
+  const invoicedLineIds = new Set(linkedInvoices.map((r) => r.paymentId as number));
+  const stageById = new Map(core.stages.map((s) => [s.id, s] as const));
+  const readyIpc = filterReadyIpcLines(
+    core.computed.lines.map((l) => {
+      const st = l.stageId != null ? stageById.get(l.stageId) : undefined;
+      return {
+        id: l.id,
+        title: l.title,
+        remaining: l.remaining,
+        triggeredAt: l.triggeredAt,
+        dueDate: l.dueDate,
+        stage: st ? { name: st.name, endDate: st.endDate, isSkipped: st.isSkipped } : null,
+        invoiced: invoicedLineIds.has(l.id),
+      };
+    })
+  );
+
   return ok({
     contract: { id: c.id, contractNumber: c.contractNumber, status: c.status, currency: c.currency },
     pricingMode: pricing.mode,
@@ -249,6 +272,8 @@ export async function GET(req: NextRequest, { params }: P) {
     stockDocs: stockDocRows.slice(0, 8),
     // الصيانة والتشغيل — الخطة والحدث القادم وآخر الأوامر (د12)
     maintenance,
+    // جسر الإنجاز إلى الفوترة — الجاهزون للمستخلص (بند 2 من خريطة NOVA)
+    readyIpc,
     profit,
     expectedProfit,
     remaining,

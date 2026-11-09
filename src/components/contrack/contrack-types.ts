@@ -647,6 +647,18 @@ export interface ContractOverviewResponse {
     manualTotal: number;
     manualPct: number;
   };
+  /** جسر الإنجاز إلى الفوترة (docs/revisions-ipc-design.md §2.3) — سطور مُثارة بمراحل مغلقة بلا فاتورة نشطة */
+  readyIpc?: ReadyIpcItem[];
+}
+
+/** سطر جاهز للمستخلص — الاشتقاق حي حصرًا (G9 — لا حالة مخزنة) */
+export interface ReadyIpcItem {
+  lineId: number;
+  title: string;
+  amount: number;
+  stageName: string;
+  finishDate: string;
+  dueDate: string;
 }
 
 /** صفحة «الدفعات والمقاولون» — GET /api/contracts/[id]/pay-view (contract_payment_compare + كتل المقاولين) */

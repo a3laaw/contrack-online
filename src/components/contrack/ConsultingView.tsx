@@ -15,6 +15,7 @@ import {
   CalendarDays,
   Check,
   Clock,
+  FileStack,
   Loader2,
   Mail,
   Network,
@@ -48,6 +49,12 @@ import { ApiError, api as apiLite, apiDelete, apiGet, apiPatch, apiPost, type Co
 import { errMessage, type User } from "./contrack-types";
 import { cn } from "@/lib/utils";
 import { SearchableSelect } from "./SearchableSelect";
+import {
+  REVISION_PENDING,
+  canDecide,
+  canDelete,
+  canEdit,
+} from "@/lib/consulting-revision-core";
 import {
   ASSIGNMENT_ROLES,
   ENGINEER_SPECIALTIES,
@@ -153,7 +160,25 @@ interface SummaryResponse {
   }[];
 }
 
-export type ConsultingSection = "team" | "assignments" | "timesheets" | "leaves";
+interface RevisionItem {
+  id: number;
+  contractId: number;
+  contractNumber: string;
+  contractName: string;
+  customerName: string;
+  title: string;
+  revNo: number;
+  status: string;
+  engineerId: number | null;
+  engineerName: string | null;
+  submittedAt: string;
+  decidedAt: string;
+  decidedBy: string;
+  decisionNote: string;
+  notes: string;
+}
+
+export type ConsultingSection = "team" | "assignments" | "timesheets" | "revisions" | "leaves";
 
 interface ConsultingViewProps {
   user: User;
@@ -234,6 +259,7 @@ const SECTION_META: { key: ConsultingSection; label: string }[] = [
   { key: "team", label: "الفريق الهندسي" },
   { key: "assignments", label: "إسناد المشاريع" },
   { key: "timesheets", label: "ساعات العمل" },
+  { key: "revisions", label: "مراجعات المخططات" },
   { key: "leaves", label: "الإجازات" },
 ];
 
@@ -425,6 +451,16 @@ export function ConsultingView({ onAuthError, section, onSectionChange }: Consul
           setDeleteTarget={setDeleteTarget}
         />
       )}
+      {section === "revisions" && (
+        <RevisionsSection
+          engineerOpts={engineerOpts}
+          contractOpts={contractOpts}
+          onErr={onErr}
+          onAuthError={onAuthError}
+          invalidate={invalidate}
+          setDeleteTarget={setDeleteTarget}
+        />
+      )}
       {section === "leaves" && (
         <LeavesSection
           engineerOpts={engineerOpts}
@@ -467,6 +503,7 @@ const LABELS_DELETE: Record<string, string> = {
   team: "حُذف المهندس",
   assignments: "حُذف الإسناد",
   timesheets: "حُذف سجل الساعات",
+  revisions: "حُذفت دورة المراجعة",
   leaves: "حُذف طلب الإجازة",
 };
 
@@ -484,6 +521,7 @@ function SectionAction({
     team: "مهندس جديد",
     assignments: "إسناد جديد",
     timesheets: "تسجيل ساعات",
+    revisions: "دورة مراجعة جديدة",
     leaves: "طلب إجازة",
   };
   return (
@@ -1771,6 +1809,357 @@ function LeaveDialog({
           <Button onClick={submit} disabled={pending || !form.engineerId || !form.startDate || !form.endDate || form.endDate < form.startDate}>
             {pending && <Loader2 className="size-4 animate-spin" />}
             {editing ? "حفظ التعديلات" : "تسجيل الطلب"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ==================== القسم الرابع: مراجعات المخططات (docs/revisions-ipc-design.md §1.4) ====================
+
+const REVISION_STATUS_TONE: Record<string, { text: string; bg: string }> = {
+  "بانتظار مراجعة": { text: "text-status-warn", bg: "bg-status-warn-bg" },
+  "مقبول": { text: "text-status-done", bg: "bg-status-done-bg" },
+  "معاد بتعديلات": { text: "text-status-danger", bg: "bg-status-danger-bg" },
+};
+
+function RevisionsSection({
+  engineerOpts,
+  contractOpts,
+  onErr,
+  invalidate,
+  setDeleteTarget,
+}: SectionCommon & {
+  engineerOpts: { value: string; label: string }[];
+  contractOpts: { value: string; label: string }[];
+}) {
+  const { toast } = useToast();
+
+  const listQuery = useQuery<{ revisions: RevisionItem[]; summary: { pending: number; approved: number; returned: number; activeCycles: number } }>({
+    queryKey: ["consulting", "revisions"],
+    queryFn: () => apiGet("/api/consulting/revisions"),
+  });
+  const revisions = listQuery.data?.revisions ?? [];
+
+  const [tab, setTab] = React.useState<string>("الكل");
+  const [q, setQ] = React.useState("");
+
+  const filtered = React.useMemo(() => {
+    const needle = normSearch(q.trim());
+    return revisions.filter((r) => {
+      if (tab !== "الكل" && r.status !== tab) return false;
+      if (needle && !normSearch(`${r.title} ${r.contractNumber} ${r.contractName} ${r.customerName} ${r.engineerName ?? ""}`).includes(needle)) return false;
+      return true;
+    });
+  }, [revisions, tab, q]);
+
+  const [editor, setEditor] = React.useState<{ editing: RevisionItem | null } | null>(null);
+  const [returnTarget, setReturnTarget] = React.useState<RevisionItem | null>(null);
+  useAddEvent("revisions", React.useCallback(() => setEditor({ editing: null }), []));
+
+  const saveMutation = useMutation({
+    mutationFn: (v: { id?: number; data: Record<string, unknown> }) =>
+      v.id ? apiPatch(`/api/consulting/revisions/${v.id}`, v.data) : apiPost("/api/consulting/revisions", v.data),
+    onSuccess: (_r, v) => {
+      setEditor(null);
+      invalidate();
+      toast({ title: v.id ? "حُدّث الإصدار" : "سُجلت دورة المراجعة", description: "بانتظار قرار المراجعة" });
+    },
+    onError: (e) => onErr(e, "تعذر الحفظ"),
+  });
+
+  const decideMutation = useMutation({
+    mutationFn: (v: { id: number; decision: "مقبول" | "معاد بتعديلات"; note?: string }) =>
+      apiPatch(`/api/consulting/revisions/${v.id}`, { decision: v.decision, note: v.note }),
+    onSuccess: (_r, v) => {
+      setReturnTarget(null);
+      invalidate();
+      toast({ title: v.decision === "مقبول" ? "اعتُمد الإصدار" : "أُعيد الإصدار بتعديلات" });
+    },
+    onError: (e) => onErr(e, "تعذر تنفيذ القرار"),
+  });
+
+  const pendingCount = revisions.filter((r) => r.status === REVISION_PENDING).length;
+
+  return (
+    <div className="space-y-3">
+      <Card className="gap-3 p-3 sm:p-4">
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList className="h-9 w-full justify-start overflow-x-auto sm:w-auto">
+            <TabsTrigger value="الكل">الكل ({revisions.length})</TabsTrigger>
+            <TabsTrigger value="بانتظار مراجعة">بانتظار مراجعة ({pendingCount})</TabsTrigger>
+            <TabsTrigger value="مقبول">مقبول ({revisions.filter((r) => r.status === "مقبول").length})</TabsTrigger>
+            <TabsTrigger value="معاد بتعديلات">معاد بتعديلات ({revisions.filter((r) => r.status === "معاد بتعديلات").length})</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="relative">
+          <Search className="absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث بالمخطط/العقد/العميل/المهندس…" className="ps-8" />
+        </div>
+      </Card>
+
+      {listQuery.isLoading ? (
+        <div className="space-y-2">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-20 w-full" />
+          ))}
+        </div>
+      ) : listQuery.isError ? (
+        <Card className="p-8 text-center text-sm text-destructive">تعذر تحميل المراجعات — {errMessage(listQuery.error)}</Card>
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={FileStack}
+          title={revisions.length === 0 ? "لا دورات مراجعة بعد" : "لا نتائج مطابقة للفلاتر"}
+          hint={revisions.length === 0 ? "سجل أول إصدار بزر «دورة مراجعة جديدة»" : "جرّب تعديل البحث أو تبويب الحالة"}
+        />
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((r) => {
+            const tone = REVISION_STATUS_TONE[r.status] || REVISION_STATUS_TONE["بانتظار مراجعة"];
+            const decidible = canDecide(r.status);
+            const editable = canEdit(r.status);
+            const deletable = canDelete(r.status);
+            return (
+              <Card key={r.id} className={cn("p-3 sm:p-4", r.status === "معاد بتعديلات" && "opacity-80")}>
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-soft-foreground">
+                    <FileStack className="size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge variant="secondary" className="h-5 px-1.5 font-bold tabular-nums">V{r.revNo}</Badge>
+                      <span className="text-sm font-bold">{r.title}</span>
+                      <StatusPill label={r.status} tone={tone} />
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {r.contractNumber}
+                      {r.contractName ? ` — ${r.contractName}` : ""}
+                      {r.customerName ? ` · ${r.customerName}` : ""}
+                      {r.engineerName ? ` · بتحضير ${r.engineerName}` : ""}
+                    </p>
+                    <p className="text-[11px] tabular-nums text-muted-foreground">
+                      رُفع: {r.submittedAt || "—"}
+                      {!decidible && r.decidedAt ? ` · القرار: ${r.decidedBy} — ${r.decidedAt}` : ""}
+                    </p>
+                    {r.status === "معاد بتعديلات" && r.decisionNote && (
+                      <p className="text-[11px] text-status-danger">التعديلات المطلوبة: {r.decisionNote}</p>
+                    )}
+                    {r.status === "مقبول" && r.decisionNote && (
+                      <p className="text-[11px] text-muted-foreground">ملاحظة الاعتماد: {r.decisionNote}</p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    {decidible && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-status-done hover:text-status-done"
+                          title="اعتماد الإصدار"
+                          disabled={decideMutation.isPending}
+                          onClick={() => decideMutation.mutate({ id: r.id, decision: "مقبول" })}
+                        >
+                          <Check className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-status-danger hover:text-status-danger"
+                          title="إرجاع بتعديلات"
+                          onClick={() => setReturnTarget(r)}
+                        >
+                          <X className="size-4" />
+                        </Button>
+                      </>
+                    )}
+                    {editable && (
+                      <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground" title="تعديل" onClick={() => setEditor({ editing: r })}>
+                        <Pencil className="size-4" />
+                      </Button>
+                    )}
+                    {deletable && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-destructive hover:text-destructive"
+                        title="حذف"
+                        onClick={() => setDeleteTarget({ kind: "revisions", id: r.id, label: `إصدار V${r.revNo} من «${r.title}»` })}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      <RevisionDialog
+        open={!!editor}
+        editing={editor?.editing ?? null}
+        engineerOpts={engineerOpts}
+        contractOpts={contractOpts}
+        pending={saveMutation.isPending}
+        onClose={() => setEditor(null)}
+        onSave={(data) => saveMutation.mutate({ id: editor?.editing?.id, data })}
+      />
+
+      {/* نافذة الإرجاع — التعديلات المطلوبة إلزامية */}
+      <Dialog open={!!returnTarget} onOpenChange={(v) => !v && setReturnTarget(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-status-danger">إرجاع إصدار بتعديلات</DialogTitle>
+            <DialogDescription>
+              إرجاع V{returnTarget?.revNo} من «{returnTarget?.title}» — التعديلات المطلوبة إلزامية وتوثق مع القرار.
+            </DialogDescription>
+          </DialogHeader>
+          <RevisionReturnForm
+            pending={decideMutation.isPending}
+            onSubmit={(note) => returnTarget && decideMutation.mutate({ id: returnTarget.id, decision: "معاد بتعديلات", note })}
+            onCancel={() => setReturnTarget(null)}
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function RevisionReturnForm({
+  pending,
+  onSubmit,
+  onCancel,
+}: {
+  pending: boolean;
+  onSubmit: (note: string) => void;
+  onCancel: () => void;
+}) {
+  const [note, setNote] = React.useState("");
+  return (
+    <>
+      <div className="space-y-1.5">
+        <Label>التعديلات المطلوبة *</Label>
+        <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="مثال: تعديل مواقع الفتحات وفق ملاحظات البلدية" autoFocus />
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={onCancel} disabled={pending}>
+          تراجع
+        </Button>
+        <Button
+          className="border-0 bg-status-danger-bg text-status-danger hover:bg-status-danger-bg/80"
+          disabled={pending || !note.trim()}
+          onClick={() => onSubmit(note.trim())}
+        >
+          {pending && <Loader2 className="size-4 animate-spin" />}
+          إرجاع الإصدار
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+function RevisionDialog({
+  open,
+  editing,
+  engineerOpts,
+  contractOpts,
+  pending,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  editing: RevisionItem | null;
+  engineerOpts: { value: string; label: string }[];
+  contractOpts: { value: string; label: string }[];
+  pending: boolean;
+  onClose: () => void;
+  onSave: (data: Record<string, unknown>) => void;
+}) {
+  const [form, setForm] = React.useState({
+    contractId: "",
+    title: "",
+    engineerId: "",
+    submittedAt: "",
+    notes: "",
+  });
+
+  React.useEffect(() => {
+    if (open) {
+      setForm({
+        contractId: editing ? String(editing.contractId) : "",
+        title: editing?.title ?? "",
+        engineerId: editing?.engineerId ? String(editing.engineerId) : "",
+        submittedAt: editing?.submittedAt || todayStr(),
+        notes: editing?.notes ?? "",
+      });
+    }
+  }, [open, editing]);
+
+  const submit = () => {
+    onSave({
+      ...(editing ? {} : { contractId: Number(form.contractId) || 0 }),
+      title: form.title,
+      engineerId: form.engineerId ? Number(form.engineerId) : null,
+      submittedAt: form.submittedAt,
+      notes: form.notes,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{editing ? `تعديل الإصدار V${editing.revNo}` : "دورة مراجعة جديدة"}</DialogTitle>
+          <DialogDescription>
+            {editing
+              ? "التعديل قبل الحسم فقط — الرقم V يبقى كما هو والدورة لا تُنقل لعقد آخر"
+              : "كل رفع إصدار لنفس المخطط يُرقَّم V تالٍ آليًا — والحسم (اعتماد/إرجاع) من القائمة"}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>العقد/المشروع *</Label>
+            <SearchableSelect
+              value={form.contractId}
+              onValueChange={(v) => setForm((f) => ({ ...f, contractId: v }))}
+              options={contractOpts}
+              placeholder="اختر العقد"
+              searchPlaceholder="ابحث برقم العقد/الاسم/العميل…"
+              disabled={!!editing}
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>اسم المخطط/الوثيقة *</Label>
+            <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="مثال: مخطط معماري — الدور الأول" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>مُعد الإصدار</Label>
+            <SearchableSelect
+              value={form.engineerId}
+              onValueChange={(v) => setForm((f) => ({ ...f, engineerId: v === "none" ? "" : v }))}
+              options={[{ value: "none", label: "— بلا تحديد —" }, ...engineerOpts]}
+              placeholder="اختياري"
+              searchPlaceholder="ابحث بالاسم…"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>تاريخ رفع الإصدار</Label>
+            <Input type="date" value={form.submittedAt} onChange={(e) => setForm((f) => ({ ...f, submittedAt: e.target.value }))} />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>ملاحظات</Label>
+            <Input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="اختياري" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            إلغاء
+          </Button>
+          <Button onClick={submit} disabled={pending || !form.title.trim() || (!editing && !form.contractId)}>
+            {pending && <Loader2 className="size-4 animate-spin" />}
+            {editing ? "حفظ التعديلات" : "تسجيل الإصدار"}
           </Button>
         </DialogFooter>
       </DialogContent>

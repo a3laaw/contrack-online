@@ -156,6 +156,7 @@ export const NAV_MODULES: NavModule[] = [
       { id: "consulting-team", label: "الفريق الهندسي", icon: UsersRound, view: "consulting", section: "team", perm: "screen_consulting" },
       { id: "consulting-assignments", label: "إسناد المشاريع", icon: Network, view: "consulting", section: "assignments", perm: "screen_consulting" },
       { id: "consulting-timesheets", label: "ساعات العمل", icon: Timer, view: "consulting", section: "timesheets", perm: "screen_consulting" },
+      { id: "consulting-revisions", label: "مراجعات المخططات", icon: FileStack, view: "consulting", section: "revisions", perm: "screen_consulting" },
       { id: "consulting-leaves", label: "الإجازات", icon: CalendarDays, view: "consulting", section: "leaves", perm: "screen_consulting" },
     ],
   },

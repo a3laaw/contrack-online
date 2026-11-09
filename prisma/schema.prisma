@@ -244,6 +244,8 @@ model Contract {
   // الصيانة والتشغيل — خطط الصيانة وأوامر العمل على العقد (docs/maintenance-design.md §3)
   maintenancePlans MaintenancePlan[]
   workOrders       WorkOrder[]
+  // الاستشارات — دورات مراجعة المخططات على العقود (docs/revisions-ipc-design.md §1)
+  consultingRevisions ConsultingRevision[]
 
   @@index([customerId, status])
   @@unique([companyId, contractNumber])
@@ -323,6 +325,8 @@ model PaymentPlanItem {
   deletedAddendumId Int                @default(0) @map("deleted_addendum_id")
   subSources        SubPaymentSource[]
   claims            Claim[]
+  // جسر الإنجاز إلى الفوترة (docs/revisions-ipc-design.md §2) — فواتير مرتبطة بهذا السطر
+  invoices          Invoice[]
   createdAt         DateTime           @default(now())
 
   @@index([contractId, dueDate, sortOrder])
@@ -1205,12 +1209,16 @@ model Invoice {
   paymentLinks  InvoicePaymentLink[]
   saleDocs      StockDoc[] @relation("SaleInvoiceDocs") // أذون الصرف المخزني الآلية للبيع (موديول المبيعات — docs/sales-design.md §3)
   workOrders    WorkOrder[] // فواتير الزيارات المولدة من أوامر الصيانة (docs/maintenance-design.md §3)
+  // جسر الإنجاز إلى الفوترة (docs/revisions-ipc-design.md §2) — السطر المثار من إغلاق مرحلة الذي فوترت هذه الفاتورة
+  paymentId     Int?       @map("payment_id")
+  payment       PaymentPlanItem? @relation(fields: [paymentId], references: [id])
 
   @@unique([companyId, invoiceNo])
   @@unique([companyId, invoiceNumber])
   @@index([customerId])
   @@index([contractId])
   @@index([status])
+  @@index([paymentId])
   @@map("invoices")
 }
 
@@ -1800,6 +1808,8 @@ model Engineer {
   assignments   EngineerAssignment[]
   timesheets    EngineerTimesheet[]
   leaves        EngineerLeave[]
+  // مراجعات المخططات — إصدارات المخطط التي أعدّها المهندس (docs/revisions-ipc-design.md §1)
+  revisions     ConsultingRevision[]
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -1866,6 +1876,36 @@ model EngineerLeave {
 
   @@index([engineerId, status])
   @@map("engineer_leaves")
+}
+
+/**
+ * دورة مراجعة مخطط (docs/revisions-ipc-design.md §1) — بند 1 من خريطة NOVA:
+ * كل صف = إصدار واحد لمخطط (title) على عقد — revNo يُرقَّم خادميًا لكل (عقد، عنوان)
+ * بلا قيد فريد (النص الحر لا يُحاصَر) — آلة حالات مغلقة G7:
+ * «بانتظار مراجعة» ⇐ (مقبول | معاد بتعديلات) — القرار نهائي (لا تعديل ولا حذف بعده)
+ * وملاحظة الإرجاع إلزامية (نمط إجازات المهندسين).
+ */
+model ConsultingRevision {
+  companyId   Int      @default(1) @map("company_id")
+  id          Int      @id @default(autoincrement())
+  contractId  Int      @map("contract_id")
+  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  title       String   // اسم المخطط/الوثيقة — مفتاح التجميع بين الإصدارات
+  revNo       Int      @map("rev_no") // يُرقَّم خادميًا max+1 لكل (عقد، عنوان)
+  status      String   @default("بانتظار مراجعة") // بانتظار مراجعة | مقبول | معاد بتعديلات
+  engineerId  Int?     @map("engineer_id") // مُعد الإصدار — اختياري
+  engineer    Engineer? @relation(fields: [engineerId], references: [id])
+  submittedAt String   @default("") @map("submitted_at") // YYYY-MM-DD تاريخ رفع الإصدار
+  decidedAt   String   @default("") @map("decided_at")
+  decidedBy   String   @default("") @map("decided_by")
+  decisionNote String  @default("") @map("decision_note") // إلزامي عند «معاد بتعديلات»
+  notes       String   @default("")
+  createdBy   String   @default("") @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([contractId])
+  @@index([status])
+  @@map("consulting_revisions")
 }
 
 // ============================================================

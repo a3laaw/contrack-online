@@ -170,6 +170,8 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "maintenancePlan", table: "maintenance_plans", serial: true }, // بعد contracts
   { model: "maintenanceOccurrence", table: "maintenance_occurrences", serial: true }, // بعد maintenancePlan (FK Cascade)
   { model: "workOrder", table: "work_orders", serial: true }, // أخيرًا — بعد occurrences/invoices/stock_docs/visit_staff لارتباطاته
+  // ===== الاستشارات — مراجعات المخططات — بعد العقود والمهندسين (FK: contract Cascade · engineer) =====
+  { model: "consultingRevision", table: "consulting_revisions", serial: true },
   // ===== سجلات النظام (آخرًا لكي تُحذف أولًا عند الاستعادة) =====
   { model: "auditLog", table: "audit_log", serial: true },
   { model: "purgeAudit", table: "purge_audit", serial: true },

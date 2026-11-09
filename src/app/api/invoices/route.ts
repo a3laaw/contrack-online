@@ -101,6 +101,8 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const customerId = intOr(body.customerId, 0);
   const contractId = intOr(body.contractId, 0) || null;
+  // جسر الإنجاز إلى الفوترة (docs/revisions-ipc-design.md §2.4) — ربط اختياري بدفعة خطة السداد
+  const paymentId = intOr(body.paymentId, 0) || null;
   if (!customerId) return jsonError("العميل مطلوب");
   const invoiceDate = parseDay(body.invoiceDate);
   if (!invoiceDate) return jsonError("تاريخ الفاتورة مطلوب بصيغة YYYY-MM-DD");
@@ -119,6 +121,19 @@ export async function POST(req: NextRequest) {
   if (contractId && !contract) return jsonError("العقد غير موجود", 404);
   if (contract && contract.customerId !== customerId) {
     return jsonError("الفاتورة يجب أن تخص عميل العقد");
+  }
+
+  // جسر الإنجاز إلى الفوترة — تحقق الربط: الدفعة بنفس العقد + بلا فاتورة نشطة مرتبطة بها
+  if (paymentId) {
+    if (!contractId) return jsonError("الربط بدفعة الخطة يتطلب عقدًا");
+    const pay = await db.paymentPlanItem.findUnique({ where: { id: paymentId }, select: { id: true, contractId: true, title: true } });
+    if (!pay) return jsonError("دفعة الخطة غير موجودة", 404);
+    if (pay.contractId !== contractId) return jsonError("دفعة الخطة لا تنتمي لهذا العقد");
+    const linked = await db.invoice.findFirst({
+      where: { paymentId, status: { not: "void" } },
+      select: { invoiceNumber: true },
+    });
+    if (linked) return jsonError(`دفعة الخطة مرتبطة بفاتورة سارية (${linked.invoiceNumber})`);
   }
 
   // سقف الفوترة: المفوتر (لغير الملغاة) + هذه الفاتورة ≤ القيمة الحالية
@@ -169,6 +184,7 @@ export async function POST(req: NextRequest) {
               invoiceNo,
               customerId,
               contractId,
+              paymentId,
               invoiceDate,
               dueDate,
               description,

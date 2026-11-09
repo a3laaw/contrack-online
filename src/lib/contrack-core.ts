@@ -318,3 +318,49 @@ export function receiptBankFee(
   if (method === settings.bankFeeMethod) return r3(Number(settings.bankFeeAmount || 0));
   return 0;
 }
+
+// ===== K) جسر الإنجاز إلى الفوترة (docs/revisions-ipc-design.md §2.3 — بند 2 من خريطة NOVA) =====
+// الفاتورة مستند مالي بقيد إلزامي ⇒ لا إنشاء آلي — الجسر اشتقاق «جاهز للمستخلص» فقط:
+// سطر مثار من إغلاق مرحلة (triggeredAt) · مرحلته مغلقة وغير متخطاة · متبقٍ له · بلا فاتورة نشطة.
+
+export interface ReadyIpcLineInput {
+  id: number;
+  title: string;
+  remaining: number;
+  triggeredAt: string;
+  dueDate: string;
+  stage: { name: string; endDate: string; isSkipped: boolean } | null;
+  /** توجد فاتورة غير ملغاة مرتبطة بنفس السطر (paymentId) */
+  invoiced: boolean;
+}
+
+export interface ReadyIpcItem {
+  lineId: number;
+  title: string;
+  amount: number;
+  stageName: string;
+  finishDate: string;
+  dueDate: string;
+}
+
+/** تصفية السطور الجاهزة للمستخلص — نقية قابلة للاختبار (الخادم يجمّع المدخلات حصرًا) */
+export function filterReadyIpcLines(rows: ReadyIpcLineInput[]): ReadyIpcItem[] {
+  return rows
+    .filter(
+      (r) =>
+        r.triggeredAt.trim() !== "" &&
+        r.remaining > EPS &&
+        r.stage != null &&
+        r.stage.endDate.trim() !== "" &&
+        !r.stage.isSkipped &&
+        !r.invoiced
+    )
+    .map((r) => ({
+      lineId: r.id,
+      title: r.title,
+      amount: r3(r.remaining),
+      stageName: r.stage!.name,
+      finishDate: r.triggeredAt,
+      dueDate: r.dueDate,
+    }));
+}

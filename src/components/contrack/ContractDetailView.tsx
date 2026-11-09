@@ -97,6 +97,7 @@ import type {
   PayViewLine,
   PayViewSubLine,
   PlanLine,
+  ReadyIpcItem,
   StatementTarget,
   SubContractsResponse,
   SupervisionResponse,
@@ -235,6 +236,12 @@ export function ContractDetailView({
     qc.invalidateQueries({ queryKey: ["contract", contractId] });
     qc.invalidateQueries({ queryKey: ["contracts"] });
     qc.invalidateQueries({ queryKey: ["dashboard"] });
+  }, [qc, contractId]);
+
+  // جسر الإنجاز إلى الفوترة — بعد إصدار مستخلص يزول السطر من «الجاهزين» (docs/revisions-ipc-design.md §2.4)
+  const onIpcIssued = React.useCallback(() => {
+    qc.invalidateQueries({ queryKey: ["contract", contractId] });
+    qc.invalidateQueries({ queryKey: ["invoices"] });
   }, [qc, contractId]);
 
   const fail = React.useCallback(
@@ -907,6 +914,7 @@ export function ContractDetailView({
           onOpenSupDialog={() => setFlowPage("sup")}
           onWaive={() => setWaiveOpen(true)}
           onSettle={() => setFlowPage("settle")}
+          onIssued={onIpcIssued}
         />
       )}
 
@@ -1295,6 +1303,7 @@ function OverviewPage({
   onOpenSupDialog,
   onWaive,
   onSettle,
+  onIssued,
 }: {
   detail: ContractDetailResponse;
   overview: ContractOverviewResponse | null;
@@ -1314,6 +1323,7 @@ function OverviewPage({
   onOpenSupDialog: () => void;
   onWaive: () => void;
   onSettle: () => void;
+  onIssued: () => void;
 }) {
   const [showDetails, setShowDetails] = React.useState(false);
 
@@ -1520,6 +1530,18 @@ function OverviewPage({
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* جسر الإنجاز إلى الفوترة (docs/revisions-ipc-design.md §2.4) — الجاهزون للمستخلص */}
+      {overview && overview.readyIpc && overview.readyIpc.length > 0 && (
+        <ReadyIpcBlock
+          items={overview.readyIpc}
+          cur={cur}
+          customerId={detail.contract.customerId}
+          contractId={detail.contract.id}
+          onIssued={onIssued}
+          onActionError={onActionError}
+        />
       )}
 
       {/* لوحة المتابعة المضمنة (_sec_followup_panel — نسخة مدمجة من FollowupPanel) */}
@@ -2748,5 +2770,158 @@ function DetailSkeleton() {
         جارٍ تحميل العقد…
       </div>
     </div>
+  );
+}
+
+/**
+ * ReadyIpcBlock — جسر الإنجاز إلى الفوترة (docs/revisions-ipc-design.md §2.4 — بند 2 من خريطة NOVA):
+ * سطور خطة السداد المُثارة بإغلاق مرحلة وبلا فاتورة نشطة — لكل سطر زر «جهّز مستخلصًا»
+ * يفتح نافذة مملوءة مسبقًا (وصف/مبلغ/تواريخ) والإصدار فعل صريح ينشر قيده الآلي —
+ * لا فاتورة آلية إطلاقًا (نمط د9 في الصيانة حرفيًا).
+ */
+function ReadyIpcBlock({
+  items,
+  cur,
+  customerId,
+  contractId,
+  onIssued,
+  onActionError,
+}: {
+  items: ReadyIpcItem[];
+  cur: string;
+  customerId: number;
+  contractId: number;
+  onIssued: () => void;
+  onActionError: (e: unknown, title: string) => void;
+}) {
+  const { toast } = useToast();
+  const [target, setTarget] = React.useState<ReadyIpcItem | null>(null);
+  const [form, setForm] = React.useState({ invoiceDate: "", dueDate: "", description: "", amount: "", notes: "" });
+
+  const openIssue = (it: ReadyIpcItem) => {
+    setTarget(it);
+    setForm({
+      invoiceDate: new Date().toISOString().slice(0, 10),
+      dueDate: it.dueDate || new Date().toISOString().slice(0, 10),
+      description: `مستخلص إنجاز — ${it.title} (${it.stageName})`,
+      amount: String(it.amount),
+      notes: "",
+    });
+  };
+
+  const issueMutation = useMutation({
+    mutationFn: (v: typeof form) =>
+      apiPost<{ invoice?: { invoiceNumber?: string; entryNo?: number } }>("/api/invoices", {
+        customerId,
+        contractId,
+        paymentId: target?.lineId,
+        invoiceDate: v.invoiceDate,
+        dueDate: v.dueDate,
+        description: v.description,
+        notes: v.notes,
+        items: [{ description: v.description || "مستخلص إنجاز مرحلة", quantity: 1, unitPrice: Number(v.amount) || 0, discountPct: 0 }],
+      }),
+    onSuccess: (res) => {
+      setTarget(null);
+      onIssued();
+      toast({
+        title: "صدر مستخلص الإنجاز",
+        description: `${res.invoice?.invoiceNumber ?? ""} — قيد آلي #${res.invoice?.entryNo ?? ""} (مدين ذمم / دائن إيراد)`,
+      });
+    },
+    onError: (e) => onActionError(e, "تعذر إصدار المستخلص"),
+  });
+
+  const amountN = Number(form.amount.replace(/,/g, "")) || 0;
+  const money = (n: number) => `${formatKWD(n)} ${cur}`;
+
+  return (
+    <>
+      <Card className="border-status-warn/40 bg-status-warn-bg/40">
+        <CardHeader className="p-4 pb-1">
+          <CardTitle className="flex items-center gap-2 text-sm text-status-warn">
+            <FileText className="size-4" />
+            جاهز للمستخلص — مراحل أُنجزت ولم تُفوتر ({items.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 p-4 pt-1">
+          <p className="text-xs text-muted-foreground">
+            سطور خطة السداد التي أثارها إغلاق مرحلتها — جهّز مستخلصها بضغطة، والإصدار يبقى فعلًا صريحًا بقيد آلي.
+          </p>
+          {items.map((it) => (
+            <div key={it.lineId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-background p-2.5">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold">{it.title}</p>
+                <p className="text-[11px] tabular-nums text-muted-foreground">
+                  مرحلة «{it.stageName}» · أُنجزت {it.finishDate} · مستحق {it.dueDate || "—"}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="text-sm font-bold tabular-nums text-status-warn">{money(it.amount)}</span>
+                <Button size="sm" className="h-8 gap-1" onClick={() => openIssue(it)}>
+                  <FileText className="size-3.5" />
+                  جهّز مستخلصًا
+                </Button>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* نافذة إصدار المستخلص — مملوءة مسبقًا وقابلة للتعديل قبل الإصدار الصريح */}
+      <Dialog open={!!target} onOpenChange={(v) => !v && setTarget(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>إصدار مستخلص إنجاز</DialogTitle>
+            <DialogDescription>
+              مملوء من الدفعة المُثارة — عدّل ما يلزم ثم أصدر. الإصدار ينشر القيد الآلي (مدين ذمم العملاء / دائن إيراد العقود).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>تاريخ الفاتورة *</Label>
+              <Input type="date" value={form.invoiceDate} onChange={(e) => setForm((f) => ({ ...f, invoiceDate: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>تاريخ الاستحقاق</Label>
+              <Input type="date" value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>الوصف *</Label>
+              <Input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>المبلغ ({cur}) *</Label>
+              <Input
+                value={form.amount}
+                onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                inputMode="decimal"
+                dir="ltr"
+                className="tabular-nums"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>ملاحظات</Label>
+              <Input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="اختياري" />
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            السقف محروس: صافي المستخلص ≤ المتبقي من قيمة العقد — وربط الدفعة يمنع تكرار فوترتها.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTarget(null)} disabled={issueMutation.isPending}>
+              تراجع
+            </Button>
+            <Button
+              onClick={() => issueMutation.mutate(form)}
+              disabled={issueMutation.isPending || !form.invoiceDate || !form.description.trim() || amountN <= 0}
+            >
+              {issueMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              إصدار الفاتورة
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

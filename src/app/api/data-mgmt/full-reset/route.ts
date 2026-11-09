@@ -61,6 +61,8 @@ async function fullResetInTx(tx: Tx): Promise<Record<string, number>> {
   await step("payment_plan", () => tx.paymentPlanItem.deleteMany({}));
   await step("boq_items", () => tx.boqItem.deleteMany({}));
   await step("contract_stages", () => tx.contractStage.deleteMany({}));
+  // مراجعات المخططات (docs/revisions-ipc-design.md) — FK لعقود ومهندسين: قبل الاثنين
+  await step("consulting_revisions", () => tx.consultingRevision.deleteMany({}));
   await step("contracts", () => tx.contract.deleteMany({}));
   await step("customers", () => tx.customer.deleteMany({}));
   await step("subcontractors", () => tx.subcontractor.deleteMany({}));
@@ -84,6 +86,12 @@ async function fullResetInTx(tx: Tx): Promise<Record<string, number>> {
   await step("form_fields", () => tx.formField.deleteMany({}));
   await step("form_templates", () => tx.formTemplate.deleteMany({}));
   await step("form_categories", () => tx.formCategory.deleteMany({}));
+
+  // الاستشارات — الفريق والإسنادات والساعات والإجازات (المهندسون أخيرًا — الإسنادات Cascade على العقود)
+  await step("engineer_leaves", () => tx.engineerLeave.deleteMany({}));
+  await step("engineer_timesheets", () => tx.engineerTimesheet.deleteMany({}));
+  await step("engineer_assignments", () => tx.engineerAssignment.deleteMany({}));
+  await step("engineers", () => tx.engineer.deleteMany({}));
 
   return deleted;
 }
@@ -129,7 +137,7 @@ export async function POST(req: NextRequest) {
       });
 
       return counts;
-    });
+    }, { timeout: 60_000, maxWait: 10_000 }); // نمو الجداول مع الموديولات — مهلة كافية لكل الخطوات
   } catch (e) {
     const msg = e instanceof Error ? e.message : "خطأ غير معروف";
     return jsonError(`فشلت إعادة الضبط — لم يُحذف شيء: ${msg}`, 500);
