@@ -301,7 +301,7 @@ model BoqItem {
   qty               Decimal           @default(1)
   unit              String            @default("")
   unitPrice         Decimal           @default(0) @map("unit_price")
-  plannedQty        Decimal           @default(0) @map("planned_qty") // الكمية المخططة للتنفيذ — عداد «مخطط» في مقايسة التنفيذ (بند NOVA 5)
+  plannedQty        Decimal           @default(0) @db.Decimal(18, 3) @map("planned_qty") // الكمية المخططة للتنفيذ — عداد «مخطط» في مقايسة التنفيذ (بند NOVA 5)
   amount            Decimal           @default(0)
   sortOrder         Int               @default(0) @map("sort_order")
   deleted           Boolean           @default(false)
