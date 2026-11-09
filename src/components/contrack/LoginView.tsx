@@ -21,6 +21,12 @@ import {
   Info,
   Layers,
   Sparkles,
+  Hammer,
+  Building2,
+  Truck,
+  Home,
+  Utensils,
+  Briefcase,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +56,12 @@ const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
   compass: DraftingCompass,
   users: Users,
   layers: Layers,
+  hammer: Hammer,
+  "building-2": Building2,
+  truck: Truck,
+  home: Home,
+  utensils: Utensils,
+  briefcase: Briefcase,
 };
 
 interface LoginViewProps {
