@@ -14,7 +14,6 @@ import { CalendarClock, FileSignature, NotebookPen, Wrench } from "lucide-react"
 
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiError, apiGet } from "./api";
 import { errMessage, type User } from "./contrack-types";
 import { ContractsSection } from "./maintenance/ContractsSection";
@@ -29,7 +28,6 @@ export interface MaintenanceViewProps {
   user: User;
   onAuthError: () => void;
   section: MaintenanceSection;
-  onSectionChange: (s: MaintenanceSection) => void;
   onOpenContract: (id: number) => void;
 }
 
@@ -150,11 +148,7 @@ export function statusTone(status: string): string {
 
 // ==================== الشاشة الرئيسية ====================
 
-const SECTION_META: { key: MaintenanceSection; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { key: "contracts", label: "عقود الصيانة", icon: FileSignature },
-  { key: "schedule", label: "الجدول الوقائي", icon: CalendarClock },
-  { key: "orders", label: "أوامر العمل", icon: NotebookPen },
-];
+// SECTION_META (مرآة الأقسام) أُزيلت — شريط التابات انتقل للشل ModuleTabsBar (docs/mobile-tabs-design.md)
 
 function KpiCard({
   icon: Icon,
@@ -181,7 +175,7 @@ function KpiCard({
   );
 }
 
-export function MaintenanceView({ user, onAuthError, section, onSectionChange, onOpenContract }: MaintenanceViewProps) {
+export function MaintenanceView({ user, onAuthError, section, onOpenContract }: MaintenanceViewProps) {
   const kpisQuery = useQuery<MaintenanceKpis>({
     queryKey: ["maintenance", "summary"],
     queryFn: () => apiGet<MaintenanceKpis>("/api/maintenance/summary"),
@@ -220,17 +214,7 @@ export function MaintenanceView({ user, onAuthError, section, onSectionChange, o
         )}
       </div>
 
-      {/* تبويبات الأقسام (مرآة الشل للتنقل السريع داخل الشاشة) */}
-      <Tabs value={section} onValueChange={(v) => onSectionChange(v as MaintenanceSection)}>
-        <TabsList className="h-9 w-full justify-start overflow-x-auto sm:w-auto">
-          {SECTION_META.map((s) => (
-            <TabsTrigger key={s.key} value={s.key} className="gap-1.5">
-              <s.icon className="size-3.5" />
-              {s.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      {/* شريط الأقسام انتقل للشل ModuleTabsBar (الهاتف فقط) — docs/mobile-tabs-design.md */}
 
       {/* محتوى القسم */}
       {section === "contracts" && <ContractsSection onAuthError={onAuthError} onOpenContract={onOpenContract} />}

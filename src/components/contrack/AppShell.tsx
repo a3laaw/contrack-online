@@ -89,8 +89,23 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
     });
   }, []);
 
+  // تابات الوحدة (docs/mobile-tabs-design.md) — الهاتف/التابلت فقط (< lg): مرآة بنود الجانبي
+  // للتنقل السريع بلا درج، والتمييز من activeNav المشتقّ فيتزامن مع كل تغيير قسم داخلي
+  const tabsBarRef = React.useRef<HTMLDivElement | null>(null);
+
   const active = findNavChild(activeNav);
   const activeModuleId = active?.module.id ?? "clients";
+
+  // تمرير التاب النشط لمنطقة الرؤية — block:"nearest" يمنع أي قفز رأسي للصفحة
+  React.useEffect(() => {
+    const bar = tabsBarRef.current;
+    if (!bar) return;
+    const el = bar.querySelector<HTMLElement>(`[data-nav-tab="${CSS.escape(activeNav)}"]`);
+    el?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeNav, activeModuleId]);
+
+  // بند الإعدادات مستثنى من شريط التابات: شريطه الداخلي تنقّل أصلي يصل لأقسام
+  // لا بنود لها في الشل (الشركات/أدوات المطور/إدارة البيانات) — docs/mobile-tabs-design.md §2.4
 
   // الوحدات ذات بنود مرئية فقط
   // خطة الأنشطة: تبويبات الشل تُحصر بأنشطة الشركة الفعّالة أولاً (user.modules —
@@ -218,6 +233,37 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
             </Button>
           </div>
         </div>
+
+        {/* ===== تابات الوحدة — الهاتف والتابلت فقط (< lg): مرآة بنود الجانبي بعد نفس الفلترة ===== */}
+        {!inDevConsole && currentModule && currentModule.module.id !== "settings" && currentModule.children.length >= 2 && (
+          <nav aria-label={`تبويبات ${currentModule.module.label}`} className="border-t bg-card lg:hidden">
+            <div ref={tabsBarRef} className="flex h-12 items-center gap-1 overflow-x-auto px-2 sm:px-3">
+              {currentModule.children.map((child) => {
+                const Icon = child.icon;
+                const isActive = child.id === activeNav;
+                return (
+                  <button
+                    key={child.id}
+                    type="button"
+                    data-nav-tab={child.id}
+                    onClick={() => pick(child)}
+                    aria-current={isActive ? "page" : undefined}
+                    title={child.label}
+                    className={cn(
+                      "flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-primary-soft text-primary-soft-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    )}
+                  >
+                    <Icon className={cn("size-4 shrink-0", isActive && "text-primary")} />
+                    <span>{child.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+        )}
       </header>
 
       {/* لوحة المطور (Task 100) — شريط تمييز: المطور داخل شركة (جاء إليها من اللوحة) */}

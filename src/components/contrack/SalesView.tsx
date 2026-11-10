@@ -11,7 +11,6 @@
 import * as React from "react";
 import { Calculator, FileText } from "lucide-react";
 
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { User } from "./contrack-types";
 import { QuotesSection } from "./sales/QuotesSection";
 import { PosSection } from "./sales/PosSection";
@@ -27,10 +26,7 @@ export interface SalesViewProps {
   onSectionChange: (s: SalesSection) => void;
 }
 
-const SECTION_META: { key: SalesSection; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { key: "quotes", label: "عروض الأسعار", icon: FileText },
-  { key: "pos", label: "نقاط البيع", icon: Calculator },
-];
+// SECTION_META (مرآة الأقسام) أُزيلت — شريط التابات انتقل للشل ModuleTabsBar (docs/mobile-tabs-design.md)
 
 // ==================== الشاشة الرئيسية ====================
 
@@ -45,17 +41,7 @@ export function SalesView({ user, onAuthError, section, onSectionChange }: Sales
         </p>
       </div>
 
-      {/* تبويبات الأقسام (مرآة الشل للتنقل السريع داخل الشاشة) */}
-      <Tabs value={section} onValueChange={(v) => onSectionChange(v as SalesSection)}>
-        <TabsList className="h-9 w-full justify-start overflow-x-auto sm:w-auto">
-          {SECTION_META.map((s) => (
-            <TabsTrigger key={s.key} value={s.key} className="gap-1.5">
-              <s.icon className="size-3.5" />
-              {s.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      {/* شريط الأقسام انتقل للشل ModuleTabsBar (الهاتف فقط) — docs/mobile-tabs-design.md */}
 
       {/* محتوى القسم */}
       {section === "quotes" && (

@@ -21,7 +21,6 @@ import {
 
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiError, apiGet } from "./api";
 import { errMessage, type User } from "./contrack-types";
 import { ItemsSection } from "./warehouses/ItemsSection";
@@ -36,7 +35,6 @@ export interface WarehousesViewProps {
   user: User;
   onAuthError: () => void;
   section: WarehousesSection;
-  onSectionChange: (s: WarehousesSection) => void;
 }
 
 export interface WarehouseRow {
@@ -108,15 +106,11 @@ function KpiCard({
   );
 }
 
-const SECTION_META: { key: WarehousesSection; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { key: "items", label: "الأصناف والمستودعات", icon: Warehouse },
-  { key: "docs", label: "أذون المخازن", icon: PackagePlus },
-  { key: "balances", label: "الأرصدة والتقارير", icon: Boxes },
-];
+// SECTION_META (مرآة الأقسام) أُزيلت — شريط التابات انتقل للشل ModuleTabsBar (docs/mobile-tabs-design.md)
 
 // ==================== الشاشة الرئيسية ====================
 
-export function WarehousesView({ user, onAuthError, section, onSectionChange }: WarehousesViewProps) {
+export function WarehousesView({ user, onAuthError, section }: WarehousesViewProps) {
   const summaryQuery = useQuery<WhSummaryResponse>({
     queryKey: ["warehouses", "summary"],
     queryFn: () => apiGet<WhSummaryResponse>("/api/warehouses/summary"),
@@ -160,17 +154,7 @@ export function WarehousesView({ user, onAuthError, section, onSectionChange }: 
         )}
       </div>
 
-      {/* تبويبات الأقسام (مرآة الشل للتنقل السريع داخل الشاشة) */}
-      <Tabs value={section} onValueChange={(v) => onSectionChange(v as WarehousesSection)}>
-        <TabsList className="h-9 w-full justify-start overflow-x-auto sm:w-auto">
-          {SECTION_META.map((s) => (
-            <TabsTrigger key={s.key} value={s.key} className="gap-1.5">
-              <s.icon className="size-3.5" />
-              {s.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      {/* شريط الأقسام انتقل للشل ModuleTabsBar (الهاتف فقط) — docs/mobile-tabs-design.md */}
 
       {/* محتوى القسم */}
       {section === "items" && <ItemsSection onAuthError={onAuthError} />}

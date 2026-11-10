@@ -260,14 +260,7 @@ function EmptyState({ icon: Icon, title, hint }: { icon: React.ComponentType<{ c
   );
 }
 
-const SECTION_META: { key: ConsultingSection; label: string }[] = [
-  { key: "team", label: "الفريق الهندسي" },
-  { key: "assignments", label: "إسناد المشاريع" },
-  { key: "timesheets", label: "ساعات العمل" },
-  { key: "revisions", label: "مراجعات المخططات" },
-  { key: "leaves", label: "الإجازات" },
-  { key: "radar", label: "رادار المواعيد" },
-];
+// SECTION_META (مرآة الأقسام) أُزيلت — شريط التابات انتقل للشل ModuleTabsBar (docs/mobile-tabs-design.md)
 
 // ==================== الشاشة الرئيسية ====================
 
@@ -418,16 +411,7 @@ export function ConsultingView({ user, onAuthError, section, onSectionChange }: 
         </Card>
       )}
 
-      {/* تبويبات الأقسام (مرآة الشل للتنقل السريع داخل الشاشة) */}
-      <Tabs value={section} onValueChange={(v) => onSectionChange(v as ConsultingSection)}>
-        <TabsList className="h-9 w-full justify-start overflow-x-auto sm:w-auto">
-          {SECTION_META.map((s) => (
-            <TabsTrigger key={s.key} value={s.key}>
-              {s.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      {/* شريط الأقسام انتقل للشل ModuleTabsBar (الهاتف فقط) — docs/mobile-tabs-design.md */}
 
       {/* محتوى القسم */}
       {section === "team" && (

@@ -356,17 +356,7 @@ function Th({ children }: { children?: React.ReactNode }) {
   return <th className="px-3 py-2 text-start text-[11px] font-semibold text-muted-foreground">{children}</th>;
 }
 
-const SECTION_META: { key: HRSection; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { key: "team", label: "الموظفون", icon: Users },
-  { key: "attendance", label: "الحضور", icon: CalendarCheck2 },
-  { key: "leaves", label: "الإجازات", icon: CalendarDays },
-  { key: "permissions", label: "الأذونات", icon: Timer },
-  { key: "payroll", label: "المسير", icon: Banknote },
-  { key: "advances", label: "السلف", icon: HandCoins },
-  { key: "eos", label: "نهاية الخدمة", icon: DoorOpen },
-  { key: "labor", label: "الأطقم والتكليفات", icon: Network },
-  { key: "reports", label: "التقارير", icon: ClipboardList },
-];
+// SECTION_META (مرآة الأقسام) أُزيلت — شريط التابات انتقل للشل ModuleTabsBar (docs/mobile-tabs-design.md)
 
 // ==================== الشاشة الرئيسية ====================
 
@@ -493,17 +483,7 @@ export function HRView({ onAuthError, section, onSectionChange }: HRViewProps) {
         )}
       </div>
 
-      {/* تبويبات الأقسام (مرآة الشل للتنقل السريع داخل الشاشة) */}
-      <Tabs value={section} onValueChange={(v) => onSectionChange(v as HRSection)}>
-        <TabsList className="h-9 w-full justify-start overflow-x-auto sm:w-auto">
-          {SECTION_META.map((s) => (
-            <TabsTrigger key={s.key} value={s.key} className="gap-1.5">
-              <s.icon className="size-3.5" />
-              {s.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      {/* شريط الأقسام انتقل للشل ModuleTabsBar (الهاتف فقط) — docs/mobile-tabs-design.md */}
 
       {/* محتوى القسم */}
       {section === "team" && (

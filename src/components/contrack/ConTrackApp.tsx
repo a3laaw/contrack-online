@@ -441,7 +441,7 @@ function AppRoot() {
       )}
       {view === "hr" && <HRView user={user} onAuthError={onAuthError} section={hrSection} onSectionChange={setHrSection} />}
       {view === "warehouses" && (
-        <WarehousesView user={user} onAuthError={onAuthError} section={warehousesSection} onSectionChange={setWarehousesSection} />
+        <WarehousesView user={user} onAuthError={onAuthError} section={warehousesSection} />
       )}
       {view === "sales" && (
         <SalesView user={user} onAuthError={onAuthError} section={salesSection} onSectionChange={setSalesSection} />
@@ -451,7 +451,6 @@ function AppRoot() {
           user={user}
           onAuthError={onAuthError}
           section={maintenanceSection}
-          onSectionChange={setMaintenanceSection}
           onOpenContract={openContract}
         />
       )}
