@@ -2,11 +2,13 @@
 @import "tw-animate-css";
 
 /*
- * لوحة ConTrack الفاتحة — معتمدة من المستخدم (قيد 1 و5):
- * خلفية #F9FAFB · أسطح #FFFFFF · حدود #E5E7EB · رؤوس جداول #F3F4F6
- * أساسي #0F766E (أبيض عليه 5.3:1) · فاتح الأساسي #F0FDFA/#99F6E4/#134E4A — لوحة «ب: البترولي المالي» (Task 92)
- * نص أساسي #1F2937 (14.05:1) · نص ثانوي #6B7280 (4.63:1)
- * لا وضع ليلي ولا أسطح داكنة إطلاقًا.
+ * 🎨 لوحة NOVA المعتمدة من المالك (2026-11-10) — docs/PROJECT-LOG.md §2:
+ * الأساسي #FFB000 (برتقالي زاهٍ) · الشعلة #FF5722 (ظل الأزرار والتدرجات) · الشمس #FFD600 (تمييز/ذكاء اصطناعي)
+ * المعلومات #2563EB (أزرق ملكي — روابط وقيد التنفيذ) · الخلفية الورقية الدافئة #FDF8F3
+ * العناوين Slate-800 #1E293B · النصوص Slate-600 #475569
+ * قواعد إلزامية: البرتقالي/الأصفر الزاهي أسطحٌ وشاراتٍ لا نصوصًا — النص بالعائلة البرتقالية
+ * يستخدم --primary-ink #B45309 أو --brand-flame-ink #BF360C (تباين WCAG).
+ * لا وضع ليلي ولا أسطح داكنة إطلاقًا. لا ألوان خارج اللوحة.
  */
 
 @theme inline {
@@ -46,6 +48,10 @@
   --color-primary-soft: var(--primary-soft);
   --color-primary-soft-foreground: var(--primary-soft-foreground);
   --color-primary-soft-border: var(--primary-soft-border);
+  --color-primary-ink: var(--primary-ink);
+  --color-brand-flame: var(--brand-flame);
+  --color-brand-flame-ink: var(--brand-flame-ink);
+  --color-brand-sun: var(--brand-sun);
   --color-status-done: var(--status-done);
   --color-status-done-bg: var(--status-done-bg);
   --color-status-info: var(--status-info);
@@ -62,57 +68,66 @@
 
 :root {
   --radius: 0.625rem;
-  /* الخلفية والأسطح */
-  --background: #F9FAFB;
-  --foreground: #1F2937;
-  --card: #FFFFFF;
-  --card-foreground: #1F2937;
-  --popover: #FFFFFF;
-  --popover-foreground: #1F2937;
-  /* الأساسي: أزرار وتنقل نشط وتحديد وروابط — بترولي واحد فقط (لوحة ب: البترولي المالي) */
-  --primary: #0F766E;
-  --primary-foreground: #FFFFFF;
-  /* خلفية الأساسي الفاتحة (تباين عالٍ بنص #134E4A) */
-  --primary-soft: #F0FDFA;
-  --primary-soft-foreground: #134E4A;
-  --primary-soft-border: #99F6E4;
-  /* الثانوي = رأس الجدول #F3F4F6 */
-  --secondary: #F3F4F6;
-  --secondary-foreground: #1F2937;
-  --muted: #F3F4F6;
-  --muted-foreground: #6B7280;
-  --accent: #F0FDFA;
-  --accent-foreground: #134E4A;
+  /* الورق الدافئ — الصفحات #FDF8F3 والبطاقات أدفأ بدرجة #FFFDF9 (قرار D-002) */
+  --background: #FDF8F3;
+  --foreground: #1E293B;
+  --card: #FFFDF9;
+  --card-foreground: #1E293B;
+  --popover: #FFFDF9;
+  --popover-foreground: #1E293B;
+  /* الأساسي: برتقالي NOVA — أزرار وتنقل نشط وتحديد. النص فوقه Slate-900 (9.7:1) */
+  --primary: #FFB000;
+  --primary-foreground: #0F172A;
+  /* نص/أيقونة العائلة الرئيسية على الخلفيات الفاتحة — #B45309 لا #FFB000 (قاعدة §2-1) */
+  --primary-ink: #B45309;
+  /* خلفية الأساسي الفاتحة (تحديد وتنقل نشط) بنص كهرماني غامق */
+  --primary-soft: #FFF8E1;
+  --primary-soft-foreground: #92400E;
+  --primary-soft-border: #FDE68A;
+  /* الشعلة — ظل الأزرار والتدرجات والأزرار الثانوية */
+  --brand-flame: #FF5722;
+  --brand-flame-ink: #BF360C;
+  /* الشمس — تمييز النصوص الهامة وأيقونات الذكاء الاصطناعي (أسطح وشارات فقط) */
+  --brand-sun: #FFD600;
+  /* الثانوي والميوت — رؤوس جداول وأسطح رمادية دافئة على الورق */
+  --secondary: #F5EFE3;
+  --secondary-foreground: #1E293B;
+  --muted: #F5EFE3;
+  --muted-foreground: #475569;
+  --accent: #FFF8E1;
+  --accent-foreground: #92400E;
   /* الخطر — فاتح لا داكن (#B91C1C على #FEE2E2 بـ 5.3:1) */
   --destructive: #B91C1C;
   --destructive-soft: #FEE2E2;
-  --border: #E5E7EB;
-  --input: #E5E7EB;
-  --ring: #0F766E;
-  /* ألوان الحالات — داخل الشارات فقط، بلا أخضر (قيد 4) */
+  /* حدود ورقية دافئة */
+  --border: #EDE4D3;
+  --input: #E0D5C0;
+  /* حلقة التركيز بالعائلة الرئيسية المقروءة (الزاهي لا يبلغ 3:1) — قرار D-004 */
+  --ring: #B45309;
+  /* ألوان الحالات — داخل الشارات فقط، بلا أخضر — المعلومات أزرق ملكي معتمد #2563EB */
   --status-done: #334155;
   --status-done-bg: #E2E8F0;
-  --status-info: #1D4ED8;
+  --status-info: #2563EB;
   --status-info-bg: #DBEAFE;
   --status-warn: #92400E;
   --status-warn-bg: #FEF3C7;
   --status-danger: #B91C1C;
   --status-danger-bg: #FEE2E2;
-  /* الرسوم البيانية — من اللوحة فقط */
-  --chart-1: #0F766E;
-  --chart-2: #1D4ED8;
-  --chart-3: #92400E;
+  /* الرسوم البيانية — من اللوحة حصرًا */
+  --chart-1: #FFB000;
+  --chart-2: #2563EB;
+  --chart-3: #FF5722;
   --chart-4: #334155;
-  --chart-5: #B91C1C;
-  /* القائمة الجانبية — سطح أبيض */
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #1F2937;
-  --sidebar-primary: #0F766E;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F0FDFA;
-  --sidebar-accent-foreground: #134E4A;
-  --sidebar-border: #E5E7EB;
-  --sidebar-ring: #0F766E;
+  --chart-5: #BF360C;
+  /* القائمة الجانبية — سطح ورقي دافئ */
+  --sidebar: #FFFDF9;
+  --sidebar-foreground: #1E293B;
+  --sidebar-primary: #FFB000;
+  --sidebar-primary-foreground: #0F172A;
+  --sidebar-accent: #FFF8E1;
+  --sidebar-accent-foreground: #92400E;
+  --sidebar-border: #EDE4D3;
+  --sidebar-ring: #B45309;
 }
 
 @layer base {
@@ -124,10 +139,10 @@
   }
 }
 
-/* أشرطة تمرير محايدة — الأخضر (البترولي) للعناصر التفاعلية فقط (Task 92) */
+/* أشرطة تمرير دافئة محايدة — عناصر اللوحة التفاعلية فقط للبرتقالي */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #D1D5DB transparent;
+  scrollbar-color: #D8CCB8 transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
@@ -137,11 +152,11 @@
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background: #D1D5DB;
+  background: #D8CCB8;
   border-radius: 8px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #9CA3AF;
+  background: #C4B49C;
 }
 
 /* أسهم الأرقام (البكرة) مُلغاة — الأرقام والمبالغ كتابة حرة بالكيبورد فقط (Task 93) */

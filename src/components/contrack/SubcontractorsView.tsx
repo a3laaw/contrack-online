@@ -255,7 +255,7 @@ export function SubcontractorsView({ user, onAuthError }: SubcontractorsViewProp
                 <Card key={c.id} className="gap-2 p-3" onClick={() => setFileId(c.id)}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-1.5 font-semibold">
-                      <HardHat className="size-4 text-primary/70" />
+                      <HardHat className="size-4 text-primary-ink/70" />
                       {c.name}
                     </span>
                     <span className="text-xs text-muted-foreground" dir="ltr">{c.subCode}</span>

@@ -262,7 +262,7 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
                 <FileSignature className="size-5" />
               </span>
               <div className="leading-tight">
-                <p className="text-base font-extrabold text-primary">ConTrack</p>
+                <p className="text-base font-extrabold text-primary-ink">ConTrack</p>
                 <p className="text-[10px] text-muted-foreground">نظام إدارة العقود والمحاسبة — الكويت</p>
               </div>
             </div>
@@ -285,7 +285,7 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
                 <div className="rounded-xl border bg-card p-4 space-y-2 text-sm">
                   <p>
                     الرقم المرجعي:{" "}
-                    <span dir="ltr" className="font-mono font-bold text-primary">
+                    <span dir="ltr" className="font-mono font-bold text-primary-ink">
                       JR-{String(joinDone).padStart(5, "0")}
                     </span>{" "}
                     — احتفظوا به
@@ -381,7 +381,7 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
                             <p className="mt-3 font-bold">{t.name}</p>
                             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t.desc}</p>
                             <p className="mt-2.5 flex items-start gap-1 border-t pt-2.5 text-[11px] leading-relaxed text-muted-foreground">
-                              <Sparkles className="mt-0.5 size-3 shrink-0 text-primary" />
+                              <Sparkles className="mt-0.5 size-3 shrink-0 text-primary-ink" />
                               <span>
                                 <span className="font-bold text-foreground">المقترح: </span>
                                 {suggestedModulesLabel(t.code)}
@@ -415,7 +415,7 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
                       <button
                         type="button"
                         onClick={goStep1}
-                        className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
+                        className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-primary-ink hover:underline"
                       >
                         <ArrowRight className="size-3.5" />
                         تغيير نوع النشاط ({activityTypeName(activityType)})
@@ -695,7 +695,7 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
           <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
             <FileSignature className="size-7" />
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-primary">ConTrack</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-primary-ink">ConTrack</h1>
           <p className="text-sm text-muted-foreground">نظام إدارة العقود والمحاسبة — V9.15</p>
         </div>
 
@@ -762,7 +762,7 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
               <button
                 type="button"
                 onClick={() => closeJoin(true)}
-                className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
+                className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-primary-ink hover:underline"
               >
                 هل تريد انضمام شركتك؟ قدِّم طلب انضمام
               </button>

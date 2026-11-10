@@ -99,7 +99,7 @@ function KpiCard({
     <Card className="gap-1 p-4">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">{label}</span>
-        <Icon className="size-4 shrink-0 text-primary/70" />
+        <Icon className="size-4 shrink-0 text-primary-ink/70" />
       </div>
       <p className={`text-base font-bold tabular-nums sm:text-lg ${tone || ""}`}>{value}</p>
       {sub && <p className="text-[11px] text-muted-foreground">{sub}</p>}
@@ -278,7 +278,7 @@ export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewP
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="flex items-center gap-2 text-lg font-extrabold sm:text-xl">
-            <FileStack className="size-5 text-primary" />
+            <FileStack className="size-5 text-primary-ink" />
             الفواتير
           </h1>
           <p className="text-xs text-muted-foreground">
@@ -448,7 +448,7 @@ export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewP
                         {inv.entryNo ? (
                           <button
                             type="button"
-                            className="inline-flex items-center gap-1 rounded-full border border-primary/30 px-2 py-0.5 font-mono text-[11px] text-primary hover:bg-primary/10"
+                            className="inline-flex items-center gap-1 rounded-full border border-primary/30 px-2 py-0.5 font-mono text-[11px] text-primary-ink hover:bg-primary/10"
                             onClick={() => onOpenJournal?.(String(inv.entryNo))}
                             aria-label={`فتح القيد رقم ${inv.entryNo}`}
                             title="فتح القيد في القيود اليومية"
@@ -496,7 +496,7 @@ export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewP
                     {inv.entryNo && (
                       <button
                         type="button"
-                        className="inline-flex items-center gap-1 rounded-full border border-primary/30 px-2 py-0.5 text-[11px] text-primary"
+                        className="inline-flex items-center gap-1 rounded-full border border-primary/30 px-2 py-0.5 text-[11px] text-primary-ink"
                         onClick={() => onOpenJournal?.(String(inv.entryNo))}
                         aria-label={`فتح القيد رقم ${inv.entryNo}`}
                       >
@@ -557,7 +557,7 @@ export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewP
                   {detail.entry ? (
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1 font-mono font-bold text-primary hover:underline"
+                      className="inline-flex items-center gap-1 font-mono font-bold text-primary-ink hover:underline"
                       onClick={() => {
                         setDetailId(null);
                         onOpenJournal?.(String(detail.entry!.entryNo));
@@ -623,7 +623,7 @@ export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewP
                 )}
                 <div className="rounded-lg border bg-primary/5 p-2">
                   <div className="text-muted-foreground">الصافي</div>
-                  <div className="text-sm font-extrabold tabular-nums text-primary">{formatKWD(dInv.total)}</div>
+                  <div className="text-sm font-extrabold tabular-nums text-primary-ink">{formatKWD(dInv.total)}</div>
                 </div>
                 <div className="rounded-lg border bg-muted/30 p-2">
                   <div className="text-muted-foreground">المسدد</div>
@@ -637,7 +637,7 @@ export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewP
 
               {/* سندات السداد */}
               <div>
-                <h3 className="mb-1.5 text-xs font-bold text-primary">
+                <h3 className="mb-1.5 text-xs font-bold text-primary-ink">
                   سندات السداد المرتبطة ({detail.payments.length})
                 </h3>
                 {detail.payments.length === 0 ? (

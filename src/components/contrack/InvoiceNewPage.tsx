@@ -471,7 +471,7 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
             </div>
             <div>
               <div className="text-muted-foreground">الصافي المفوتر</div>
-              <div className="font-mono font-extrabold tabular-nums text-primary" dir="ltr">
+              <div className="font-mono font-extrabold tabular-nums text-primary-ink" dir="ltr">
                 {formatKWD(totals.total)}
               </div>
             </div>

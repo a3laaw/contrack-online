@@ -140,7 +140,7 @@ function KpiCard({
     <Card className="gap-1 p-4">
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">{label}</span>
-        <Icon className="size-4 text-primary/70" />
+        <Icon className="size-4 text-primary-ink/70" />
       </div>
       <p className={`text-base font-bold tabular-nums sm:text-lg ${tone || ""}`}>{value}</p>
     </Card>
@@ -413,7 +413,7 @@ export function AddendumsTab({ contract, user, onAuthError }: AddendumsTabProps)
       {/* البطاقات المالية + شارة الصافي */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <KpiCard icon={Wallet} label="القيمة الأصلية" value={formatKWD(contract.contract.amount)} />
-        <KpiCard icon={TrendingUp} label="القيمة الحالية" value={formatKWD(current)} tone="text-primary" />
+        <KpiCard icon={TrendingUp} label="القيمة الحالية" value={formatKWD(current)} tone="text-primary-ink" />
         <KpiCard icon={HandCoins} label="المحصّل" value={formatKWD(collected)} />
       </div>
 
@@ -483,7 +483,7 @@ export function AddendumsTab({ contract, user, onAuthError }: AddendumsTabProps)
                 role="tab"
                 aria-selected={active}
                 onClick={() => setAdxSide(t.key)}
-                className={`min-h-[32px] text-sm font-bold ${active ? "text-primary" : "text-muted-foreground"}`}
+                className={`min-h-[32px] text-sm font-bold ${active ? "text-primary-ink" : "text-muted-foreground"}`}
               >
                 {t.label}
               </button>
@@ -653,7 +653,7 @@ export function AddendumsTab({ contract, user, onAuthError }: AddendumsTabProps)
                   key={label}
                   className={`flex items-center gap-1 rounded-full border px-2 py-1 ${
                     active
-                      ? "border-primary bg-primary/10 font-semibold text-primary"
+                      ? "border-primary bg-primary/10 font-semibold text-primary-ink"
                       : done
                         ? "border-status-done/40 bg-status-done-bg text-status-done"
                         : "text-muted-foreground"

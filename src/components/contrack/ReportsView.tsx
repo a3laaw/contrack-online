@@ -197,7 +197,7 @@ export function ReportsView({ user: _user, onAuthError, selected, onSelect }: Re
       {/* الترويسة */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary-ink">
             <BarChart3 className="size-5" />
           </div>
           <div>
@@ -241,7 +241,7 @@ export function ReportsView({ user: _user, onAuthError, selected, onSelect }: Re
             <CardContent className="flex flex-wrap items-end gap-3 p-3">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <def.icon className="size-4 shrink-0 text-primary" />
+                  <def.icon className="size-4 shrink-0 text-primary-ink" />
                   <h2 className="text-sm font-bold">{data?.title || def.label}</h2>
                   <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal text-muted-foreground">
                     {reportCategory(def.category).label}

@@ -113,7 +113,7 @@ function KpiCard({
     <Card className="gap-1 p-4">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">{label}</span>
-        <Icon className="size-4 shrink-0 text-primary/70" />
+        <Icon className="size-4 shrink-0 text-primary-ink/70" />
       </div>
       <p className={`text-base font-bold tabular-nums sm:text-lg ${tone || ""}`}>{value}</p>
       {sub && <p className="text-[11px] text-muted-foreground">{sub}</p>}
@@ -686,7 +686,7 @@ export function VisitsView({ onAuthError }: VisitsViewProps) {
                             <button
                               type="button"
                               onClick={() => openBook(h, s)}
-                              className="flex min-h-14 w-full items-center justify-center rounded-md border border-dashed text-muted-foreground/50 transition-colors hover:border-primary/40 hover:bg-muted/50 hover:text-primary"
+                              className="flex min-h-14 w-full items-center justify-center rounded-md border border-dashed text-muted-foreground/50 transition-colors hover:border-primary/40 hover:bg-muted/50 hover:text-primary-ink"
                               title={`حجز ${h} — ${s.name}`}
                             >
                               <Plus className="size-4" />

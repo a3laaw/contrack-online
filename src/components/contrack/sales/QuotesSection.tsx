@@ -332,7 +332,7 @@ export function QuotesSection({ user, onAuthError, onOpenPos }: QuotesSectionPro
                   ) : (
                     <span>
                       لا توجد عروض أسعار بعد — أنشئ أول عرض، أو بيع فورًا من{" "}
-                      <button type="button" className="font-medium text-primary underline" onClick={onOpenPos}>
+                      <button type="button" className="font-medium text-primary-ink underline" onClick={onOpenPos}>
                         نقاط البيع
                       </button>
                     </span>

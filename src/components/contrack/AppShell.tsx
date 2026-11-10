@@ -157,7 +157,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
             <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <FileSignature className="size-5" />
             </span>
-            <span className="hidden sm:block text-base font-extrabold text-primary tracking-tight">ConTrack</span>
+            <span className="hidden sm:block text-base font-extrabold text-primary-ink tracking-tight">ConTrack</span>
           </button>
 
           {/* الوحدات — الحاسوب (مخفية في اللوحة) */}
@@ -194,7 +194,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-9 text-primary hover:text-primary"
+                className="size-9 text-primary-ink hover:text-primary-ink"
                 onClick={onOpenDevConsole}
                 aria-label="لوحة تحكم المطور"
                 title="لوحة تحكم المطور"
@@ -256,7 +256,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
                         : "text-muted-foreground hover:text-foreground hover:bg-secondary"
                     )}
                   >
-                    <Icon className={cn("size-4 shrink-0", isActive && "text-primary")} />
+                    <Icon className={cn("size-4 shrink-0", isActive && "text-primary-ink")} />
                     <span>{child.label}</span>
                   </button>
                 );
@@ -277,7 +277,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
             <button
               type="button"
               onClick={onReturnToDevConsole}
-              className="rounded-md px-2 py-0.5 text-xs font-semibold text-primary underline-offset-2 hover:underline"
+              className="rounded-md px-2 py-0.5 text-xs font-semibold text-primary-ink underline-offset-2 hover:underline"
             >
               رجوع للوحة المطور
             </button>
@@ -337,7 +337,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
                           : "text-muted-foreground hover:text-foreground hover:bg-secondary"
                       )}
                     >
-                      <Icon className={cn("size-4 shrink-0", isActive && "text-primary")} />
+                      <Icon className={cn("size-4 shrink-0", isActive && "text-primary-ink")} />
                       {!collapsed && <span className="truncate">{child.label}</span>}
                     </button>
                   </li>
@@ -403,7 +403,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
                               : "text-muted-foreground hover:text-foreground hover:bg-secondary"
                           )}
                         >
-                          <Icon className={cn("size-4 shrink-0", isActive && "text-primary")} />
+                          <Icon className={cn("size-4 shrink-0", isActive && "text-primary-ink")} />
                           <span className="truncate">{child.label}</span>
                           {isActive && <ChevronLeft className="ms-auto size-3.5 shrink-0" />}
                         </button>

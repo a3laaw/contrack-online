@@ -67,7 +67,7 @@ export function IdentitySection({ onAuthError }: { onAuthError: () => void }) {
             </div>
           </div>
           <div className="flex items-center gap-2 rounded-lg border p-3 text-sm">
-            <Users className="size-4 text-primary" />
+            <Users className="size-4 text-primary-ink" />
             {usersQuery.isLoading ? (
               <Skeleton className="h-5 w-40" />
             ) : usersQuery.isError ? (

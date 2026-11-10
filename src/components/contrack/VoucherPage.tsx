@@ -435,7 +435,7 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
                 type="button"
                 onClick={() => setVtype(t)}
                 className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                  vtype === t ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"
+                  vtype === t ? "border-primary bg-primary/10 text-primary-ink" : "text-muted-foreground hover:bg-muted"
                 }`}
               >
                 {VOUCHER_TYPE_LABEL[t]}
@@ -567,7 +567,7 @@ export function VoucherPage({ user, onAuthError, mode, editing, preset, onSaved,
                       type="button"
                       onClick={() => setPayKind(s.k)}
                       className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-                        payKind === s.k ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"
+                        payKind === s.k ? "border-primary bg-primary/10 text-primary-ink" : "text-muted-foreground hover:bg-muted"
                       }`}
                     >
                       {s.label}

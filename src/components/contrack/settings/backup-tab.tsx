@@ -89,7 +89,7 @@ export function BackupTab({ form, upd, onReset, onSave, savePending }: BackupTab
 
       <Card>
         <CardHeader className="flex-row items-center gap-2 space-y-0 pb-2">
-          <DatabaseBackup className="size-4 text-primary" />
+          <DatabaseBackup className="size-4 text-primary-ink" />
           <CardTitle className="text-base">النسخ اليدوي والاستعادة</CardTitle>
         </CardHeader>
         <CardContent className="text-sm leading-relaxed text-muted-foreground">

@@ -118,7 +118,7 @@ function KpiCard({
     <Card className="gap-1 p-4">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">{label}</span>
-        <Icon className="size-4 shrink-0 text-primary/70" />
+        <Icon className="size-4 shrink-0 text-primary-ink/70" />
       </div>
       <p className={`text-base font-bold tabular-nums sm:text-lg ${tone || ""}`}>{value}</p>
       {sub && <p className="text-[11px] text-muted-foreground">{sub}</p>}
@@ -824,7 +824,7 @@ export function CustodyView({ user, onAuthError }: CustodyViewProps) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="flex items-center gap-2 text-lg font-extrabold sm:text-xl">
-            <Wallet className="size-5 text-primary" />
+            <Wallet className="size-5 text-primary-ink" />
             العُهد
           </h1>
           <p className="text-xs text-muted-foreground">

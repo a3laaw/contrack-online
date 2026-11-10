@@ -129,7 +129,7 @@ export function UnifiedPayTable({
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
-              <TableHead colSpan={4} className="text-center text-primary">
+              <TableHead colSpan={4} className="text-center text-primary-ink">
                 دفعات العميل
               </TableHead>
               <TableHead colSpan={4} className="text-center">

@@ -620,7 +620,7 @@ export function ContractNewPage({
                   {Number(fAmount || 0) !== bundleTotal && (
                     <button
                       type="button"
-                      className="ms-1 text-primary underline underline-offset-2"
+                      className="ms-1 text-primary-ink underline underline-offset-2"
                       onClick={() => setFAmount(String(bundleTotal))}
                     >
                       استخدام المجموع
@@ -962,7 +962,7 @@ export function ContractNewPage({
       {mode === "auto" && (
         <Card>
           <CardContent className="space-y-2 p-4">
-            <p className="rounded-md border border-primary/30 bg-primary/5 p-2.5 text-xs font-medium text-primary">
+            <p className="rounded-md border border-primary/30 bg-primary/5 p-2.5 text-xs font-medium text-primary-ink">
               📏 النوع «{selectedType?.name}» تلقائي — شجرة مراحل القالب ({tplStages.length} مرحلة) تُسحب كاملة تلقائيًا
               عند الإنشاء بلا اختيار يدوي (المكتبي _auto_plan_ui). المراحل الإشرافية معلّمة بـ 👁.
             </p>
@@ -1077,7 +1077,7 @@ export function ContractNewPage({
                 </ul>
                 <div className="flex items-center justify-between border-t pt-2 text-sm">
                   <span className="font-medium">الإجمالي</span>
-                  <span className="font-bold tabular-nums text-primary">{fmtK(bundleTotal)} د.ك</span>
+                  <span className="font-bold tabular-nums text-primary-ink">{fmtK(bundleTotal)} د.ك</span>
                 </div>
               </>
             )}

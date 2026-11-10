@@ -709,7 +709,7 @@ export function ContractDetailView({
               <Button variant="ghost" size="icon" className="size-8 shrink-0" onClick={onBack} aria-label="رجوع">
                 <ArrowRight className="size-4" />
               </Button>
-              <span className="font-bold text-primary" dir="ltr">
+              <span className="font-bold text-primary-ink" dir="ltr">
                 {detail.contractNumber}
               </span>
               <StatusBadge status={detail.status} className="px-2 py-0.5 text-[11px]" />
@@ -817,7 +817,7 @@ export function ContractDetailView({
           label="القيمة الحالية"
           value={formatKWD(detailData.current)}
           hint={hasSupervision ? "تشمل تمديد الإشراف" : undefined}
-          tone="text-primary"
+          tone="text-primary-ink"
         />
         <FinCard icon={HandCoins} label="المحصّل" value={formatKWD(detailData.collected)} />
         <FinCard
@@ -846,10 +846,10 @@ export function ContractDetailView({
                     : "border-border bg-card hover:bg-muted/60"
                 }`}
               >
-                <span className={`block text-[10px] font-medium ${active ? "text-primary" : "text-muted-foreground"}`}>
+                <span className={`block text-[10px] font-medium ${active ? "text-primary-ink" : "text-muted-foreground"}`}>
                   {g.group}
                 </span>
-                <span className={`block text-sm font-bold ${active ? "text-primary" : ""}`}>{g.label}</span>
+                <span className={`block text-sm font-bold ${active ? "text-primary-ink" : ""}`}>{g.label}</span>
               </button>
             );
           })}
@@ -1477,7 +1477,7 @@ function OverviewPage({
         sup && (
           <Card className="border-border bg-muted/40">
             <CardHeader className="p-4 pb-1">
-              <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-sm text-primary">
+              <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-sm text-primary-ink">
                 <span>عقد إشراف هندسي</span>
                 {manager && (
                   <span className="flex gap-1.5">
@@ -2035,7 +2035,7 @@ function FollowupPanelCompact({
           ) : (
             <>
               {manualPath && manual && (
-                <p className="text-sm font-bold text-primary">
+                <p className="text-sm font-bold text-primary-ink">
                   المنجز {manual.done} من {manual.total} · {manual.pct}٪
                 </p>
               )}
@@ -2347,7 +2347,7 @@ function FollowupPanelCompact({
       {/* ===== سجل المراحل (followup.py:1301–1324) ===== */}
       <Card>
         <CardHeader className="p-4 pb-1">
-          <CardTitle className="text-sm text-primary">🕒 سجل المراحل</CardTitle>
+          <CardTitle className="text-sm text-primary-ink">🕒 سجل المراحل</CardTitle>
         </CardHeader>
         <CardContent className="p-4 pt-1">
           {historyQuery.isLoading ? (
@@ -2370,7 +2370,7 @@ function FollowupPanelCompact({
       {/* ===== محادثة المعاملة (followup.py:624–654 + 1277–1299) ===== */}
       <Card>
         <CardHeader className="p-4 pb-1">
-          <CardTitle className="text-sm text-primary">💬 محادثة المعاملة</CardTitle>
+          <CardTitle className="text-sm text-primary-ink">💬 محادثة المعاملة</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 p-4 pt-1">
           {msgsQuery.isLoading ? (
@@ -2544,7 +2544,7 @@ function PayPage({
           {/* ② كتلة العميل «دفعاتنا على العميل» */}
           <PayBlockCard
             title="دفعاتنا على العميل"
-            titleTone="text-primary"
+            titleTone="text-primary-ink"
             action={
               manager ? (
                 <Button
@@ -2636,7 +2636,7 @@ function PayPage({
         <CardHeader className="p-0 pb-2">
           <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
             <span className="flex items-center gap-1.5">
-              <HardHat className="size-4 text-primary/70" />
+              <HardHat className="size-4 text-primary-ink/70" />
               مقاولو الباطن
             </span>
             {manager && (
@@ -2658,7 +2658,7 @@ function PayPage({
                 <div key={s.id} className="rounded-lg border p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="flex items-center gap-1.5 font-semibold">
-                      <HardHat className="size-4 text-primary/70" />
+                      <HardHat className="size-4 text-primary-ink/70" />
                       {s.subcontractor?.name ?? "—"}
                       {s.subcontractor?.subCode && (
                         <span className="text-xs font-normal text-muted-foreground" dir="ltr">({s.subcontractor.subCode})</span>
@@ -3025,7 +3025,7 @@ function FieldExecutionSection({
                           href={`https://maps.google.com/?q=${e.gpsLat},${e.gpsLng}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-primary hover:underline"
+                          className="text-primary-ink hover:underline"
                         >
                           📍 الموقع
                         </a>
@@ -3035,7 +3035,7 @@ function FieldExecutionSection({
                           href={`/api/attachments?id=${e.attachmentId}&download=1`}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-primary hover:underline"
+                          className="text-primary-ink hover:underline"
                         >
                           {e.attachmentName || "صورة"}
                         </a>
@@ -3193,7 +3193,7 @@ function FinCard({
     <Card className="gap-1 p-4">
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">{label}</span>
-        <Icon className="size-4 text-primary/70" />
+        <Icon className="size-4 text-primary-ink/70" />
       </div>
       <div className={`text-lg font-bold tabular-nums ${tone || ""}`} dir="ltr">
         {value}

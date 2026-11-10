@@ -84,7 +84,7 @@ export function ReportsHomeView({ user, perms, onOpenReport, onOpenView }: Repor
       {/* الترويسة */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary-ink">
             <BarChart3 className="size-5" />
           </div>
           <div>
@@ -127,7 +127,7 @@ export function ReportsHomeView({ user, perms, onOpenReport, onOpenView }: Repor
           return (
             <section key={cat.id} aria-label={cat.label} className="space-y-2">
               <div className="flex items-center gap-2">
-                <div className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <div className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary-ink">
                   <CatIcon className="size-4" />
                 </div>
                 <h2 className="text-sm font-bold">{cat.label}</h2>
@@ -150,7 +150,7 @@ export function ReportsHomeView({ user, perms, onOpenReport, onOpenView }: Repor
                         "hover:border-primary/40 hover:bg-primary-soft/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       )}
                     >
-                      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary-ink">
                         <Icon className="size-5" />
                       </span>
                       <span className="min-w-0 flex-1">
@@ -159,7 +159,7 @@ export function ReportsHomeView({ user, perms, onOpenReport, onOpenView }: Repor
                           {r.desc}
                         </span>
                       </span>
-                      <ChevronLeft className="size-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-primary" />
+                      <ChevronLeft className="size-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-primary-ink" />
                     </button>
                   );
                 })}
@@ -189,7 +189,7 @@ export function ReportsHomeView({ user, perms, onOpenReport, onOpenView }: Repor
                           {l.desc}
                         </span>
                       </span>
-                      <ChevronLeft className="size-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-primary" />
+                      <ChevronLeft className="size-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-primary-ink" />
                     </button>
                   );
                 })}

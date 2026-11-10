@@ -99,7 +99,7 @@ export function GatewayProfileEditPage({
           <span className="font-medium text-foreground">{editing ? "تعديل بوابة" : "بوابة جديدة"}</span>
         </nav>
         <h1 className="mt-1 flex items-center gap-2 text-xl font-bold">
-          <CreditCard className="size-5 text-primary" />
+          <CreditCard className="size-5 text-primary-ink" />
           {editing ? `تعديل البوابة: ${editing.name}` : "بوابة جديدة"}
         </h1>
         <p className="text-sm text-muted-foreground">

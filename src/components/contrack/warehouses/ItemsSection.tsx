@@ -153,7 +153,7 @@ export function ItemsSection({ onAuthError }: Props) {
       <Card className="p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 text-sm font-bold">
-            <Warehouse className="size-4 text-primary/70" />
+            <Warehouse className="size-4 text-primary-ink/70" />
             المستودعات
           </h2>
           <Button size="sm" className="h-8 gap-1" onClick={() => setWhDialog({ mode: "new" })}>
@@ -215,7 +215,7 @@ export function ItemsSection({ onAuthError }: Props) {
       <Card className="p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 text-sm font-bold">
-            <Package className="size-4 text-primary/70" />
+            <Package className="size-4 text-primary-ink/70" />
             الأصناف
           </h2>
           <Button size="sm" className="h-8 gap-1" onClick={() => setItemDialog({ mode: "new" })}>

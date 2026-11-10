@@ -132,7 +132,7 @@ export function SearchDialog(props: SearchDialogProps) {
       <DialogContent className="top-[12%] max-h-[80vh] translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-lg [&>button]:hidden">
         <DialogHeader className="border-b px-4 pb-3 pt-4 text-start">
           <DialogTitle className="flex items-center gap-2 text-base">
-            <Search className="size-4 text-primary" />
+            <Search className="size-4 text-primary-ink" />
             بحث شامل
           </DialogTitle>
           <DialogDescription className="text-xs">
@@ -188,7 +188,7 @@ export function SearchDialog(props: SearchDialogProps) {
                             }}
                             className="flex w-full items-center gap-2.5 rounded-md border bg-card px-2.5 py-2 text-start transition-colors hover:border-primary/40 hover:bg-accent/50"
                           >
-                            <Icon className="size-4 shrink-0 text-primary/70" />
+                            <Icon className="size-4 shrink-0 text-primary-ink/70" />
                             <div className="min-w-0">
                               <div className="truncate text-sm font-medium" dir="auto">
                                 {item.title}

@@ -348,14 +348,14 @@ export function SubFinCards({ item }: { item: NonNullable<SubContractDetailRespo
       <Card className="gap-1 p-3">
         <div className="flex items-center justify-between">
           <span className="text-[11px] text-muted-foreground">القيمة</span>
-          <Wallet className="size-3.5 text-primary/70" />
+          <Wallet className="size-3.5 text-primary-ink/70" />
         </div>
         <div className="text-sm font-bold tabular-nums lg:text-base" dir="ltr">{formatKWD(item.amount)}</div>
       </Card>
       <Card className="gap-1 p-3">
         <div className="flex items-center justify-between">
           <span className="text-[11px] text-muted-foreground">المدفوع</span>
-          <Banknote className="size-3.5 text-primary/70" />
+          <Banknote className="size-3.5 text-primary-ink/70" />
         </div>
         <div className="text-sm font-bold tabular-nums text-status-done lg:text-base" dir="ltr">
           {formatKWD(item.paid)}
@@ -774,7 +774,7 @@ export function SwitchLike({ checked, onClick, label }: { checked: boolean; onCl
       type="button"
       onClick={onClick}
       className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${
-        checked ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"
+        checked ? "border-primary bg-primary/10 text-primary-ink" : "text-muted-foreground hover:bg-muted"
       }`}
     >
       {label}

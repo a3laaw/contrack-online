@@ -21,7 +21,7 @@ export function fmtDateTime(s: string | null | undefined): string {
 const STATUS_STYLES: Record<string, string> = {
   // ===== جدول الحالات المعتمد (أربع حالات فقط — بلا أخضر) =====
   // مكتمل/منفّذ/مُرحَّل ⇒ رمادي #334155 على #E2E8F0
-  // قيد التنفيذ/بانتظار ⇒ أزرق #1D4ED8 على #DBEAFE
+  // قيد التنفيذ/بانتظار ⇒ أزرق ملكي #2563EB على #DBEAFE (لوحة NOVA المعتمدة)
   // تحذير/مسودة/متبقٍ ⇒ كهرماني #92400E على #FEF3C7
   // متأخر/خطر ⇒ أحمر #B91C1C على #FEE2E2
   // عقد

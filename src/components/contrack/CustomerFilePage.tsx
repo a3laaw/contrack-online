@@ -353,7 +353,7 @@ export function CustomerFilePage({
         <CardContent className="flex flex-wrap items-start justify-between gap-4 p-4">
           <div className="flex min-w-0 flex-1 items-start gap-3">
             <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-2xl" aria-hidden>
-              <UserIcon className="size-6 text-primary" />
+              <UserIcon className="size-6 text-primary-ink" />
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
@@ -365,7 +365,7 @@ export function CustomerFilePage({
               <p className="mt-0.5 text-sm text-muted-foreground">{contactLine}</p>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 {totals.count > 0 ? (
-                  <Badge className="bg-primary/10 text-primary hover:bg-primary/10" title="عدد العقود والنشط منها">
+                  <Badge className="bg-primary/10 text-primary-ink hover:bg-primary/10" title="عدد العقود والنشط منها">
                     {totals.count} عقد · منها {totals.active} نشط
                   </Badge>
                 ) : (
@@ -1012,7 +1012,7 @@ function CommentsPanel({
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
-                  {contractLabel && <div className="text-[11px] font-bold text-primary">{contractLabel}</div>}
+                  {contractLabel && <div className="text-[11px] font-bold text-primary-ink">{contractLabel}</div>}
                   <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-relaxed">{row.body}</p>
                 </div>
               );
@@ -1289,7 +1289,7 @@ function statusBadgeClassLite(status: string): string {
     case "متوقف":
       return "bg-status-warn-bg text-status-warn";
     case "معتمد":
-      return "bg-primary/10 text-primary";
+      return "bg-primary/10 text-primary-ink";
     case "منتهي":
       return "bg-status-done-bg text-status-done";
     case "مغلق":

@@ -9,17 +9,20 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        /* هوية NOVA: ظل الشعلة أسفل الزر الرئيسي يختفي عند الضغط (توقيع لمسي — PROJECT-LOG §2-2) */
         default:
-          "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+          "bg-primary text-primary-foreground shadow-[0_3px_0_0_var(--brand-flame)] hover:bg-primary/90 active:translate-y-[2px] active:shadow-none",
         destructive:
-          "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20",
+          "bg-destructive text-white shadow-[0_3px_0_0_#7F1D1D] hover:bg-destructive/90 active:translate-y-[2px] active:shadow-none focus-visible:ring-destructive/20",
         outline:
           "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
+        /* الزر الثانوي: سطح ورقي دافئ + نص الشعلة المقروء + ظل شعلة أخف (قرار D-003) */
         secondary:
-          "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
+          "bg-secondary text-brand-flame-ink shadow-[0_2px_0_0_var(--brand-flame)] hover:bg-secondary/80 active:translate-y-[2px] active:shadow-none",
         ghost:
           "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
+        /* الروابط أزرق ملكي معتمد (#2563EB) — لا روابط برتقالية (قاعدة §2-3) */
+        link: "text-status-info underline-offset-4 hover:text-status-info/80 hover:underline",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

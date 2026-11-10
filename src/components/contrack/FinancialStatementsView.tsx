@@ -142,7 +142,7 @@ export function FinancialStatementsView({ onAuthError }: { onAuthError: () => vo
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <Landmark className="h-6 w-6 text-primary" aria-hidden="true" />
+            <Landmark className="h-6 w-6 text-primary-ink" aria-hidden="true" />
             القوائم المالية
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -447,7 +447,7 @@ function MiniCard({ label, value, accent }: { label: string; value: number; acce
   return (
     <Card className="p-4">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={`mt-1 text-lg font-bold ${accent ? "text-primary" : value >= 0 ? "text-status-done" : "text-status-danger"}`}>
+      <div className={`mt-1 text-lg font-bold ${accent ? "text-primary-ink" : value >= 0 ? "text-status-done" : "text-status-danger"}`}>
         {formatKWD(value)}
       </div>
     </Card>
@@ -474,7 +474,7 @@ function StatementMeta({ title, period, balanced, note }: { title: string; perio
 function SectionRow({ title, colSpan }: { title: string; colSpan: number }) {
   return (
     <TableRow className="bg-muted/70">
-      <TableCell className="font-bold text-primary" colSpan={1}>
+      <TableCell className="font-bold text-primary-ink" colSpan={1}>
         {title}
       </TableCell>
       <TableCell colSpan={colSpan} />
@@ -538,7 +538,7 @@ function CfSection({ label, rows, total, warn }: { label: string; rows: CashFlow
   return (
     <>
       <TableRow className={warn ? "bg-status-warn-bg/60" : "bg-muted/70"}>
-        <TableCell className={`font-bold ${warn ? "text-status-warn" : "text-primary"}`} colSpan={1}>
+        <TableCell className={`font-bold ${warn ? "text-status-warn" : "text-primary-ink"}`} colSpan={1}>
           {label}
         </TableCell>
         <TableCell colSpan={3} />

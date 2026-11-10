@@ -154,7 +154,7 @@ export function OtherCompanyPayPage({
         <header>
           {breadcrumb}
           <h1 className="mt-1 flex items-center gap-2 text-xl font-bold">
-            <Send className="size-5 text-primary" />
+            <Send className="size-5 text-primary-ink" />
             تسديد مختارات
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -184,7 +184,7 @@ export function OtherCompanyPayPage({
       <header>
         {breadcrumb}
         <h1 className="mt-1 flex items-center gap-2 text-xl font-bold">
-          <Send className="size-5 text-primary" />
+          <Send className="size-5 text-primary-ink" />
           تسديد مختارات ({selectedItems.length} عملية)
         </h1>
         <p className="text-sm text-muted-foreground">

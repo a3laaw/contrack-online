@@ -258,7 +258,7 @@ export function ZakatXbrlView({ user, onAuthError }: { user: User; onAuthError: 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <FileBadge className="h-6 w-6 text-primary" aria-hidden="true" />
+            <FileBadge className="h-6 w-6 text-primary-ink" aria-hidden="true" />
             الزكاة والتقديم الإلكتروني
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -323,7 +323,7 @@ export function ZakatXbrlView({ user, onAuthError }: { user: User; onAuthError: 
             <Card>
               <CardContent className="flex items-center justify-between gap-4 p-4">
                 <div className="flex items-center gap-2">
-                  <Globe2 className="h-5 w-5 text-primary" aria-hidden="true" />
+                  <Globe2 className="h-5 w-5 text-primary-ink" aria-hidden="true" />
                   <div>
                     <div className="text-sm font-semibold">شركة أجنبية الملكية</div>
                     <p className="text-xs text-muted-foreground">يفعّل وحدة ضريبة دخل الأجانب 15% لهذه الشركة (الإقرار نفسه من الأستاذ).</p>

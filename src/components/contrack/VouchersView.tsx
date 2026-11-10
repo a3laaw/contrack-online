@@ -220,7 +220,7 @@ export function VouchersView({ user, onAuthError, presetQ, onConsumePresetQ, ini
             <Card key={k.label} className="gap-1 p-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">{k.label}</span>
-                <Icon className="size-4 text-primary/70" />
+                <Icon className="size-4 text-primary-ink/70" />
               </div>
               <div className={`text-base font-bold tabular-nums lg:text-lg ${k.tone}`} dir="ltr">
                 {formatKWD(k.value)}
@@ -239,7 +239,7 @@ export function VouchersView({ user, onAuthError, presetQ, onConsumePresetQ, ini
               type="button"
               onClick={() => setVtype(f.v)}
               className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                vtype === f.v ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"
+                vtype === f.v ? "border-primary bg-primary/10 text-primary-ink" : "text-muted-foreground hover:bg-muted"
               }`}
             >
               {f.label}

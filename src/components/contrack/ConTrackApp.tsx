@@ -515,7 +515,7 @@ function AppRoot() {
 function AuthSplash({ error }: { error?: boolean }) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
-      <div className="text-2xl font-extrabold text-primary tracking-tight">ConTrack</div>
+      <div className="text-2xl font-extrabold text-primary-ink tracking-tight">ConTrack</div>
       {error ? (
         <p className="text-sm text-destructive">تعذر الاتصال بالخادم — حاول تحديث الصفحة</p>
       ) : (

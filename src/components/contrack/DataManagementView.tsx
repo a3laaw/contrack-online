@@ -254,7 +254,7 @@ function AuditTab({ onAuthError }: { onAuthError: () => void }) {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
-            <ScrollText className="size-4 text-primary" />
+            <ScrollText className="size-4 text-primary-ink" />
             سجل التدقيق
             <Badge variant="secondary" className="text-[10px]">{total} سجلًا</Badge>
           </CardTitle>
@@ -437,7 +437,7 @@ function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
-            <DatabaseBackup className="size-4 text-primary" />
+            <DatabaseBackup className="size-4 text-primary-ink" />
             إنشاء نسخة احتياطية
           </CardTitle>
           <CardDescription>
@@ -1015,7 +1015,7 @@ export function DataManagementView({ user, onAuthError, initialSection }: DataMa
     <div className="space-y-4">
       <div>
         <h1 className="flex items-center gap-2 text-xl font-bold">
-          <ShieldCheck className="size-5 text-primary" />
+          <ShieldCheck className="size-5 text-primary-ink" />
           إدارة البيانات
         </h1>
         <p className="text-sm text-muted-foreground">سجل التدقيق · النسخ الاحتياطي · أدوات المحو وإعادة الضبط (حوكمة النظام)</p>

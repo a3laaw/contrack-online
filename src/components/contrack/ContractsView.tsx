@@ -222,7 +222,7 @@ export function ContractsView({
                 <div className="grid grid-cols-2 gap-2 pt-1 text-sm">
                   <div>
                     <div className="text-[11px] text-muted-foreground">القيمة الحالية</div>
-                    <div className="font-bold tabular-nums text-primary" dir="ltr">
+                    <div className="font-bold tabular-nums text-primary-ink" dir="ltr">
                       {formatKWD(ct.current ?? ct.amount)}
                     </div>
                   </div>

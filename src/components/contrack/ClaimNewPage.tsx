@@ -184,7 +184,7 @@ export function ClaimNewPage({ initialDir, onAuthError, onSaved, onCancel }: Cla
                   setVoucherId("none");
                 }}
                 className={`flex-1 rounded-md border px-2.5 py-2 text-xs font-medium transition-colors ${
-                  dir === d ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"
+                  dir === d ? "border-primary bg-primary/10 text-primary-ink" : "text-muted-foreground hover:bg-muted"
                 }`}
               >
                 {d === "out" ? "مطالبتنا على العميل" : "مطالبة مقاول علينا"}

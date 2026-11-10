@@ -15,12 +15,12 @@ export function SecurityTab({ manager, username }: { manager: boolean; username?
   return (
     <Card>
       <CardHeader className="flex-row items-center gap-2 space-y-0 pb-2">
-        <UserCog className="size-4 text-primary" />
+        <UserCog className="size-4 text-primary-ink" />
         <CardTitle className="text-base">{manager ? "الأمان والمستخدمون" : "كلمة المرور"}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 text-sm leading-relaxed">
         {username ? (
-          <p className="font-bold text-primary">المستخدم الحالي: {username}</p>
+          <p className="font-bold text-primary-ink">المستخدم الحالي: {username}</p>
         ) : null}
         <p className="text-xs text-muted-foreground">تسجيل الدخول مطلوب عند تشغيل البرنامج.</p>
         {manager ? (

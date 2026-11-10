@@ -285,7 +285,7 @@ export function PosSection({ onAuthError, onOpenQuotes }: PosSectionProps) {
             {(today?.invoices.length ?? 0) === 0 && !catalogQuery.isLoading && (
               <span className="text-xs text-muted-foreground">
                 لا مبيعات اليوم بعد —{" "}
-                <button type="button" className="font-medium text-primary underline" onClick={onOpenQuotes}>
+                <button type="button" className="font-medium text-primary-ink underline" onClick={onOpenQuotes}>
                   أو جهّز عرض سعر
                 </button>
               </span>

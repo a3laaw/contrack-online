@@ -55,7 +55,7 @@ function SectionCard({ icon: Icon, title, sub, action, children }: {
   return (
     <Card className="p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Icon className="size-4 text-primary" />
+        <Icon className="size-4 text-primary-ink" />
         <span className="text-sm font-extrabold">{title}</span>
         {sub && <span className="text-[11px] text-muted-foreground">{sub}</span>}
         {action && <div className="ms-auto">{action}</div>}

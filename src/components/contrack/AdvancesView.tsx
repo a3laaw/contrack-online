@@ -237,7 +237,7 @@ export function AdvancesView({ user: _user, onAuthError }: AdvancesViewProps) {
       {/* الترويسة — حرفيًا من المكتبي */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary-ink">
             <Users className="size-5" />
           </div>
           <div>
@@ -327,7 +327,7 @@ export function AdvancesView({ user: _user, onAuthError }: AdvancesViewProps) {
             <CardContent className="p-2 sm:p-3">
               <div className="mb-2 flex items-center justify-between gap-2 px-1">
                 <div className="flex items-center gap-1.5 text-sm font-bold">
-                  <BookOpenText className="size-4 text-primary" />
+                  <BookOpenText className="size-4 text-primary-ink" />
                   {current ? `📋 كشف سلفة — ${current.name}` : "كشف الحركات"}
                 </div>
                 <Button

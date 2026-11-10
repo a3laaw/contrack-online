@@ -138,7 +138,7 @@ export function GatewayUploadPage({
           <span className="font-medium text-foreground">رفع ملف تسديد</span>
         </nav>
         <h1 className="mt-1 flex items-center gap-2 text-xl font-bold">
-          <Upload className="size-5 text-primary" />
+          <Upload className="size-5 text-primary-ink" />
           رفع ملف تسديد بوابة الدفع
         </h1>
         <p className="text-sm text-muted-foreground">

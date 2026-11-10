@@ -125,7 +125,7 @@ function KpiCard({
     <Card className="gap-1 p-4">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">{label}</span>
-        <Icon className="size-4 shrink-0 text-primary/70" />
+        <Icon className="size-4 shrink-0 text-primary-ink/70" />
       </div>
       <p className={`text-base font-bold tabular-nums sm:text-lg ${tone || ""}`}>{value}</p>
       {sub && <p className="text-[11px] text-muted-foreground">{sub}</p>}
@@ -152,7 +152,7 @@ function Segmented({
           onClick={() => onChange(o.value)}
           className={`flex-1 whitespace-nowrap rounded px-2 text-xs font-medium transition-colors ${
             value === o.value
-              ? "bg-background shadow-sm font-bold text-primary"
+              ? "bg-background shadow-sm font-bold text-primary-ink"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -584,7 +584,7 @@ export function GatewayView({ user, onAuthError }: GatewayViewProps) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="flex items-center gap-2 text-lg font-extrabold sm:text-xl">
-            <CreditCard className="size-5 text-primary" />
+            <CreditCard className="size-5 text-primary-ink" />
             البوابة المالية
           </h1>
           <p className="text-xs text-muted-foreground">
@@ -711,7 +711,7 @@ export function GatewayView({ user, onAuthError }: GatewayViewProps) {
           {selected.size > 0 && (
             <Card className="sticky bottom-0 z-30 border-primary/40 bg-primary/5">
               <CardContent className="flex flex-wrap items-center gap-2 p-2.5">
-                <span className="text-xs font-extrabold text-primary">المحدد: {selected.size}</span>
+                <span className="text-xs font-extrabold text-primary-ink">المحدد: {selected.size}</span>
                 <Button
                   size="sm"
                   className="h-8 gap-1"
@@ -859,7 +859,7 @@ export function GatewayView({ user, onAuthError }: GatewayViewProps) {
         <TabsContent value="upload" className="mt-3 space-y-3">
           <Card>
             <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
-              <Upload className="size-8 text-primary/60" />
+              <Upload className="size-8 text-primary-ink/60" />
               <p className="text-sm font-semibold">رفع ملف تسديد بوابة الدفع</p>
               <p className="max-w-xl text-xs text-muted-foreground">
                 الملف النصي (CSV/TSV بأي فاصل فاصلة/تاب/فاصلة منقوطة) يُحلل أعمدته (تاريخ، هاتف، مبلغ، مرجع) ثم
@@ -1152,7 +1152,7 @@ export function GatewayView({ user, onAuthError }: GatewayViewProps) {
                 <Card key={p.id} className={!p.isActive ? "opacity-60" : undefined}>
                   <CardContent className="space-y-2 p-4">
                     <div className="flex items-center gap-2">
-                      <CreditCard className="size-4 text-primary/70" />
+                      <CreditCard className="size-4 text-primary-ink/70" />
                       <span className="font-bold">{p.name}</span>
                       {!p.isActive && (
                         <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">

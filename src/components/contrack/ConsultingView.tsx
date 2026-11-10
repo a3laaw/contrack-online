@@ -242,7 +242,7 @@ function KpiCard({
     <Card className="gap-1 p-4">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">{label}</span>
-        <Icon className="size-4 shrink-0 text-primary/70" />
+        <Icon className="size-4 shrink-0 text-primary-ink/70" />
       </div>
       <p className={`text-base font-bold tabular-nums sm:text-lg ${tone || ""}`}>{value}</p>
       {sub && <p className="text-[11px] text-muted-foreground">{sub}</p>}
@@ -2369,7 +2369,7 @@ function RadarSection({
                                 type="button"
                                 disabled={onLeave}
                                 onClick={() => setSlotCtx({ engineerId: e.id, hourSlot: s })}
-                                className="flex min-h-14 w-full items-center justify-center rounded-md border border-dashed text-muted-foreground/50 transition-colors hover:border-primary/40 hover:bg-muted/50 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                                className="flex min-h-14 w-full items-center justify-center rounded-md border border-dashed text-muted-foreground/50 transition-colors hover:border-primary/40 hover:bg-muted/50 hover:text-primary-ink disabled:cursor-not-allowed disabled:opacity-40"
                                 title={onLeave ? "المهندس في إجازة معتمدة هذا اليوم" : `حجز ${s} — ${e.name}`}
                               >
                                 <Plus className="size-4" />

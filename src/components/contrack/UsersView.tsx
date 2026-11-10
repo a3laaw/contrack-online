@@ -347,7 +347,7 @@ function PermissionsDialog({
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <ShieldCheck className="size-5 text-primary" />
+            <ShieldCheck className="size-5 text-primary-ink" />
             صلاحيات المستخدم
           </DialogTitle>
           <DialogDescription>المدير/المطور يملك كل الصلاحيات تلقائيًا — الضبط هنا يخص السكرتير.</DialogDescription>
@@ -389,7 +389,7 @@ function PermissionsDialog({
               return (
                 <div key={g.group} className="rounded-lg border">
                   <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-2 text-sm font-semibold">
-                    <Icon className="size-4 text-primary" />
+                    <Icon className="size-4 text-primary-ink" />
                     {g.group}
                     <Badge variant="secondary" className="ms-auto text-[10px]">{g.items.length}</Badge>
                   </div>

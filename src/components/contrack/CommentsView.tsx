@@ -126,7 +126,7 @@ function KpiCard({
     <Card className="gap-1 p-4">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">{label}</span>
-        <Icon className="size-4 shrink-0 text-primary/70" />
+        <Icon className="size-4 shrink-0 text-primary-ink/70" />
       </div>
       <p className={`text-base font-bold tabular-nums sm:text-lg ${tone || ""}`}>{value}</p>
       {sub && <p className="text-[11px] text-muted-foreground">{sub}</p>}
@@ -513,7 +513,7 @@ export function CommentsView({ user, onAuthError, onOpenCustomer, onOpenContract
                 )}
                 <div className="flex items-start justify-between gap-2 pt-1">
                   <div className="flex min-w-0 items-center gap-2">
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary-ink">
                       {(c.author || "؟").slice(0, 1)}
                     </div>
                     <div className="min-w-0 leading-tight">
@@ -611,7 +611,7 @@ export function CommentsView({ user, onAuthError, onOpenCustomer, onOpenContract
                   {onOpenCustomer ? (
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1 hover:text-primary hover:underline"
+                      className="inline-flex items-center gap-1 hover:text-primary-ink hover:underline"
                       onClick={() => onOpenCustomer(c.customerId)}
                     >
                       <UserIcon className="size-3" />
@@ -627,7 +627,7 @@ export function CommentsView({ user, onAuthError, onOpenCustomer, onOpenContract
                     onOpenContract ? (
                       <button
                         type="button"
-                        className="inline-flex items-center gap-1 hover:text-primary hover:underline"
+                        className="inline-flex items-center gap-1 hover:text-primary-ink hover:underline"
                         onClick={() => onOpenContract(c.contractId as number)}
                       >
                         عقد: {c.contractNumber}

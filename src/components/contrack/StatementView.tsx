@@ -64,7 +64,7 @@ function FinCards({ cards }: { cards: FinCardDef[] }) {
         return (
           <Card key={c.label}>
             <CardContent className="flex items-center gap-3 p-3">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary-ink">
                 <Icon className="size-4" />
               </div>
               <div className="min-w-0">
@@ -263,7 +263,7 @@ export function StatementView({ user: _user, onAuthError, presetTarget, onConsum
       {/* الترويسة */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary-ink">
             <FileSpreadsheet className="size-5" />
           </div>
           <div>
@@ -312,7 +312,7 @@ export function StatementView({ user: _user, onAuthError, presetTarget, onConsum
                   type="button"
                   size="sm"
                   variant={active ? "secondary" : "ghost"}
-                  className={`h-9 gap-1.5 ${active ? "font-semibold text-primary" : "text-muted-foreground"}`}
+                  className={`h-9 gap-1.5 ${active ? "font-semibold text-primary-ink" : "text-muted-foreground"}`}
                   onClick={() => {
                     setKind(t.v);
                     setDirectContractId(null);

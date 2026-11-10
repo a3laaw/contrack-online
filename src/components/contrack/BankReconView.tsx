@@ -241,7 +241,7 @@ export function BankReconView({
       {/* الترويسة */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <ArrowLeftRight className="h-6 w-6 text-primary" aria-hidden />
+          <ArrowLeftRight className="h-6 w-6 text-primary-ink" aria-hidden />
           <div>
             <h1 className="text-xl font-bold md:text-2xl">التسوية البنكية وتقرير الفوارق</h1>
             <p className="text-xs text-muted-foreground md:text-sm">

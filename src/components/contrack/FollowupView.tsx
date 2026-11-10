@@ -313,7 +313,7 @@ export function FollowupView({ user: _user, onAuthError, onOpenContract }: Follo
       {/* الترويسة */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary-ink">
             <ClipboardList className="size-5" />
           </div>
           <div>

@@ -247,7 +247,7 @@ export function CustomersView({
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                    <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary tabular-nums">
+                    <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary-ink tabular-nums">
                       {c._count?.contracts ?? 0} عقد
                     </span>
                     {manager && (

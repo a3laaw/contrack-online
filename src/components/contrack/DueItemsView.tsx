@@ -62,7 +62,7 @@ export function DueItemsView({ user, onAuthError, onOpenContract }: DueItemsView
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
-              <CalendarClock className="size-4 text-primary" />
+              <CalendarClock className="size-4 text-primary-ink" />
               المستحق الآن ({dueNow.length})
             </CardTitle>
           </CardHeader>
@@ -92,7 +92,7 @@ export function DueItemsView({ user, onAuthError, onOpenContract }: DueItemsView
                           {r.contractId ? (
                             <button
                               type="button"
-                              className="font-medium text-primary hover:underline"
+                              className="font-medium text-primary-ink hover:underline"
                               onClick={() => r.contractId && onOpenContract(r.contractId)}
                             >
                               {r.contractNumber}
@@ -149,7 +149,7 @@ export function DueItemsView({ user, onAuthError, onOpenContract }: DueItemsView
                           {r.contractId ? (
                             <button
                               type="button"
-                              className="font-medium text-primary hover:underline"
+                              className="font-medium text-primary-ink hover:underline"
                               onClick={() => r.contractId && onOpenContract(r.contractId)}
                             >
                               {r.contractNumber}
@@ -179,7 +179,7 @@ export function DueItemsView({ user, onAuthError, onOpenContract }: DueItemsView
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
-            <ListTodo className="size-4 text-primary" />
+            <ListTodo className="size-4 text-primary-ink" />
             المهام المتأخرة ({lateTasks.length})
           </CardTitle>
         </CardHeader>

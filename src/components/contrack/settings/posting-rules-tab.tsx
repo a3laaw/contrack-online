@@ -169,7 +169,7 @@ export function PostingRulesTab({ onAuthError }: PostingRulesTabProps) {
         if (groupRules.length === 0) return null;
         return (
           <Card key={group} className="gap-3 p-4">
-            <h3 className="text-sm font-bold text-primary">{GROUP_LABELS[group]}</h3>
+            <h3 className="text-sm font-bold text-primary-ink">{GROUP_LABELS[group]}</h3>
             <div className="space-y-3">
               {groupRules.map((r) => {
                 const d = draft[r.ruleKey] ?? { debitCode: r.debitCode, creditCode: r.creditCode, enabled: r.enabled };

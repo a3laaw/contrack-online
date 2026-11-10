@@ -75,7 +75,7 @@ export function GatewayBankUploadPage({ onAuthError, onDone, onCancel }: Gateway
           <span className="font-medium text-foreground">رفع كشف بنك</span>
         </nav>
         <h1 className="mt-1 flex items-center gap-2 text-xl font-bold">
-          <Landmark className="size-5 text-primary" />
+          <Landmark className="size-5 text-primary-ink" />
           رفع كشف حساب البنك
         </h1>
         <p className="text-sm text-muted-foreground">
