@@ -827,6 +827,7 @@ export interface TakeoffItemDTO {
   boqItemId: number;
   description: string;
   unit: string;
+  stageId: number | null;
   stageName: string;
   contractQty: number;
   changeQty: number;
@@ -867,9 +868,29 @@ export interface ExecutionLogDTO {
   createdAt: string;
 }
 
+// ==================== الحالة الكمّية للمراحل (بند NOVA 6) ====================
+
+/** مرآة StageQuantum من النواة النقية — مرور عبر المسارات */
+export interface StageQuantumShortfallDTO {
+  boqItemId: number;
+  description: string;
+  effectiveQty: number;
+  executedQty: number;
+  remaining: number;
+}
+
+export interface StageQuantumDTO {
+  stageId: number;
+  itemsCount: number;
+  complete: boolean;
+  executedPct: number;
+  shortfall: StageQuantumShortfallDTO[];
+}
+
 export interface TakeoffResponse {
   items: TakeoffItemDTO[];
   totals: TakeoffTotalsDTO;
+  stageQuantum?: StageQuantumDTO[];
   executions: ExecutionLogDTO[];
 }
 

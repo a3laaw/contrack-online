@@ -101,6 +101,7 @@ import type {
   PlanLine,
   ReadyIpcItem,
   StatementTarget,
+  StageQuantumDTO,
   SubContractsResponse,
   SupervisionResponse,
   TakeoffItemDTO,
@@ -140,7 +141,11 @@ type PageKey = "stages" | "info" | "pay" | "addendums";
 type FlowPage = "edit" | "sub-new" | "settle" | "boq" | "sup";
 
 /** طفرة إجراء المراحل المشتركة — تبويب المسار الفني ولوحة المتابعة معًا (PATCH stages/[stageId]) */
-type StageActionMut = UseMutationResult<unknown, Error, { stageId: number; body: Record<string, unknown> }>;
+type StageActionMut = UseMutationResult<
+  { message?: string; quantum?: StageQuantumDTO | null },
+  Error,
+  { stageId: number; body: Record<string, unknown> }
+>;
 
 /** PageNav بأسلوب المكتبي (contract_hub.py:129–135) — أربع صفحات بمجموعاتها */
 const PAGE_GROUPS: { key: PageKey; group: string; label: string }[] = [
@@ -309,13 +314,22 @@ export function ContractDetailView({
   // ===== إجراءات المراحل =====
   // عقد الخلفي: PATCH /api/contracts/[id]/stages/[stageId]
   //   بدء {startDate} / إنهاء {endDate:'today'} / تخطي {isSkipped:true} / إعادة فتح {endDate:''} أو {isSkipped:false}
+  //   (NOVA 6) استجابة الإقفال تحمل quantum استشاري — الإقفال يتم والتحذير بالأدلة في العميل
   const stageAction = useMutation({
     mutationFn: ({ stageId, body }: { stageId: number; body: Record<string, unknown> }) =>
-      apiPatch(`/api/contracts/${contractId}/stages/${stageId}`, body),
-    onSuccess: () => {
+      apiPatch<{ message?: string; quantum?: StageQuantumDTO | null }>(`/api/contracts/${contractId}/stages/${stageId}`, body),
+    onSuccess: (res) => {
       invalidateAll();
       qc.invalidateQueries({ queryKey: ["contract", contractId, "overview"] });
-      toast({ title: "تم", description: "حُدّثت حالة المرحلة" });
+      if (res?.quantum && !res.quantum.complete) {
+        toast({
+          variant: "destructive",
+          title: "أُقفلت المرحلة والإنجاز الكمّي غير مكتمل",
+          description: `الإنجاز ${res.quantum.executedPct}٪ — ${res.quantum.shortfall.length} بند ناقص: ${res.quantum.shortfall.map((s) => s.description).slice(0, 3).join("، ")}. استحقاقات الخطة المرتبطة أُطلقت — راجع المقايسة.`,
+        });
+      } else {
+        toast({ title: "تم", description: "حُدّثت حالة المرحلة" });
+      }
     },
     onError: (e) => fail(e, "تعذر تنفيذ الإجراء"),
   });
@@ -1758,6 +1772,15 @@ function FollowupPanelCompact({
   const qc = useQueryClient();
   const { toast } = useToast();
   const cur = stagePath?.current ?? null;
+  // الحالة الكمّية للمرحلة الحالية (NOVA 6) — نفس مفتاح كاش المقايسة (TanStack يذوبهما في طلب واحد)
+  const takeoffQuery = useQuery<TakeoffResponse>({
+    queryKey: ["contract", contractId, "takeoff"],
+    queryFn: () => apiGet<TakeoffResponse>(`/api/contracts/${contractId}/takeoff`),
+    enabled: Boolean(cur?.id),
+  });
+  const curQuantum = cur?.id
+    ? (takeoffQuery.data?.stageQuantum ?? []).find((q) => q.stageId === cur.id) ?? null
+    : null;
   const state = stagePath?.state ?? "done";
   const path = stagePath?.path ?? [];
 
@@ -2107,6 +2130,22 @@ function FollowupPanelCompact({
                   ملاحظة المرحلة
                 </Button>
               </div>
+              {/* أدلة الإقفال الكمّي (NOVA 6) — للمرحلة الكمّية الناقصة حصرًا: المكتملة بلا سطر (الشارة الأخضر تكفي) */}
+              {curQuantum && !curQuantum.complete && (
+                <p
+                  className="rounded-lg border border-status-warn/30 bg-status-warn-bg px-2.5 py-1.5 text-xs font-bold text-status-warn"
+                  title={`بنود النقص:\n${curQuantum.shortfall.map((s) => `• ${s.description}: ينقص ${s.remaining}`).join("\n")}`}
+                >
+                  📐 الإقفال الكمّي: {curQuantum.executedPct}٪ —{" "}
+                  {curQuantum.shortfall.length} بند ناقص ({curQuantum.shortfall.slice(0, 2).map((s) => s.description).join("، ")}
+                  {curQuantum.shortfall.length > 2 ? ` +${curQuantum.shortfall.length - 2}` : ""}). الإقفال يُطلق استحقاق دفعات الخطة المرتبطة — راجع المقايسة إن أردت المتابعة.
+                </p>
+              )}
+              {curQuantum?.complete && (
+                <p className="rounded-lg border border-status-done/30 bg-status-done-bg px-2.5 py-1.5 text-xs font-bold text-status-done">
+                  ✓ المرحلة مكتملة كمّيًا ({curQuantum.itemsCount} بند نُفذ بالكامل) — إقفالها الآن يُطلق استحقاق دفعاتها بأدلة مكتملة.
+                </p>
+              )}
               {notes.length > 0 && (
                 <div className="rounded-lg border bg-muted/20 p-2">
                   <p className="mb-1 text-[11px] font-bold text-muted-foreground">📝 ملاحظات الدفعات والمراحل</p>
@@ -2783,8 +2822,8 @@ function FieldExecutionSection({
     );
   };
 
-  const createMutation = useMutation({
-    mutationFn: async () => {
+  const createMutation = useMutation<{ execution?: ExecutionLogDTO; stageQuantum?: StageQuantumDTO; becameComplete?: boolean }>({
+    mutationFn: async (): Promise<{ execution?: ExecutionLogDTO; stageQuantum?: StageQuantumDTO; becameComplete?: boolean }> => {
       // الصورة تُرفع أولًا عبر مرفقات العقود القائمة (نمط ملف العميل) ثم يُربط معرفها بالسجل
       let attachmentId: number | undefined;
       if (attFile) {
@@ -2812,9 +2851,17 @@ function FieldExecutionSection({
         ...(attachmentId ? { attachmentId } : {}),
       });
     },
-    onSuccess: () => {
+    onSuccess: (res: { execution?: ExecutionLogDTO; stageQuantum?: StageQuantumDTO; becameComplete?: boolean }) => {
       qc.invalidateQueries({ queryKey: ["contract", contractId, "takeoff"] });
-      toast({ title: "تم تسجيل التنفيذ", description: "أُضيف السجل وتحدّثت عدادات المقايسة" });
+      // بند NOVA 6: إن كان هذا السجل هو الذي أكمّل مرحلته كمّيًا ⇒ إشعار مميز يربط التنفيذ بالاستحقاق
+      if (res.becameComplete) {
+        toast({
+          title: "🎯 المرحلة اكتملت كمّيًا",
+          description: "كل بنود المرحلة نُفذت بالكامل — جاهزة للإقفال من تبويب المتابعة (يُطلق استحقاق دفعاتها)",
+        });
+      } else {
+        toast({ title: "تم تسجيل التنفيذ", description: "أُضيف السجل وتحدّثت عدادات المقايسة" });
+      }
       setTarget(null);
     },
     onError: (e) => onActionError(e, "تعذر تسجيل التنفيذ"),
@@ -2837,6 +2884,10 @@ function FieldExecutionSection({
 
   const items = takeoffQuery.data?.items ?? [];
   const executions = takeoffQuery.data?.executions ?? [];
+  // الحالة الكمّية للمراحل (NOVA 6) — أسماء المراحل من صفوف المقايسة نفسها
+  const stageQuantum = takeoffQuery.data?.stageQuantum ?? [];
+  const stageNameById = new Map<number, string>();
+  for (const r of items) if (r.stageId) stageNameById.set(r.stageId, r.stageName);
 
   return (
     <>
@@ -2866,6 +2917,33 @@ function FieldExecutionSection({
             </p>
           ) : (
             <Card className="overflow-hidden">
+              {/* الحالة الكمّية للمراحل (NOVA 6) — مشتقة من نفس الصفوف: ✓ للمكتملة والنسبة للناقصة */}
+              {stageQuantum.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 border-b bg-muted/30 px-3 py-2">
+                  {stageQuantum.map((q) => {
+                    const name = stageNameById.get(q.stageId) || `مرحلة #${q.stageId}`;
+                    const tip = q.complete
+                      ? `المرحلة «${name}» مكتملة كمّيًا — كل ${q.itemsCount} بند نُفذ بالكامل`
+                      : `المرحلة «${name}» ناقصة (${q.executedPct}٪):\n${q.shortfall.map((s) => `• ${s.description}: ينقص ${s.remaining}`).join("\n")}`;
+                    return (
+                      <span
+                        key={q.stageId}
+                        title={tip}
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+                          q.complete
+                            ? "border-status-done/30 bg-status-done-bg text-status-done"
+                            : "border-status-warn/30 bg-status-warn-bg text-status-warn"
+                        }`}
+                      >
+                        {q.complete ? "✓" : "⏳"} {name} · {q.itemsCount} بند ·{" "}
+                        <span className="tabular-nums" dir="ltr">
+                          {q.executedPct}%
+                        </span>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>

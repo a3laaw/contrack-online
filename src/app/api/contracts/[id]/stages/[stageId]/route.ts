@@ -6,6 +6,7 @@ import { triggerDuePayments } from "@/lib/contrack-server";
 import { NOTIF_STAGE, notifyTransaction } from "@/lib/notification-server";
 import { autoAddParticipant, TX_CONTRACT } from "@/lib/participants-server";
 import { recordStageMove } from "@/lib/stage-move-server";
+import { quantumForStage } from "@/lib/stage-quantum-server";
 
 type P = { params: Promise<{ id: string; stageId: string }> };
 
@@ -337,5 +338,16 @@ export async function PATCH(req: NextRequest, { params }: P) {
     /* الإشعار لا يعطل العملية */
   }
 
-  return ok({ message: "تم تحديث المرحلة" });
+  // الحالة الكمّية الاستشارية عند الإقفال (بند NOVA 6 — تصميم §3):
+  // الإقفال يتم كما هو (قرار الإنسان يحرّك المال) — الاستجابة تحمل الأدلة للتحذير
+  let quantum: Awaited<ReturnType<typeof quantumForStage>> = null;
+  if (finishDate) {
+    try {
+      quantum = await quantumForStage(contractId, stageId);
+    } catch {
+      /* الحالة الكمّية استشارية — لا تعطل الإقفال */
+    }
+  }
+
+  return ok({ message: "تم تحديث المرحلة", quantum });
 }

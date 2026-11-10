@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { audit, authGuard, jsonError, ok } from "@/lib/api-utils";
 import { validateExecutionInput } from "@/lib/field-execution-core";
+import { quantumForStage } from "@/lib/stage-quantum-server";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -51,6 +52,10 @@ export async function POST(req: NextRequest, { params }: P) {
       const item = await tx.boqItem.findFirst({ where: { id: boqItemId, contractId, deleted: false } });
       if (!item) throw new ExecutionError("بند الكميات غير موجود في هذا العقد");
       const attachmentId = await resolveAttachmentId(tx, body.attachmentId, contractId);
+      // الحالة الكمّية للمرحلة قبل/بعد الإنشاء (بند NOVA 6 — تصميم §3):
+      // becameComplete تُحسب من قبل القاعدة نفسها — بلا افتراضات في العميل
+      const stageId = item.stageId;
+      const before = stageId ? await quantumForStage(contractId, stageId, tx) : null;
       const created = await tx.fieldExecution.create({
         data: {
           contractId,
@@ -65,11 +70,12 @@ export async function POST(req: NextRequest, { params }: P) {
           createdBy: guard.user.username,
         },
       });
+      const after = stageId ? await quantumForStage(contractId, stageId, tx) : null;
       await tx.contractEvent.create({
         data: {
           contractId,
           eventType: "تنفيذ ميداني",
-          description: `تسجيل تنفيذ «${item.description}» — ${v.qty} ${item.unit || ""} بتاريخ ${v.executionDate}${created.documented ? " (موثق)" : ""}`,
+          description: `تسجيل تنفيذ «${item.description}» — ${v.qty} ${item.unit || ""} بتاريخ ${v.executionDate}${created.documented ? " (موثق)" : ""}${after?.complete && !before?.complete ? " — المرحلة اكتملت كمّيًا" : ""}`,
           username: guard.user.username,
         },
       });
@@ -80,9 +86,16 @@ export async function POST(req: NextRequest, { params }: P) {
         entityId: created.id,
         entityName: item.description,
       });
-      return created;
+      return { created, before, after };
     });
-    return ok({ execution: { ...row, qty: Number(row.qty) } }, 201);
+    return ok(
+      {
+        execution: { ...row.created, qty: Number(row.created.qty) },
+        stageQuantum: row.after,
+        becameComplete: Boolean(row.after?.complete && !row.before?.complete),
+      },
+      201
+    );
   } catch (e) {
     if (e instanceof ExecutionError) return jsonError(e.message, e.status);
     throw e;
@@ -130,6 +143,9 @@ export async function PATCH(req: NextRequest, { params }: P) {
       }
 
       const updated = await tx.fieldExecution.update({ where: { id: row.id }, data });
+      // الحالة الكمّية بعد التعديل — بنفس مصدر البوابة (NOVA 6)
+      const stageId = (await tx.boqItem.findFirst({ where: { id: row.boqItemId }, select: { stageId: true } }))?.stageId;
+      const quantum = stageId ? await quantumForStage(contractId, stageId, tx) : null;
       await tx.contractEvent.create({
         data: {
           contractId,
@@ -145,9 +161,9 @@ export async function PATCH(req: NextRequest, { params }: P) {
         entityId: row.id,
         entityName: row.boqItem.description,
       });
-      return updated;
+      return { updated, quantum };
     });
-    return ok({ execution: { ...row, qty: Number(row.qty) } });
+    return ok({ execution: { ...row.updated, qty: Number(row.updated.qty) }, stageQuantum: row.quantum });
   } catch (e) {
     if (e instanceof ExecutionError) return jsonError(e.message, e.status);
     throw e;
@@ -164,13 +180,15 @@ export async function DELETE(req: NextRequest, { params }: P) {
   if (!Number.isFinite(contractId) || !executionId) return jsonError("معرف غير صالح");
 
   try {
-    await db.$transaction(async (tx) => {
+    const quantum = await db.$transaction(async (tx) => {
       const row = await tx.fieldExecution.findFirst({
         where: { id: executionId, contractId },
-        include: { boqItem: { select: { description: true, unit: true } } },
+        include: { boqItem: { select: { description: true, unit: true, stageId: true } } },
       });
       if (!row) throw new ExecutionError("سجل التنفيذ غير موجود في هذا العقد", 404);
       await tx.fieldExecution.delete({ where: { id: row.id } });
+      // الحالة الكمّية بعد الحذف — العدادات مشتقة فورًا (G9)
+      const q = row.boqItem.stageId ? await quantumForStage(contractId, row.boqItem.stageId, tx) : null;
       await tx.contractEvent.create({
         data: {
           contractId,
@@ -186,8 +204,9 @@ export async function DELETE(req: NextRequest, { params }: P) {
         entityId: row.id,
         entityName: row.boqItem.description,
       });
+      return q;
     });
-    return ok({ deleted: true });
+    return ok({ deleted: true, stageQuantum: quantum });
   } catch (e) {
     if (e instanceof ExecutionError) return jsonError(e.message, e.status);
     throw e;

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { authGuard, jsonError, ok } from "@/lib/api-utils";
 import { deriveTakeoffRow, summarizeTakeoff } from "@/lib/field-execution-core";
+import { deriveStageQuantum } from "@/lib/stage-quantum-core";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -76,8 +77,23 @@ export async function GET(req: NextRequest, { params }: P) {
     }),
     description: it.description,
     unit: it.unit,
+    stageId: it.stageId,
     stageName: it.stage?.name || "",
   }));
+
+  // الحالة الكمّية لكل مرحلة ذات بنود (بند NOVA 6 — docs/stage-quantum-design.md §3):
+  // مشتقة من نفس الصفوف لحظيًا (G9) — البوابة بند-ببند والنسبة للعرض فقط
+  const stageQuantum = deriveStageQuantum(
+    rows
+      .filter((r) => r.stageId)
+      .map((r) => ({
+        stageId: r.stageId as number,
+        boqItemId: r.boqItemId,
+        effectiveQty: r.effectiveQty,
+        executedQty: r.executedQty,
+        description: r.description,
+      }))
+  );
 
   const invoicedAmount = invoices.reduce((s, v) => s + Number(v.total), 0);
   const collectedAmount = invoices.reduce((s, v) => s + Number(v.paidAmount), 0);
@@ -85,6 +101,7 @@ export async function GET(req: NextRequest, { params }: P) {
   return ok({
     items: rows,
     totals: summarizeTakeoff(rows, invoicedAmount, collectedAmount),
+    stageQuantum,
     executions: executions.map((e) => ({
       id: e.id,
       boqItemId: e.boqItemId,
