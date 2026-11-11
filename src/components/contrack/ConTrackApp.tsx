@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tan
 import { Loader2 } from "lucide-react";
 
 import { apiGet, apiPost, setStoredToken, clearStoredToken, ApiError } from "./api";
-import type { StatementTarget, User, ViewName } from "./contrack-types";
+import type { StatementTarget, User, ViewName, ProjectsSection } from "./contrack-types";
 import { isManagerRole } from "./contrack-types";
 import type { NavChild } from "./nav-structure";
 import { NAV_MODULES } from "./nav-structure";
@@ -41,6 +41,7 @@ import { HRView, type HRSection } from "./HRView";
 import { WarehousesView, type WarehousesSection } from "./WarehousesView";
 import { SalesView, type SalesSection } from "./SalesView";
 import { MaintenanceView, type MaintenanceSection } from "./MaintenanceView";
+import { ProjectsView } from "./ProjectsView";
 import { ReportsView } from "./ReportsView";
 import { ReportsHomeView } from "./ReportsHomeView";
 import { DEFAULT_REPORT_KEY } from "./reports-list";
@@ -135,6 +136,8 @@ function AppRoot() {
   const [salesSection, setSalesSection] = React.useState<SalesSection>("quotes");
   // الصيانة والتشغيل — قسم الشاشة الموحدة (عقود/جدول/أوامر)
   const [maintenanceSection, setMaintenanceSection] = React.useState<MaintenanceSection>("contracts");
+  // المشاريع — قسم مركز عمليات الموقع (لوحة/تقرير يومي/تنفيذ بنود)
+  const [projectsSection, setProjectsSection] = React.useState<ProjectsSection>("hub");
 
   // معرّف البند النشط في القائمة الجانبية (يحدد الوحدة والبند المُبرز)
   const activeNav =
@@ -162,6 +165,9 @@ function AppRoot() {
         : view === "maintenance"
         ? (NAV_MODULES.flatMap((m) => m.children).find((c) => c.view === "maintenance" && c.section === maintenanceSection)?.id ??
           "mt-contracts")
+        : view === "projects"
+        ? (NAV_MODULES.flatMap((m) => m.children).find((c) => c.view === "projects" && c.section === projectsSection)?.id ??
+          "projects-hub")
         : view === "data-mgmt"
           ? dmSection === "devtools"
             ? "devtools"
@@ -192,6 +198,7 @@ function AppRoot() {
       if (child.view === "warehouses" && child.section) setWarehousesSection(child.section as WarehousesSection);
       if (child.view === "sales" && child.section) setSalesSection(child.section as SalesSection);
       if (child.view === "maintenance" && child.section) setMaintenanceSection(child.section as MaintenanceSection);
+      if (child.view === "projects" && child.section) setProjectsSection(child.section as ProjectsSection);
       setView(child.view);
       if (child.view !== "contract") setContractId(null);
       if (child.view !== "customer-file") setCustomerFileId(null);
@@ -451,6 +458,15 @@ function AppRoot() {
           user={user}
           onAuthError={onAuthError}
           section={maintenanceSection}
+          onOpenContract={openContract}
+        />
+      )}
+      {view === "projects" && (
+        <ProjectsView
+          user={user}
+          onAuthError={onAuthError}
+          section={projectsSection}
+          onSectionChange={setProjectsSection}
           onOpenContract={openContract}
         />
       )}

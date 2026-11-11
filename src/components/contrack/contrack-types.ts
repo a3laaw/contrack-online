@@ -22,6 +22,7 @@ export type ViewName =
   | "warehouses"
   | "sales"
   | "maintenance"
+  | "projects"
   | "reports"
   | "reports-home"
   | "statement"
@@ -878,6 +879,7 @@ export interface TakeoffItemDTO {
   boqItemId: number;
   description: string;
   unit: string;
+  itemNo: string;
   stageId: number | null;
   stageName: string;
   contractQty: number;
@@ -890,6 +892,95 @@ export interface TakeoffItemDTO {
   unitPrice: number;
   executedAmount: number;
   progressPct: number;
+}
+
+// ==================== قسم المشاريع — مركز عمليات الموقع ====================
+
+/** أقسام وحدة المشاريع (لوحة المشاريع · التقرير اليومي · تنفيذ البنود) */
+export type ProjectsSection = "hub" | "daily" | "takeoff";
+
+/** صف لوحة المشاريع — GET /api/projects/hub — كل العدادات مشتقة لحظيًا (G9: مشتق لا مخزّن) */
+export interface ProjectHubRow {
+  id: number;
+  contractNumber: string;
+  contractName: string;
+  customerName: string;
+  status: string;
+  isSupervision: boolean;
+  /** القيمة التعاقدية الأصلية */
+  amount: number;
+  /** القيمة الحالية بعد الأوامر التغييرية المعتمدة (نفس مصدر قائمة العقود) */
+  current: number;
+  /** القيمة الفعّالة للبنود من مقايسة الكميات (تعاقدي + تغييري) — أساس نسبة التنفيذ */
+  effectiveAmount: number;
+  executedAmount: number;
+  documentedAmount: number;
+  progressPct: number;
+  invoicedAmount: number;
+  collectedAmount: number;
+  boqItemCount: number;
+  /** آخر تاريخ تنفيذ ميداني (YYYY-MM-DD أو "") */
+  lastExecutionDate: string;
+  /** عدد سجلات التنفيذ آخر 7 أيام */
+  recentExecCount: number;
+}
+
+export interface ProjectsHubResponse {
+  rows: ProjectHubRow[];
+  totals: {
+    contracts: number;
+    active: number;
+    amount: number;
+    executed: number;
+    invoiced: number;
+    collected: number;
+    /** نسبة التنفيذ الموزونة: Σ المنفذ ÷ Σ الفعّال */
+    progressPct: number;
+  };
+}
+
+/** سجل تنفيذ داخل تقرير اليوم — مع مشتقات البند (التراكمي والنسبة بعد يوم التقرير) */
+export interface DailyReportRowDTO {
+  id: number;
+  boqItemId: number;
+  itemNo: string;
+  description: string;
+  unit: string;
+  qty: number;
+  unitPrice: number;
+  documented: boolean;
+  note: string;
+  gpsLat: string;
+  gpsLng: string;
+  attachmentId: number | null;
+  attachmentName: string;
+  createdBy: string;
+  /** الكمية الفعّالة للبند (تعاقدي + تغييري) */
+  effectiveQty: number;
+  /** المنفذ التراكمي الكلي بعد يوم التقرير */
+  executedTotal: number;
+  /** المنفذ قبل يوم التقرير */
+  executedBefore: number;
+  /** نسبة التراكمي من الفعّال % */
+  progressPct: number;
+}
+
+export interface DailyReportResponse {
+  contractId: number;
+  contractNumber: string;
+  contractName: string;
+  customerName: string;
+  date: string;
+  rows: DailyReportRowDTO[];
+  summary: {
+    records: number;
+    itemsTouched: number;
+    documentedRecords: number;
+    /** قيمة يوم العمل = Σ كمية × سعر الوحدة */
+    dayAmount: number;
+  };
+  /** أحدث أيام النشاط للتنقل السريع */
+  activeDates: string[];
 }
 
 export interface TakeoffTotalsDTO {

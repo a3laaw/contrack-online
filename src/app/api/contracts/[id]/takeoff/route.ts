@@ -87,6 +87,7 @@ export async function GET(req: NextRequest, { params }: P) {
     }),
     description: it.description,
     unit: it.unit,
+    itemNo: it.itemNo,
     stageId: it.stageId,
     stageName: it.stage?.name || "",
   }));

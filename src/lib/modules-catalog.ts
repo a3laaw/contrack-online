@@ -37,7 +37,7 @@ export const MODULE_CATALOG: ModuleDef[] = [
     desc: "العقود والعملاء والباطن والمتابعة والزيارات والتقارير التشغيلية",
     available: true,
     core: false,
-    navModules: ["clients", "subs", "reports"],
+    navModules: ["clients", "projects", "subs", "reports"],
   },
   {
     code: "consulting",

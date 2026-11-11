@@ -55,6 +55,8 @@ import {
   NotebookPen,
   // الاستشارات — رادار المواعيد (NOVA 4)
   Radar,
+  // المشاريع — مركز عمليات الموقع
+  FolderKanban,
 } from "lucide-react";
 
 import type { ViewName } from "./contrack-types";
@@ -79,7 +81,18 @@ export const REPORT_PERM: Record<string, string> = {
 };
 
 /** معرّف الوحدات المعتمدة (توجيه المستخدم — تبويبات علوية) */
-export type ModuleId = "clients" | "subs" | "consulting" | "hr" | "warehouses" | "sales" | "maintenance" | "accounting" | "reports" | "settings";
+export type ModuleId =
+  | "clients"
+  | "projects"
+  | "subs"
+  | "consulting"
+  | "hr"
+  | "warehouses"
+  | "sales"
+  | "maintenance"
+  | "accounting"
+  | "reports"
+  | "settings";
 
 /** بند فرعي داخل وحدة — الشاشة الواحدة مستوى تنقل فرعي واحد فقط */
 export interface NavChild {
@@ -113,12 +126,15 @@ export interface NavModule {
 /**
  * هيكل التنقل المعتمد (6 تبويبات — تبويب الاستشارات موديول مستقل يظهر لمن فعّله):
  *   1. العقود: اللوحة، المستحقات، العملاء، العقود، مجموعات العقود، مركز النماذج، المهام، الزيارات، التعليقات، المتابعة
- *   2. الباطن: مقاولو الباطن (ملف المقاول: العقود والدفعات والأوامر)
- *   3. الاستشارات: الفريق الهندسي، إسناد المشاريع، ساعات العمل، الإجازات (موديول consulting)
- *   4. المحاسبة: سندات القبض/الصرف، كشف الحساب، العُهد، السلف، البوابة، الشركة الأخرى، المطالبات، الفواتير
- *   5. التقارير: التقارير الـ11 بنودًا حقيقية في القائمة الجانبية الرسمية كالمحاسبة (توجيه المستخدم — الخيار 2)
- *   6. الإعدادات: الشركة، الطباعة، الأمان، المستخدمون، الأنواع، المصروفات، المراحل، الزيارات، النسخ، أدوات المطور
- * خارج النطاق (لا يُضاف): المشاريع، عروض الأسعار، الأرشيف، الواتساب، الاستيراد من Excel.
+ *   2. المشاريع: مركز عمليات الموقع بعقلية مهندس مدير الموقع — لوحة المشاريع، التقرير اليومي
+ *      (تجميع اشتقاقي فوق سجلات التنفيذ الميداني — لا جدول جديد G9 — docs/daily-report-forecast-design.md)،
+ *      تنفيذ البنود (مقايسة التنفيذ بالبنود: تعاقدي/منفذ/موثق/مفوتر)
+ *   3. الباطن: مقاولو الباطن (ملف المقاول: العقود والدفعات والأوامر)
+ *   4. الاستشارات: الفريق الهندسي، إسناد المشاريع، ساعات العمل، الإجازات (موديول consulting)
+ *   5. المحاسبة: سندات القبض/الصرف، كشف الحساب، العُهد، السلف، البوابة، الشركة الأخرى، المطالبات، الفواتير
+ *   6. التقارير: التقارير الـ11 بنودًا حقيقية في القائمة الجانبية الرسمية كالمحاسبة (توجيه المستخدم — الخيار 2)
+ *   7. الإعدادات: الشركة، الطباعة، الأمان، المستخدمون، الأنواع، المصروفات، المراحل، الزيارات، النسخ، أدوات المطور
+ * خارج النطاق (لا يُضاف): عروض الأسعار، الأرشيف، الواتساب، الاستيراد من Excel.
  */
 export const NAV_MODULES: NavModule[] = [
   {
@@ -138,6 +154,19 @@ export const NAV_MODULES: NavModule[] = [
       { id: "visits", label: "جدول الزيارات", icon: CalendarDays, view: "visits", flag: "visits", perm: "screen_visits" },
       { id: "comments", label: "التعليقات", icon: MessageSquareText, view: "comments", flag: "comments", perm: "screen_customers" },
       { id: "followup", label: "المتابعة", icon: ClipboardList, view: "followup", flag: "followup", perm: "screen_followup" },
+    ],
+  },
+  {
+    // المشاريع (مركز عمليات الموقع) — بعقلية مهندس مدير الموقع: صباحًا لوحة كل مشاريعه،
+    // أثناء اليوم التقرير اليومي (اشتقاقي فوق FieldExecution — بلا جدول جديد G9)،
+    // ومتابعة تفصيلية لتنفيذ البنود — ملك نشاط المقاولات (modules-catalog)
+    id: "projects",
+    label: "المشاريع",
+    icon: FolderKanban,
+    children: [
+      { id: "projects-hub", label: "لوحة المشاريع", icon: LayoutGrid, view: "projects", section: "hub", perm: "screen_projects" },
+      { id: "projects-daily", label: "التقرير اليومي", icon: NotebookPen, view: "projects", section: "daily", perm: "screen_projects" },
+      { id: "projects-takeoff", label: "تنفيذ البنود", icon: ListChecks, view: "projects", section: "takeoff", perm: "screen_projects" },
     ],
   },
   {
