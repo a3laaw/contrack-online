@@ -140,7 +140,7 @@ interface ContractDetailViewProps {
   onOpenCustomerFile?: (customerId: number) => void;
 }
 
-type PageKey = "stages" | "info" | "pay" | "addendums";
+type PageKey = "stages" | "info" | "pay" | "boq" | "addendums";
 
 /** الصفحات الداخلية الكاملة — بدل النوافذ الكبرى والصغيرة متوسطة الحجم */
 type FlowPage = "edit" | "sub-new" | "settle" | "boq" | "sup";
@@ -152,11 +152,13 @@ type StageActionMut = UseMutationResult<
   { stageId: number; body: Record<string, unknown> }
 >;
 
-/** PageNav بأسلوب المكتبي (contract_hub.py:129–135) — أربع صفحات بمجموعاتها */
+/** PageNav بأسلوب المكتبي (contract_hub.py:129–135) — خمس صفحات بمجموعاتها */
 const PAGE_GROUPS: { key: PageKey; group: string; label: string }[] = [
   { key: "stages", group: "مراحل التنفيذ", label: "المسار الفني" },
   { key: "info", group: "ملخص العقد", label: "نظرة عامة" },
   { key: "pay", group: "💵 الدفعات والبنود", label: "الدفعات والمقاولون" },
+  // صفحة الكميات المستقلة — BOQ نجم النظام (قلب التحكم الكمي): بنود + برنامج زمني + تنفيذ ميداني
+  { key: "boq", group: "📐 الكميات والتنفيذ", label: "بنود الكميات BOQ" },
   { key: "addendums", group: "الأوامر التغييرية", label: "الأوامر والتعديلات" },
 ];
 
@@ -212,7 +214,7 @@ export function ContractDetailView({
   const boqQuery = useQuery<BoqResponse>({
     queryKey: ["contract", contractId, "boq"],
     queryFn: () => apiGet<BoqResponse>(`/api/contracts/${contractId}/boq`),
-    enabled: page === "pay",
+    // جُلب دائم — العدد يظهر على تبويب «بنود الكميات BOQ» من أول لحظة (اكتشافية القسم)
   });
 
   const supQuery = useQuery<SupervisionResponse>({
@@ -858,7 +860,15 @@ export function ContractDetailView({
                 <span className={`block text-[10px] font-medium ${active ? "text-primary-ink" : "text-muted-foreground"}`}>
                   {g.group}
                 </span>
-                <span className={`block text-sm font-bold ${active ? "text-primary-ink" : ""}`}>{g.label}</span>
+                <span className={`block text-sm font-bold ${active ? "text-primary-ink" : ""}`}>
+                  {g.label}
+                  {/* شارة العدد على تبويب بنود الكميات — يرى المالك حجم الجدول الكمي دون فتح الصفحة */}
+                  {g.key === "boq" && boqQuery.data && (
+                    <span className="ms-1.5 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-primary-ink" dir="ltr">
+                      {boqQuery.data.items.length}
+                    </span>
+                  )}
+                </span>
               </button>
             );
           })}
@@ -945,7 +955,7 @@ export function ContractDetailView({
         />
       )}
 
-      {/* ===== الصفحة 3: الدفعات والمقاولون (_tab_pay) ===== */}
+      {/* ===== الصفحة 3: الدفعات والمقاولون (_tab_pay) — المال فقط: بنود الكميات انتقلت لصفحتها المستقلة ===== */}
       {page === "pay" && (
         <PayPage
           manager={manager}
@@ -956,8 +966,6 @@ export function ContractDetailView({
           payViewLoading={payViewQuery.isLoading}
           payViewError={payViewQuery.error ? errMessage(payViewQuery.error) : ""}
           stageNameById={stageNameById}
-          boq={boqQuery.data?.items ?? []}
-          boqLoading={boqQuery.isLoading}
           subs={contractSubsQuery.data?.items ?? []}
           contractNumber={detail?.contractNumber ?? ""}
           contractAmount={Number(detail?.amount ?? 0)}
@@ -967,17 +975,30 @@ export function ContractDetailView({
           onPayment={() => setVoucherPage("payment")}
           onExport={onPayExport}
           exporting={payExporting}
-          onAddBoq={() => setFlowPage("boq")}
-          onImportBoq={() => setBoqImportOpen(true)}
-          onImportSchedule={() => setScheduleImportOpen(true)}
-          scheduleRefreshKey={scheduleRefreshKey}
-          onDeleteBoq={(id) => setDeleteBoqId(id)}
           onSubDetail={(id) => setSubDetailId(id)}
           onNewSub={() => setFlowPage("sub-new")}
         />
       )}
 
-      {/* ===== الصفحة 4: الأوامر والتعديلات (_tab_addendums) ===== */}
+      {/* ===== الصفحة 4: بنود الكميات BOQ — القلب الكمي للعقد (بنود + برنامج زمني + تنفيذ ميداني) ===== */}
+      {page === "boq" && (
+        <BoqPage
+          manager={manager}
+          cur={cur}
+          contractId={contractId}
+          onActionError={fail}
+          boq={boqQuery.data?.items ?? []}
+          boqLoading={boqQuery.isLoading}
+          contractAmount={Number(detail?.amount ?? 0)}
+          onAddBoq={() => setFlowPage("boq")}
+          onImportBoq={() => setBoqImportOpen(true)}
+          onImportSchedule={() => setScheduleImportOpen(true)}
+          scheduleRefreshKey={scheduleRefreshKey}
+          onDeleteBoq={(id) => setDeleteBoqId(id)}
+        />
+      )}
+
+      {/* ===== الصفحة 5: الأوامر والتعديلات (_tab_addendums) ===== */}
       {page === "addendums" &&
         (isSupervision ? (
           /* الأوامر التغييرية غير متاحة لعقود الإشراف (دراسة الحالات الأربع §3) */
@@ -2477,6 +2498,7 @@ function FollowupPanelCompact({
 
 // ===================================================================
 // الصفحة 3: الدفعات والمقاولون — _tab_pay (919) + _sec_pay (1389)
+// المال فقط — بنود الكميات BOQ لها صفحة مستقلة (BoqPage)
 // ===================================================================
 function PayPage({
   manager,
@@ -2487,8 +2509,6 @@ function PayPage({
   payViewLoading,
   payViewError,
   stageNameById,
-  boq,
-  boqLoading,
   subs,
   contractNumber,
   contractAmount,
@@ -2498,11 +2518,6 @@ function PayPage({
   onPayment,
   onExport,
   exporting,
-  onAddBoq,
-  onImportBoq,
-  onImportSchedule,
-  scheduleRefreshKey,
-  onDeleteBoq,
   onSubDetail,
   onNewSub,
 }: {
@@ -2516,8 +2531,6 @@ function PayPage({
   payViewError: string;
   /** Task 82: stageId ⇒ اسم المرحلة — لشارة الربط على سطور الدفعات */
   stageNameById: Map<number, string>;
-  boq: BoqResponse["items"];
-  boqLoading: boolean;
   subs: SubContractsResponse["items"];
   contractNumber: string;
   contractAmount: number;
@@ -2528,12 +2541,6 @@ function PayPage({
   onExport: () => void;
   /** المرحلة 8: حالة جارٍ تصدير xlsx — يبدّل الأيقونة لسبينر ويُعطل الزر */
   exporting?: boolean;
-  onAddBoq: () => void;
-  onImportBoq: () => void;
-  /** ب1 — فتح حوار استيراد البرنامج الزمني + مفتاح إبطال حالة القسم */
-  onImportSchedule: () => void;
-  scheduleRefreshKey: number;
-  onDeleteBoq: (id: number) => void;
   onSubDetail: (id: number) => void;
   onNewSub: () => void;
 }) {
@@ -2756,7 +2763,69 @@ function PayPage({
         </CardContent>
       </Card>
 
-      {/* ⑤ بنود الكميات — قسم داخل الصفحة (سطر «بنود: N» كالمكتبي 1232) */}
+      {/* ⑤-ب البرنامج الزمني والتنفيذ الميداني انتقلا لصفحة «بنود الكميات BOQ» المستقلة */}
+    </div>
+  );
+}
+
+// ===================================================================
+// الصفحة 4: بنود الكميات BOQ — صفحة مستقلة (قلب التحكم الكمي للعقد)
+// جدول البنود + البرنامج الزمني CPM + التنفيذ الميداني — الكميات كلها بمكان واحد
+// فصل نظيف: الدفعات والمقاولون = المال · بنود الكميات = الكميات
+// ===================================================================
+function BoqPage({
+  manager,
+  cur,
+  contractId,
+  onActionError,
+  boq,
+  boqLoading,
+  contractAmount,
+  onAddBoq,
+  onImportBoq,
+  onImportSchedule,
+  scheduleRefreshKey,
+  onDeleteBoq,
+}: {
+  manager: boolean;
+  cur: string;
+  contractId: number;
+  /** أخطاء الأقسام — نفس fail في الجذر (401 + توست) */
+  onActionError: (e: unknown, title: string) => void;
+  boq: BoqResponse["items"];
+  boqLoading: boolean;
+  contractAmount: number;
+  onAddBoq: () => void;
+  onImportBoq: () => void;
+  /** ب1 — فتح حوار استيراد البرنامج الزمني + مفتاح إبطال حالة القسم */
+  onImportSchedule: () => void;
+  scheduleRefreshKey: number;
+  onDeleteBoq: (id: number) => void;
+}) {
+  const boqTotal = boq.reduce((s, it) => s + Number(it.amount), 0);
+  const coverage = contractAmount > 0 ? Math.round((boqTotal / contractAmount) * 100) : 0;
+  return (
+    <div className="space-y-3">
+      {/* ① الشريط التوضيحي — BOQ قلب النظام: منه المستخلصات والتنفيذ والتنبؤ */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold">📐 بنود الكميات (BOQ) — قلب التحكم الكمي للعقد</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            جدول الكميات هو أساس كل شيء: منه تُبنى المستخلصات والفواتير، وعليه يُسجَّل التنفيذ الميداني،
+            ومنه يُشتق التنبؤ (سابق / حالي / ساقف) — والبرنامج الزمني يضع نافذة كل بند.
+          </p>
+        </div>
+        {boq.length > 0 && (
+          <div className="shrink-0 text-end">
+            <p className="text-xs text-muted-foreground">إجمالي البنود مقابل قيمة العقد {formatKWD(contractAmount)} {cur}</p>
+            <p className="text-sm font-bold tabular-nums" dir="ltr">
+              {formatKWD(boqTotal)} · {coverage}٪
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* ② جدول البنود — استيراد من ملف BOQ أو إضافة يدوية (سطر «بنود: N» كالمكتبي 1232) */}
       <Card className="p-4">
         <CardHeader className="p-0 pb-2">
           <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
@@ -2783,7 +2852,13 @@ function PayPage({
               ))}
             </div>
           ) : boq.length === 0 ? (
-            <p className="p-2 text-center text-sm text-muted-foreground">لا بنود كميات على هذا العقد.</p>
+            <div className="space-y-2 p-4 text-center">
+              <p className="text-sm font-medium">لا بنود كميات على هذا العقد بعد.</p>
+              <p className="text-xs text-muted-foreground">
+                ابدأ باستيراد ملف BOQ من الإكسل (يتعرف على الأقسام وبنوده آليًا) أو أضف بندًا يدويًا —
+                كله من الأزرار أعلاه{manager ? "" : " (تُتاح للمدير)"}.
+              </p>
+            </div>
           ) : (
             <Card className="overflow-hidden">
               <div className="overflow-x-auto">
@@ -2857,7 +2932,7 @@ function PayPage({
         </CardContent>
       </Card>
 
-      {/* ⑤-ب البرنامج الزمني CPM — نوافذ الأقسام المخططة مقابل قيم BOQ (docs/schedule-import-design.md ب1) */}
+      {/* ③ البرنامج الزمني CPM — نوافذ الأقسام المخططة مقابل قيم BOQ (docs/schedule-import-design.md ب1) */}
       <ScheduleSection
         contractId={contractId}
         manager={manager}
@@ -2866,7 +2941,7 @@ function PayPage({
         onAuthError={(e) => onActionError(e, "تعذر قراءة البرنامج الزمني")}
       />
 
-      {/* ⑥ التنفيذ الميداني — مقايسة مشتقة لحظيًا + سجل تنفيذ (بند NOVA 5 — docs/field-execution-design.md) */}
+      {/* ④ التنفيذ الميداني — مقايسة مشتقة لحظيًا + سجل تنفيذ (بند NOVA 5 — docs/field-execution-design.md) */}
       <FieldExecutionSection contractId={contractId} manager={manager} cur={cur} onActionError={onActionError} />
     </div>
   );

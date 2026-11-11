@@ -854,6 +854,12 @@ export interface BoqItemDTO {
   unit: string;
   unitPrice: number;
   plannedQty?: number;
+  // ب1 — نافذة البند المخططة المشتقة من البرنامج الزمني (عرض لا مصدر)
+  plannedStart?: string | null;
+  plannedFinish?: string | null;
+  // ز1 — المفوتر بالبند والمتاح للفوترة الكمي (GET /api/contracts/[id]/boq)
+  invoicedQty?: number;
+  availableQty?: number;
   amount: number;
   sortOrder?: number;
   // استيراد BOQ (docs/boq-import-design.md §2.1) — هوية البند في ملف الأصل
