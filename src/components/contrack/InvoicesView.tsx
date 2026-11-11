@@ -116,6 +116,20 @@ function StatusBadge({ status, legacy }: { status: InvoiceStatus; legacy?: boole
   );
 }
 
+/** المرحلة (أ) — شارة المحتجزات: المبلغ مع حالة الإفراج (معلّق/مُفرج عنه) */
+function RetentionBadge({ amount, released }: { amount: number; released?: boolean }) {
+  if (!(amount > 0)) return null;
+  return (
+    <Badge
+      className={`border-0 text-[11px] ${released ? "bg-status-done/15 text-status-done" : "bg-status-warn/15 text-status-warn"}`}
+      title={released ? "مُفرج عنه — يُحصّل بسند قبض عادي" : "معلّق — يُفرج عنه من صفحة الدفعات (مدير)"}
+    >
+      محتجز {formatKWD(amount)}
+      {released ? " · مُفرج" : " · معلّق"}
+    </Badge>
+  );
+}
+
 export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewProps) {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -412,6 +426,7 @@ export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewP
                     <TableHead className="text-start">الصافي</TableHead>
                     <TableHead className="text-start">المسدد</TableHead>
                     <TableHead className="text-start">المتبقي</TableHead>
+                    <TableHead className="text-start">المحتجزات</TableHead>
                     <TableHead className="text-start">الحالة</TableHead>
                     <TableHead className="text-start">القيد</TableHead>
                     <TableHead className="text-start">إجراءات</TableHead>
@@ -440,6 +455,13 @@ export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewP
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-xs tabular-nums">
                         {formatKWD(inv.remaining)}
+                      </TableCell>
+                      <TableCell>
+                        {(inv.retentionAmount ?? 0) > 0 ? (
+                          <RetentionBadge amount={inv.retentionAmount ?? 0} released={inv.retentionReleased} />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <StatusBadge status={inv.status} legacy={inv.legacy} />
@@ -490,6 +512,12 @@ export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewP
                     <span>
                       متبقي <span className="tabular-nums">{formatKWD(inv.remaining)}</span>
                     </span>
+                    {(inv.retentionAmount ?? 0) > 0 && (
+                      <span>
+                        محتجز <span className="tabular-nums text-status-warn">{formatKWD(inv.retentionAmount ?? 0)}</span>
+                        {inv.retentionReleased ? " · مُفرج" : " · معلّق"}
+                      </span>
+                    )}
                     {inv.description && <span className="truncate">{inv.description}</span>}
                   </div>
                   <div className="flex flex-wrap items-center gap-1">

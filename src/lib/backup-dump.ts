@@ -97,6 +97,9 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "subContractItem", table: "sub_contract_items", serial: true },
   { model: "subPaymentPlanItem", table: "sub_payment_plan", serial: true },
   { model: "subPaymentSource", table: "sub_payment_sources", serial: true },
+  // المرحلة (أ) — مستخلصات الباطن SubIPC (docs/retention-subipc-advance-design.md §3) — الرأس ثم أسطره
+  { model: "subCertificate", table: "sub_certificates", serial: true },
+  { model: "subCertificateLine", table: "sub_certificate_lines", serial: true },
   // ===== قوالب الأنواع =====
   { model: "typePaymentTemplate", table: "type_payment_tpl", serial: true },
   { model: "typePaymentStage", table: "type_payment_stages", serial: true },

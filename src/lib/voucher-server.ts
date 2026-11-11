@@ -1658,6 +1658,26 @@ export async function cancelVoucherTx(
     contractId: v.contractId,
   });
 
+  // المرحلة (أ) — إلغاء سند صرف مستخلص باطن ⇒ رجوع المستخلص إلى «معتمد» تلقائيًا
+  // (docs/retention-subipc-advance-design.md §3.5 — لا إلغاء للمدفوع إلا عبر سنده)
+  const paidCerts = await tx.subCertificate.findMany({ where: { paidVoucherId: v.id } });
+  for (const pc of paidCerts) {
+    await tx.subCertificate.update({
+      where: { id: pc.id },
+      data: { status: "معتمد", paidVoucherId: null },
+    });
+    await audit(tx, {
+      username,
+      action: "رجوع حالة",
+      entityType: "subCertificate",
+      entityId: pc.id,
+      entityName: pc.certNumber,
+      oldStatus: "مدفوع",
+      newStatus: "معتمد",
+      reason: `إلغاء سند الصرف ${v.voucherNumber}`,
+    });
+  }
+
   // إعادة فتح الدفعات المغطاة
   let reopened = 0;
   if (v.contractId) {

@@ -4,6 +4,7 @@ import { authGuard, jsonError, ok } from "@/lib/api-utils";
 import { EPS, r3 } from "@/lib/contrack-core";
 import { loadContractCore, loadSubContractItemsMany } from "@/lib/contrack-server";
 import { computeSubPlan } from "@/lib/voucher-server";
+import { computeNetDue, subCertKpis } from "@/lib/phase-a-core";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -79,12 +80,46 @@ export async function GET(req: NextRequest, { params }: P) {
     remaining: number;
     waiting: number;
     plan: { lines: Record<string, unknown>[]; paid: number; planTotal: number; gateEnabled: boolean } | null;
+    subCertKpis: ReturnType<typeof subCertKpis>;
   };
   const blocks: Block[] = [];
   const itemsBySub = await loadSubContractItemsMany(subs.map((s) => s.id));
   // ذاكرة نواة العقد للطلب كله — كتل N مقاولين على نفس العقد تشارك تحميلًا واحدًا (Task 63)
   const coreCache = new Map<number, NonNullable<Awaited<ReturnType<typeof loadContractCore>>>>();
   coreCache.set(contractId, core);
+
+  // المرحلة (أ) — مؤشرات مستخلصات الباطن لكل مقاول (تُحسب قبل الحلقة وتُرفق بكل كتلة)
+  const subCertRows = await db.subCertificate.findMany({
+    where: { subContract: { contractId } },
+    select: {
+      id: true,
+      subContractId: true,
+      certNumber: true,
+      certDate: true,
+      grossAmount: true,
+      retentionAmount: true,
+      advanceRecovery: true,
+      otherDeductions: true,
+      netAmount: true,
+      cumulativeAmount: true,
+      status: true,
+      paidVoucherId: true,
+    },
+    orderBy: [{ subContractId: "asc" }, { certNo: "desc" }],
+    take: 500,
+  });
+  const kpisForSub = (subId: number) =>
+    subCertKpis(
+      subCertRows
+        .filter((c) => c.subContractId === subId)
+        .map((c) => ({
+          status: c.status,
+          netAmount: Number(c.netAmount),
+          retentionAmount: Number(c.retentionAmount),
+          advanceRecovery: Number(c.advanceRecovery),
+        }))
+    );
+
   for (const s of subs) {
     const plan = await computeSubPlan(s.id, { coreCache });
     const items = itemsBySub.get(s.id) ?? [];
@@ -127,9 +162,90 @@ export async function GET(req: NextRequest, { params }: P) {
       plan: plan
         ? { lines, paid: plan.paid, planTotal: plan.planTotal, gateEnabled: plan.gateEnabled }
         : null,
+      subCertKpis: kpisForSub(s.id),
     });
   }
   const freeClientIds = clientLines.map((l) => l.id).filter((id) => !usedClientIds.has(id));
+
+  // ④ المرحلة (أ) — المحتجزات والدفعة المقدمة ومستخلصات الباطن (docs/retention-subipc-advance-design.md §5.3)
+  const retentionInvoices = await db.invoice.findMany({
+    where: { contractId, status: { not: "void" }, retentionAmount: { gt: 0 } },
+    select: {
+      id: true,
+      invoiceNumber: true,
+      invoiceDate: true,
+      total: true,
+      retentionAmount: true,
+      retentionReleased: true,
+      retentionReleasedAt: true,
+      advanceRecovered: true,
+      paidAmount: true,
+      customer: { select: { name: true } },
+    },
+    orderBy: { invoiceNo: "asc" },
+  });
+  const retentionTotal = r3(retentionInvoices.reduce((s, i) => s + Number(i.retentionAmount), 0));
+  const retentionReleasedSum = r3(
+    retentionInvoices.filter((i) => i.retentionReleased).reduce((s, i) => s + Number(i.retentionAmount), 0)
+  );
+  const invoiceRows = await db.invoice.findMany({
+    where: { contractId, status: { not: "void" } },
+    select: { total: true, retentionAmount: true, advanceRecovered: true },
+  });
+  const advanceRecoveredTotal = r3(invoiceRows.reduce((s, i) => s + Number(i.advanceRecovered), 0));
+  const advance = {
+    amount: r3(Number(core.contract.advanceAmount)),
+    recoveryPct: r3(Number(core.contract.advanceRecoveryPct)),
+    recovered: advanceRecoveredTotal,
+    remaining: r3(Math.max(0, Number(core.contract.advanceAmount) - advanceRecoveredTotal)),
+  };
+
+  // مؤشرات عامة لمستخلصات الباطن (القائمة الكاملة للعرض)
+  const overallKpis = subCertKpis(
+    subCertRows.map((c) => ({
+      status: c.status,
+      netAmount: Number(c.netAmount),
+      retentionAmount: Number(c.retentionAmount),
+      advanceRecovery: Number(c.advanceRecovery),
+    }))
+  );
+  const phaseA = {
+    retention: {
+      total: retentionTotal,
+      released: retentionReleasedSum,
+      pending: r3(retentionTotal - retentionReleasedSum),
+      invoices: retentionInvoices.map((i) => ({
+        id: i.id,
+        invoiceNumber: i.invoiceNumber,
+        invoiceDate: i.invoiceDate,
+        customerName: i.customer.name,
+        total: r3(Number(i.total)),
+        netDue: computeNetDue(Number(i.total), Number(i.retentionAmount), Number(i.advanceRecovered)),
+        paidAmount: r3(Number(i.paidAmount)),
+        retentionAmount: r3(Number(i.retentionAmount)),
+        retentionReleased: i.retentionReleased,
+        retentionReleasedAt: i.retentionReleasedAt,
+      })),
+    },
+    advance,
+    subCerts: {
+      overall: overallKpis,
+      list: subCertRows.slice(0, 100).map((c) => ({
+        id: c.id,
+        subContractId: c.subContractId,
+        certNumber: c.certNumber,
+        certDate: c.certDate,
+        grossAmount: r3(Number(c.grossAmount)),
+        retentionAmount: r3(Number(c.retentionAmount)),
+        advanceRecovery: r3(Number(c.advanceRecovery)),
+        otherDeductions: r3(Number(c.otherDeductions)),
+        netAmount: r3(Number(c.netAmount)),
+        cumulativeAmount: r3(Number(c.cumulativeAmount)),
+        status: c.status,
+        paidVoucherId: c.paidVoucherId,
+      })),
+    },
+  };
 
   return ok({
     manualPath: core.contract.manualPath,
@@ -138,6 +254,7 @@ export async function GET(req: NextRequest, { params }: P) {
     client: { lines: clientLines, due: clientDue, collected: clientCollected, remaining: r3(clientDue - clientCollected) },
     blocks,
     freeClientIds,
+    phaseA,
     totals: {
       clientDue,
       clientCollected,

@@ -78,6 +78,9 @@ export function ContractEditPage({ contractId, onAuthError, onSaved, onCancel }:
     supMonths: string;
     supMonthly: string;
     supDiscount: string;
+    // المرحلة (أ) — الدفعة المقدمة واستردادها
+    advanceAmount: string;
+    advanceRecoveryPct: string;
   } | null>(null);
 
   // تهيئة الحقول من بيانات العقد مرة واحدة (كما كانت openEdit في النافذة)
@@ -98,6 +101,8 @@ export function ContractEditPage({ contractId, onAuthError, onSaved, onCancel }:
         supMonths: String(detail.supMonths ?? 0),
         supMonthly: String(detail.supMonthly ?? 0),
         supDiscount: String(detail.supDiscount ?? 0),
+        advanceAmount: String(detail.advanceAmount ?? 0),
+        advanceRecoveryPct: String(detail.advanceRecoveryPct ?? 0),
       }
     );
   }, [detail]);
@@ -135,6 +140,9 @@ export function ContractEditPage({ contractId, onAuthError, onSaved, onCancel }:
               supDiscount: Number(f.supDiscount || 0),
             }
           : {}),
+        // المرحلة (أ) — الدفعة المقدمة ونسبة استردادها (تؤثر على المستخلصات الجديدة فقط)
+        advanceAmount: Math.max(0, Number(f.advanceAmount || 0)),
+        advanceRecoveryPct: Math.min(100, Math.max(0, Number(f.advanceRecoveryPct || 0))),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["contract", contractId] });
@@ -381,6 +389,40 @@ export function ContractEditPage({ contractId, onAuthError, onSaved, onCancel }:
                   </div>
                 </>
               )}
+
+              {/* ===== المرحلة (أ) — الدفعة المقدمة واستردادها ===== */}
+              <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
+                <p className="text-xs font-medium text-muted-foreground">
+                  الدفعة المقدمة — تُسترد آليًا من كل مستخلص بنسبة الاسترداد حتى نفادها (تؤثر على المستخلصات الجديدة فقط)
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="e-advance">الدفعة المقدمة (د.ك)</Label>
+                <Input
+                  id="e-advance"
+                  className="h-9"
+                  dir="ltr"
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  value={form.advanceAmount}
+                  onChange={(e) => setForm((f) => (f ? { ...f, advanceAmount: e.target.value } : f))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="e-advance-pct">نسبة الاسترداد %</Label>
+                <Input
+                  id="e-advance-pct"
+                  className="h-9"
+                  dir="ltr"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={form.advanceRecoveryPct}
+                  onChange={(e) => setForm((f) => (f ? { ...f, advanceRecoveryPct: e.target.value } : f))}
+                />
+              </div>
 
               <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
                 <Label htmlFor="e-desc">الوصف</Label>

@@ -4,7 +4,12 @@ import { db } from "@/lib/db";
 import { audit, authGuard, jsonError, nextNumber, ok, parseDay } from "@/lib/api-utils";
 import { EPS, r3 } from "@/lib/contrack-core";
 import { intOr, loadContractCore } from "@/lib/contrack-server";
-import { buildInvoiceItems, postInvoiceIssueEntry } from "@/lib/invoice-server";
+import { computeNetDue, validateRetentionRate } from "@/lib/phase-a-core";
+import {
+  buildInvoiceItems,
+  computeAdvanceRecoveryForContract,
+  postInvoiceIssueEntry,
+} from "@/lib/invoice-server";
 
 /**
  * الفواتير — Task 107 (استبدال كامل — منهج النواة الواحدة):
@@ -64,6 +69,8 @@ export async function GET(req: NextRequest) {
     .map((r) => {
       const total = Number(r.total);
       const paid = Number(r.paidAmount);
+      const retentionAmount = r3(Number(r.retentionAmount));
+      const advanceRecovered = r3(Number(r.advanceRecovered));
       return {
         id: r.id,
         invoiceNo: r.invoiceNo,
@@ -81,6 +88,12 @@ export async function GET(req: NextRequest) {
         total: r3(total),
         paidAmount: r3(paid),
         remaining: r3(r.status === "void" ? 0 : total - paid),
+        // المرحلة (أ) — المحتجزات والدفعة المقدمة (docs/retention-subipc-advance-design.md §1/§2)
+        retentionRate: r3(Number(r.retentionRate)),
+        retentionAmount,
+        retentionReleased: r.retentionReleased,
+        advanceRecovered,
+        netDue: r.status === "void" ? 0 : computeNetDue(total, retentionAmount, advanceRecovered),
         status: r.status,
         legacy: r.legacy,
         entryId: r.entry?.id ?? null,
@@ -112,6 +125,14 @@ export async function POST(req: NextRequest) {
 
   const built = buildInvoiceItems(body.items);
   if (!built.ok) return jsonError(built.error);
+
+  // المرحلة (أ) — المحتجزات: نسبة 0-25% على مستخلص عقد حصرًا (docs/retention-subipc-advance-design.md §1)
+  const rateCheck = validateRetentionRate(body.retentionRate);
+  if (!rateCheck.ok) return jsonError(rateCheck.error);
+  const retentionRate = contractId ? rateCheck.rate : 0;
+  if (rateCheck.rate > 0 && !contractId) {
+    return jsonError("المحتجزات مفهوم تعاقدي — تُحدد على فاتورة مرتبطة بعقد فقط");
+  }
 
   const [customer, contract] = await Promise.all([
     db.customer.findUnique({ where: { id: customerId }, select: { id: true, name: true } }),
@@ -178,6 +199,11 @@ export async function POST(req: NextRequest) {
           // INV-#### عدّاد لا يتراجع — invoiceNo التسلسلي من الرقم نفسه
           const invoiceNumber = await nextNumber("INV", 4, tx);
           const invoiceNo = intOr(invoiceNumber.replace(/^INV-/, ""), 0);
+          // المرحلة (أ) — المحتجز الفعلي + لقطة استرداد الدفعة المقدمة (محسوبة خادميًا داخل المعاملة)
+          const retentionAmount = contractId ? r3((built.total * retentionRate) / 100) : 0;
+          const advanceRecovered = contractId
+            ? await computeAdvanceRecoveryForContract(tx, contractId, built.total)
+            : 0;
           const invoice = await tx.invoice.create({
             data: {
               invoiceNumber,
@@ -191,6 +217,9 @@ export async function POST(req: NextRequest) {
               subtotal: built.subtotal,
               discountTotal: built.discountTotal,
               total: built.total,
+              retentionRate,
+              retentionAmount,
+              advanceRecovered,
               notes,
             },
           });
@@ -207,6 +236,7 @@ export async function POST(req: NextRequest) {
           });
 
           // قيد الإصدار الآلي — فشله يتراجع عن الإصدار كله (لا فاتورة بلا قيد)
+          // المرحلة (أ) — مع محتجزات: 3 أسطر (ذمم total−R · محتجزات R · إيراد total)
           const entry = await postInvoiceIssueEntry(
             tx,
             {
@@ -216,17 +246,20 @@ export async function POST(req: NextRequest) {
               total: built.total,
               customerId,
               contractId,
+              retentionAmount,
             },
             customer.name,
             guard.user.username
           );
 
           if (contractId && contract) {
+            const retentionNote = retentionAmount > 0 ? ` — محتجزات ${retentionAmount} (${retentionRate}%)` : "";
+            const advanceNote = advanceRecovered > 0 ? ` — استرداد دفعة مقدمة ${advanceRecovered}` : "";
             await tx.contractEvent.create({
               data: {
                 contractId,
                 eventType: "إصدار فاتورة",
-                description: `إصدار فاتورة ${invoiceNumber} بمبلغ ${built.total} (قيد #${entry.entryNo}) — العقد ${contract.contractNumber}`,
+                description: `إصدار فاتورة ${invoiceNumber} بمبلغ ${built.total}${retentionNote}${advanceNote} (قيد #${entry.entryNo}) — العقد ${contract.contractNumber}`,
                 username: guard.user.username,
               },
             });
@@ -253,6 +286,10 @@ export async function POST(req: NextRequest) {
             contractNumber: contract?.contractNumber ?? null,
             invoiceDate,
             total: built.total,
+            retentionRate,
+            retentionAmount: created.invoice.retentionAmount ? r3(Number(created.invoice.retentionAmount)) : 0,
+            advanceRecovered: created.invoice.advanceRecovered ? r3(Number(created.invoice.advanceRecovered)) : 0,
+            netDue: computeNetDue(built.total, Number(created.invoice.retentionAmount), Number(created.invoice.advanceRecovered)),
             entryNo: created.entryNo,
           },
           financials: core

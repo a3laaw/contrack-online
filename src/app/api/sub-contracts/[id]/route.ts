@@ -49,6 +49,26 @@ export async function GET(req: NextRequest, { params }: P) {
   const plan = await computeSubPlan(sc.id);
 
   return ok({
+    // «item» مرآة التوافق — نافذة التفاصيل تقرأ detail.item (نفس الكائن)
+    item: {
+      id: sc.id,
+      subcontractorId: sc.subcontractorId,
+      subcontractor: sc.subcontractor,
+      contract: { id: sc.contract.id, contractNumber: sc.contract.contractNumber, contractName: sc.contract.contractName, status: sc.contract.status },
+      contractId: sc.contractId,
+      subcontractorName: sc.subcontractor.name,
+      subCode: sc.subcontractor.subCode,
+      contractNumber: sc.contract.contractNumber,
+      contractName: sc.contract.contractName,
+      customerName: sc.contract.customer.name,
+      amount: Number(sc.amount),
+      startDate: sc.startDate,
+      endDate: sc.endDate,
+      status: sc.status,
+      description: sc.description,
+      cancelReason: sc.cancelReason,
+      cancelledAt: sc.cancelledAt,
+    },
     subContract: {
       id: sc.id,
       subcontractorId: sc.subcontractorId,

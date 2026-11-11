@@ -16,6 +16,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { ApiError, apiGet, apiPost } from "./api";
+import { SearchableSelect } from "./SearchableSelect";
 import {
   Select,
   SelectContent,
@@ -23,10 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
-import { ApiError, apiGet, apiPost } from "./api";
-import { SearchableSelect } from "./SearchableSelect";
 import type {
   ContractDetailResponse,
   CustomerDetailResponse,
@@ -118,6 +118,9 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
     retry: false,
   });
   const nCurrent = contractDetailQuery.data ? Number(contractDetailQuery.data.current || 0) : null;
+  // المرحلة (أ) — الدفعة المقدمة على العقد (للاسترداد التقديري)
+  const nAdvance = contractDetailQuery.data?.contract?.advanceAmount ?? 0;
+  const nAdvancePct = contractDetailQuery.data?.contract?.advanceRecoveryPct ?? 0;
 
   // المفوتر سابقًا على هذا العقد (لغير الملغاة) — تنبيه السقف قبل الرفض الخادمي
   const contractInvoicesQuery = useQuery<InvoicesResponse>({
@@ -132,6 +135,13 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
   );
   const nRemaining = nCurrent !== null ? round3(nCurrent - nInvoiced) : null;
   const nExceeds = nRemaining !== null && totals.total > nRemaining + 0.001;
+
+  // ===== المرحلة (أ) — المحتجزات والدفعة المقدمة (docs/retention-subipc-advance-design.md §5.1)
+  const [nRetentionRate, setNRetentionRate] = React.useState("0");
+  const retentionRateNum = Math.min(25, Math.max(0, num(nRetentionRate)));
+  const retentionAmount = round3((totals.total * retentionRateNum) / 100);
+  const advanceRecoveryEstimate = round3(Math.min((totals.total * nAdvancePct) / 100, nAdvance));
+  const netDue = round3(totals.total - retentionAmount);
 
   // ===== الإصدار — ينشر القيد الآلي داخل المعاملة =====
   const createMutation = useMutation({
@@ -183,6 +193,7 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
       dueDate: nDueDate || undefined,
       description: nDescription.trim() || undefined,
       notes: nNotes.trim() || undefined,
+      retentionRate: nContractIdNum !== null ? retentionRateNum : undefined,
       items: clean.map((it) => ({
         description: it.description.trim(),
         quantity: num(it.quantity),
@@ -294,6 +305,45 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
                 <TriangleAlert className="size-3.5 shrink-0" />
                 الصافي يتجاوز المتبقي من العقد ({formatKWD(nRemaining ?? 0)}) — سيُرفض من الخادم
               </p>
+            )}
+
+            {/* المرحلة (أ) — المحتجزات والدفعة المقدمة (فقط مع عقد — المفهوم تعاقدي) */}
+            {nContractIdNum !== null && (
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-3 md:col-span-2 lg:col-span-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Label className="text-xs">نسبة المحتجزات %</Label>
+                  <div className="flex items-center gap-1">
+                    {[0, 5, 10].map((p) => (
+                      <Button
+                        key={p}
+                        type="button"
+                        variant={retentionRateNum === p ? "default" : "outline"}
+                        size="sm"
+                        className="h-7 px-2.5"
+                        onClick={() => setNRetentionRate(String(p))}
+                      >
+                        {p}%
+                      </Button>
+                    ))}
+                  </div>
+                  <Input
+                    className="h-8 w-24 ltr text-start"
+                    dir="ltr"
+                    inputMode="decimal"
+                    value={nRetentionRate}
+                    onChange={(e) => setNRetentionRate(e.target.value)}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    المحتجز: <span className="font-bold tabular-nums" dir="ltr">{formatKWD(retentionAmount)}</span> — يُحجز في 1122 ويُفرج عنه لاحقًا من صفحة الدفعات
+                  </span>
+                </div>
+                {nAdvance > 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    الدفعة المقدمة على العقد {formatKWD(nAdvance)} بنسبة استرداد {nAdvancePct}% — سيُسترد تقديريًا من هذا المستخلص{" "}
+                    <span className="font-bold tabular-nums" dir="ltr">{formatKWD(advanceRecoveryEstimate)}</span> (اللقطة النهائية خادمية)
+                  </p>
+                )}
+              </div>
             )}
           </div>
         </CardContent>
@@ -457,8 +507,12 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
             })}
           </div>
 
-          {/* الإجماليات الحية */}
-          <div className="grid grid-cols-3 gap-2 rounded-lg border bg-muted/30 p-3 text-center text-xs">
+          {/* الإجماليات الحية — المرحلة (أ): قبل الخصم · الخصم · الإجمالي المفوتر · المحتجزات · المطلوب نقدًا */}
+          <div
+            className={`grid gap-2 rounded-lg border bg-muted/30 p-3 text-center text-xs ${
+              nContractIdNum !== null && retentionAmount > 0 ? "grid-cols-2 md:grid-cols-5" : "grid-cols-3"
+            }`}
+          >
             <div>
               <div className="text-muted-foreground">قبل الخصم</div>
               <div className="font-mono font-bold tabular-nums" dir="ltr">{formatKWD(totals.subtotal)}</div>
@@ -470,11 +524,27 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
               </div>
             </div>
             <div>
-              <div className="text-muted-foreground">الصافي المفوتر</div>
+              <div className="text-muted-foreground">الإجمالي المفوتر</div>
               <div className="font-mono font-extrabold tabular-nums text-primary-ink" dir="ltr">
                 {formatKWD(totals.total)}
               </div>
             </div>
+            {nContractIdNum !== null && retentionAmount > 0 && (
+              <>
+                <div>
+                  <div className="text-muted-foreground">المحتجزات ({retentionRateNum}%)</div>
+                  <div className="font-mono font-bold tabular-nums text-status-warn" dir="ltr">
+                    {formatKWD(retentionAmount)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">المطلوب نقدًا</div>
+                  <div className="font-mono font-extrabold tabular-nums text-primary-ink" dir="ltr">
+                    {formatKWD(netDue)}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <ScrollText className="size-3.5 shrink-0" />

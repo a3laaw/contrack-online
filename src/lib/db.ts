@@ -38,7 +38,9 @@ const TENANT_MODELS = new Set<string>([
   "fieldExecution",
   "quotation", "quotationItem", "voucherPaymentLink", "addendum", "addendumItem",
   "claim", "subcontractor", "subContract", "subContractItem", "subPaymentPlanItem",
-  "subPaymentSource", "contractType", "typePaymentTemplate", "typePaymentStage", "typeBundleComponent",
+  "subPaymentSource",
+  // المرحلة (أ) — مستخلصات الباطن SubIPC (docs/retention-subipc-advance-design.md §3) — بنفس قاعدة درس T111
+  "subCertificate", "subCertificateLine", "contractType", "typePaymentTemplate", "typePaymentStage", "typeBundleComponent",
   "contractComponent", "entityBackup", "workflowStage", "contractScope", "setting",
   "paymentMethod", "contractGroup", "contractGroupItem", "invoice",
   // Task 107 — بنود الفواتير وروابط سدادها (فصل الشركات من اليوم الأول)

@@ -6,6 +6,7 @@ import { r3 } from "@/lib/contrack-core";
 import { closeAmountSuffix } from "@/lib/contract-types-admin";
 import { canTransition, transitionError } from "@/lib/lifecycle-transitions";
 import { createEntityBackup } from "@/lib/backup-server";
+import { validateAdvanceFields } from "@/lib/phase-a-core";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -45,6 +46,9 @@ export async function GET(req: NextRequest, { params }: P) {
       currency: c.currency,
       qty: Number(c.qty),
       unitPrice: Number(c.unitPrice),
+      // المرحلة (أ) — الدفعة المقدمة واستردادها
+      advanceAmount: Number(c.advanceAmount),
+      advanceRecoveryPct: Number(c.advanceRecoveryPct),
       supStartDate: c.supStartDate,
       supMonths: c.supMonths,
       supMonthly: Number(c.supMonthly),
@@ -151,6 +155,20 @@ export async function PATCH(req: NextRequest, { params }: P) {
   // العملة — نص قصير، الفراغ يعود لـ«د.ك» (contract_hub.py:674)
   if (body.currency !== undefined) data.currency = String(body.currency).trim() || "د.ك";
 
+  // المرحلة (أ) — الدفعة المقدمة واستردادها (docs/retention-subipc-advance-design.md §2.3):
+  // تغيير النسبة يؤثر على المستخلصات الجديدة فقط — اللقطات المخزنة لا تُمس.
+  const advanceCheck = validateAdvanceFields(body);
+  if (!advanceCheck.ok) return jsonError(advanceCheck.error);
+  let advanceChanged = false;
+  if (advanceCheck.advanceAmount !== undefined) {
+    data.advanceAmount = advanceCheck.advanceAmount;
+    if (advanceCheck.advanceAmount !== Number(core.contract.advanceAmount)) advanceChanged = true;
+  }
+  if (advanceCheck.advanceRecoveryPct !== undefined) {
+    data.advanceRecoveryPct = advanceCheck.advanceRecoveryPct;
+    if (advanceCheck.advanceRecoveryPct !== Number(core.contract.advanceRecoveryPct)) advanceChanged = true;
+  }
+
   // حقول الإشراف (contract_hub.py:649–669) — المدة 0–120 (الصفر = لا تعهد)
   let effSupMonths = core.contract.supMonths ?? 0;
   let effSupMonthly = Number(core.contract.supMonthly ?? 0);
@@ -217,6 +235,22 @@ export async function PATCH(req: NextRequest, { params }: P) {
         oldStatus,
         newStatus,
         reason: String(data.statusReason || ""),
+      });
+    } else if (advanceChanged) {
+      await tx.contractEvent.create({
+        data: {
+          contractId: id,
+          eventType: "تعديل الدفعة المقدمة",
+          description: `الدفعة المقدمة: ${data.advanceAmount !== undefined ? data.advanceAmount : Number(core.contract.advanceAmount)} د.ك — نسبة الاسترداد: ${data.advanceRecoveryPct !== undefined ? data.advanceRecoveryPct : Number(core.contract.advanceRecoveryPct)}%`,
+          username: guard.user.username,
+        },
+      });
+      await audit(tx, {
+        username: guard.user.username,
+        action: "تعديل",
+        entityType: "contract",
+        entityId: id,
+        entityName: contract.contractNumber,
       });
     } else if (Object.keys(data).length > 0) {
       await tx.contractEvent.create({

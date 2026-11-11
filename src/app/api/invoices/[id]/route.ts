@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { adminGuard, audit, authGuard, jsonError, ok, parseDay } from "@/lib/api-utils";
 import { EPS, r3 } from "@/lib/contrack-core";
 import { intOr, loadContractCore } from "@/lib/contrack-server";
+import { computeNetDue } from "@/lib/phase-a-core";
 import {
   buildInvoiceItems,
   invoicedTotalForContract,
@@ -60,6 +61,14 @@ export async function GET(req: NextRequest, { params }: P) {
       total: r3(Number(inv.total)),
       paidAmount: r3(Number(inv.paidAmount)),
       remaining: r3(inv.status === "void" ? 0 : Number(inv.total) - Number(inv.paidAmount)),
+      // المرحلة (أ) — المحتجزات والدفعة المقدمة
+      retentionRate: r3(Number(inv.retentionRate)),
+      retentionAmount: r3(Number(inv.retentionAmount)),
+      retentionReleased: inv.retentionReleased,
+      retentionReleasedAt: inv.retentionReleasedAt,
+      retentionReleaseEntryId: inv.retentionReleaseEntryId,
+      advanceRecovered: r3(Number(inv.advanceRecovered)),
+      netDue: inv.status === "void" ? 0 : computeNetDue(Number(inv.total), Number(inv.retentionAmount), Number(inv.advanceRecovered)),
       status: inv.status,
       voidReason: inv.voidReason,
       legacy: inv.legacy,
@@ -232,6 +241,11 @@ export async function PATCH(req: NextRequest, { params }: P) {
   if (paid > EPS && newTotal < paid - EPS) {
     return jsonError(`الصافي الجديد (${newTotal}) أقل من المسدد (${paid}) — راجع سندات السداد أولًا`);
   }
+  // المرحلة (أ) — المحتجز لقطة لا تُمس: الصافي الجديد يجب أن يبقى فوقه
+  const effRetention = r3(Number(inv.retentionAmount));
+  if (effRetention > EPS && newTotal < effRetention + EPS) {
+    return jsonError(`الصافي الجديد (${newTotal}) أقل من المحتجزات الثابتة (${effRetention}) — ألغِ الفاتورة وأعد إصدارها`);
+  }
 
   const entryDateChanged = data.invoiceDate !== undefined && data.invoiceDate !== inv.invoiceDate;
   const totalChanged = itemsProvided && r3(newTotal) !== r3(Number(inv.total));
@@ -267,6 +281,7 @@ export async function PATCH(req: NextRequest, { params }: P) {
               customerId: row.customerId,
               contractId: row.contractId,
               entryId: row.entryId,
+              retentionAmount: r3(Number(row.retentionAmount)),
             },
             inv.customer.name,
             totalChanged ? "تعديل فاتورة (تغيّر الصافي)" : "تعديل فاتورة (تغيّر تاريخ الإصدار)",

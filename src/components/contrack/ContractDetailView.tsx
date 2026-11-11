@@ -117,6 +117,7 @@ import { StatusBadge } from "./StatusBadge";
 import { SearchableSelect } from "./SearchableSelect";
 import { PayBlockCard, PlanTable, UnifiedPayTable } from "./pay-tables";
 import { SubcontractorLedger } from "./SubcontractorLedger";
+import { PhaseAPayCard } from "./PhaseAPayCard";
 import { AddendumsTab } from "./AddendumsTab";
 import { ContractEditPage } from "./ContractEditPage";
 import { ContractSettlePage } from "./ContractSettlePage";
@@ -2583,6 +2584,11 @@ function PayPage({
                 : "لا خطة دفعات لهذا العقد بعد · تُدخل من شاشة العقد"}
             </p>
           </PayBlockCard>
+
+          {/* المرحلة (أ) — المحتجزات والدفعة المقدمة ومستخلصات الباطن (docs/retention-subipc-advance-design.md §5.3) */}
+          {m.phaseA && (
+            <PhaseAPayCard contractId={contractId} manager={manager} phaseA={m.phaseA} onActionError={onActionError} />
+          )}
 
           {/* ③ كتلة لكل مقاول باطن (1202–1249) */}
           {/* كشف المقاول الموحّد — لكل مقاول جدول واحد: بنوده + دفعاته مقابل دفعات العميل (Task 63) */}

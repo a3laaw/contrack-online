@@ -596,6 +596,9 @@ export interface ContractDetailResponse {
     supDiscount?: number;
     supWaivedMonths?: number;
     supWaiveReason?: string;
+    /** المرحلة (أ) — الدفعة المقدمة واستردادها */
+    advanceAmount?: number;
+    advanceRecoveryPct?: number;
   };
   stages: ContractStage[];
   plan: ContractPlanBrief[];
@@ -705,6 +708,44 @@ export interface ContractPayViewResponse {
   client: { lines: PayViewLine[]; due: number; collected: number; remaining: number };
   blocks: PayViewSubBlock[];
   freeClientIds: number[];
+  /** المرحلة (أ) — المحتجزات والدفعة المقدمة ومستخلصات الباطن (docs/retention-subipc-advance-design.md §5.3) */
+  phaseA?: {
+    retention: {
+      total: number;
+      released: number;
+      pending: number;
+      invoices: {
+        id: number;
+        invoiceNumber: string;
+        invoiceDate: string;
+        customerName: string;
+        total: number;
+        netDue: number;
+        paidAmount: number;
+        retentionAmount: number;
+        retentionReleased: boolean;
+        retentionReleasedAt: string;
+      }[];
+    };
+    advance: { amount: number; recoveryPct: number; recovered: number; remaining: number };
+    subCerts: {
+      overall: { approvedCumulative: number; paidCumulative: number; pendingRetention: number; count: number };
+      list: {
+        id: number;
+        subContractId: number;
+        certNumber: string;
+        certDate: string;
+        grossAmount: number;
+        retentionAmount: number;
+        advanceRecovery: number;
+        otherDeductions: number;
+        netAmount: number;
+        cumulativeAmount: number;
+        status: string;
+        paidVoucherId: number | null;
+      }[];
+    };
+  };
   totals: {
     clientDue: number;
     clientCollected: number;
@@ -1514,6 +1555,12 @@ export interface InvoiceRow {
   total: number;
   paidAmount: number;
   remaining: number;
+  /** المرحلة (أ) — المحتجزات والدفعة المقدمة (docs/retention-subipc-advance-design.md §1/§2) */
+  retentionRate?: number;
+  retentionAmount?: number;
+  retentionReleased?: boolean;
+  advanceRecovered?: number;
+  netDue?: number;
   status: InvoiceStatus;
   legacy: boolean;
   entryId: number | null;

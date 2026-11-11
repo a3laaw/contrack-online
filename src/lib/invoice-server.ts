@@ -6,8 +6,12 @@ import {
   type RuleChartAccount,
 } from "@/lib/posting-rules-core";
 import { loadChartCandidates, loadPostingRules, type VoucherJournalInvoiceAllocation } from "@/lib/posting-rules-server";
-import { postNamedEntry, reverseJournalEntry } from "@/lib/journal-server";
+import { buildAccountResolver, postJournalEntry, postNamedEntry, resolveNamedSide, reverseJournalEntry } from "@/lib/journal-server";
 import { resolveContractSubsidiary } from "@/lib/subsidiary-server";
+import {
+  buildInvoiceIssueLines,
+  computeAdvanceRecovery,
+} from "@/lib/phase-a-core";
 
 /** تحويل آمن لرقم (مرآة numOr — محلية لكسر دورة الاستيراد مع contrack-server) */
 const numOr = (v: unknown, d: number): number => {
@@ -135,9 +139,28 @@ export async function resolveInvoiceIssueSides(
   };
 }
 
+/** حساب محتجزات العملاء (1122) — مبذر في الدليل الموحد (accounting-core L106) */
+export const RETENTION_ACCOUNT_CODE = "1122";
+
+/** حسم حساب المحتجزات: الدليل بالكود ← بوابة الأسماء (الدليل/الخريطة ← التسوية) */
+export async function resolveRetentionSide(
+  tx: DbClient
+): Promise<{ accountId: number | null; name: string }> {
+  const acc = await tx.account.findFirst({
+    where: { code: RETENTION_ACCOUNT_CODE, isActive: true },
+    select: { id: true, name: true },
+  });
+  const name = acc?.name || "محتجزات العملاء";
+  const resolver = await buildAccountResolver(tx);
+  const accountId = await resolveNamedSide(tx, { name, accountId: acc?.id ?? null }, resolver);
+  return { accountId, name };
+}
+
 /**
  * نشر قيد إصدار الفاتورة وتحديث entryId — يُستدعى داخل معاملة إنشاء/تعديل
  * الفاتورة (فشل النشر = تراجع الإصدار كله: لا فاتورة بلا قيد).
+ * المرحلة (أ) — مع محتجزات: 3 أسطر (مدين ذمم total−R · مدين 1122 R · دائن إيراد total)،
+ * وبلا محتجزات السطران القائمان حرفيًا (تغيير جذري صفر على المسار الحالي).
  */
 export async function postInvoiceIssueEntry(
   tx: Tx,
@@ -148,6 +171,7 @@ export async function postInvoiceIssueEntry(
     total: number;
     customerId: number;
     contractId: number | null;
+    retentionAmount?: number;
   },
   customerName: string,
   actor = "النظام (آلي)"
@@ -167,6 +191,44 @@ export async function postInvoiceIssueEntry(
   }
   const amount = r3(invoice.total);
   const dims = { customerId: invoice.customerId, contractId: invoice.contractId ?? null };
+
+  // المرحلة (أ) — المحتجزات على مستخلص العقد فقط (§6 حدود التصميم)
+  const retention = r3(Math.max(0, Number(invoice.retentionAmount ?? 0)));
+  if (retention > EPS && invoice.contractId && amount - retention > EPS) {
+    const retentionSide = await resolveRetentionSide(tx);
+    const lines = buildInvoiceIssueLines({
+      receivableAccountId: debitSide.accountId ?? 0,
+      retentionAccountId: retentionSide.accountId,
+      revenueAccountId: sides.credit.accountId ?? 0,
+      total: amount,
+      retentionAmount: retention,
+      dims,
+      receivableName: debitSide.name,
+      retentionName: retentionSide.name,
+      revenueName: sides.credit.name,
+    });
+    const result = await postJournalEntry(
+      tx,
+      {
+        entryDate: invoice.invoiceDate,
+        description: `فاتورة ${invoice.invoiceNumber} — ${customerName}`,
+        sourceType: "invoice",
+        sourceId: invoice.id,
+        lines: lines.map((l) => ({
+          accountId: l.accountId,
+          debit: l.debit,
+          credit: l.credit,
+          description: l.description,
+          customerId: l.customerId ?? null,
+          contractId: l.contractId ?? null,
+        })),
+      },
+      actor
+    );
+    await tx.invoice.update({ where: { id: invoice.id }, data: { entryId: result.id } });
+    return { id: result.id, entryNo: result.entryNo };
+  }
+
   const result = await postNamedEntry(tx, {
     entryDate: invoice.invoiceDate,
     description: `فاتورة ${invoice.invoiceNumber} — ${customerName}`,
@@ -182,7 +244,34 @@ export async function postInvoiceIssueEntry(
   return { id: result.id, entryNo: result.entryNo };
 }
 
-/** عكس قيد الإصدار الحالي ونشر قيد جديد بقيم الفاتورة بعد التعديل (تعديل شفاف) */
+/**
+ * لقطة استرداد الدفعة المقدمة لمستخلص جديد (§2.1) — محسوبة خادميًا داخل المعاملة:
+ *   min(round3(total × pct/100), advanceAmount − Σ المسترد للفواتير غير الملغاة الأخرى)
+ * قرار معلن (§2.2): الاسترداد جدولة تحصيل لا حركة حساب — لا يدخل القيد.
+ */
+export async function computeAdvanceRecoveryForContract(
+  client: DbClient,
+  contractId: number,
+  total: number
+): Promise<number> {
+  const contract = await client.contract.findUnique({
+    where: { id: contractId },
+    select: { advanceAmount: true, advanceRecoveryPct: true },
+  });
+  if (!contract) return 0;
+  const agg = await client.invoice.aggregate({
+    where: { contractId, status: { not: "void" } },
+    _sum: { advanceRecovered: true },
+  });
+  return computeAdvanceRecovery(
+    total,
+    Number(contract.advanceRecoveryPct),
+    Number(contract.advanceAmount),
+    Number(agg._sum.advanceRecovered || 0)
+  );
+}
+
+/** عكس قيد الإصدار الحالي ونشر قيد جديد بقيم الفاتورة بعد التعديل (تعديل شفاف — المحتجز لقطة لا تُمس) */
 export async function repostInvoiceEntry(
   tx: Tx,
   invoice: {
@@ -193,6 +282,7 @@ export async function repostInvoiceEntry(
     customerId: number;
     contractId: number | null;
     entryId: number | null;
+    retentionAmount?: number;
   },
   customerName: string,
   reason: string,

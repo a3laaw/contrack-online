@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SearchableSelect } from "./SearchableSelect";
+import { SubCertificatesCard } from "./SubCertificatesCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -896,6 +897,7 @@ export function SubContractDialog({ subContractId, onOpenChange, user, onAuthErr
                 <TabsList className="flex h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto p-1">
                   <TabsTrigger value="items" className="shrink-0">البنود</TabsTrigger>
                   <TabsTrigger value="plan" className="shrink-0">خطة الدفعات</TabsTrigger>
+                  <TabsTrigger value="certs" className="shrink-0">المستخلصات (SubIPC)</TabsTrigger>
                   <TabsTrigger value="blocks" className="shrink-0">كتل الدفع</TabsTrigger>
                   <TabsTrigger value="vouchers" className="shrink-0">السندات</TabsTrigger>
                 </TabsList>
@@ -939,6 +941,13 @@ export function SubContractDialog({ subContractId, onOpenChange, user, onAuthErr
                       manager={s.manager}
                       onDelete={(lineId) => s.setDeletePlanId(lineId)}
                     />
+                  )}
+                </TabsContent>
+
+                {/* ===== المستخلصات SubIPC (المرحلة أ) ===== */}
+                <TabsContent value="certs" className="mt-3 space-y-3">
+                  {subContractId !== null && (
+                    <SubCertificatesCard subContractId={subContractId} user={user} onAuthError={onAuthError} />
                   )}
                 </TabsContent>
 
