@@ -14,15 +14,15 @@ datasource db {
 // فصل بيانات الشركات: الجداول التشغيلية تحمل company_id (الافتراضي 1 = الشركة الرئيسية).
 // الفصل التطبيقي عبر غلاف Prisma في src/lib/db.ts — بلا علاقات FK على الجداول التشغيلية عمدًا.
 model Company {
-  id        Int      @id @default(autoincrement())
-  name      String
-  shortName String   @default("") @map("short_name")
-  isActive  Boolean  @default(true) @map("is_active")
-  notes     String   @default("")
-  foreignOwned Boolean @default(false) @map("foreign_owned") // Task 111 — شركة أجنبية ملكية: يفعّل وحدة ضريبة دخل الأجانب 15%
-  createdAt DateTime @default(now()) @map("created_at")
-  users     User[]
-  subscription Subscription? @relation("SubscriptionCompany")
+  id           Int             @id @default(autoincrement())
+  name         String
+  shortName    String          @default("") @map("short_name")
+  isActive     Boolean         @default(true) @map("is_active")
+  notes        String          @default("")
+  foreignOwned Boolean         @default(false) @map("foreign_owned") // Task 111 — شركة أجنبية ملكية: يفعّل وحدة ضريبة دخل الأجانب 15%
+  createdAt    DateTime        @default(now()) @map("created_at")
+  users        User[]
+  subscription Subscription?   @relation("SubscriptionCompany")
   modules      CompanyModule[] @relation("CompanyModules")
   divisions    Division[]      @relation("CompanyDivisions")
 
@@ -30,31 +30,31 @@ model Company {
 }
 
 model User {
-  id           Int              @id @default(autoincrement())
+  id                Int                      @id @default(autoincrement())
   // Task 100: اختياري — المطور غير مربوط بأي شركة (بلا شركة أم)؛ بقية الأدوار لهم شركة دائمًا
-  companyId    Int?             @map("company_id")
-  company      Company?         @relation(fields: [companyId], references: [id])
-  username     String           @unique
-  passwordHash String           @map("password_hash")
-  salt         String
-  role         String           @default("secretary") // admin | secretary | developer
-  fullName     String           @default("") @map("full_name")
-  jobTitle     String           @default("") @map("job_title")
-  active       Boolean          @default(true)
-  permissions  UserPermission[]
-  dismissedAlerts DismissedAlert[]
-  notifications AppNotification[]
-  participations TransactionParticipant[]
-  stageMoves StageMove[] @relation("stageMoves")
-  createdQuotations Quotation[] @relation("quotationCreatedBy")
-  createdAt    DateTime         @default(now())
+  companyId         Int?                     @map("company_id")
+  company           Company?                 @relation(fields: [companyId], references: [id])
+  username          String                   @unique
+  passwordHash      String                   @map("password_hash")
+  salt              String
+  role              String                   @default("secretary") // admin | secretary | developer
+  fullName          String                   @default("") @map("full_name")
+  jobTitle          String                   @default("") @map("job_title")
+  active            Boolean                  @default(true)
+  permissions       UserPermission[]
+  dismissedAlerts   DismissedAlert[]
+  notifications     AppNotification[]
+  participations    TransactionParticipant[]
+  stageMoves        StageMove[]              @relation("stageMoves")
+  createdQuotations Quotation[]              @relation("quotationCreatedBy")
+  createdAt         DateTime                 @default(now())
 
   @@map("users")
 }
 
 // G2 — المشاركون في المعاملة (المكتبي transaction_visibility 574–580): المشاركة = الرؤية
 model TransactionParticipant {
-  companyId Int @default(1) @map("company_id")
+  companyId       Int    @default(1) @map("company_id")
   id              Int    @id @default(autoincrement())
   transactionType String @map("transaction_type") // contract | payment | subcontract | customer
   transactionId   Int    @map("transaction_id")
@@ -72,7 +72,7 @@ model AppNotification {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactionType String   @map("transaction_type") // contract | payment | subcontract | customer
   transactionId   Int      @map("transaction_id")
-  type            String   // stage_change | new_message
+  type            String // stage_change | new_message
   text            String
   isRead          Boolean  @default(false) @map("is_read")
   createdAt       DateTime @default(now()) @map("created_at")
@@ -83,7 +83,7 @@ model AppNotification {
 
 // G4 — سجل نقل المراحل بالمنفِّذ والملاحظة (المكتبي transaction_stage_log)
 model StageMove {
-  companyId Int @default(1) @map("company_id")
+  companyId       Int      @default(1) @map("company_id")
   id              Int      @id @default(autoincrement())
   transactionType String   @map("transaction_type") // contract | payment | subcontract | customer
   transactionId   Int      @map("transaction_id")
@@ -118,9 +118,9 @@ model FeatureFlag {
 }
 
 model NumberSequence {
-  companyId Int @default(1) @map("company_id")
-  name   String
-  lastNo Int    @default(0) @map("last_no")
+  companyId Int    @default(1) @map("company_id")
+  name      String
+  lastNo    Int    @default(0) @map("last_no")
 
   @@id([companyId, name])
   @@map("number_sequences")
@@ -157,28 +157,28 @@ model PurgeAudit {
 // ==================== العملاء والعقود ====================
 
 model Customer {
-  companyId Int @default(1) @map("company_id")
-  id             Int             @id @default(autoincrement())
-  customerCode String @map("customer_code")
-  name           String
-  phone          String          @default("")
-  email          String          @default("")
-  governorate    String          @default("")
-  area           String          @default("")
-  block          String          @default("")
-  plot           String          @default("")
-  address        String          @default("")
-  notes          String          @default("")
-  folderPath     String          @default("") @map("folder_path")
-  contracts      Contract[]
-  tasks          Task[]
-  visits         Visit[]
-  comments       Comment[]
-  invoices       Invoice[]
-  createdAt      DateTime        @default(now())
-  contractGroups ContractGroup[]
-  projects       Project[]
-  quotations     Quotation[]
+  companyId            Int                   @default(1) @map("company_id")
+  id                   Int                   @id @default(autoincrement())
+  customerCode         String                @map("customer_code")
+  name                 String
+  phone                String                @default("")
+  email                String                @default("")
+  governorate          String                @default("")
+  area                 String                @default("")
+  block                String                @default("")
+  plot                 String                @default("")
+  address              String                @default("")
+  notes                String                @default("")
+  folderPath           String                @default("") @map("folder_path")
+  contracts            Contract[]
+  tasks                Task[]
+  visits               Visit[]
+  comments             Comment[]
+  invoices             Invoice[]
+  createdAt            DateTime              @default(now())
+  contractGroups       ContractGroup[]
+  projects             Project[]
+  quotations           Quotation[]
   // رادار المواعيد — مواعيد المهندسين المرتبطة بالعميل (docs/consulting-radar-design.md)
   engineerAppointments EngineerAppointment[] @relation("EngineerAppointmentCustomer")
 
@@ -187,79 +187,82 @@ model Customer {
 }
 
 model Contract {
-  companyId Int @default(1) @map("company_id")
-  id                Int                  @id @default(autoincrement())
-  contractNumber String @map("contract_number")
-  contractName      String               @default("") @map("contract_name")
-  customerId        Int                  @map("customer_id")
-  customer          Customer             @relation(fields: [customerId], references: [id])
-  contractDate      String               @default("") @map("contract_date")
-  description       String               @default("")
-  amount            Decimal
-  notes             String               @default("")
-  contractType      String               @default("غير محدد") @map("contract_type")
-  manualPath        Boolean              @default(false) @map("manual_path")
-  signDate          String               @default("") @map("sign_date")
-  startDate         String               @default("") @map("start_date")
-  endDate           String               @default("") @map("end_date")
-  status            String               @default("نشط")
-  currency          String               @default("د.ك")
-  statusReason      String               @default("") @map("status_reason")
-  cancelledAt       String               @default("") @map("cancelled_at")
-  cancelCloseAmount Decimal              @default(0) @map("cancel_close_amount")
-  qty               Decimal              @default(1)
-  unitPrice         Decimal              @default(0) @map("unit_price")
+  companyId            Int                   @default(1) @map("company_id")
+  id                   Int                   @id @default(autoincrement())
+  contractNumber       String                @map("contract_number")
+  contractName         String                @default("") @map("contract_name")
+  customerId           Int                   @map("customer_id")
+  customer             Customer              @relation(fields: [customerId], references: [id])
+  contractDate         String                @default("") @map("contract_date")
+  description          String                @default("")
+  amount               Decimal
+  notes                String                @default("")
+  contractType         String                @default("غير محدد") @map("contract_type")
+  manualPath           Boolean               @default(false) @map("manual_path")
+  signDate             String                @default("") @map("sign_date")
+  startDate            String                @default("") @map("start_date")
+  endDate              String                @default("") @map("end_date")
+  status               String                @default("نشط")
+  currency             String                @default("د.ك")
+  statusReason         String                @default("") @map("status_reason")
+  cancelledAt          String                @default("") @map("cancelled_at")
+  cancelCloseAmount    Decimal               @default(0) @map("cancel_close_amount")
+  qty                  Decimal               @default(1)
+  unitPrice            Decimal               @default(0) @map("unit_price")
   // الإشراف الهندسي
-  supStartDate      String               @default("") @map("sup_start_date")
-  supMonths         Int                  @default(0) @map("sup_months")
-  supMonthly        Decimal              @default(0) @map("sup_monthly")
-  supDiscount       Decimal              @default(0) @map("sup_discount")
-  supWaivedMonths   Decimal              @default(0) @map("sup_waived_months")
-  supWaiveReason    String               @default("") @map("sup_waive_reason")
-  stages            ContractStage[]
-  plan              PaymentPlanItem[]
-  vouchers          Voucher[]
-  addendums         Addendum[]
-  boqItems          BoqItem[]
-  components        ContractComponent[]
-  events            ContractEvent[]
-  attachments       ContractAttachment[]
+  supStartDate         String                @default("") @map("sup_start_date")
+  supMonths            Int                   @default(0) @map("sup_months")
+  supMonthly           Decimal               @default(0) @map("sup_monthly")
+  supDiscount          Decimal               @default(0) @map("sup_discount")
+  supWaivedMonths      Decimal               @default(0) @map("sup_waived_months")
+  supWaiveReason       String                @default("") @map("sup_waive_reason")
+  stages               ContractStage[]
+  plan                 PaymentPlanItem[]
+  vouchers             Voucher[]
+  addendums            Addendum[]
+  boqItems             BoqItem[]
+  components           ContractComponent[]
+  events               ContractEvent[]
+  attachments          ContractAttachment[]
   // التنفيذ الميداني — سجلات الكميات الميدانية على العقد (بند NOVA 5)
-  fieldExecutions   FieldExecution[] @relation("FieldExecutionContract")
-  invoices          Invoice[]
-  claims            Claim[]
-  subContracts      SubContract[]
-  tasks             Task[]
-  comments          Comment[]
-  groupItems        ContractGroupItem[]
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  contractScopes    ContractScope[]
-  stageNotes        StageNote[]
-  txMessages        TxMessage[]
+  fieldExecutions      FieldExecution[]      @relation("FieldExecutionContract")
+  invoices             Invoice[]
+  claims               Claim[]
+  subContracts         SubContract[]
+  tasks                Task[]
+  comments             Comment[]
+  groupItems           ContractGroupItem[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  contractScopes       ContractScope[]
+  stageNotes           StageNote[]
+  txMessages           TxMessage[]
   // الاستشارات الهندسية — نقطة الربط HR↔العقود (إسنادات المهندسين وساعاتهم)
-  engAssignments    EngineerAssignment[]
-  engTimesheets     EngineerTimesheet[]
+  engAssignments       EngineerAssignment[]
+  engTimesheets        EngineerTimesheet[]
   // HR-3 — تكليفات الموظفين وتخصيص العمالة
-  employeeAssignments EmployeeAssignment[]
-  laborAllocations    LaborAllocation[]
+  employeeAssignments  EmployeeAssignment[]
+  laborAllocations     LaborAllocation[]
   // المخازن — أذون الصرف/المرتجع على العقد (docs/warehouses-design.md §3)
-  stockDocs StockDoc[]
+  stockDocs            StockDoc[]
   // الصيانة والتشغيل — خطط الصيانة وأوامر العمل على العقد (docs/maintenance-design.md §3)
-  maintenancePlans MaintenancePlan[]
-  workOrders       WorkOrder[]
+  maintenancePlans     MaintenancePlan[]
+  workOrders           WorkOrder[]
+  // المرحلة (أ) — الدفعة المقدمة واستردادها (docs/retention-subipc-advance-design.md §2)
+  advanceAmount        Decimal               @default(0) @map("advance_amount") @db.Decimal(18, 3)
+  advanceRecoveryPct   Decimal               @default(0) @map("advance_recovery_pct") @db.Decimal(5, 2)
   // الاستشارات — دورات مراجعة المخططات على العقود (docs/revisions-ipc-design.md §1)
-  consultingRevisions ConsultingRevision[]
+  consultingRevisions  ConsultingRevision[]
   // رادار المواعيد — مواعيد المهندسين على العقد (docs/consulting-radar-design.md)
   engineerAppointments EngineerAppointment[] @relation("EngineerAppointmentContract")
 
-  @@index([customerId, status])
   @@unique([companyId, contractNumber])
+  @@index([customerId, status])
   @@map("contracts")
 }
 
 model ContractStage {
-  companyId Int @default(1) @map("company_id")
+  companyId         Int                  @default(1) @map("company_id")
   id                Int                  @id @default(autoincrement())
   contractId        Int                  @map("contract_id")
   contract          Contract             @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -291,7 +294,7 @@ model ContractStage {
 }
 
 model BoqItem {
-  companyId Int @default(1) @map("company_id")
+  companyId         Int               @default(1) @map("company_id")
   id                Int               @id @default(autoincrement())
   contractId        Int               @map("contract_id")
   contract          Contract          @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -301,7 +304,7 @@ model BoqItem {
   qty               Decimal           @default(1)
   unit              String            @default("")
   unitPrice         Decimal           @default(0) @map("unit_price")
-  plannedQty        Decimal           @default(0) @db.Decimal(18, 3) @map("planned_qty") // الكمية المخططة للتنفيذ — عداد «مخطط» في مقايسة التنفيذ (بند NOVA 5)
+  plannedQty        Decimal           @default(0) @map("planned_qty") @db.Decimal(18, 3) // الكمية المخططة للتنفيذ — عداد «مخطط» في مقايسة التنفيذ (بند NOVA 5)
   amount            Decimal           @default(0)
   sortOrder         Int               @default(0) @map("sort_order")
   deleted           Boolean           @default(false)
@@ -309,7 +312,7 @@ model BoqItem {
   subItems          SubContractItem[]
   addendumItems     AddendumItem[]
   vouchers          Voucher[]
-  stockDocLines     StockDocLine[]    // المخازن — أسطر صرف مرتبطة بهذا البند (تقرير الانحراف — G1)
+  stockDocLines     StockDocLine[] // المخازن — أسطر صرف مرتبطة بهذا البند (تقرير الانحراف — G1)
   fieldExecutions   FieldExecution[]
 
   @@index([contractId])
@@ -317,7 +320,7 @@ model BoqItem {
 }
 
 model PaymentPlanItem {
-  companyId Int @default(1) @map("company_id")
+  companyId         Int                @default(1) @map("company_id")
   id                Int                @id @default(autoincrement())
   contractId        Int                @map("contract_id")
   contract          Contract           @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -342,68 +345,69 @@ model PaymentPlanItem {
 }
 
 model Voucher {
-  companyId Int @default(1) @map("company_id")
-  id                     Int                  @id @default(autoincrement())
-  voucherNumber String @map("voucher_number")
-  vtype                  String // payment|receipt|transfer|custody_return|salary_deduction
-  vdate                  String
-  party                  String               @default("")
-  partyType              String               @default("") @map("party_type") // customer|subcontractor|partner|transfer|""
-  partyId                Int?                 @map("party_id")
-  method                 String               @default("")
-  account                String               @default("")
+  companyId             Int                  @default(1) @map("company_id")
+  id                    Int                  @id @default(autoincrement())
+  voucherNumber         String               @map("voucher_number")
+  vtype                 String // payment|receipt|transfer|custody_return|salary_deduction
+  vdate                 String
+  party                 String               @default("")
+  partyType             String               @default("") @map("party_type") // customer|subcontractor|partner|transfer|""
+  partyId               Int?                 @map("party_id")
+  method                String               @default("")
+  account               String               @default("")
   // Task 105 — الحساب الموحّد على الدليل الواحد (Account):
   // • accountId: الحساب المحاسبي الرئيسي للسند — مصروف في الصرف/التصفية
   // • custodyAccountId: طرف العهدة (حساب أصل بـaccountRole=custody) — handover/return فقط له، التصفية تضيف accountId
   // • accountSnapshot: اسم الحساب عند التسجيل (عرض وبحث)
   // دلالات التمييز كما كانت: handover/return = custodyAccountId فقط، تصفية = accountId + custodyAccountId،
   // صرف مصروف = accountId فقط — كل فلاتر الكشوف (null/not-null) تُترجم 1:1.
-  accountId             Int?        @map("account_id")
-  accountRef            Account?    @relation("VoucherAccount", fields: [accountId], references: [id])
-  accountSnapshot       String?     @map("account_snapshot")
-  expenseGroupRef        String               @default("") @map("expense_group_ref")
-  expenseGroupLine       Int?                 @map("expense_group_line")
-  custodyAccountId       Int?                 @map("custody_account_id")
-  custodyAccount         Account?             @relation("VoucherCustodyAccount", fields: [custodyAccountId], references: [id])
-  advanceEmployeeId      Int?                 @map("advance_employee_id")
-  employee               Employee?            @relation(fields: [advanceEmployeeId], references: [id])
-  amount                 Decimal
-  advanceAmount          Decimal              @default(0) @map("advance_amount")
-  description            String               @default("")
-  projectId              Int?                 @map("project_id")
-  project                Project?             @relation(fields: [projectId], references: [id])
-  expenseCustomerId      Int?                 @map("expense_customer_id")
-  contractId             Int?                 @map("contract_id")
-  contract               Contract?            @relation(fields: [contractId], references: [id])
-  boqItemId              Int?                 @map("boq_item_id")
-  boqItem                BoqItem?             @relation(fields: [boqItemId], references: [id])
-  subContractId          Int?                 @map("sub_contract_id")
-  subContract            SubContract?         @relation(fields: [subContractId], references: [id])
-  costCenter             String               @default("") @map("cost_center")
-  attachment             String               @default("")
-  notes                  String               @default("")
-  parentVoucherId        Int?                 @map("parent_voucher_id")
-  parentVoucher          Voucher?             @relation("feeChildren", fields: [parentVoucherId], references: [id])
-  feeChildren            Voucher[]            @relation("feeChildren")
-  chequeDueDate          String               @default("") @map("cheque_due_date")
-  allocation             String               @default("") // تخصيص لأمر تغييري ADD-xxx
-  receiptGroupRef        String               @default("") @map("receipt_group_ref")
-  receiptGroupLine       Int?                 @map("receipt_group_line")
-  cancelled              Boolean              @default(false)
-  cancelReason           String               @default("") @map("cancel_reason")
-  cancelledAt            String               @default("") @map("cancelled_at")
-  links                  VoucherPaymentLink[]
-  invoicePaymentLinks    InvoicePaymentLink[] // سداد الفواتير المخصص من هذا السند (Task 107)
-  gatewayFeeLinks        GatewayFeeVoucher[]
-  payrollPaymentBatches  PayrollBatch[]       @relation("PayrollPaymentVoucher") // HR-1 — دفع مسير بهذا السند
-  createdAt              DateTime             @default(now())
+  accountId             Int?                 @map("account_id")
+  accountRef            Account?             @relation("VoucherAccount", fields: [accountId], references: [id])
+  accountSnapshot       String?              @map("account_snapshot")
+  expenseGroupRef       String               @default("") @map("expense_group_ref")
+  expenseGroupLine      Int?                 @map("expense_group_line")
+  custodyAccountId      Int?                 @map("custody_account_id")
+  custodyAccount        Account?             @relation("VoucherCustodyAccount", fields: [custodyAccountId], references: [id])
+  advanceEmployeeId     Int?                 @map("advance_employee_id")
+  employee              Employee?            @relation(fields: [advanceEmployeeId], references: [id])
+  amount                Decimal
+  advanceAmount         Decimal              @default(0) @map("advance_amount")
+  description           String               @default("")
+  projectId             Int?                 @map("project_id")
+  project               Project?             @relation(fields: [projectId], references: [id])
+  expenseCustomerId     Int?                 @map("expense_customer_id")
+  contractId            Int?                 @map("contract_id")
+  contract              Contract?            @relation(fields: [contractId], references: [id])
+  boqItemId             Int?                 @map("boq_item_id")
+  boqItem               BoqItem?             @relation(fields: [boqItemId], references: [id])
+  subContractId         Int?                 @map("sub_contract_id")
+  subContract           SubContract?         @relation(fields: [subContractId], references: [id])
+  costCenter            String               @default("") @map("cost_center")
+  attachment            String               @default("")
+  notes                 String               @default("")
+  parentVoucherId       Int?                 @map("parent_voucher_id")
+  parentVoucher         Voucher?             @relation("feeChildren", fields: [parentVoucherId], references: [id])
+  feeChildren           Voucher[]            @relation("feeChildren")
+  chequeDueDate         String               @default("") @map("cheque_due_date")
+  allocation            String               @default("") // تخصيص لأمر تغييري ADD-xxx
+  receiptGroupRef       String               @default("") @map("receipt_group_ref")
+  receiptGroupLine      Int?                 @map("receipt_group_line")
+  cancelled             Boolean              @default(false)
+  cancelReason          String               @default("") @map("cancel_reason")
+  cancelledAt           String               @default("") @map("cancelled_at")
+  links                 VoucherPaymentLink[]
+  invoicePaymentLinks   InvoicePaymentLink[] // سداد الفواتير المخصص من هذا السند (Task 107)
+  gatewayFeeLinks       GatewayFeeVoucher[]
+  payrollPaymentBatches PayrollBatch[]       @relation("PayrollPaymentVoucher") // HR-1 — دفع مسير بهذا السند
+  paidCertificates      SubCertificate[]     @relation("SubCertificatePayment") // المرحلة (أ) — مستخلصات باطن صُرفت بهذا السند
+  createdAt             DateTime             @default(now())
 
+  @@unique([companyId, voucherNumber])
   @@index([vtype, cancelled, vdate])
   @@index([contractId])
   @@index([partyType, partyId, vtype, cancelled])
   @@index([custodyAccountId, expenseGroupRef])
   @@index([advanceEmployeeId])
-  @@unique([companyId, voucherNumber])
   @@map("vouchers")
 }
 
@@ -417,18 +421,18 @@ model Voucher {
  * كيان مستقل تابع للعميل كما في المخطط المرجعي حرفيًا.
  */
 model Project {
-  companyId Int @default(1) @map("company_id")
-  id          Int       @id @default(autoincrement())
-  customerId  Int?      @map("customer_id")
-  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  companyId   Int         @default(1) @map("company_id")
+  id          Int         @id @default(autoincrement())
+  customerId  Int?        @map("customer_id")
+  customer    Customer?   @relation(fields: [customerId], references: [id], onDelete: Cascade)
   name        String
-  description String    @default("")
-  location    String    @default("")
-  startDate   String    @default("") @map("start_date")
-  endDate     String    @default("") @map("end_date")
-  status      String    @default("جديد")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  description String      @default("")
+  location    String      @default("")
+  startDate   String      @default("") @map("start_date")
+  endDate     String      @default("") @map("end_date")
+  status      String      @default("جديد")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
   vouchers    Voucher[]
   quotations  Quotation[]
 
@@ -452,15 +456,15 @@ model Project {
  * المرجعي فخارج نطاق الويب). لا نموذج Word يُبنى الآن (بند 9 لاحقًا).
  */
 model Quotation {
-  companyId Int @default(1) @map("company_id")
+  companyId       Int             @default(1) @map("company_id")
   id              Int             @id @default(autoincrement())
   customerId      Int             @map("customer_id")
   customer        Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
   projectId       Int?            @map("project_id")
   project         Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  quotationNumber String @map("quotation_number")
+  quotationNumber String          @map("quotation_number")
   description     String          @default("")
-  totalAmount     Decimal         @default(0) @db.Decimal(18, 3) @map("total_amount")
+  totalAmount     Decimal         @default(0) @map("total_amount") @db.Decimal(18, 3)
   status          String          @default("جديد")
   validUntil      String          @default("") @map("valid_until")
   notes           String          @default("")
@@ -470,22 +474,22 @@ model Quotation {
   updatedAt       DateTime        @updatedAt @map("updated_at")
   items           QuotationItem[]
 
+  @@unique([companyId, quotationNumber])
   @@index([customerId])
   @@index([status])
-  @@unique([companyId, quotationNumber])
   @@map("quotations")
 }
 
 model QuotationItem {
-  companyId Int @default(1) @map("company_id")
+  companyId   Int       @default(1) @map("company_id")
   id          Int       @id @default(autoincrement())
   quotationId Int       @map("quotation_id")
   quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   description String
   unit        String    @default("")
   quantity    Decimal   @default(0) @db.Decimal(18, 3)
-  unitPrice   Decimal   @default(0) @db.Decimal(18, 3) @map("unit_price")
-  totalPrice  Decimal   @default(0) @db.Decimal(18, 3) @map("total_price")
+  unitPrice   Decimal   @default(0) @map("unit_price") @db.Decimal(18, 3)
+  totalPrice  Decimal   @default(0) @map("total_price") @db.Decimal(18, 3)
   sortOrder   Int       @default(0) @map("sort_order")
 
   @@index([quotationId])
@@ -493,7 +497,7 @@ model QuotationItem {
 }
 
 model VoucherPaymentLink {
-  companyId Int @default(1) @map("company_id")
+  companyId Int      @default(1) @map("company_id")
   id        Int      @id @default(autoincrement())
   voucherId Int      @map("voucher_id")
   voucher   Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
@@ -508,7 +512,7 @@ model VoucherPaymentLink {
 }
 
 model Addendum {
-  companyId Int @default(1) @map("company_id")
+  companyId      Int            @default(1) @map("company_id")
   id             Int            @id @default(autoincrement())
   addendumNumber String         @map("addendum_number")
   contractId     Int            @map("contract_id")
@@ -537,7 +541,7 @@ model Addendum {
 }
 
 model AddendumItem {
-  companyId Int @default(1) @map("company_id")
+  companyId        Int          @default(1) @map("company_id")
   id               Int          @id @default(autoincrement())
   addendumId       Int          @map("addendum_id")
   addendum         Addendum     @relation(fields: [addendumId], references: [id], onDelete: Cascade)
@@ -564,9 +568,9 @@ model AddendumItem {
 }
 
 model Claim {
-  companyId Int @default(1) @map("company_id")
+  companyId      Int                 @default(1) @map("company_id")
   id             Int                 @id @default(autoincrement())
-  claimNumber String @map("claim_number")
+  claimNumber    String              @map("claim_number")
   direction      String // out|in
   contractId     Int                 @map("contract_id")
   contract       Contract            @relation(fields: [contractId], references: [id])
@@ -585,16 +589,16 @@ model Claim {
   notes          String              @default("")
   createdAt      DateTime            @default(now())
 
+  @@unique([companyId, claimNumber])
   @@index([contractId])
   @@index([direction, status])
-  @@unique([companyId, claimNumber])
   @@map("claims")
 }
 
 // ==================== الباطن ====================
 
 model Subcontractor {
-  companyId Int @default(1) @map("company_id")
+  companyId        Int           @default(1) @map("company_id")
   id               Int           @id @default(autoincrement())
   subCode          String        @map("sub_code")
   name             String
@@ -613,51 +617,56 @@ model Subcontractor {
 }
 
 model SubContract {
-  companyId Int @default(1) @map("company_id")
-  id                Int                  @id @default(autoincrement())
-  subcontractorId   Int                  @map("subcontractor_id")
-  subcontractor     Subcontractor        @relation(fields: [subcontractorId], references: [id])
-  contractId        Int                  @map("contract_id")
-  contract          Contract             @relation(fields: [contractId], references: [id])
-  amount            Decimal              @default(0)
-  startDate         String               @default("") @map("start_date")
-  endDate           String               @default("") @map("end_date")
-  status            String               @default("نشط")
-  description       String               @default("")
-  cancelReason      String               @default("") @map("cancel_reason")
-  cancelledAt       String               @default("") @map("cancelled_at")
-  cancelCloseAmount Decimal              @default(0) @map("cancel_close_amount")
-  items             SubContractItem[]
-  planLines         SubPaymentPlanItem[]
-  vouchers          Voucher[]
-  claims            Claim[]
-  addendums         Addendum[]
-  addendumItems     AddendumItem[]
-  createdAt         DateTime             @default(now())
+  companyId          Int                  @default(1) @map("company_id")
+  id                 Int                  @id @default(autoincrement())
+  subcontractorId    Int                  @map("subcontractor_id")
+  subcontractor      Subcontractor        @relation(fields: [subcontractorId], references: [id])
+  contractId         Int                  @map("contract_id")
+  contract           Contract             @relation(fields: [contractId], references: [id])
+  amount             Decimal              @default(0)
+  startDate          String               @default("") @map("start_date")
+  endDate            String               @default("") @map("end_date")
+  status             String               @default("نشط")
+  description        String               @default("")
+  cancelReason       String               @default("") @map("cancel_reason")
+  cancelledAt        String               @default("") @map("cancelled_at")
+  cancelCloseAmount  Decimal              @default(0) @map("cancel_close_amount")
+  items              SubContractItem[]
+  planLines          SubPaymentPlanItem[]
+  vouchers           Voucher[]
+  claims             Claim[]
+  addendums          Addendum[]
+  addendumItems      AddendumItem[]
+  // المرحلة (أ) — الدفعة المقدمة للمقاول الباطن واستردادها من مستخلصاته (docs/retention-subipc-advance-design.md §2.1)
+  advanceAmount      Decimal              @default(0) @map("advance_amount") @db.Decimal(18, 3)
+  advanceRecoveryPct Decimal              @default(0) @map("advance_recovery_pct") @db.Decimal(5, 2)
+  certificates       SubCertificate[]
+  createdAt          DateTime             @default(now())
 
   @@index([contractId])
   @@map("sub_contracts")
 }
 
 model SubContractItem {
-  companyId Int @default(1) @map("company_id")
-  id            Int         @id @default(autoincrement())
-  subContractId Int         @map("sub_contract_id")
-  subContract   SubContract @relation(fields: [subContractId], references: [id], onDelete: Cascade)
-  boqItemId     Int?        @map("boq_item_id")
-  boqItem       BoqItem?    @relation(fields: [boqItemId], references: [id])
-  qty           Decimal     @default(0)
-  unitPrice     Decimal     @default(0) @map("unit_price")
-  amount        Decimal     @default(0)
-  sourceKind    String      @default("") @map("source_kind") // boq|plan للبنود المنزّلة
-  sourceId      Int         @default(0) @map("source_id")
+  companyId        Int                  @default(1) @map("company_id")
+  id               Int                  @id @default(autoincrement())
+  subContractId    Int                  @map("sub_contract_id")
+  subContract      SubContract          @relation(fields: [subContractId], references: [id], onDelete: Cascade)
+  boqItemId        Int?                 @map("boq_item_id")
+  boqItem          BoqItem?             @relation(fields: [boqItemId], references: [id])
+  qty              Decimal              @default(0)
+  unitPrice        Decimal              @default(0) @map("unit_price")
+  amount           Decimal              @default(0)
+  sourceKind       String               @default("") @map("source_kind") // boq|plan للبنود المنزّلة
+  sourceId         Int                  @default(0) @map("source_id")
+  certificateLines SubCertificateLine[] // المرحلة (أ) — أسطر مستخلصات الباطن المرتبطة بالبند
 
   @@index([subContractId])
   @@map("sub_contract_items")
 }
 
 model SubPaymentPlanItem {
-  companyId Int @default(1) @map("company_id")
+  companyId     Int                @default(1) @map("company_id")
   id            Int                @id @default(autoincrement())
   subContractId Int                @map("sub_contract_id")
   subContract   SubContract        @relation(fields: [subContractId], references: [id], onDelete: Cascade)
@@ -677,8 +686,72 @@ model SubPaymentPlanItem {
   @@map("sub_payment_plan")
 }
 
+/**
+ * المرحلة (أ) — مستخلص الباطن SubIPC (docs/retention-subipc-advance-design.md §3).
+ * آلة حالات مغلقة: مسودة → مقدم → معتمد → مدفوع (وملغي من الثلاثة الأولى).
+ * التراكمي الكمي على بنود العقد الباطن + لقطات مجمّدة لحظة الاعتماد.
+ * الصرف عبر createVoucher القائم (بوابة العميل + سقف الصرف تلقائيًا) — لا ترحيل 2122 (§3.6).
+ */
+model SubCertificate {
+  companyId          Int                  @default(1) @map("company_id")
+  id                 Int                  @id @default(autoincrement())
+  subContractId      Int                  @map("sub_contract_id")
+  subContract        SubContract          @relation(fields: [subContractId], references: [id], onDelete: Cascade)
+  certNo             Int                  @map("cert_no") // تسلسلي لكل عقد باطن
+  certNumber         String               @map("cert_number") // SUBIPC-#### للعرض
+  certDate           String               @map("cert_date")
+  periodFrom         String               @default("") @map("period_from")
+  periodTo           String               @default("") @map("period_to")
+  grossAmount        Decimal              @default(0) @map("gross_amount") @db.Decimal(18, 3)
+  retentionRate      Decimal              @default(0) @map("retention_rate") @db.Decimal(5, 2)
+  retentionAmount    Decimal              @default(0) @map("retention_amount") @db.Decimal(18, 3)
+  advanceRecovery    Decimal              @default(0) @map("advance_recovery") @db.Decimal(18, 3)
+  otherDeductions    Decimal              @default(0) @map("other_deductions") @db.Decimal(18, 3)
+  otherDeductionNote String               @default("") @map("other_deduction_note")
+  netAmount          Decimal              @default(0) @map("net_amount") @db.Decimal(18, 3)
+  cumulativeAmount   Decimal              @default(0) @map("cumulative_amount") @db.Decimal(18, 3) // لقطة التراكمي لحظة الاعتماد
+  status             String               @default("مسودة") // مسودة | مقدم | معتمد | مدفوع | ملغي
+  submitBy           String               @default("") @map("submit_by")
+  submitAt           String               @default("") @map("submit_at")
+  approveBy          String               @default("") @map("approve_by")
+  approveAt          String               @default("") @map("approve_at")
+  paidVoucherId      Int?                 @map("paid_voucher_id")
+  paidVoucher        Voucher?             @relation("SubCertificatePayment", fields: [paidVoucherId], references: [id])
+  cancelReason       String               @default("") @map("cancel_reason")
+  notes              String               @default("")
+  lines              SubCertificateLine[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+
+  @@unique([subContractId, certNo])
+  @@index([companyId, status])
+  @@index([subContractId, status])
+  @@map("sub_certificates")
+}
+
+/**
+ * سطر المستخلص — كمية هذا المستخلص من بند العقد الباطن + لقطة التراكمي عند الاعتماد
+ */
+model SubCertificateLine {
+  companyId     Int              @default(1) @map("company_id")
+  id            Int              @id @default(autoincrement())
+  certificateId Int              @map("certificate_id")
+  certificate   SubCertificate   @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  subItemId     Int?             @map("sub_item_id")
+  subItem       SubContractItem? @relation(fields: [subItemId], references: [id])
+  description   String
+  qty           Decimal          @default(0) @db.Decimal(18, 3)
+  unitPrice     Decimal          @default(0) @map("unit_price") @db.Decimal(18, 3)
+  amount        Decimal          @default(0) @db.Decimal(18, 3)
+  cumulativeQty Decimal          @default(0) @map("cumulative_qty") @db.Decimal(18, 3) // لقطة الاعتماد
+
+  @@index([certificateId])
+  @@index([subItemId])
+  @@map("sub_certificate_lines")
+}
+
 model SubPaymentSource {
-  companyId Int @default(1) @map("company_id")
+  companyId  Int                @default(1) @map("company_id")
   id         Int                @id @default(autoincrement())
   subLineId  Int                @map("sub_line_id")
   subLine    SubPaymentPlanItem @relation(fields: [subLineId], references: [id], onDelete: Cascade)
@@ -692,10 +765,12 @@ model SubPaymentSource {
 // ==================== أنواع العقود وقوالبها ====================
 
 model ContractType {
-  companyId Int @default(1) @map("company_id")
+  companyId        Int                   @default(1) @map("company_id")
   id               Int                   @id @default(autoincrement())
-  name String 
-  /** Task 95 — تصنيف النوع: يُختار من قائمة مشتقة تلقائيًا من الأنواع نفسها (بلا كتابة حرة في شاشة الإنشاء) */
+  name             String
+  /**
+   * Task 95 — تصنيف النوع: يُختار من قائمة مشتقة تلقائيًا من الأنواع نفسها (بلا كتابة حرة في شاشة الإنشاء)
+   */
   category         String                @default("") @map("category")
   defaultAmount    Decimal               @default(0) @map("default_amount")
   notes            String                @default("")
@@ -715,7 +790,7 @@ model ContractType {
 }
 
 model TypePaymentTemplate {
-  companyId Int @default(1) @map("company_id")
+  companyId      Int                @default(1) @map("company_id")
   id             Int                @id @default(autoincrement())
   contractTypeId Int                @map("contract_type_id")
   contractType   ContractType       @relation(fields: [contractTypeId], references: [id], onDelete: Cascade)
@@ -734,7 +809,7 @@ model TypePaymentTemplate {
 }
 
 model TypePaymentStage {
-  companyId Int @default(1) @map("company_id")
+  companyId Int                 @default(1) @map("company_id")
   id        Int                 @id @default(autoincrement())
   paymentId Int                 @map("payment_id")
   payment   TypePaymentTemplate @relation(fields: [paymentId], references: [id], onDelete: Cascade)
@@ -746,7 +821,7 @@ model TypePaymentStage {
 }
 
 model TypeBundleComponent {
-  companyId Int @default(1) @map("company_id")
+  companyId       Int          @default(1) @map("company_id")
   id              Int          @id @default(autoincrement())
   parentTypeId    Int          @map("parent_type_id")
   parentType      ContractType @relation("bundleParent", fields: [parentTypeId], references: [id], onDelete: Cascade)
@@ -760,7 +835,7 @@ model TypeBundleComponent {
 
 // G6 — لقطة مكوّنات العقد الشامل لكل عقد (المكتبي contract_components 1795–1808)
 model ContractComponent {
-  companyId Int @default(1) @map("company_id")
+  companyId  Int      @default(1) @map("company_id")
   id         Int      @id @default(autoincrement())
   contractId Int      @map("contract_id")
   contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -778,7 +853,7 @@ model ContractComponent {
 
 // G7 — نسخة احتياطية قبل الإلغاء (المكتبي entity_backups 290–326) — لا حذف أبدًا
 model EntityBackup {
-  companyId Int @default(1) @map("company_id")
+  companyId  Int      @default(1) @map("company_id")
   id         Int      @id @default(autoincrement())
   entityType String   @map("entity_type") // contract | sub_contract | claim | custody
   entityId   Int      @map("entity_id")
@@ -791,7 +866,7 @@ model EntityBackup {
 }
 
 model WorkflowStage {
-  companyId Int @default(1) @map("company_id")
+  companyId               Int                   @default(1) @map("company_id")
   id                      Int                   @id @default(autoincrement())
   transactionType         String                @map("transaction_type") // contract|payment|subcontract|customer
   stageName               String                @map("stage_name")
@@ -817,7 +892,7 @@ model WorkflowStage {
 }
 
 model ContractScope {
-  companyId Int @default(1) @map("company_id")
+  companyId       Int           @default(1) @map("company_id")
   contractId      Int           @map("contract_id")
   contract        Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
   templateStageId Int           @map("template_stage_id")
@@ -868,12 +943,12 @@ model Setting {
 }
 
 model PaymentMethod {
-  companyId Int @default(1) @map("company_id")
-  id       Int     @id @default(autoincrement())
-  name String 
-  feeType  String  @default("amount") @map("fee_type") // amount|percent
-  feeValue Decimal @default(0) @map("fee_value")
-  isActive Boolean @default(true) @map("is_active")
+  companyId   Int        @default(1) @map("company_id")
+  id          Int        @id @default(autoincrement())
+  name        String
+  feeType     String     @default("amount") @map("fee_type") // amount|percent
+  feeValue    Decimal    @default(0) @map("fee_value")
+  isActive    Boolean    @default(true) @map("is_active")
   hrEmployees Employee[] @relation("EmployeePaymentMethod") // HR-1 — وسيلة دفع الموظف
 
   @@unique([companyId, name])
@@ -891,37 +966,37 @@ model PaymentMethod {
 // طبيعة الرصيد الطبيعية: asset/expense = مدين، liability/equity/revenue = دائن،
 // مع استثناء الحسابات المخالفة (مجمع الإهلاك أصل بطبيعة دائنة).
 model Account {
-  companyId      Int       @default(1) @map("company_id")
-  id             Int       @id @default(autoincrement())
-  code           String               // رقم الحساب الهيكلي (فريد لكل شركة) — 1xxx أصول، 2xxx التزامات، 3xxx حقوق ملكية، 4xxx إيرادات، 5xxx مصروفات
-  name           String
-  type           String               // asset | liability | equity | revenue | expense
-  nature         String   @default("debit") @map("nature") // debit | credit — طبيعة الرصيد
-  parentId       Int?     @map("parent_id")
-  parent         Account? @relation("accTree", fields: [parentId], references: [id])
-  children       Account[] @relation("accTree")
-  isLeaf         Boolean  @default(true) @map("is_leaf") // ورقة تستقبل قيودًا أم عقدة إجمالية
-  allowPosting   Boolean  @default(true) @map("allow_posting")
-  isActive       Boolean  @default(true) @map("is_active")
-  isSystem       Boolean  @default(false) @map("is_system") // نظامي مُبذّر: لا يُحذف ولا يتغير كوده/نوعه
+  companyId              Int           @default(1) @map("company_id")
+  id                     Int           @id @default(autoincrement())
+  code                   String // رقم الحساب الهيكلي (فريد لكل شركة) — 1xxx أصول، 2xxx التزامات، 3xxx حقوق ملكية، 4xxx إيرادات، 5xxx مصروفات
+  name                   String
+  type                   String // asset | liability | equity | revenue | expense
+  nature                 String        @default("debit") @map("nature") // debit | credit — طبيعة الرصيد
+  parentId               Int?          @map("parent_id")
+  parent                 Account?      @relation("accTree", fields: [parentId], references: [id])
+  children               Account[]     @relation("accTree")
+  isLeaf                 Boolean       @default(true) @map("is_leaf") // ورقة تستقبل قيودًا أم عقدة إجمالية
+  allowPosting           Boolean       @default(true) @map("allow_posting")
+  isActive               Boolean       @default(true) @map("is_active")
+  isSystem               Boolean       @default(false) @map("is_system") // نظامي مُبذّر: لا يُحذف ولا يتغير كوده/نوعه
   // Task 105 — خصائص الشجرة الموحدة المنقولة من ExpenseAccount عند دمجها وإسقاطها:
   // • accountRole: عهد/سلف الموظفين (بديل accountKind='advance') — تُعرض في شاشات العهد وتُستخدم في سندات التسليم/التصفية
   // • includeInProfitability: تستهلكها تقارير ربحية العقود (استبعاد الصرف غير الربحي)
-  accountRole            String   @default("standard") @map("account_role") // standard | custody
-  includeInProfitability Boolean  @default(true) @map("include_in_profitability")
-  openingBalance Decimal  @default(0) @db.Decimal(18, 3) @map("opening_balance") // مدين موجب / دائن سالب (Task 103)
-  notes          String   @default("")
-  sortOrder      Int      @default(0) @map("sort_order")
-  xbrlElement    String   @default("") @map("xbrl_element") // خريطة عنصر taxonomy الكويتي/IFRS — فارغ = غير موصول
-  cashFlowKind   String   @default("") @map("cash_flow_kind") // Task 110 — تصنيف التدفق النقدي للحساب (طرف مقابل النقد): "" | operating | investing | financing — الفارغ يُشتق من القسم هيكليًا
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-  journalLines   JournalLine[]
-  vouchers       Voucher[] @relation("VoucherAccount")
-  custodyVouchers Voucher[] @relation("VoucherCustodyAccount")
-  bankMaps       BankMap[]   // Task 113 — مفاتيح كشوف البنك المرتبطة بهذا الحساب
-  bankRecons     BankRecon[] // Task 113 — إقفالات التسوية البنكية الموثقة
-  stockPayDocs   StockDoc[]  // المخازن — أذون الإدخال النقدي الذي دفع من هذا الحساب (docs/warehouses-design.md §3)
+  accountRole            String        @default("standard") @map("account_role") // standard | custody
+  includeInProfitability Boolean       @default(true) @map("include_in_profitability")
+  openingBalance         Decimal       @default(0) @map("opening_balance") @db.Decimal(18, 3) // مدين موجب / دائن سالب (Task 103)
+  notes                  String        @default("")
+  sortOrder              Int           @default(0) @map("sort_order")
+  xbrlElement            String        @default("") @map("xbrl_element") // خريطة عنصر taxonomy الكويتي/IFRS — فارغ = غير موصول
+  cashFlowKind           String        @default("") @map("cash_flow_kind") // Task 110 — تصنيف التدفق النقدي للحساب (طرف مقابل النقد): "" | operating | investing | financing — الفارغ يُشتق من القسم هيكليًا
+  createdAt              DateTime      @default(now()) @map("created_at")
+  updatedAt              DateTime      @updatedAt @map("updated_at")
+  journalLines           JournalLine[]
+  vouchers               Voucher[]     @relation("VoucherAccount")
+  custodyVouchers        Voucher[]     @relation("VoucherCustodyAccount")
+  bankMaps               BankMap[] // Task 113 — مفاتيح كشوف البنك المرتبطة بهذا الحساب
+  bankRecons             BankRecon[] // Task 113 — إقفالات التسوية البنكية الموثقة
+  stockPayDocs           StockDoc[] // المخازن — أذون الإدخال النقدي الذي دفع من هذا الحساب (docs/warehouses-design.md §3)
 
   @@unique([companyId, code])
   @@index([companyId, type])
@@ -931,33 +1006,35 @@ model Account {
 // ==================== التسوية البنكية (Task 113) ====================
 // خريطة مفتاح كشف البنك (bank_lines.bank_account) → حساب البنك في الدليل — مرة واحدة لكل مفتاح
 model BankMap {
-  companyId Int       @default(1) @map("company_id")
-  id        Int       @id @default(autoincrement())
-  bankKey   String    @map("bank_key") // قيمة عمود bank_account في bank_lines
-  accountId Int       @map("account_id")
-  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  createdAt DateTime  @default(now()) @map("created_at")
+  companyId Int      @default(1) @map("company_id")
+  id        Int      @id @default(autoincrement())
+  bankKey   String   @map("bank_key") // قيمة عمود bank_account في bank_lines
+  accountId Int      @map("account_id")
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@unique([companyId, bankKey])
   @@map("bank_maps")
 }
 
-/** إقفال تسوية بنكية موثق — لقطة الفوارق بين كشف البنك ورصيد الدفتر عند تاريخ */
+/**
+ * إقفال تسوية بنكية موثق — لقطة الفوارق بين كشف البنك ورصيد الدفتر عند تاريخ
+ */
 model BankRecon {
-  companyId        Int     @default(1) @map("company_id")
-  id               Int     @id @default(autoincrement())
-  accountId        Int     @map("account_id")
-  account          Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  asOf             String  @map("as_of") // YYYY-MM-DD
-  statementBalance Decimal @db.Decimal(18, 3) @map("statement_balance") // رصيد الكشف المدخل من المستخدم
-  bookBalance      Decimal @db.Decimal(18, 3) @map("book_balance") // رصيد الدفتر المحسوب (افتتاحي + حركات منشورة)
-  bankOnlyCount    Int     @default(0) @map("bank_only_count") // بنود الكشف غير المسجلة
-  bankOnlyTotal    Decimal @default(0) @db.Decimal(18, 3) @map("bank_only_total")
-  glOnlyCount      Int     @default(0) @map("gl_only_count") // بنود الدفتر غير الظاهرة بالكشف (عالقة)
-  glOnlyTotal      Decimal @default(0) @db.Decimal(18, 3) @map("gl_only_total")
-  unexplained      Decimal @default(0) @db.Decimal(18, 3) @map("unexplained") // فرق غير مفسّر — الإقفال يُرفض إن لم يكن صفرًا
-  snapshot         Json    @default("{}") // لقطة قوائم الفوارق وقت الإقفال
-  closedBy         String  @default("") @map("closed_by")
+  companyId        Int      @default(1) @map("company_id")
+  id               Int      @id @default(autoincrement())
+  accountId        Int      @map("account_id")
+  account          Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  asOf             String   @map("as_of") // YYYY-MM-DD
+  statementBalance Decimal  @map("statement_balance") @db.Decimal(18, 3) // رصيد الكشف المدخل من المستخدم
+  bookBalance      Decimal  @map("book_balance") @db.Decimal(18, 3) // رصيد الدفتر المحسوب (افتتاحي + حركات منشورة)
+  bankOnlyCount    Int      @default(0) @map("bank_only_count") // بنود الكشف غير المسجلة
+  bankOnlyTotal    Decimal  @default(0) @map("bank_only_total") @db.Decimal(18, 3)
+  glOnlyCount      Int      @default(0) @map("gl_only_count") // بنود الدفتر غير الظاهرة بالكشف (عالقة)
+  glOnlyTotal      Decimal  @default(0) @map("gl_only_total") @db.Decimal(18, 3)
+  unexplained      Decimal  @default(0) @map("unexplained") @db.Decimal(18, 3) // فرق غير مفسّر — الإقفال يُرفض إن لم يكن صفرًا
+  snapshot         Json     @default("{}") // لقطة قوائم الفوارق وقت الإقفال
+  closedBy         String   @default("") @map("closed_by")
   closedAt         DateTime @default(now()) @map("closed_at")
 
   @@unique([companyId, accountId, asOf])
@@ -969,7 +1046,9 @@ model BankRecon {
 // لا رصيد يُحسب خارج JournalLine. كل مستند (سند/فاتورة/قيد يدوي) يولّد قيدًا متوازنًا إلزاميًا،
 // والإلغاء بقيد عكسي مرتبط. العقود/الباطن/مشاريع… أبعاد تحليلية على سطر القيد (بلا FK تشغيلي).
 
-/** السنة المالية — تحكم المدة الزمنية للقيود (الإقفال في Task 109) */
+/**
+ * السنة المالية — تحكم المدة الزمنية للقيود (الإقفال في Task 109)
+ */
 model FiscalYear {
   companyId Int            @default(1) @map("company_id")
   id        Int            @id @default(autoincrement())
@@ -982,7 +1061,9 @@ model FiscalYear {
   @@map("fiscal_years")
 }
 
-/** الفترة الشهرية — المفتاح "YYYY-MM" يوافق بادئة تواريخ النظام النصية */
+/**
+ * الفترة الشهرية — المفتاح "YYYY-MM" يوافق بادئة تواريخ النظام النصية
+ */
 model FiscalPeriod {
   companyId    Int        @default(1) @map("company_id")
   id           Int        @id @default(autoincrement())
@@ -1004,23 +1085,23 @@ model FiscalPeriod {
  * إلغاءً موثقًا (بلا حذف فيزيائي — القيد يبقى في السجل بسبب الإلغاء).
  */
 model FiscalClosing {
-  companyId       Int          @default(1) @map("company_id")
-  id              Int          @id @default(autoincrement())
+  companyId       Int           @default(1) @map("company_id")
+  id              Int           @id @default(autoincrement())
   year            Int
-  status          String       @default("closed") // closed | reverted
-  closingEntryId  Int?         @unique @map("closing_entry_id")
+  status          String        @default("closed") // closed | reverted
+  closingEntryId  Int?          @unique @map("closing_entry_id")
   closingEntry    JournalEntry? @relation("FiscalClosingEntry", fields: [closingEntryId], references: [id], onDelete: SetNull)
-  totalRevenue    Decimal      @default(0) @db.Decimal(18, 3) @map("total_revenue")
-  totalExpense    Decimal      @default(0) @db.Decimal(18, 3) @map("total_expense")
-  netResult       Decimal      @default(0) @db.Decimal(18, 3) @map("net_result") // موجب = ربح، سالب = خسارة
-  linesCount      Int          @default(0) @map("lines_count") // عدد أسطر الإغلاق (بما فيها سطر الأرباح المحتجزة)
-  openingSnapshot Json?        @map("opening_snapshot") // ميزان افتتاحية السنة التالية — أرصدة محمولة موثقة
-  notes           String       @default("")
-  closedBy        String       @map("closed_by")
-  closedAt        DateTime     @default(now()) @map("closed_at")
-  revertedAt      DateTime?    @map("reverted_at")
-  revertReason    String       @default("") @map("revert_reason")
-  createdAt       DateTime     @default(now()) @map("created_at")
+  totalRevenue    Decimal       @default(0) @map("total_revenue") @db.Decimal(18, 3)
+  totalExpense    Decimal       @default(0) @map("total_expense") @db.Decimal(18, 3)
+  netResult       Decimal       @default(0) @map("net_result") @db.Decimal(18, 3) // موجب = ربح، سالب = خسارة
+  linesCount      Int           @default(0) @map("lines_count") // عدد أسطر الإغلاق (بما فيها سطر الأرباح المحتجزة)
+  openingSnapshot Json?         @map("opening_snapshot") // ميزان افتتاحية السنة التالية — أرصدة محمولة موثقة
+  notes           String        @default("")
+  closedBy        String        @map("closed_by")
+  closedAt        DateTime      @default(now()) @map("closed_at")
+  revertedAt      DateTime?     @map("reverted_at")
+  revertReason    String        @default("") @map("revert_reason")
+  createdAt       DateTime      @default(now()) @map("created_at")
 
   @@unique([companyId, year])
   @@index([companyId, status])
@@ -1035,25 +1116,25 @@ model FiscalClosing {
  * الاعتماد ينشر قيد المخصص آليًا عبر المحرك الموحد — الإلغاء قيد عكسي موثق بلا حذف فيزيائي.
  */
 model TaxDeclaration {
-  companyId    Int      @default(1) @map("company_id")
-  id           Int      @id @default(autoincrement())
+  companyId    Int           @default(1) @map("company_id")
+  id           Int           @id @default(autoincrement())
   year         Int
-  kind         String   @default("zakat") // zakat (1%) | foreign_tax (15%)
-  status       String   @default("draft") // draft | approved | cancelled
-  netProfit    Decimal  @db.Decimal(18, 3) @map("net_profit") // نتيجة السنة من الأستاذ لحظة إنشاء المسودة
-  adjustments  Json?    // تعديلات النموذج المعلن [{label, amount}] — موجب إضافة / سالب خصم
-  base         Decimal  @db.Decimal(18, 3) // الوعاء = صافي الربح + التعديلات (الزكاة لا تقل عن صفر)
-  rate         Decimal  @db.Decimal(7, 4) // 0.01 أو 0.15
-  amount       Decimal  @db.Decimal(18, 3) // المخصص المحتسب
-  entryId      Int?     @map("entry_id")
+  kind         String        @default("zakat") // zakat (1%) | foreign_tax (15%)
+  status       String        @default("draft") // draft | approved | cancelled
+  netProfit    Decimal       @map("net_profit") @db.Decimal(18, 3) // نتيجة السنة من الأستاذ لحظة إنشاء المسودة
+  adjustments  Json? // تعديلات النموذج المعلن [{label, amount}] — موجب إضافة / سالب خصم
+  base         Decimal       @db.Decimal(18, 3) // الوعاء = صافي الربح + التعديلات (الزكاة لا تقل عن صفر)
+  rate         Decimal       @db.Decimal(7, 4) // 0.01 أو 0.15
+  amount       Decimal       @db.Decimal(18, 3) // المخصص المحتسب
+  entryId      Int?          @map("entry_id")
   entry        JournalEntry? @relation("TaxDeclarationEntry", fields: [entryId], references: [id], onDelete: SetNull)
-  notes        String   @default("")
-  approvedBy   String   @default("") @map("approved_by")
-  approvedAt   DateTime? @map("approved_at")
-  cancelledAt  DateTime? @map("cancelled_at")
-  cancelReason String   @default("") @map("cancel_reason")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  notes        String        @default("")
+  approvedBy   String        @default("") @map("approved_by")
+  approvedAt   DateTime?     @map("approved_at")
+  cancelledAt  DateTime?     @map("cancelled_at")
+  cancelReason String        @default("") @map("cancel_reason")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
 
   @@index([companyId, year])
   @@index([companyId, status])
@@ -1065,10 +1146,10 @@ model TaxDeclaration {
  * قرار هيكلي: قواعد القيد تُعلن ولا تُصلب — لكل شركة نسخها القابلة للضبط،
  * والبذرة النظامية (isSystem) تطابق المنطق المدمج حرفيًا فتعمل الشركة بلا أي ضبط.
  * الحسم عند النشر بأولوية صارمة:
- *   1) اختيار السند الصريح (accountId/custodyAccountId من الدليل الموحد)
- *   2) كود القاعدة القابل للضبط (debitCode/creditCode إن لم يكن فارغًا)
- *   3) الافتراضي المدمج في النواة (posting-rules-core) — شبكة أمان إن كانت
- *      القاعدة معطلة أو كودها فارغًا أو الكود غير موجود في الدليل
+ * 1) اختيار السند الصريح (accountId/custodyAccountId من الدليل الموحد)
+ * 2) كود القاعدة القابل للضبط (debitCode/creditCode إن لم يكن فارغًا)
+ * 3) الافتراضي المدمج في النواة (posting-rules-core) — شبكة أمان إن كانت
+ * القاعدة معطلة أو كودها فارغًا أو الكود غير موجود في الدليل
  * الأكواد نصية (لا FK) — حسمها إلى id يتكرر عند كل نشر على الدليل الحي،
  * فتظهر القاعدة المتضاربة مع الدليل خطأً واضحًا عند الحفظ لا صمتًا عند النشر.
  */
@@ -1088,31 +1169,34 @@ model PostingRule {
   @@map("posting_rules")
 }
 
-/** رأس القيد — status: posted (منشور يُحسب في الأرصدة) | draft | cancelled (مُلغى لا يُحسب) */
+/**
+ * رأس القيد — status: posted (منشور يُحسب في الأرصدة) | draft | cancelled (مُلغى لا يُحسب)
+ */
 model JournalEntry {
-  companyId    Int            @default(1) @map("company_id")
-  id           Int            @id @default(autoincrement())
-  entryNo      Int            @default(0) @map("entry_no") // تسلسلي لكل شركة (companyId, entryNo)
-  entryDate    String         @map("entry_date")
-  description  String         @default("")
-  status       String         @default("posted") // posted | draft | cancelled
-  sourceType   String         @default("manual") @map("source_type") // manual | voucher | voucher_cancel | bank_fee_alloc | custody | reversal | migration
-  sourceId     Int?           @map("source_id")
-  reversalOfId Int?           @map("reversal_of_id") // القيد الأصلي عند القيد العكسي
-  reversalOf   JournalEntry?  @relation("entryReversal", fields: [reversalOfId], references: [id])
-  reversalEntries JournalEntry[] @relation("entryReversal")
-  postedAt     DateTime?      @map("posted_at")
-  postedBy     String         @default("") @map("posted_by")
-  createdBy    String         @default("") @map("created_by")
-  cancelReason String         @default("") @map("cancel_reason")
-  lines        JournalLine[]
-  invoices     Invoice[]     @relation("InvoiceEntry") // فواتير أصدرت هذا القيد (Task 107)
-  taxDeclarations TaxDeclaration[] @relation("TaxDeclarationEntry") // مخصصات زكاة/ضريبة وثّقت بهذا القيد (Task 111)
-  payrollBatches PayrollBatch[] @relation("PayrollBatchEntry") // HR-1 — مساير اعتمدت بقيد هذا (المدين 5210/الدائن 2160)
-  payrollProvisionBatches PayrollBatch[] @relation("PayrollBatchProvisionEntry") // HR-2 — قيود المخصصات المصاحبة
-  stockDocs StockDoc[] @relation("StockDocEntry") // المخازن — قيود أذون الإدخال/الصرف/الجرد (docs/warehouses-design.md §5)
-  closingRecord FiscalClosing? @relation("FiscalClosingEntry") // إقفال سنوي وثّق بهذا القيد (Task 109)
-  createdAt    DateTime      @default(now()) @map("created_at")
+  companyId                Int              @default(1) @map("company_id")
+  id                       Int              @id @default(autoincrement())
+  entryNo                  Int              @default(0) @map("entry_no") // تسلسلي لكل شركة (companyId, entryNo)
+  entryDate                String           @map("entry_date")
+  description              String           @default("")
+  status                   String           @default("posted") // posted | draft | cancelled
+  sourceType               String           @default("manual") @map("source_type") // manual | voucher | voucher_cancel | bank_fee_alloc | custody | reversal | migration
+  sourceId                 Int?             @map("source_id")
+  reversalOfId             Int?             @map("reversal_of_id") // القيد الأصلي عند القيد العكسي
+  reversalOf               JournalEntry?    @relation("entryReversal", fields: [reversalOfId], references: [id])
+  reversalEntries          JournalEntry[]   @relation("entryReversal")
+  postedAt                 DateTime?        @map("posted_at")
+  postedBy                 String           @default("") @map("posted_by")
+  createdBy                String           @default("") @map("created_by")
+  cancelReason             String           @default("") @map("cancel_reason")
+  lines                    JournalLine[]
+  invoices                 Invoice[]        @relation("InvoiceEntry") // فواتير أصدرت هذا القيد (Task 107)
+  retentionReleaseInvoices Invoice[]        @relation("RetentionReleaseEntry") // المرحلة (أ) — فواتير أُفرج عن محتجزاتها بهذا القيد
+  taxDeclarations          TaxDeclaration[] @relation("TaxDeclarationEntry") // مخصصات زكاة/ضريبة وثّقت بهذا القيد (Task 111)
+  payrollBatches           PayrollBatch[]   @relation("PayrollBatchEntry") // HR-1 — مساير اعتمدت بقيد هذا (المدين 5210/الدائن 2160)
+  payrollProvisionBatches  PayrollBatch[]   @relation("PayrollBatchProvisionEntry") // HR-2 — قيود المخصصات المصاحبة
+  stockDocs                StockDoc[]       @relation("StockDocEntry") // المخازن — قيود أذون الإدخال/الصرف/الجرد (docs/warehouses-design.md §5)
+  closingRecord            FiscalClosing?   @relation("FiscalClosingEntry") // إقفال سنوي وثّق بهذا القيد (Task 109)
+  createdAt                DateTime         @default(now()) @map("created_at")
 
   @@unique([companyId, entryNo])
   @@index([entryDate])
@@ -1121,26 +1205,28 @@ model JournalEntry {
   @@map("journal_entries")
 }
 
-/** سطر القيد — طرف واحد مدين أو دائن + الأبعاد التحليلية (بلا FK على التشغيلي عمدًا) */
+/**
+ * سطر القيد — طرف واحد مدين أو دائن + الأبعاد التحليلية (بلا FK على التشغيلي عمدًا)
+ */
 model JournalLine {
-  companyId   Int          @default(1) @map("company_id")
-  id          Int          @id @default(autoincrement())
-  entryId     Int          @map("entry_id")
-  entry       JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  accountId   Int          @map("account_id")
-  account     Account      @relation(fields: [accountId], references: [id])
-  debit       Decimal      @default(0) @db.Decimal(18, 3)
-  credit      Decimal      @default(0) @db.Decimal(18, 3)
-  description String       @default("")
+  companyId     Int          @default(1) @map("company_id")
+  id            Int          @id @default(autoincrement())
+  entryId       Int          @map("entry_id")
+  entry         JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  accountId     Int          @map("account_id")
+  account       Account      @relation(fields: [accountId], references: [id])
+  debit         Decimal      @default(0) @db.Decimal(18, 3)
+  credit        Decimal      @default(0) @db.Decimal(18, 3)
+  description   String       @default("")
   // الأبعاد التحليلية — تقرأ منها تقارير الذمم والربحية (Task 108)
-  customerId    Int?    @map("customer_id")
-  contractId    Int?    @map("contract_id")
-  subContractId Int?    @map("sub_contract_id")
-  boqItemId     Int?    @map("boq_item_id")
-  projectId     Int?    @map("project_id")
-  employeeId    Int?    @map("employee_id")
-  costCenter    String  @default("") @map("cost_center")
-  sort          Int     @default(0)
+  customerId    Int?         @map("customer_id")
+  contractId    Int?         @map("contract_id")
+  subContractId Int?         @map("sub_contract_id")
+  boqItemId     Int?         @map("boq_item_id")
+  projectId     Int?         @map("project_id")
+  employeeId    Int?         @map("employee_id")
+  costCenter    String       @default("") @map("cost_center")
+  sort          Int          @default(0)
 
   @@index([entryId])
   @@index([accountId])
@@ -1149,9 +1235,9 @@ model JournalLine {
 }
 
 model ContractGroup {
-  companyId Int @default(1) @map("company_id")
+  companyId   Int                 @default(1) @map("company_id")
   id          Int                 @id @default(autoincrement())
-  groupNumber String @map("group_number")
+  groupNumber String              @map("group_number")
   customerId  Int                 @map("customer_id")
   customer    Customer            @relation(fields: [customerId], references: [id])
   groupName   String              @map("group_name")
@@ -1166,7 +1252,7 @@ model ContractGroup {
 }
 
 model ContractGroupItem {
-  companyId Int @default(1) @map("company_id")
+  companyId  Int           @default(1) @map("company_id")
   id         Int           @id @default(autoincrement())
   groupId    Int           @map("group_id")
   group      ContractGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -1190,36 +1276,45 @@ model ContractGroupItem {
  * مستبعدة من التخصيص (أموالها حُصّلت بالفعل تحت نموذج النصوص القديم).
  */
 model Invoice {
-  companyId Int @default(1) @map("company_id")
-  id            Int       @id @default(autoincrement())
-  invoiceNo     Int       @default(0) @map("invoice_no") // تسلسلي لكل شركة (companyId, invoiceNo)
-  invoiceNumber String    @map("invoice_number") // صيغة العرض INV-0001 (عدّاد لا يتراجع)
-  customerId    Int       @map("customer_id")
-  customer      Customer  @relation(fields: [customerId], references: [id])
-  contractId    Int?      @map("contract_id")
-  contract      Contract? @relation(fields: [contractId], references: [id])
-  invoiceDate   String    @map("invoice_date") // YYYY-MM-DD — تاريخ قيد الإصدار (داخل فترة مفتوحة)
-  dueDate       String    @default("") @map("due_date")
-  description   String    @default("")
-  subtotal      Decimal   @default(0) @db.Decimal(18, 3) // محصلة الكميات×الأسعار قبل الخصم
-  discountTotal Decimal   @default(0) @db.Decimal(18, 3) @map("discount_total") // محصلة الخصومات
-  total         Decimal   @default(0) @db.Decimal(18, 3) // الصافي المفوتر = subtotal − discountTotal
-  paidAmount    Decimal   @default(0) @db.Decimal(18, 3) @map("paid_amount") // من الروابط حصرًا (كاش يُعاد حسابه)
-  status        String    @default("unpaid") // unpaid | partial | paid | void
-  voidReason    String    @default("") @map("void_reason")
-  legacy        Boolean   @default(false) // فاتورة مرحَّلة من هيكل ما قبل Task 107 — بلا قيد
-  notes         String    @default("")
-  entryId       Int?      @map("entry_id") // قيد الإصدار المرتبط (قيود التعديل تُعكس وتُعاد نشرها)
-  entry         JournalEntry? @relation("InvoiceEntry", fields: [entryId], references: [id])
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-  items         InvoiceItem[]
-  paymentLinks  InvoicePaymentLink[]
-  saleDocs      StockDoc[] @relation("SaleInvoiceDocs") // أذون الصرف المخزني الآلية للبيع (موديول المبيعات — docs/sales-design.md §3)
-  workOrders    WorkOrder[] // فواتير الزيارات المولدة من أوامر الصيانة (docs/maintenance-design.md §3)
+  companyId               Int                  @default(1) @map("company_id")
+  id                      Int                  @id @default(autoincrement())
+  invoiceNo               Int                  @default(0) @map("invoice_no") // تسلسلي لكل شركة (companyId, invoiceNo)
+  invoiceNumber           String               @map("invoice_number") // صيغة العرض INV-0001 (عدّاد لا يتراجع)
+  customerId              Int                  @map("customer_id")
+  customer                Customer             @relation(fields: [customerId], references: [id])
+  contractId              Int?                 @map("contract_id")
+  contract                Contract?            @relation(fields: [contractId], references: [id])
+  invoiceDate             String               @map("invoice_date") // YYYY-MM-DD — تاريخ قيد الإصدار (داخل فترة مفتوحة)
+  dueDate                 String               @default("") @map("due_date")
+  description             String               @default("")
+  subtotal                Decimal              @default(0) @db.Decimal(18, 3) // محصلة الكميات×الأسعار قبل الخصم
+  discountTotal           Decimal              @default(0) @map("discount_total") @db.Decimal(18, 3) // محصلة الخصومات
+  total                   Decimal              @default(0) @db.Decimal(18, 3) // الصافي المفوتر = subtotal − discountTotal
+  paidAmount              Decimal              @default(0) @map("paid_amount") @db.Decimal(18, 3) // من الروابط حصرًا (كاش يُعاد حسابه)
+  status                  String               @default("unpaid") // unpaid | partial | paid | void
+  voidReason              String               @default("") @map("void_reason")
+  legacy                  Boolean              @default(false) // فاتورة مرحَّلة من هيكل ما قبل Task 107 — بلا قيد
+  notes                   String               @default("")
+  entryId                 Int?                 @map("entry_id") // قيد الإصدار المرتبط (قيود التعديل تُعكس وتُعاد نشرها)
+  entry                   JournalEntry?        @relation("InvoiceEntry", fields: [entryId], references: [id])
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt @map("updated_at")
+  items                   InvoiceItem[]
+  paymentLinks            InvoicePaymentLink[]
+  saleDocs                StockDoc[]           @relation("SaleInvoiceDocs") // أذون الصرف المخزني الآلية للبيع (موديول المبيعات — docs/sales-design.md §3)
+  workOrders              WorkOrder[] // فواتير الزيارات المولدة من أوامر الصيانة (docs/maintenance-design.md §3)
   // جسر الإنجاز إلى الفوترة (docs/revisions-ipc-design.md §2) — السطر المثار من إغلاق مرحلة الذي فوترت هذه الفاتورة
-  paymentId     Int?       @map("payment_id")
-  payment       PaymentPlanItem? @relation(fields: [paymentId], references: [id])
+  paymentId               Int?                 @map("payment_id")
+  payment                 PaymentPlanItem?     @relation(fields: [paymentId], references: [id])
+  // المرحلة (أ) — محتجزات مستخلص العميل (docs/retention-subipc-advance-design.md §1)
+  retentionRate           Decimal              @default(0) @map("retention_rate") @db.Decimal(5, 2)
+  retentionAmount         Decimal              @default(0) @map("retention_amount") @db.Decimal(18, 3)
+  retentionReleased       Boolean              @default(false) @map("retention_released")
+  retentionReleasedAt     String               @default("") @map("retention_released_at")
+  retentionReleaseEntryId Int?                 @map("retention_release_entry_id")
+  retentionReleaseEntry   JournalEntry?        @relation("RetentionReleaseEntry", fields: [retentionReleaseEntryId], references: [id])
+  // المرحلة (أ) — استرداد الدفعة المقدمة في هذا المستخلص (لقطة آلية — docs/retention-subipc-advance-design.md §2.1)
+  advanceRecovered        Decimal              @default(0) @map("advance_recovered") @db.Decimal(18, 3)
 
   @@unique([companyId, invoiceNo])
   @@unique([companyId, invoiceNumber])
@@ -1230,20 +1325,22 @@ model Invoice {
   @@map("invoices")
 }
 
-/** بند الفاتورة — الخصم نسبة % على السطر، والمحصلة على الرأس تتحقق محركًا (لا إدخالًا يدويًا) */
+/**
+ * بند الفاتورة — الخصم نسبة % على السطر، والمحصلة على الرأس تتحقق محركًا (لا إدخالًا يدويًا)
+ */
 model InvoiceItem {
-  companyId Int @default(1) @map("company_id")
-  id          Int     @id @default(autoincrement())
-  invoiceId   Int     @map("invoice_id")
-  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  companyId   Int        @default(1) @map("company_id")
+  id          Int        @id @default(autoincrement())
+  invoiceId   Int        @map("invoice_id")
+  invoice     Invoice    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   description String
-  quantity    Decimal @default(1) @db.Decimal(18, 3)
-  unitPrice   Decimal @default(0) @db.Decimal(18, 3) @map("unit_price")
-  discountPct Decimal @default(0) @db.Decimal(5, 2) @map("discount_pct") // 0–100
-  lineTotal   Decimal @default(0) @db.Decimal(18, 3) @map("line_total") // qty×price×(1−disc)
-  sortOrder   Int     @default(0) @map("sort_order")
+  quantity    Decimal    @default(1) @db.Decimal(18, 3)
+  unitPrice   Decimal    @default(0) @map("unit_price") @db.Decimal(18, 3)
+  discountPct Decimal    @default(0) @map("discount_pct") @db.Decimal(5, 2) // 0–100
+  lineTotal   Decimal    @default(0) @map("line_total") @db.Decimal(18, 3) // qty×price×(1−disc)
+  sortOrder   Int        @default(0) @map("sort_order")
   // موديول المبيعات (docs/sales-design.md §3): سطر مخزني بـitemId ⇒ صرف آلي بقيد تكلفة المبيعات — الفارغ سطر حر
-  itemId      Int?      @map("item_id")
+  itemId      Int?       @map("item_id")
   item        StockItem? @relation(fields: [itemId], references: [id])
 
   @@index([invoiceId])
@@ -1258,7 +1355,7 @@ model InvoiceItem {
  * FIFO في معاملة إنشاء/تعديل/إلغاء السند، وpaidAmount يُجمَّع منه حصرًا.
  */
 model InvoicePaymentLink {
-  companyId Int @default(1) @map("company_id")
+  companyId Int      @default(1) @map("company_id")
   id        Int      @id @default(autoincrement())
   invoiceId Int      @map("invoice_id")
   invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
@@ -1273,36 +1370,36 @@ model InvoicePaymentLink {
 }
 
 model Employee {
-  companyId Int @default(1) @map("company_id")
-  id       Int       @id @default(autoincrement())
-  name String 
-  phone    String    @default("")
-  notes    String    @default("")
-  active   Boolean   @default(true)
-  vouchers Voucher[]
+  companyId        Int                   @default(1) @map("company_id")
+  id               Int                   @id @default(autoincrement())
+  name             String
+  phone            String                @default("")
+  notes            String                @default("")
+  active           Boolean               @default(true)
+  vouchers         Voucher[]
   // HR-1 — توسعة «الموظف الموحد» (docs/hr-module-design.md §3.1): نظام السلف القائم يعمل كما هو بلا ترحيل
-  jobNumber       String  @default("") @map("job_number") // رقم وظيفي يبدأ من 1001 — توليد آلي
-  employeeType    String  @default("internal") @map("employee_type") // internal | external — الخارجي يحرر إلزامية الراتب
-  department      String  @default("")
-  jobTitle        String  @default("") @map("job_title")
-  civilId         String  @default("") @map("civil_id") // الرقم المدني الكويتي 10 أرقام
-  nationality     String  @default("")
-  hireDate        String  @default("") @map("hire_date") // YYYY-MM-DD — مرجع حساب رصيد الإجازات
-  salary          Decimal @default(0) // الأساسي الشهري — صفر = مستثنى من المسير
-  paymentBasis    String  @default("monthly") @map("payment_basis") // monthly | daily
-  dailyRate       Decimal @default(0) @map("daily_rate") // لأساس الأجر اليومي
-  monthlyCostRate Decimal @default(0) @map("monthly_cost_rate") // HR-3 — التكلفة الشهرية على الشركة (د2) — 0 ⇒ افتراضي الراتب الأساسي لحظة التخصيص
-  paymentMethodId Int?    @map("payment_method_id")
-  paymentMethod   PaymentMethod? @relation("EmployeePaymentMethod", fields: [paymentMethodId], references: [id])
-  attendances     EmployeeAttendance[]
-  leaves          EmployeeLeave[]
-  permissions     EmployeePermission[]
-  payrollRecords  PayrollRecord[]
-  terminations    EmployeeTermination[]
+  jobNumber        String                @default("") @map("job_number") // رقم وظيفي يبدأ من 1001 — توليد آلي
+  employeeType     String                @default("internal") @map("employee_type") // internal | external — الخارجي يحرر إلزامية الراتب
+  department       String                @default("")
+  jobTitle         String                @default("") @map("job_title")
+  civilId          String                @default("") @map("civil_id") // الرقم المدني الكويتي 10 أرقام
+  nationality      String                @default("")
+  hireDate         String                @default("") @map("hire_date") // YYYY-MM-DD — مرجع حساب رصيد الإجازات
+  salary           Decimal               @default(0) // الأساسي الشهري — صفر = مستثنى من المسير
+  paymentBasis     String                @default("monthly") @map("payment_basis") // monthly | daily
+  dailyRate        Decimal               @default(0) @map("daily_rate") // لأساس الأجر اليومي
+  monthlyCostRate  Decimal               @default(0) @map("monthly_cost_rate") // HR-3 — التكلفة الشهرية على الشركة (د2) — 0 ⇒ افتراضي الراتب الأساسي لحظة التخصيص
+  paymentMethodId  Int?                  @map("payment_method_id")
+  paymentMethod    PaymentMethod?        @relation("EmployeePaymentMethod", fields: [paymentMethodId], references: [id])
+  attendances      EmployeeAttendance[]
+  leaves           EmployeeLeave[]
+  permissions      EmployeePermission[]
+  payrollRecords   PayrollRecord[]
+  terminations     EmployeeTermination[]
   // HR-3 — الأطقم والتكليفات والتخصيص وتدقيق الملف
-  auditLogs       EmployeeAuditLog[]
-  teamMemberships WorkTeamMember[]
-  assignments     EmployeeAssignment[]
+  auditLogs        EmployeeAuditLog[]
+  teamMemberships  WorkTeamMember[]
+  assignments      EmployeeAssignment[]
   laborAllocations LaborAllocation[]
 
   @@unique([companyId, name])
@@ -1313,7 +1410,7 @@ model Employee {
 // ==================== الإنتاجية ====================
 
 model Task {
-  companyId Int @default(1) @map("company_id")
+  companyId      Int       @default(1) @map("company_id")
   id             Int       @id @default(autoincrement())
   title          String
   details        String    @default("")
@@ -1337,20 +1434,20 @@ model Task {
 }
 
 model VisitStaff {
-  companyId Int @default(1) @map("company_id")
-  id     Int     @id @default(autoincrement())
-  name   String
-  phone  String  @default("")
-  active Boolean @default(true)
-  sort   Int     @default(0)
-  visits Visit[]
+  companyId  Int         @default(1) @map("company_id")
+  id         Int         @id @default(autoincrement())
+  name       String
+  phone      String      @default("")
+  active     Boolean     @default(true)
+  sort       Int         @default(0)
+  visits     Visit[]
   workOrders WorkOrder[] // فنيو الصيانة — عرض وتقويم فقط (docs/maintenance-design.md د7)
 
   @@map("visit_staff")
 }
 
 model Visit {
-  companyId Int @default(1) @map("company_id")
+  companyId  Int        @default(1) @map("company_id")
   id         Int        @id @default(autoincrement())
   visitDate  String     @map("visit_date") // YYYY-MM-DD
   hourSlot   String     @map("hour_slot") // "08:00"
@@ -1369,7 +1466,7 @@ model Visit {
 }
 
 model Comment {
-  companyId Int @default(1) @map("company_id")
+  companyId    Int       @default(1) @map("company_id")
   id           Int       @id @default(autoincrement())
   customerId   Int       @map("customer_id")
   customer     Customer  @relation(fields: [customerId], references: [id])
@@ -1397,13 +1494,13 @@ model Comment {
 }
 
 model ContractAttachment {
-  companyId Int @default(1) @map("company_id")
-  id         Int      @id @default(autoincrement())
-  contractId Int      @map("contract_id")
-  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  fileName   String   @map("file_name")
-  storedPath String   @map("stored_path")
-  addedAt    String   @default("") @map("added_at")
+  companyId       Int              @default(1) @map("company_id")
+  id              Int              @id @default(autoincrement())
+  contractId      Int              @map("contract_id")
+  contract        Contract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  fileName        String           @map("file_name")
+  storedPath      String           @map("stored_path")
+  addedAt         String           @default("") @map("added_at")
   fieldExecutions FieldExecution[]
 
   @@map("contract_attachments")
@@ -1411,22 +1508,22 @@ model ContractAttachment {
 
 /// التنفيذ الميداني — سجل كمّي ميداني يغذي عدادات المقايسة المشتقة (بند NOVA 5 — درس G9: الاشتقاق من الصفوف لا عدادات مخزنة)
 model FieldExecution {
-  companyId      Int                 @default(1) @map("company_id")
-  id             Int                 @id @default(autoincrement())
-  contractId     Int                 @map("contract_id")
-  contract       Contract            @relation("FieldExecutionContract", fields: [contractId], references: [id], onDelete: Cascade)
-  boqItemId      Int                 @map("boq_item_id")
-  boqItem        BoqItem             @relation(fields: [boqItemId], references: [id])
-  executionDate  String              @map("execution_date") // YYYY-MM-DD
-  qty            Decimal             @default(0) @db.Decimal(18, 3)
-  documented     Boolean             @default(false) // موثق من مهندس الموقع
-  gpsLat         String              @default("") @map("gps_lat")
-  gpsLng         String              @default("") @map("gps_lng")
-  attachmentId   Int?                @map("attachment_id")
-  attachment     ContractAttachment? @relation(fields: [attachmentId], references: [id])
-  note           String              @default("")
-  createdBy      String              @default("") @map("created_by")
-  createdAt      DateTime            @default(now()) @map("created_at")
+  companyId     Int                 @default(1) @map("company_id")
+  id            Int                 @id @default(autoincrement())
+  contractId    Int                 @map("contract_id")
+  contract      Contract            @relation("FieldExecutionContract", fields: [contractId], references: [id], onDelete: Cascade)
+  boqItemId     Int                 @map("boq_item_id")
+  boqItem       BoqItem             @relation(fields: [boqItemId], references: [id])
+  executionDate String              @map("execution_date") // YYYY-MM-DD
+  qty           Decimal             @default(0) @db.Decimal(18, 3)
+  documented    Boolean             @default(false) // موثق من مهندس الموقع
+  gpsLat        String              @default("") @map("gps_lat")
+  gpsLng        String              @default("") @map("gps_lng")
+  attachmentId  Int?                @map("attachment_id")
+  attachment    ContractAttachment? @relation(fields: [attachmentId], references: [id])
+  note          String              @default("")
+  createdBy     String              @default("") @map("created_by")
+  createdAt     DateTime            @default(now()) @map("created_at")
 
   @@index([contractId])
   @@index([boqItemId, executionDate])
@@ -1436,9 +1533,9 @@ model FieldExecution {
 // ==================== البوابة المالية ====================
 
 model GatewayProfile {
-  companyId Int @default(1) @map("company_id")
+  companyId   Int     @default(1) @map("company_id")
   id          Int     @id @default(autoincrement())
-  name String 
+  name        String
   bankAccount String  @default("") @map("bank_account")
   methods     String  @default("KNET")
   lagDays     Int     @default(1) @map("lag_days")
@@ -1452,7 +1549,7 @@ model GatewayProfile {
 }
 
 model GatewayOp {
-  companyId Int @default(1) @map("company_id")
+  companyId        Int                   @default(1) @map("company_id")
   id               Int                   @id @default(autoincrement())
   gateway          String                @default("")
   opDate           String                @default("") @map("op_date")
@@ -1482,7 +1579,7 @@ model GatewayOp {
 }
 
 model BankLine {
-  companyId Int @default(1) @map("company_id")
+  companyId   Int      @default(1) @map("company_id")
   id          Int      @id @default(autoincrement())
   bankAccount String   @default("") @map("bank_account")
   cdate       String
@@ -1496,7 +1593,7 @@ model BankLine {
 }
 
 model OtherCompanyTransfer {
-  companyId Int @default(1) @map("company_id")
+  companyId     Int               @default(1) @map("company_id")
   id            Int               @id @default(autoincrement())
   tdate         String
   amount        Decimal           @default(0)
@@ -1513,7 +1610,7 @@ model OtherCompanyTransfer {
 }
 
 model TransferOpAlloc {
-  companyId Int @default(1) @map("company_id")
+  companyId  Int                   @default(1) @map("company_id")
   id         Int                   @id @default(autoincrement())
   transferId Int                   @default(0) @map("transfer_id")
   transfer   OtherCompanyTransfer? @relation(fields: [transferId], references: [id])
@@ -1527,7 +1624,7 @@ model TransferOpAlloc {
 }
 
 model OtherCompanyOpening {
-  companyId Int @default(1) @map("company_id")
+  companyId Int      @default(1) @map("company_id")
   id        Int      @id @default(1)
   amount    Decimal  @default(0)
   note      String   @default("")
@@ -1537,7 +1634,7 @@ model OtherCompanyOpening {
 }
 
 model GatewayFeeVoucher {
-  companyId Int @default(1) @map("company_id")
+  companyId  Int       @default(1) @map("company_id")
   opId       Int       @id @map("op_id")
   op         GatewayOp @relation(fields: [opId], references: [id])
   voucherId  Int       @map("voucher_id")
@@ -1549,7 +1646,7 @@ model GatewayFeeVoucher {
 }
 
 model MatchAlias {
-  companyId Int @default(1) @map("company_id")
+  companyId  Int      @default(1) @map("company_id")
   id         Int      @id @default(autoincrement())
   filePhone  String   @default("") @map("file_phone")
   fileName   String   @default("") @map("file_name")
@@ -1564,7 +1661,7 @@ model MatchAlias {
 // (JournalEntry/JournalLine/FiscalYear/FiscalPeriod نقلت لقسم النواة المحاسبية — Task 104)
 
 model ContractEvent {
-  companyId Int @default(1) @map("company_id")
+  companyId   Int      @default(1) @map("company_id")
   id          Int      @id @default(autoincrement())
   contractId  Int      @map("contract_id")
   contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -1578,9 +1675,9 @@ model ContractEvent {
 }
 
 model FormCategory {
-  companyId Int @default(1) @map("company_id")
+  companyId Int            @default(1) @map("company_id")
   id        Int            @id @default(autoincrement())
-  name String 
+  name      String
   sort      Int            @default(0)
   templates FormTemplate[]
 
@@ -1589,7 +1686,7 @@ model FormCategory {
 }
 
 model FormTemplate {
-  companyId Int @default(1) @map("company_id")
+  companyId     Int            @default(1) @map("company_id")
   id            Int            @id @default(autoincrement())
   baseName      String         @map("base_name")
   version       Int            @default(1)
@@ -1614,7 +1711,7 @@ model FormTemplate {
 }
 
 model FormField {
-  companyId Int @default(1) @map("company_id")
+  companyId        Int          @default(1) @map("company_id")
   id               Int          @id @default(autoincrement())
   templateId       Int          @map("template_id")
   template         FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
@@ -1644,7 +1741,7 @@ model FormField {
 }
 
 model FormDocument {
-  companyId Int @default(1) @map("company_id")
+  companyId       Int          @default(1) @map("company_id")
   id              Int          @id @default(autoincrement())
   templateId      Int          @map("template_id")
   template        FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
@@ -1666,9 +1763,11 @@ model FormDocument {
 
 // ==================== المرحلة 7-ب: ملاحظات المراحل ومحادثة المعاملة ====================
 
-/** ملاحظة على معاملة (سبب التأخير / واقفة فين) — StageNoteDialog المكتبية V5.9 */
+/**
+ * ملاحظة على معاملة (سبب التأخير / واقفة فين) — StageNoteDialog المكتبية V5.9
+ */
 model StageNote {
-  companyId Int @default(1) @map("company_id")
+  companyId  Int       @default(1) @map("company_id")
   id         Int       @id @default(autoincrement())
   txType     String    @default("contract")
   txId       Int
@@ -1697,9 +1796,11 @@ model DismissedAlert {
   @@map("dismissed_alerts")
 }
 
-/** رسالة محادثة المعاملة — شات FollowupPanel المكتبي */
+/**
+ * رسالة محادثة المعاملة — شات FollowupPanel المكتبي
+ */
 model TxMessage {
-  companyId Int @default(1) @map("company_id")
+  companyId  Int      @default(1) @map("company_id")
   id         Int      @id @default(autoincrement())
   contractId Int      @map("contract_id")
   contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -1716,23 +1817,27 @@ model TxMessage {
 // على الجداول القائمة. الخطط كتالوج عام، الاشتراك لكل شركة (واحد إلزامي-فريد)،
 // وطلبات الانضمام طابور موافقة المطور (التسجيل الذاتي بلا إنشاء فوري).
 
-/** خطة اشتراك — كتالوج عام يبذرها النظام (durationDays=0 ⇒ دائم بلا انتهاء) */
+/**
+ * خطة اشتراك — كتالوج عام يبذرها النظام (durationDays=0 ⇒ دائم بلا انتهاء)
+ */
 model Plan {
-  id           Int            @id @default(autoincrement())
-  code         String         @unique // trial | basic | pro | enterprise
-  name         String
-  durationDays Int            @default(365) @map("duration_days") // 0 = دائم
-  maxUsers     Int            @default(3) @map("max_users")
-  maxDivisions Int            @default(1) @map("max_divisions")
-  priceMonthly Decimal        @default(0) @db.Decimal(10, 3) @map("price_monthly") // للعرض — التسعير يُقرر لاحقًا
-  isActive     Boolean        @default(true) @map("is_active")
-  sortOrder    Int            @default(0) @map("sort_order")
+  id            Int            @id @default(autoincrement())
+  code          String         @unique // trial | basic | pro | enterprise
+  name          String
+  durationDays  Int            @default(365) @map("duration_days") // 0 = دائم
+  maxUsers      Int            @default(3) @map("max_users")
+  maxDivisions  Int            @default(1) @map("max_divisions")
+  priceMonthly  Decimal        @default(0) @map("price_monthly") @db.Decimal(10, 3) // للعرض — التسعير يُقرر لاحقًا
+  isActive      Boolean        @default(true) @map("is_active")
+  sortOrder     Int            @default(0) @map("sort_order")
   subscriptions Subscription[]
 
   @@map("plans")
 }
 
-/** اشتراك الشركة — صف واحد لكل شركة؛ الحالة الفعلية تُحسب مع انتهاء المدة */
+/**
+ * اشتراك الشركة — صف واحد لكل شركة؛ الحالة الفعلية تُحسب مع انتهاء المدة
+ */
 model Subscription {
   id        Int       @id @default(autoincrement())
   companyId Int       @unique @map("company_id")
@@ -1775,7 +1880,8 @@ model RegistrationRequest {
   processedAt       DateTime? @map("processed_at")
   createdAt         DateTime  @default(now()) @map("created_at")
 
-  modules           String    @default("[]") @map("modules") // الأنشطة المختارة JSON — ["contracting",…] (الكتالوج في modules-catalog.ts)
+  modules String @default("[]") @map("modules") // الأنشطة المختارة JSON — ["contracting",…] (الكتالوج في modules-catalog.ts)
+
   @@index([status, createdAt])
   @@map("registration_requests")
 }
@@ -1801,7 +1907,9 @@ model CompanyModule {
   @@map("company_modules")
 }
 
-/** قسم (Division) — وحدة الفصل المالي داخل الشركة: قسم افتراضي يُبذر لكل موديول مفعّل (المرحلة B ستصل القيود به) */
+/**
+ * قسم (Division) — وحدة الفصل المالي داخل الشركة: قسم افتراضي يُبذر لكل موديول مفعّل (المرحلة B ستصل القيود به)
+ */
 model Division {
   id         Int      @id @default(autoincrement())
   companyId  Int      @map("company_id")
@@ -1821,23 +1929,25 @@ model Division {
 // كيان «المهندس» مستقل عن Employee (موظفو السلف في العُهد) — نطاقه موديول الاستشارات حصرًا.
 // إيقاف الموديول = تجميد قراءة فقط كما باقي الأنشطة — البيانات لا تُحذف أبدًا.
 
-/** المهندس/موظف الاستشارات — التخصص والترخيص المهني (عضوية الهيئة/الترخيص) مع تنبيه قبل انتهائه */
+/**
+ * المهندس/موظف الاستشارات — التخصص والترخيص المهني (عضوية الهيئة/الترخيص) مع تنبيه قبل انتهائه
+ */
 model Engineer {
-  companyId     Int      @default(1) @map("company_id")
-  id            Int      @id @default(autoincrement())
+  companyId     Int                   @default(1) @map("company_id")
+  id            Int                   @id @default(autoincrement())
   name          String
-  jobTitle      String   @default("") @map("job_title") // المسمى: مدير مشروع / مهندس تصميم / مهندس إشراف…
-  specialty     String   @default("") // التخصص الهندسي: عمارة / إنشائي / كهرباء / ميكانيكا…
-  civilId       String   @default("") @map("civil_id") // الرقم المدني الكويتي
-  nationality   String   @default("")
-  phone         String   @default("")
-  email         String   @default("")
-  licenseNo     String   @default("") @map("license_no") // رقم العضوية/الترخيص المهني
-  licenseExpiry String   @default("") @map("license_expiry") // YYYY-MM-DD — مصدر تنبيه القرب
-  hireDate      String   @default("") @map("hire_date")
-  baseSalary    Decimal  @default(0) @map("base_salary") // استرشادي — مسير الرواتب بمرحلة لاحقة
-  status        String   @default("نشط") // نشط | في إجازة | موقوف | منتهي الخدمة
-  notes         String   @default("")
+  jobTitle      String                @default("") @map("job_title") // المسمى: مدير مشروع / مهندس تصميم / مهندس إشراف…
+  specialty     String                @default("") // التخصص الهندسي: عمارة / إنشائي / كهرباء / ميكانيكا…
+  civilId       String                @default("") @map("civil_id") // الرقم المدني الكويتي
+  nationality   String                @default("")
+  phone         String                @default("")
+  email         String                @default("")
+  licenseNo     String                @default("") @map("license_no") // رقم العضوية/الترخيص المهني
+  licenseExpiry String                @default("") @map("license_expiry") // YYYY-MM-DD — مصدر تنبيه القرب
+  hireDate      String                @default("") @map("hire_date")
+  baseSalary    Decimal               @default(0) @map("base_salary") // استرشادي — مسير الرواتب بمرحلة لاحقة
+  status        String                @default("نشط") // نشط | في إجازة | موقوف | منتهي الخدمة
+  notes         String                @default("")
   assignments   EngineerAssignment[]
   timesheets    EngineerTimesheet[]
   leaves        EngineerLeave[]
@@ -1845,14 +1955,16 @@ model Engineer {
   revisions     ConsultingRevision[]
   // رادار المواعيد — الخانات المحجوزة للمهندس (docs/consulting-radar-design.md)
   appointments  EngineerAppointment[]
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
 
   @@index([status])
   @@map("engineers")
 }
 
-/** إسناد مهندس إلى عقد/مشروع — نقطة الربط HR↔العقود (الأهم في تصميم الاستشارات) */
+/**
+ * إسناد مهندس إلى عقد/مشروع — نقطة الربط HR↔العقود (الأهم في تصميم الاستشارات)
+ */
 model EngineerAssignment {
   companyId     Int      @default(1) @map("company_id")
   id            Int      @id @default(autoincrement())
@@ -1873,7 +1985,9 @@ model EngineerAssignment {
   @@map("engineer_assignments")
 }
 
-/** ساعات العمل على المشاريع — المخططات والإشراف والمراجعات (ربط العقد اختياري للساعات الإدارية) */
+/**
+ * ساعات العمل على المشاريع — المخططات والإشراف والمراجعات (ربط العقد اختياري للساعات الإدارية)
+ */
 model EngineerTimesheet {
   companyId  Int       @default(1) @map("company_id")
   id         Int       @id @default(autoincrement())
@@ -1892,22 +2006,24 @@ model EngineerTimesheet {
   @@map("engineer_timesheets")
 }
 
-/** طلب إجازة مهندس — سير موافقة بسيط: معلقة ثم اعتماد/رفض بسبب موثق */
+/**
+ * طلب إجازة مهندس — سير موافقة بسيط: معلقة ثم اعتماد/رفض بسبب موثق
+ */
 model EngineerLeave {
-  companyId  Int      @default(1) @map("company_id")
-  id         Int      @id @default(autoincrement())
-  engineerId Int      @map("engineer_id")
-  engineer   Engineer @relation(fields: [engineerId], references: [id], onDelete: Cascade)
-  leaveType  String   @map("leave_type") // سنوية | مرضية | طارئة | بدون راتب
-  startDate  String   @map("start_date") // YYYY-MM-DD
-  endDate    String   @map("end_date") // YYYY-MM-DD
-  days       Decimal  @default(0)
-  status     String   @default("معلقة") // معلقة | معتمدة | مرفوضة
-  reason     String   @default("")
-  decisionBy String   @default("") @map("decision_by")
-  decisionAt String   @default("") @map("decision_at")
-  decisionNote String @default("") @map("decision_note") // سبب الرفض/ملاحظة الاعتماد — توثيق إلزامي عند الرفض
-  createdAt  DateTime @default(now()) @map("created_at")
+  companyId    Int      @default(1) @map("company_id")
+  id           Int      @id @default(autoincrement())
+  engineerId   Int      @map("engineer_id")
+  engineer     Engineer @relation(fields: [engineerId], references: [id], onDelete: Cascade)
+  leaveType    String   @map("leave_type") // سنوية | مرضية | طارئة | بدون راتب
+  startDate    String   @map("start_date") // YYYY-MM-DD
+  endDate      String   @map("end_date") // YYYY-MM-DD
+  days         Decimal  @default(0)
+  status       String   @default("معلقة") // معلقة | معتمدة | مرفوضة
+  reason       String   @default("")
+  decisionBy   String   @default("") @map("decision_by")
+  decisionAt   String   @default("") @map("decision_at")
+  decisionNote String   @default("") @map("decision_note") // سبب الرفض/ملاحظة الاعتماد — توثيق إلزامي عند الرفض
+  createdAt    DateTime @default(now()) @map("created_at")
 
   @@index([engineerId, status])
   @@map("engineer_leaves")
@@ -1942,22 +2058,22 @@ model EngineerAppointment {
  * وملاحظة الإرجاع إلزامية (نمط إجازات المهندسين).
  */
 model ConsultingRevision {
-  companyId   Int      @default(1) @map("company_id")
-  id          Int      @id @default(autoincrement())
-  contractId  Int      @map("contract_id")
-  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  title       String   // اسم المخطط/الوثيقة — مفتاح التجميع بين الإصدارات
-  revNo       Int      @map("rev_no") // يُرقَّم خادميًا max+1 لكل (عقد، عنوان)
-  status      String   @default("بانتظار مراجعة") // بانتظار مراجعة | مقبول | معاد بتعديلات
-  engineerId  Int?     @map("engineer_id") // مُعد الإصدار — اختياري
-  engineer    Engineer? @relation(fields: [engineerId], references: [id])
-  submittedAt String   @default("") @map("submitted_at") // YYYY-MM-DD تاريخ رفع الإصدار
-  decidedAt   String   @default("") @map("decided_at")
-  decidedBy   String   @default("") @map("decided_by")
-  decisionNote String  @default("") @map("decision_note") // إلزامي عند «معاد بتعديلات»
-  notes       String   @default("")
-  createdBy   String   @default("") @map("created_by")
-  createdAt   DateTime @default(now()) @map("created_at")
+  companyId    Int       @default(1) @map("company_id")
+  id           Int       @id @default(autoincrement())
+  contractId   Int       @map("contract_id")
+  contract     Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  title        String // اسم المخطط/الوثيقة — مفتاح التجميع بين الإصدارات
+  revNo        Int       @map("rev_no") // يُرقَّم خادميًا max+1 لكل (عقد، عنوان)
+  status       String    @default("بانتظار مراجعة") // بانتظار مراجعة | مقبول | معاد بتعديلات
+  engineerId   Int?      @map("engineer_id") // مُعد الإصدار — اختياري
+  engineer     Engineer? @relation(fields: [engineerId], references: [id])
+  submittedAt  String    @default("") @map("submitted_at") // YYYY-MM-DD تاريخ رفع الإصدار
+  decidedAt    String    @default("") @map("decided_at")
+  decidedBy    String    @default("") @map("decided_by")
+  decisionNote String    @default("") @map("decision_note") // إلزامي عند «معاد بتعديلات»
+  notes        String    @default("")
+  createdBy    String    @default("") @map("created_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
 
   @@index([contractId])
   @@index([status])
@@ -1998,7 +2114,7 @@ model EmployeeLeave {
   employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   leaveType    String   @map("leave_type") // سنوية | مرضية | طارئة | بدون راتب
   startDate    String   @map("start_date") // YYYY-MM-DD
-  endDate      String   @map("end_date")   // YYYY-MM-DD — شاملة الطرفين
+  endDate      String   @map("end_date") // YYYY-MM-DD — شاملة الطرفين
   days         Decimal  @default(0) // حساب آلي بالنواة النقية
   status       String   @default("معلقة") // معلقة | معتمدة | بدأت | منتهية | مرفوضة
   sickTier     Int?     @map("sick_tier") // شريحة المرضية القانونية (0..4) — عرض وتحذير في HR-1
@@ -2036,31 +2152,31 @@ model EmployeePermission {
 
 /// مسير الرواتب الشهري — لقطة مجمّدة: شهر واحد بحالة نشطة (مسودة/معتمد/مدفوع)
 model PayrollBatch {
-  companyId        Int      @default(1) @map("company_id")
-  id               Int      @id @default(autoincrement())
-  batchNo          Int      @default(0) @map("batch_no") // تسلسلي عرضي PR-####
+  companyId        Int               @default(1) @map("company_id")
+  id               Int               @id @default(autoincrement())
+  batchNo          Int               @default(0) @map("batch_no") // تسلسلي عرضي PR-####
   month            String // YYYY-MM
-  status           String   @default("draft") // draft | approved | paid | cancelled
-  grossTotal       Decimal  @default(0) @db.Decimal(18, 3) @map("gross_total")
-  deductionTotal   Decimal  @default(0) @db.Decimal(18, 3) @map("deduction_total")
-  advanceTotal     Decimal  @default(0) @db.Decimal(18, 3) @map("advance_total")
-  netTotal         Decimal  @default(0) @db.Decimal(18, 3) @map("net_total")
-  journalEntryId   Int?     @map("journal_entry_id") // قيد الاعتماد: مدين 5210 / دائن 2160 + 1140 عبر سندات SD
-  journalEntry     JournalEntry? @relation("PayrollBatchEntry", fields: [journalEntryId], references: [id])
-  provisionEntryId Int?     @map("provision_entry_id") // HR-2 — قيد المخصصات المصاحب: مدين 5210/5211 · دائن 2161/2211
-  provisionEntry   JournalEntry? @relation("PayrollBatchProvisionEntry", fields: [provisionEntryId], references: [id])
-  paymentVoucherId Int?     @map("payment_voucher_id") // سند PV للدفع من 2160
-  paymentVoucher   Voucher? @relation("PayrollPaymentVoucher", fields: [paymentVoucherId], references: [id])
-  generatedBy      String   @default("") @map("generated_by")
-  generatedAt      DateTime? @map("generated_at")
-  approvedBy       String   @default("") @map("approved_by")
-  approvedAt       DateTime? @map("approved_at")
-  paidAt           DateTime? @map("paid_at")
-  cancelledAt      DateTime? @map("cancelled_at")
-  cancelReason     String   @default("") @map("cancel_reason")
+  status           String            @default("draft") // draft | approved | paid | cancelled
+  grossTotal       Decimal           @default(0) @map("gross_total") @db.Decimal(18, 3)
+  deductionTotal   Decimal           @default(0) @map("deduction_total") @db.Decimal(18, 3)
+  advanceTotal     Decimal           @default(0) @map("advance_total") @db.Decimal(18, 3)
+  netTotal         Decimal           @default(0) @map("net_total") @db.Decimal(18, 3)
+  journalEntryId   Int?              @map("journal_entry_id") // قيد الاعتماد: مدين 5210 / دائن 2160 + 1140 عبر سندات SD
+  journalEntry     JournalEntry?     @relation("PayrollBatchEntry", fields: [journalEntryId], references: [id])
+  provisionEntryId Int?              @map("provision_entry_id") // HR-2 — قيد المخصصات المصاحب: مدين 5210/5211 · دائن 2161/2211
+  provisionEntry   JournalEntry?     @relation("PayrollBatchProvisionEntry", fields: [provisionEntryId], references: [id])
+  paymentVoucherId Int?              @map("payment_voucher_id") // سند PV للدفع من 2160
+  paymentVoucher   Voucher?          @relation("PayrollPaymentVoucher", fields: [paymentVoucherId], references: [id])
+  generatedBy      String            @default("") @map("generated_by")
+  generatedAt      DateTime?         @map("generated_at")
+  approvedBy       String            @default("") @map("approved_by")
+  approvedAt       DateTime?         @map("approved_at")
+  paidAt           DateTime?         @map("paid_at")
+  cancelledAt      DateTime?         @map("cancelled_at")
+  cancelReason     String            @default("") @map("cancel_reason")
   records          PayrollRecord[]
   laborAllocations LaborAllocation[] // HR-3 — أسطر توزيع تكلفة الشهر (تحليلي — د1)
-  createdAt        DateTime @default(now()) @map("created_at")
+  createdAt        DateTime          @default(now()) @map("created_at")
 
   @@index([month, status])
   @@map("payroll_batches")
@@ -2081,12 +2197,12 @@ model PayrollRecord {
   absenceDays        Decimal      @default(0) // غياب غير مبرر + بدون راتب (عرض)
   snapSickDays       Decimal      @default(0) @map("snap_sick_days") // HR-2 — أيام مرضية متقاطعة (عرض)
   snapLateMinutes    Int          @default(0) @map("snap_late_minutes") // HR-2 — ∑ دقائق مجردة بعد الإعفاءات (عرض)
-  baseAmount         Decimal      @default(0) @db.Decimal(18, 3) @map("base_amount")
-  absenceDeduction   Decimal      @default(0) @db.Decimal(18, 3) @map("absence_deduction")
-  sickDeduction      Decimal      @default(0) @db.Decimal(18, 3) @map("sick_deduction") // HR-2 — مرضية بشرائح <100%
-  lateDeduction      Decimal      @default(0) @db.Decimal(18, 3) @map("late_deduction") // HR-2 — دقائق مجردة بعد الإعفاءات
-  advanceDeduction   Decimal      @default(0) @db.Decimal(18, 3) @map("advance_deduction") // خطة خصم السلف
-  netAmount          Decimal      @default(0) @db.Decimal(18, 3) @map("net_amount")
+  baseAmount         Decimal      @default(0) @map("base_amount") @db.Decimal(18, 3)
+  absenceDeduction   Decimal      @default(0) @map("absence_deduction") @db.Decimal(18, 3)
+  sickDeduction      Decimal      @default(0) @map("sick_deduction") @db.Decimal(18, 3) // HR-2 — مرضية بشرائح <100%
+  lateDeduction      Decimal      @default(0) @map("late_deduction") @db.Decimal(18, 3) // HR-2 — دقائق مجردة بعد الإعفاءات
+  advanceDeduction   Decimal      @default(0) @map("advance_deduction") @db.Decimal(18, 3) // خطة خصم السلف
+  netAmount          Decimal      @default(0) @map("net_amount") @db.Decimal(18, 3)
   deductionVoucherId Int?         @map("deduction_voucher_id") // سند SD لخصم السلف (مدين 2160/دائن 1140)
 
   @@index([batchId])
@@ -2101,7 +2217,7 @@ model EmployeeTermination {
   employeeId      Int      @map("employee_id")
   employee        Employee @relation(fields: [employeeId], references: [id])
   endDate         String   @map("end_date") // YYYY-MM-DD
-  scenario        String   // انتهاء عقد | استقالة | فصل (م41) | انصراف (م44) | وفاة | زواج | ولادة | اتفاق الطرفين
+  scenario        String // انتهاء عقد | استقالة | فصل (م41) | انصراف (م44) | وفاة | زواج | ولادة | اتفاق الطرفين
   serviceYears    Decimal  @default(0) @map("service_years") // لقطة سنوات الخدمة عند الحساب
   wageAtEnd       Decimal  @default(0) @map("wage_at_end") // لقطة آخر أجر أساسي
   eosAmount       Decimal  @default(0) @map("eos_amount") // مكافأة نهاية الخدمة
@@ -2126,7 +2242,7 @@ model EmployeeAuditLog {
   id         Int      @id @default(autoincrement())
   employeeId Int      @map("employee_id")
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  field      String   // اسم الحقل المعرفي (salary) — قائمة مغلقة معلنة في hr-constants
+  field      String // اسم الحقل المعرفي (salary) — قائمة مغلقة معلنة في hr-constants
   fieldLabel String   @map("field_label") // العنوان العربي لحظة الكتابة (لقطة)
   oldValue   String   @default("") @map("old_value") // قيمة منسقة نصيًا (نموذج جديد أو «فراغ»)
   newValue   String   @default("") @map("new_value")
@@ -2139,13 +2255,13 @@ model EmployeeAuditLog {
 
 /// HR-3 — فريق عمل تشغيلي (د6) — توليد تكليفات جماعية وفلترة عرض، بلا أثر مالي مباشر
 model WorkTeam {
-  companyId Int      @default(1) @map("company_id")
-  id        Int      @id @default(autoincrement())
+  companyId Int              @default(1) @map("company_id")
+  id        Int              @id @default(autoincrement())
   name      String
-  active    Boolean  @default(true)
-  notes     String   @default("")
+  active    Boolean          @default(true)
+  notes     String           @default("")
   members   WorkTeamMember[]
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime         @default(now()) @map("created_at")
 
   @@unique([companyId, name])
   @@map("work_teams")
@@ -2213,70 +2329,76 @@ model LaborAllocation {
 // دروس G1/G9 المحقّقة: الأرصدة اشتقاقية من الأسطر بلا جدول أرصدة، والانحراف على FK حقيقي boqItemId.
 // كل الجداول الأربعة تُسجَّل في TENANT_MODELS/BACKUP_MODELS بنفس الـcommit (درس T111).
 
-/** المستودع — بيانات أساسية خفيفة؛ ذو حركة لا يُحذف (تعطيل فقط) */
+/**
+ * المستودع — بيانات أساسية خفيفة؛ ذو حركة لا يُحذف (تعطيل فقط)
+ */
 model Warehouse {
-  companyId  Int         @default(1) @map("company_id")
-  id         Int         @id @default(autoincrement())
+  companyId  Int        @default(1) @map("company_id")
+  id         Int        @id @default(autoincrement())
   name       String
-  location   String      @default("")
-  active     Boolean     @default(true) // التعطيل يخفيه من الأذون الجديدة
-  notes      String      @default("")
-  createdAt  DateTime    @default(now()) @map("created_at")
-  sourceDocs StockDoc[]  @relation("StockDocSource")
-  targetDocs StockDoc[]  @relation("StockDocTarget")
+  location   String     @default("")
+  active     Boolean    @default(true) // التعطيل يخفيه من الأذون الجديدة
+  notes      String     @default("")
+  createdAt  DateTime   @default(now()) @map("created_at")
+  sourceDocs StockDoc[] @relation("StockDocSource")
+  targetDocs StockDoc[] @relation("StockDocTarget")
 
   @@unique([companyId, name])
   @@map("warehouses")
 }
 
-/** الصنف — تسمية StockItem لتفادي التصادم مع BoqItem التعاقدي؛ ذو حركة لا يُحذف (تعطيل فقط) */
+/**
+ * الصنف — تسمية StockItem لتفادي التصادم مع BoqItem التعاقدي؛ ذو حركة لا يُحذف (تعطيل فقط)
+ */
 model StockItem {
-  companyId Int            @default(1) @map("company_id")
-  id        Int            @id @default(autoincrement())
-  name      String
-  unit      String         @default("") // وحدة قياس نصية للعرض (كيس/م/م²/كجم…) — بلا تحويلات وحدات
-  category  String         @default("")
-  minQty    Decimal        @default(0) @db.Decimal(18, 3) @map("min_qty") // حد تنبيه عرض فقط (شارة تحت الحد الأدنى)
-  active    Boolean        @default(true)
-  notes     String         @default("")
-  createdAt DateTime       @default(now()) @map("created_at")
-  docLines  StockDocLine[]
+  companyId    Int            @default(1) @map("company_id")
+  id           Int            @id @default(autoincrement())
+  name         String
+  unit         String         @default("") // وحدة قياس نصية للعرض (كيس/م/م²/كجم…) — بلا تحويلات وحدات
+  category     String         @default("")
+  minQty       Decimal        @default(0) @map("min_qty") @db.Decimal(18, 3) // حد تنبيه عرض فقط (شارة تحت الحد الأدنى)
+  active       Boolean        @default(true)
+  notes        String         @default("")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  docLines     StockDocLine[]
   invoiceItems InvoiceItem[] // بنود الفواتير المخزنية (المبيعات — علاقة عكسية)
 
   @@unique([companyId, name])
   @@map("stock_items")
 }
 
-/** رأس الإذن — الأنواع الأربعة جميعها بنية واحدة (د3): إدخال·صرف·تحويل·جرد — الحفظ مرحّل بقيد فوري (د6) */
+/**
+ * رأس الإذن — الأنواع الأربعة جميعها بنية واحدة (د3): إدخال·صرف·تحويل·جرد — الحفظ مرحّل بقيد فوري (د6)
+ */
 model StockDoc {
-  companyId         Int           @default(1) @map("company_id")
-  id                Int           @id @default(autoincrement())
-  docNumber         String        @map("doc_number") // WI/WO/WT/WC-#### عبر nextNumber (د5)
-  kind              String        // entry | issue | transfer | count — قيم معرفية بجداول ثابتة (G7)
-  entrySource       String        @default("") @map("entry_source") // entry فقط: cash | credit | return (د11)
-  vdate             String        // YYYY-MM-DD
-  warehouseId       Int           @map("warehouse_id")
-  warehouse         Warehouse     @relation("StockDocSource", fields: [warehouseId], references: [id])
-  targetWarehouseId Int?          @map("target_warehouse_id")
-  targetWarehouse   Warehouse?    @relation("StockDocTarget", fields: [targetWarehouseId], references: [id])
-  contractId        Int?          @map("contract_id")
-  contract          Contract?     @relation(fields: [contractId], references: [id]) // الصرف/المرتجع إلزاميان بعقد واحد (د7 — G8)
-  party             String        @default("") // اسم المورد نص حر (د11)
-  payAccountId      Int?          @map("pay_account_id")
-  payAccount        Account?      @relation(fields: [payAccountId], references: [id])
-  payAccountName    String        @default("") @map("pay_account_name") // لقطة اسم حساب الدفع
-  journalEntryId    Int?          @map("journal_entry_id")
-  journalEntry      JournalEntry? @relation("StockDocEntry", fields: [journalEntryId], references: [id]) // القيد المرتبط (نمط السندات)
+  companyId         Int            @default(1) @map("company_id")
+  id                Int            @id @default(autoincrement())
+  docNumber         String         @map("doc_number") // WI/WO/WT/WC-#### عبر nextNumber (د5)
+  kind              String // entry | issue | transfer | count — قيم معرفية بجداول ثابتة (G7)
+  entrySource       String         @default("") @map("entry_source") // entry فقط: cash | credit | return (د11)
+  vdate             String // YYYY-MM-DD
+  warehouseId       Int            @map("warehouse_id")
+  warehouse         Warehouse      @relation("StockDocSource", fields: [warehouseId], references: [id])
+  targetWarehouseId Int?           @map("target_warehouse_id")
+  targetWarehouse   Warehouse?     @relation("StockDocTarget", fields: [targetWarehouseId], references: [id])
+  contractId        Int?           @map("contract_id")
+  contract          Contract?      @relation(fields: [contractId], references: [id]) // الصرف/المرتجع إلزاميان بعقد واحد (د7 — G8)
+  party             String         @default("") // اسم المورد نص حر (د11)
+  payAccountId      Int?           @map("pay_account_id")
+  payAccount        Account?       @relation(fields: [payAccountId], references: [id])
+  payAccountName    String         @default("") @map("pay_account_name") // لقطة اسم حساب الدفع
+  journalEntryId    Int?           @map("journal_entry_id")
+  journalEntry      JournalEntry?  @relation("StockDocEntry", fields: [journalEntryId], references: [id]) // القيد المرتبط (نمط السندات)
   // موديول المبيعات (docs/sales-design.md §3): إذن الصرف الآلي للبيع — مرتبط بفاتورة بلا عقد، وSetNull مع حذف الفاتورة
-  saleInvoiceId     Int?          @map("sale_invoice_id")
-  saleInvoice       Invoice?      @relation("SaleInvoiceDocs", fields: [saleInvoiceId], references: [id])
-  totalAmount       Decimal       @default(0) @db.Decimal(18, 3) @map("total_amount") // مجمّد على الرأس لحظة الحفظ
-  status            String        @default("posted") // posted | cancelled — لا مسودات (د6)
-  cancelReason      String        @default("") @map("cancel_reason")
-  cancelledAt       DateTime?     @map("cancelled_at")
-  notes             String        @default("")
-  createdBy         String        @default("") @map("created_by")
-  createdAt         DateTime      @default(now()) @map("created_at")
+  saleInvoiceId     Int?           @map("sale_invoice_id")
+  saleInvoice       Invoice?       @relation("SaleInvoiceDocs", fields: [saleInvoiceId], references: [id])
+  totalAmount       Decimal        @default(0) @map("total_amount") @db.Decimal(18, 3) // مجمّد على الرأس لحظة الحفظ
+  status            String         @default("posted") // posted | cancelled — لا مسودات (د6)
+  cancelReason      String         @default("") @map("cancel_reason")
+  cancelledAt       DateTime?      @map("cancelled_at")
+  notes             String         @default("")
+  createdBy         String         @default("") @map("created_by")
+  createdAt         DateTime       @default(now()) @map("created_at")
   lines             StockDocLine[]
   workOrders        WorkOrder[] // أوامر الصيانة المرتبطة بهذا الإذن (docs/maintenance-design.md د8)
 
@@ -2288,7 +2410,9 @@ model StockDoc {
   @@map("stock_docs")
 }
 
-/** سطر الإذن — اللقطات هنا (د2): تكلفة ومبلغ يجفّفان لحظة الحفظ ولا يُقرآن من أي مصدر لاحقًا */
+/**
+ * سطر الإذن — اللقطات هنا (د2): تكلفة ومبلغ يجفّفان لحظة الحفظ ولا يُقرآن من أي مصدر لاحقًا
+ */
 model StockDocLine {
   companyId    Int       @default(1) @map("company_id")
   id           Int       @id @default(autoincrement())
@@ -2299,8 +2423,8 @@ model StockDocLine {
   boqItemId    Int?      @map("boq_item_id")
   boqItem      BoqItem?  @relation(fields: [boqItemId], references: [id]) // ربط بند الكميات — تقرير الانحراف (د7 — G1)
   qty          Decimal   @db.Decimal(18, 3) // الجرد: الفرق المقيّد (±) — الأنواع الأخرى موجبة
-  countedQty   Decimal   @default(0) @db.Decimal(18, 3) @map("counted_qty") // الجرد: المفحوص توثيقًا فقط
-  snapUnitCost Decimal   @db.Decimal(18, 3) @map("snap_unit_cost") // لقطة التكلفة لحظة الحفظ (د2)
+  countedQty   Decimal   @default(0) @map("counted_qty") @db.Decimal(18, 3) // الجرد: المفحوص توثيقًا فقط
+  snapUnitCost Decimal   @map("snap_unit_cost") @db.Decimal(18, 3) // لقطة التكلفة لحظة الحفظ (د2)
   amount       Decimal   @db.Decimal(18, 3) // = r3(qty × snapUnitCost) مجمّد
   note         String    @default("")
   createdAt    DateTime  @default(now()) @map("created_at")
@@ -2317,26 +2441,30 @@ model StockDocLine {
 // الجداول الثلاثة تُسجَّل في TENANT_MODELS/BACKUP_MODELS بنفس الـcommit (درس T111) بالترتيب الطوبولوجي:
 // maintenance_plans (بعد contracts) ⇐ maintenance_occurrences ⇐ work_orders (بعد invoices/stock_docs لارتباطاته).
 
-/** خطة الصيانة الوقائية (د5) — مولِّد لا تقويم: فاصل شهري + عدد زيارات ⇒ أحداث بتواريخ معايرة نهاية الشهر */
+/**
+ * خطة الصيانة الوقائية (د5) — مولِّد لا تقويم: فاصل شهري + عدد زيارات ⇒ أحداث بتواريخ معايرة نهاية الشهر
+ */
 model MaintenancePlan {
-  companyId        Int      @default(1) @map("company_id")
-  id               Int      @id @default(autoincrement())
-  contractId       Int      @map("contract_id")
-  contract         Contract @relation(fields: [contractId], references: [id], onDelete: Cascade) // عقد صيانة موسوم حصرًا (د2 — G8)
-  name             String   @default("") // «زيارات شهرية 2025» — عرض فقط
-  intervalMonths   Int      @map("interval_months") // من {1,2,3,6,12} — تحقق مغلق (د5)
-  occurrencesCount Int      @map("occurrences_count") // 1..60 — سقف سلامة
-  startDate        String   @map("start_date") // YYYY-MM-DD — نقطة الارتكاز الأولى
-  active           Boolean  @default(true) // تعطيل الخطة يوقف مؤشر «متأخر» لأحداثها
-  notes            String   @default("")
-  createdAt        DateTime @default(now()) @map("created_at")
+  companyId        Int                     @default(1) @map("company_id")
+  id               Int                     @id @default(autoincrement())
+  contractId       Int                     @map("contract_id")
+  contract         Contract                @relation(fields: [contractId], references: [id], onDelete: Cascade) // عقد صيانة موسوم حصرًا (د2 — G8)
+  name             String                  @default("") // «زيارات شهرية 2025» — عرض فقط
+  intervalMonths   Int                     @map("interval_months") // من {1,2,3,6,12} — تحقق مغلق (د5)
+  occurrencesCount Int                     @map("occurrences_count") // 1..60 — سقف سلامة
+  startDate        String                  @map("start_date") // YYYY-MM-DD — نقطة الارتكاز الأولى
+  active           Boolean                 @default(true) // تعطيل الخطة يوقف مؤشر «متأخر» لأحداثها
+  notes            String                  @default("")
+  createdAt        DateTime                @default(now()) @map("created_at")
   occurrences      MaintenanceOccurrence[]
 
   @@index([contractId])
   @@map("maintenance_plans")
 }
 
-/** الحدث الوقائي (د6) — تاريخ فقط، وحالته اشتقاقية من وجود أمره وحالته + علم تخطٍّ صريح (لا عمود حالة مخزن — G9) */
+/**
+ * الحدث الوقائي (د6) — تاريخ فقط، وحالته اشتقاقية من وجود أمره وحالته + علم تخطٍّ صريح (لا عمود حالة مخزن — G9)
+ */
 model MaintenanceOccurrence {
   companyId Int             @default(1) @map("company_id")
   id        Int             @id @default(autoincrement())
@@ -2353,32 +2481,34 @@ model MaintenanceOccurrence {
   @@map("maintenance_occurrences")
 }
 
-/** أمر العمل (د3) — وحدة تشغيل بلا أسطر: المواد إذن صرف مخزني مرتبط والفاتورة فاتورة قائمة مرتبطة (د8/د9) */
+/**
+ * أمر العمل (د3) — وحدة تشغيل بلا أسطر: المواد إذن صرف مخزني مرتبط والفاتورة فاتورة قائمة مرتبطة (د8/د9)
+ */
 model WorkOrder {
-  companyId      Int      @default(1) @map("company_id")
-  id             Int      @id @default(autoincrement())
-  docNumber      String   @map("doc_number") // MO-#### عبر nextNumber لكل شركة (د10 — متميز عن WO- المخزني)
+  companyId      Int                    @default(1) @map("company_id")
+  id             Int                    @id @default(autoincrement())
+  docNumber      String                 @map("doc_number") // MO-#### عبر nextNumber لكل شركة (د10 — متميز عن WO- المخزني)
   title          String // «صيانة تكييف — فيلا السالم»
-  description    String   @default("")
-  contractId     Int      @map("contract_id")
-  contract       Contract @relation(fields: [contractId], references: [id]) // عقد صيانة نشط حصرًا (د2 — G8)
-  occurrenceId   Int?     @unique @map("occurrence_id") // من حدث وقائي — اختياري (أوامر مباشرة ممكنة)
+  description    String                 @default("")
+  contractId     Int                    @map("contract_id")
+  contract       Contract               @relation(fields: [contractId], references: [id]) // عقد صيانة نشط حصرًا (د2 — G8)
+  occurrenceId   Int?                   @unique @map("occurrence_id") // من حدث وقائي — اختياري (أوامر مباشرة ممكنة)
   occurrence     MaintenanceOccurrence? @relation(fields: [occurrenceId], references: [id])
-  technicianId   Int?     @map("technician_id")
-  technician     VisitStaff? @relation(fields: [technicianId], references: [id]) // د7 — عرض وتقويم فقط، لا payroll
-  scheduledDate  String   @default("") @map("scheduled_date") // YYYY-MM-DD
-  status         String   @default("مفتوحة") // مفتوحة|جارية|منجزة|ملغاة — آلة مغلقة (د4 — G7)
-  completedAt    String   @default("") @map("completed_at") // يثبت عند الإنهاء حصرًا
-  completedNote  String   @default("") @map("completed_note")
-  cancelReason   String   @default("") @map("cancel_reason")
-  cancelledAt    String   @default("") @map("cancelled_at")
-  invoiceId      Int?     @map("invoice_id")
-  invoice        Invoice? @relation(fields: [invoiceId], references: [id]) // فاتورة الزيارة — بعد الإنهاء حصرًا (د9)
-  materialsDocId Int?     @map("materials_doc_id")
-  materialsDoc   StockDoc? @relation(fields: [materialsDocId], references: [id]) // إذن الصرف المخزني — بمحرك المخازن حرفًا (د8)
-  notes          String   @default("")
-  createdBy      String   @default("") @map("created_by")
-  createdAt      DateTime @default(now()) @map("created_at")
+  technicianId   Int?                   @map("technician_id")
+  technician     VisitStaff?            @relation(fields: [technicianId], references: [id]) // د7 — عرض وتقويم فقط، لا payroll
+  scheduledDate  String                 @default("") @map("scheduled_date") // YYYY-MM-DD
+  status         String                 @default("مفتوحة") // مفتوحة|جارية|منجزة|ملغاة — آلة مغلقة (د4 — G7)
+  completedAt    String                 @default("") @map("completed_at") // يثبت عند الإنهاء حصرًا
+  completedNote  String                 @default("") @map("completed_note")
+  cancelReason   String                 @default("") @map("cancel_reason")
+  cancelledAt    String                 @default("") @map("cancelled_at")
+  invoiceId      Int?                   @map("invoice_id")
+  invoice        Invoice?               @relation(fields: [invoiceId], references: [id]) // فاتورة الزيارة — بعد الإنهاء حصرًا (د9)
+  materialsDocId Int?                   @map("materials_doc_id")
+  materialsDoc   StockDoc?              @relation(fields: [materialsDocId], references: [id]) // إذن الصرف المخزني — بمحرك المخازن حرفًا (د8)
+  notes          String                 @default("")
+  createdBy      String                 @default("") @map("created_by")
+  createdAt      DateTime               @default(now()) @map("created_at")
 
   @@unique([companyId, docNumber])
   @@index([contractId])
