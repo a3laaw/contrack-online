@@ -226,6 +226,8 @@ model Contract {
   attachments          ContractAttachment[]
   // التنفيذ الميداني — سجلات الكميات الميدانية على العقد (بند NOVA 5)
   fieldExecutions      FieldExecution[]      @relation("FieldExecutionContract")
+  // ب1 — البرنامج الزمني CPM: دفعات الاستيراد وأسطر أنشطتها (docs/schedule-import-design.md §2)
+  scheduleImports      ScheduleImport[]      @relation("ScheduleImportContract")
   invoices             Invoice[]
   claims               Claim[]
   subContracts         SubContract[]
@@ -310,6 +312,10 @@ model BoqItem {
   divisionCode      String            @default("") @map("division_code") // رقم القسم (CSI MasterFormat) — «03»
   divisionName      String            @default("") @map("division_name") // اسم القسم — «CONCRETE»
   plannedQty        Decimal           @default(0) @map("planned_qty") @db.Decimal(18, 3) // الكمية المخططة للتنفيذ — عداد «مخطط» في مقايسة التنفيذ (بند NOVA 5)
+  // ب1 — نافذة البند المخططة (docs/schedule-import-design.md §4): تُملأ آلياً من نافذة
+  // قسمه المشتقة من أنشطة CPM المستوردة (بدقة القسم — الربط المباشر ب3) — عقد العرض في اللوحة
+  plannedStart      String            @default("") @map("planned_start") // YYYY-MM-DD
+  plannedFinish     String            @default("") @map("planned_finish") // YYYY-MM-DD
   amount            Decimal           @default(0)
   sortOrder         Int               @default(0) @map("sort_order")
   deleted           Boolean           @default(false)
@@ -1509,6 +1515,60 @@ model ContractAttachment {
   fieldExecutions FieldExecution[]
 
   @@map("contract_attachments")
+}
+
+// ==================== البرنامج الزمني CPM (docs/schedule-import-design.md §2) ====================
+// ب1 — استيراد «ارفع فيسحبه» للجدول الزمني من Primavera (PDF/Excel).
+// درس G9: تواريخ أصلية كما وردت لا مشتقات مخزنة — وكل استيراد دفعة إضافية (Baseline محفوظ:
+// أحدث دفعة = الحي، والقديمة تبقى قابلة للاسترجاع — نفس فلسفة السابق/لاحق).
+// حد معماري صريح: النظام يقرأ الجدول ولا يعيد حساب شبكة CPM — التحديث يأتي كملف R02 جديد.
+
+/// دفعة استيراد للبرنامج الزمني — أحدث دفعة لكل عقد هي الحيّة
+model ScheduleImport {
+  companyId     Int                @default(1) @map("company_id")
+  id            Int                @id @default(autoincrement())
+  contractId    Int                @map("contract_id")
+  contract      Contract           @relation("ScheduleImportContract", fields: [contractId], references: [id], onDelete: Cascade)
+  fileName      String             @map("file_name")
+  revision      String             @default("") // R01 من تذييل الملف إن وُجد
+  dataDate      String             @default("") @map("data_date") // Data Date — لحظة صحة الجدول
+  projectStart  String             @default("") @map("project_start") // 2026-02-28
+  projectFinish String             @default("") @map("project_finish") // 2027-05-27
+  activityCount Int                @default(0) @map("activity_count")
+  workCount     Int                @default(0) @map("work_count") // أنشطة تحمل قيمة (P/X)
+  warnings      String             @default("") // JSON تحذيرات المحلل
+  importedBy    String             @default("") @map("imported_by")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  activities    ScheduleActivity[]
+
+  @@index([contractId])
+  @@map("schedule_imports")
+}
+
+/// نشطة البرنامج الزمني — تواريخ Early/Late كما وردت (لا مشتقات مخزنة) — Float يُشتق عند العرض
+model ScheduleActivity {
+  companyId    Int            @default(1) @map("company_id")
+  id           Int            @id @default(autoincrement())
+  importId     Int            @map("import_id")
+  import       ScheduleImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  contractId   Int            @map("contract_id")
+  activityCode String         @default("") @map("activity_code") // كما ورد بعد فصل الاسم الملتصق
+  name         String
+  kind         String         @default("work") // work|submittal|approval|procurement|shopdrawing|testing|authority|closeout|general|summary
+  family       String         @default("") // P-FL | E-MA | U-GE … من البادئة المطبَّعة
+  durationDays Int            @default(0) @map("duration_days")
+  earlyStart   String         @default("") @map("early_start") // YYYY-MM-DD
+  earlyFinish  String         @default("") @map("early_finish")
+  lateStart    String         @default("") @map("late_start")
+  lateFinish   String         @default("") @map("late_finish")
+  isSummary    Boolean        @default(false) @map("is_summary") // صف WBS band
+  groupName    String         @default("") @map("group_name") // أقرب band حاوي (تقريبي — الـPDF يفقد الإزاحة)
+  divisionCode String         @default("") @map("division_code") // من مطابقة القسم (بند+رقم MasterFormat)
+  sortOrder    Int            @default(0) @map("sort_order")
+
+  @@index([importId])
+  @@index([contractId, divisionCode])
+  @@map("schedule_activities")
 }
 
 /// التنفيذ الميداني — سجل كمّي ميداني يغذي عدادات المقايسة المشتقة (بند NOVA 5 — درس G9: الاشتقاق من الصفوف لا عدادات مخزنة)

@@ -124,6 +124,9 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "contractAttachment", table: "contract_attachments", serial: true },
   // NOVA 5 — التنفيذ الميداني: بعد العقود وبنود الكميات (فوق) وبعد المرفقات (FK attachment_id)
   { model: "fieldExecution", table: "field_executions", serial: true },
+  // ب1 — البرنامج الزمني CPM: الرأس ثم أنشطته (docs/schedule-import-design.md §2 — درس T111 بنفس الـcommit)
+  { model: "scheduleImport", table: "schedule_imports", serial: true },
+  { model: "scheduleActivity", table: "schedule_activities", serial: true },
   // ===== البوابة المالية =====
   { model: "gatewayOp", table: "gateway_ops", serial: true },
   { model: "bankLine", table: "bank_lines", serial: true },

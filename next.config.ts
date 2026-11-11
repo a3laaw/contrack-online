@@ -6,7 +6,8 @@ const nextConfig: NextConfig = {
   // المرحلة 8: كروميوم خادمي لتوليد PDF — نُبقي الحزم خارج حزمة الباندل
   // ويُضمَّن مجلد @sparticuz/chromium كاملًا (الثنائية المضغوطة chromium.br)
   // في تتبع ملفات الـserverless وإلا فشل executablePath() على Vercel.
-  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core", "better-sqlite3"],
+  // ب1: pdf-parse/pdfjs-dist خارج الباندل — pdfjs يبني عامل Workers ديناميكيًا لا يتحمّل التجميع.
+  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core", "better-sqlite3", "pdf-parse", "pdfjs-dist"],
   outputFileTracingIncludes: {
     "/api/statement/contract/[id]/pdf": ["./node_modules/@sparticuz/chromium/**/*"],
     "/api/statement/customer/[id]/pdf": ["./node_modules/@sparticuz/chromium/**/*"],

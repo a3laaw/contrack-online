@@ -125,6 +125,8 @@ import { ContractSettlePage } from "./ContractSettlePage";
 import { SubContractNewPage } from "./SubContractNewPage";
 import { ContractBoqPage } from "./ContractBoqPage";
 import { BoqImportDialog } from "./BoqImportDialog";
+import { ScheduleImportDialog } from "./ScheduleImportDialog";
+import { ScheduleSection } from "./ScheduleSection";
 import { ContractSupervisionPage } from "./ContractSupervisionPage";
 
 interface ContractDetailViewProps {
@@ -431,6 +433,9 @@ export function ContractDetailView({
   // ===== بنود الكميات (الصفحة الداخلية) — تأكيد الحذف يبقى نافذة =====
   const [deleteBoqId, setDeleteBoqId] = React.useState<number | null>(null);
   const [boqImportOpen, setBoqImportOpen] = React.useState(false);
+  // ب1 — البرنامج الزمني: حوار الاستيراد + مفتاح إبطال استعلامات الحالة بعد دفعة جديدة
+  const [scheduleImportOpen, setScheduleImportOpen] = React.useState(false);
+  const [scheduleRefreshKey, setScheduleRefreshKey] = React.useState(0);
   const deleteBoqMutation = useMutation({
     mutationFn: (itemId: number) => apiDelete(`/api/contracts/${contractId}/boq?itemId=${itemId}`),
     onSuccess: () => {
@@ -964,6 +969,8 @@ export function ContractDetailView({
           exporting={payExporting}
           onAddBoq={() => setFlowPage("boq")}
           onImportBoq={() => setBoqImportOpen(true)}
+          onImportSchedule={() => setScheduleImportOpen(true)}
+          scheduleRefreshKey={scheduleRefreshKey}
           onDeleteBoq={(id) => setDeleteBoqId(id)}
           onSubDetail={(id) => setSubDetailId(id)}
           onNewSub={() => setFlowPage("sub-new")}
@@ -1272,6 +1279,22 @@ export function ContractDetailView({
             qc.invalidateQueries({ queryKey: ["contract", contractId, "boq"] });
             qc.invalidateQueries({ queryKey: ["contract", contractId] });
             qc.invalidateQueries({ queryKey: ["dashboard"] });
+          }}
+          onAuthError={onAuthError}
+        />
+      )}
+
+      {/* ===== حوار استيراد البرنامج الزمني CPM (docs/schedule-import-design.md ب1) ===== */}
+      {detail && (
+        <ScheduleImportDialog
+          contractId={contractId}
+          contractNumber={detail.contractNumber}
+          open={scheduleImportOpen}
+          onOpenChange={setScheduleImportOpen}
+          onImported={() => {
+            setScheduleRefreshKey((k) => k + 1);
+            qc.invalidateQueries({ queryKey: ["contract", contractId, "schedule"] });
+            qc.invalidateQueries({ queryKey: ["contract", contractId, "boq"] });
           }}
           onAuthError={onAuthError}
         />
@@ -2477,6 +2500,8 @@ function PayPage({
   exporting,
   onAddBoq,
   onImportBoq,
+  onImportSchedule,
+  scheduleRefreshKey,
   onDeleteBoq,
   onSubDetail,
   onNewSub,
@@ -2505,6 +2530,9 @@ function PayPage({
   exporting?: boolean;
   onAddBoq: () => void;
   onImportBoq: () => void;
+  /** ب1 — فتح حوار استيراد البرنامج الزمني + مفتاح إبطال حالة القسم */
+  onImportSchedule: () => void;
+  scheduleRefreshKey: number;
   onDeleteBoq: (id: number) => void;
   onSubDetail: (id: number) => void;
   onNewSub: () => void;
@@ -2765,6 +2793,7 @@ function PayPage({
                       <TableHead className="w-24">رقم البند</TableHead>
                       <TableHead className="min-w-40">الوصف</TableHead>
                       <TableHead className="w-28">القسم</TableHead>
+                      <TableHead className="w-36 text-center">النافذة المخططة</TableHead>
                       <TableHead className="w-20 text-center">الكمية</TableHead>
                       <TableHead className="w-20 text-center">مخطط</TableHead>
                       <TableHead className="w-20 text-center">الوحدة</TableHead>
@@ -2787,6 +2816,15 @@ function PayPage({
                               <span className="tabular-nums me-1 opacity-70" dir="ltr">{it.divisionCode}</span>
                               {it.divisionName}
                             </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {it.plannedStart && it.plannedFinish ? (
+                            <span className="text-xs tabular-nums text-muted-foreground" dir="ltr">
+                              {it.plannedStart.slice(2)} ← {it.plannedFinish.slice(2)}
+                            </span>
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
@@ -2818,6 +2856,15 @@ function PayPage({
           )}
         </CardContent>
       </Card>
+
+      {/* ⑤-ب البرنامج الزمني CPM — نوافذ الأقسام المخططة مقابل قيم BOQ (docs/schedule-import-design.md ب1) */}
+      <ScheduleSection
+        contractId={contractId}
+        manager={manager}
+        refreshKey={scheduleRefreshKey}
+        onImportClick={onImportSchedule}
+        onAuthError={(e) => onActionError(e, "تعذر قراءة البرنامج الزمني")}
+      />
 
       {/* ⑥ التنفيذ الميداني — مقايسة مشتقة لحظيًا + سجل تنفيذ (بند NOVA 5 — docs/field-execution-design.md) */}
       <FieldExecutionSection contractId={contractId} manager={manager} cur={cur} onActionError={onActionError} />

@@ -11,6 +11,9 @@ export interface BoqItemDTO {
   unit: string
   unitPrice: number
   plannedQty?: number
+  // ب1 — النافذة المخططة من البرنامج الزمني (نافذة القسم) — عرض لا مصدر
+  plannedStart?: string
+  plannedFinish?: string
   total: number
   amount?: number // مبلغ الملف الأصلي للبنود المستوردة (قد يخالف كميه×سعره)
   itemNo?: string // رقم البند في BOQ الأصلي — «03.30.01» / «B1-2» / «F1»

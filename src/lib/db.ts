@@ -36,6 +36,8 @@ const TENANT_MODELS = new Set<string>([
   "contractStage", "boqItem", "paymentPlanItem", "voucher", "project",
   // NOVA 5 — التنفيذ الميداني (docs/field-execution-design.md): سجلات الكميات الميدانية — FK عقود وبنود كميات
   "fieldExecution",
+  // ب1 — البرنامج الزمني CPM (docs/schedule-import-design.md §2): دفعات الاستيراد والأنشطة — بنفس قاعدة درس T111
+  "scheduleImport", "scheduleActivity",
   "quotation", "quotationItem", "voucherPaymentLink", "addendum", "addendumItem",
   "claim", "subcontractor", "subContract", "subContractItem", "subPaymentPlanItem",
   "subPaymentSource",

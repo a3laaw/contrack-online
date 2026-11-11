@@ -35,6 +35,9 @@ export async function GET(req: NextRequest, { params }: P) {
       unit: it.unit,
       unitPrice: Number(it.unitPrice),
       plannedQty: Number(it.plannedQty),
+      // ب1 — نافذة البند المخططة المشتقة من البرنامج الزمني (عرض لا مصدر)
+      plannedStart: it.plannedStart,
+      plannedFinish: it.plannedFinish,
       amount: Number(it.amount),
       sortOrder: it.sortOrder,
     })),
