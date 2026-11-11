@@ -325,6 +325,7 @@ model BoqItem {
   vouchers          Voucher[]
   stockDocLines     StockDocLine[] // المخازن — أسطر صرف مرتبطة بهذا البند (تقرير الانحراف — G1)
   fieldExecutions   FieldExecution[]
+  invoiceItems      InvoiceItem[] // فواتير العميل — أسطر مستخلصات مرتبطة بهذا البند (ز1)
 
   @@index([contractId])
   @@map("boq_items")
@@ -1353,9 +1354,17 @@ model InvoiceItem {
   // موديول المبيعات (docs/sales-design.md §3): سطر مخزني بـitemId ⇒ صرف آلي بقيد تكلفة المبيعات — الفارغ سطر حر
   itemId      Int?       @map("item_id")
   item        StockItem? @relation(fields: [itemId], references: [id])
+  // ز1 — ربط سطر المستخلص ببند BOQ (docs/boq-state-timeline-design.md §2):
+  // الفارغ سطر حر (توافق خلفي كامل)، والملء يختار من بنود BOQ لعقد الفاتورة حصرًا
+  boqItemId     Int?      @map("boq_item_id")
+  boqItem       BoqItem?  @relation(fields: [boqItemId], references: [id])
+  // ز1 — لقطة الاعتماد: تراكمي البند لحظة الإصدار — مرآة حرفية لـSubCertificateLine.cumulativeQty
+  // (retention-design §3.2) — ز2 سينقل لحظة تجميدها من الإصدار إلى الاعتماد
+  cumulativeQty Decimal   @default(0) @map("cumulative_qty") @db.Decimal(18, 3)
 
   @@index([invoiceId])
   @@index([itemId])
+  @@index([boqItemId])
   @@map("invoice_items")
 }
 

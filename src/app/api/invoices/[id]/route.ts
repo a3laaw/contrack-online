@@ -5,7 +5,9 @@ import { EPS, r3 } from "@/lib/contrack-core";
 import { intOr, loadContractCore } from "@/lib/contrack-server";
 import { computeNetDue } from "@/lib/phase-a-core";
 import {
+  buildBoqCumulativeSnapshots,
   buildInvoiceItems,
+  guardInvoiceBoqAvailability,
   invoicedTotalForContract,
   repostInvoiceEntry,
   voidInvoiceTx,
@@ -81,6 +83,9 @@ export async function GET(req: NextRequest, { params }: P) {
       unitPrice: r3(Number(it.unitPrice)),
       discountPct: Number(it.discountPct),
       lineTotal: r3(Number(it.lineTotal)),
+      // ز1 — ربط البند ولقطة التراكمي (docs/boq-state-timeline-design.md §2)
+      boqItemId: it.boqItemId,
+      cumulativeQty: r3(Number(it.cumulativeQty)),
     })),
     payments: inv.paymentLinks.map((l) => ({
       id: l.id,
@@ -241,6 +246,11 @@ export async function PATCH(req: NextRequest, { params }: P) {
   if (paid > EPS && newTotal < paid - EPS) {
     return jsonError(`الصافي الجديد (${newTotal}) أقل من المسدد (${paid}) — راجع سندات السداد أولًا`);
   }
+  // ز1 — حارس المتاح الكمي عند تغيير الأسطر (يستثني هذه الفاتورة من المفوتر السابق)
+  if (itemsProvided && effContractId) {
+    const boqGuard = await guardInvoiceBoqAvailability(db, effContractId, newItems, id);
+    if (!boqGuard.ok) return jsonError(boqGuard.error);
+  }
   // المرحلة (أ) — المحتجز لقطة لا تُمس: الصافي الجديد يجب أن يبقى فوقه
   const effRetention = r3(Number(inv.retentionAmount));
   if (effRetention > EPS && newTotal < effRetention + EPS) {
@@ -254,6 +264,13 @@ export async function PATCH(req: NextRequest, { params }: P) {
     const updated = await db.$transaction(
       async (tx) => {
         if (itemsProvided) {
+          // ز1 — حارس المتاح لحظة الحقيقة داخل المعاملة + لقطات التراكمي الجديدة
+          let boqTxMap = new Map<number, number>();
+          if (effContractId) {
+            const boqGuard = await guardInvoiceBoqAvailability(tx, effContractId, newItems, id);
+            if (!boqGuard.ok) throw new Error(boqGuard.error);
+            boqTxMap = boqGuard.invoicedBeforeByBoqItem;
+          }
           await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
           await tx.invoiceItem.createMany({
             data: newItems.map((it, i) => ({
@@ -264,6 +281,8 @@ export async function PATCH(req: NextRequest, { params }: P) {
               discountPct: it.discountPct,
               lineTotal: it.lineTotal,
               sortOrder: i,
+              boqItemId: it.boqItemId ?? null,
+              cumulativeQty: effContractId ? buildBoqCumulativeSnapshots(newItems, boqTxMap)[i] ?? 0 : 0,
             })),
           });
         }
@@ -321,7 +340,13 @@ export async function PATCH(req: NextRequest, { params }: P) {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
-    if (msg.includes("مقفلة")) return jsonError(msg, 400);
+    if (
+      msg.includes("مقفلة") ||
+      msg.includes("المتاح") ||
+      msg.includes("بنود BOQ")
+    ) {
+      return jsonError(msg, 400);
+    }
     console.error("فشل تعديل الفاتورة:", e);
     return jsonError("تعذر تعديل الفاتورة، حاول مجددًا", 500);
   }

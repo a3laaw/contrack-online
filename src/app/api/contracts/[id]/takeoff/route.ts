@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, { params }: P) {
   const contract = await db.contract.findFirst({ where: { id: contractId } });
   if (!contract) return jsonError("العقد غير موجود", 404);
 
-  const [items, addParts, execAgg, docAgg, invoices, executions] = await Promise.all([
+  const [items, addParts, execAgg, docAgg, invoicedAgg, invoices, executions] = await Promise.all([
     db.boqItem.findMany({
       where: { contractId, deleted: false },
       include: { stage: { select: { name: true } } },
@@ -36,6 +36,13 @@ export async function GET(req: NextRequest, { params }: P) {
     }),
     db.fieldExecution.groupBy({ by: ["boqItemId"], where: { contractId }, _sum: { qty: true } }),
     db.fieldExecution.groupBy({ by: ["boqItemId"], where: { contractId, documented: true }, _sum: { qty: true } }),
+    // ز1 — عداد «مفوتر بالبند»: Σ كميات أسطر فواتير العميل غير الملغاة المرتبطة بالبند
+    // (الأسطر الحرة بلا بند لا تدخل — docs/boq-state-timeline-design.md §2)
+    db.invoiceItem.groupBy({
+      by: ["boqItemId"],
+      where: { boqItemId: { not: null }, invoice: { contractId, status: { not: "void" } } },
+      _sum: { quantity: true },
+    }),
     db.invoice.findMany({
       where: { contractId, status: { not: "void" } },
       select: { total: true, paidAmount: true },
@@ -64,6 +71,8 @@ export async function GET(req: NextRequest, { params }: P) {
   for (const g of execAgg) executedByItem.set(g.boqItemId, Number(g._sum.qty || 0));
   const documentedByItem = new Map<number, number>();
   for (const g of docAgg) documentedByItem.set(g.boqItemId, Number(g._sum.qty || 0));
+  const invoicedByItem = new Map<number, number>();
+  for (const g of invoicedAgg) if (g.boqItemId != null) invoicedByItem.set(g.boqItemId, Number(g._sum.quantity || 0));
 
   const rows = items.map((it) => ({
     ...deriveTakeoffRow({
@@ -74,6 +83,7 @@ export async function GET(req: NextRequest, { params }: P) {
       changeQty: changeByItem.get(it.id) || 0,
       executedQty: executedByItem.get(it.id) || 0,
       documentedQty: documentedByItem.get(it.id) || 0,
+      invoicedQty: invoicedByItem.get(it.id) || 0,
     }),
     description: it.description,
     unit: it.unit,

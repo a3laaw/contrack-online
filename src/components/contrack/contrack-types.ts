@@ -880,6 +880,7 @@ export interface TakeoffItemDTO {
   plannedQty: number;
   executedQty: number;
   documentedQty: number;
+  invoicedQty: number;
   unitPrice: number;
   executedAmount: number;
   progressPct: number;

@@ -3056,6 +3056,7 @@ function FieldExecutionSection({
                       <TableHead className="w-20 text-center">تغييري</TableHead>
                       <TableHead className="w-32 text-center">منفذ</TableHead>
                       <TableHead className="w-20 text-center">الموثق</TableHead>
+                      <TableHead className="w-20 text-center">مفوتر</TableHead>
                       {manager && <TableHead className="w-20 text-center">تسجيل</TableHead>}
                     </TableRow>
                   </TableHeader>
@@ -3080,6 +3081,10 @@ function FieldExecutionSection({
                           </div>
                         </TableCell>
                         <TableCell className="text-center tabular-nums" dir="ltr">{r.documentedQty || "—"}</TableCell>
+                        {/* ز1 — عداد المفوتر بالبند: Σ كميات أسطر فواتير العميل المرتبطة بالبند */}
+                        <TableCell className={`text-center tabular-nums ${r.invoicedQty ? "font-bold text-primary-ink" : ""}`} dir="ltr">
+                          {r.invoicedQty || "—"}
+                        </TableCell>
                         {manager && (
                           <TableCell className="text-center">
                             <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => openCreate(r)}>

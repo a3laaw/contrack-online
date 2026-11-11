@@ -12,6 +12,11 @@ import {
   buildInvoiceIssueLines,
   computeAdvanceRecovery,
 } from "@/lib/phase-a-core";
+import {
+  boqItemAvailable,
+  computeCumulativeSnapshots,
+  validateInvoiceBoqLines,
+} from "@/lib/boq-invoice-core";
 
 /** تحويل آمن لرقم (مرآة numOr — محلية لكسر دورة الاستيراد مع contrack-server) */
 const numOr = (v: unknown, d: number): number => {
@@ -60,6 +65,10 @@ export interface InvoiceItemInputRow {
   lineTotal: number;
   /** المبيعات (docs/sales-design.md د4): سطر مخزني بـitemId ⇒ صرف آلي — الفارغ سطر حر */
   itemId?: number | null;
+  /** ز1 (docs/boq-state-timeline-design.md §2): سطر مستخلص مرتبط ببند BOQ — الفارغ سطر حر (توافق خلفي كامل) */
+  boqItemId?: number | null;
+  /** ز1 — لقطة الاعتماد: تراكمي البند لحظة الإصدار — تُحسب خادميًا حصرًا (لا تُقبل من العميل) */
+  cumulativeQty?: number;
 }
 
 export interface BuiltInvoiceItems {
@@ -75,6 +84,7 @@ interface RawItemInput {
   unitPrice?: unknown;
   discountPct?: unknown;
   itemId?: unknown;
+  boqItemId?: unknown;
 }
 
 /** بناء وتحقق بنود الفاتورة — يعيد الأسطر الجاهزة + الإجماليات المحصلة (r3 لكل سطر) */
@@ -96,18 +106,103 @@ export function buildInvoiceItems(raw: unknown): { ok: true } & BuiltInvoiceItem
     const rawItemId = Number(it?.itemId ?? 0);
     const hasItemField = it?.itemId !== undefined && it?.itemId !== null && it?.itemId !== "";
     const itemId = hasItemField ? (Number.isFinite(rawItemId) && rawItemId > 0 ? Math.trunc(rawItemId) : 0) : null;
-    items.push({ description, quantity, unitPrice, discountPct, lineTotal, gross, itemId });
+    // ز1 — ربط البند: قيمة صحيحة موجبة = بند BOQ؛ صفر/سالب/غير صالح = سطر حر (حارس المتاح يرفض لاحقًا أي بند لا ينتمي للعقد)
+    const rawBoqId = Number(it?.boqItemId ?? 0);
+    const hasBoqField = it?.boqItemId !== undefined && it?.boqItemId !== null && it?.boqItemId !== "";
+    const boqItemId = hasBoqField && Number.isFinite(rawBoqId) && rawBoqId > 0 ? Math.trunc(rawBoqId) : null;
+    items.push({ description, quantity, unitPrice, discountPct, lineTotal, gross, itemId, boqItemId });
   }
   const subtotal = r3(items.reduce((s, i) => s + i.gross, 0));
   const total = r3(items.reduce((s, i) => s + i.lineTotal, 0));
   if (!(total > 0)) return { ok: false, error: "صافي الفاتورة يجب أن يكون أكبر من صفر" };
   return {
     ok: true,
-    items: items.map(({ description, quantity, unitPrice, discountPct, lineTotal, itemId }) => ({ description, quantity, unitPrice, discountPct, lineTotal, itemId })),
+    items: items.map(({ description, quantity, unitPrice, discountPct, lineTotal, itemId, boqItemId }) => ({ description, quantity, unitPrice, discountPct, lineTotal, itemId, boqItemId })),
     subtotal,
     discountTotal: r3(subtotal - total),
     total,
   };
+}
+
+// ==================== ز1 — ربط أسطر المستخلص ببنود BOQ (boq-state-timeline-design §2) ====================
+
+/**
+ * خريطة المفوتر السابق لكل بند BOQ في العقد — المصدر الوحيد لحساب المتاح واللقطات:
+ * Σ كميات أسطر فواتير العقد غير الملغاة المرتبطة بالبند (الأسطر الحرة لا تدخل).
+ */
+export async function invoicedQtyByBoqItem(
+  client: DbClient,
+  contractId: number,
+  excludeInvoiceId?: number
+): Promise<Map<number, number>> {
+  const rows = await client.invoiceItem.findMany({
+    where: {
+      boqItemId: { not: null },
+      invoice: {
+        contractId,
+        status: { not: "void" },
+        ...(excludeInvoiceId ? { id: { not: excludeInvoiceId } } : {}),
+      },
+    },
+    select: { boqItemId: true, quantity: true },
+  });
+  const map = new Map<number, number>();
+  for (const r of rows) {
+    if (r.boqItemId == null) continue;
+    map.set(r.boqItemId, r3((map.get(r.boqItemId) || 0) + Number(r.quantity)));
+  }
+  return map;
+}
+
+/**
+ * حارس المتاح لحظة الحقيقة (§2 — مرآة SubIPC §3.4):
+ * يُتحقق من انتماء بنود BOQ المختارة للعقد وعدم حذفها، ثم يُرفض تجاوز المتاح،
+ * وتُرجع خريطة المفوتر السابق لحساب لقطات cumulativeQty داخل المعاملة نفسها.
+ */
+export async function guardInvoiceBoqAvailability(
+  client: DbClient,
+  contractId: number,
+  items: InvoiceItemInputRow[],
+  excludeInvoiceId?: number
+): Promise<{ ok: true; invoicedBeforeByBoqItem: Map<number, number> } | { ok: false; error: string }> {
+  const boqIds = Array.from(new Set(items.map((it) => it.boqItemId ?? 0).filter((v) => v > 0)));
+  if (boqIds.length === 0) return { ok: true, invoicedBeforeByBoqItem: new Map() };
+  const [boqItems, invoicedBefore] = await Promise.all([
+    client.boqItem.findMany({
+      where: { id: { in: boqIds } },
+      select: { id: true, contractId: true, deleted: true, qty: true },
+    }),
+    invoicedQtyByBoqItem(client, contractId, excludeInvoiceId),
+  ]);
+  const byId = new Map(boqItems.map((b) => [b.id, b]));
+  const availability = new Map<number, number>();
+  for (const boqId of boqIds) {
+    const b = byId.get(boqId);
+    if (!b || b.contractId !== contractId || b.deleted) {
+      return { ok: false, error: "أحد بنود BOQ المختارة غير موجود في بنود هذا العقد" };
+    }
+    availability.set(boqId, boqItemAvailable(Number(b.qty), invoicedBefore.get(boqId) || 0));
+  }
+  const check = validateInvoiceBoqLines(
+    items.map((it) => ({ boqItemId: it.boqItemId ?? null, qty: it.quantity })),
+    availability
+  );
+  if (!check.ok) return { ok: false, error: check.error };
+  return { ok: true, invoicedBeforeByBoqItem: invoicedBefore };
+}
+
+/**
+ * لقطات التراكمي داخل المعاملة — تُحسب من خريطة المفوتر السابق المحمّلة لحظة الحقيقة
+ * (مرآة لقطة استرداد الدفعة المقدمة المحسوبة خادميًا داخل المعاملة).
+ */
+export function buildBoqCumulativeSnapshots(
+  items: InvoiceItemInputRow[],
+  invoicedBeforeByBoqItem: Map<number, number>
+): number[] {
+  return computeCumulativeSnapshots(
+    items.map((it) => ({ boqItemId: it.boqItemId ?? null, qty: it.quantity })),
+    invoicedBeforeByBoqItem
+  );
 }
 
 // ==================== قيد الإصدار ====================

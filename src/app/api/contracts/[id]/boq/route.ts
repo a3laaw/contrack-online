@@ -2,10 +2,11 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { authGuard, jsonError, ok } from "@/lib/api-utils";
 import { r3 } from "@/lib/contrack-core";
+import { invoicedQtyByBoqItem } from "@/lib/invoice-server";
 
 type P = { params: Promise<{ id: string }> };
 
-/** بنود الكميات للعقد (غير المحذوفة ناعمًا) */
+/** بنود الكميات للعقد (غير المحذوفة ناعمًا) + المفوتر بالبند (ز1 — وقود منتقي الفواتير) */
 export async function GET(req: NextRequest, { params }: P) {
   const guard = await authGuard(req, "screen_contracts");
   if ("response" in guard) return guard.response;
@@ -16,11 +17,15 @@ export async function GET(req: NextRequest, { params }: P) {
   const contract = await db.contract.findUnique({ where: { id: contractId } });
   if (!contract) return jsonError("العقد غير موجود", 404);
 
-  const items = await db.boqItem.findMany({
-    where: { contractId, deleted: false },
-    include: { stage: { select: { id: true, name: true } } },
-    orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
-  });
+  const [items, invoicedBefore] = await Promise.all([
+    db.boqItem.findMany({
+      where: { contractId, deleted: false },
+      include: { stage: { select: { id: true, name: true } } },
+      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    }),
+    // ز1 — المفوتر السابق لكل بند (من فواتير العميل غير الملغاة) — المتاح = qty − invoicedQty
+    invoicedQtyByBoqItem(db, contractId),
+  ]);
   return ok({
     items: items.map((it) => ({
       id: it.id,
@@ -39,6 +44,9 @@ export async function GET(req: NextRequest, { params }: P) {
       plannedStart: it.plannedStart,
       plannedFinish: it.plannedFinish,
       amount: Number(it.amount),
+      // ز1 — المفوتر بالبند والمتاح للفوترة الكمي
+      invoicedQty: r3(invoicedBefore.get(it.id) || 0),
+      availableQty: Math.max(0, r3(Number(it.qty) - (invoicedBefore.get(it.id) || 0))),
       sortOrder: it.sortOrder,
     })),
   });

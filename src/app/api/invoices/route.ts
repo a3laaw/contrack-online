@@ -7,7 +7,9 @@ import { intOr, loadContractCore } from "@/lib/contrack-server";
 import { computeNetDue, validateRetentionRate } from "@/lib/phase-a-core";
 import {
   buildInvoiceItems,
+  buildBoqCumulativeSnapshots,
   computeAdvanceRecoveryForContract,
+  guardInvoiceBoqAvailability,
   postInvoiceIssueEntry,
 } from "@/lib/invoice-server";
 
@@ -172,6 +174,9 @@ export async function POST(req: NextRequest) {
     if (built.total > remaining + EPS) {
       return jsonError(`الفاتورة تتجاوز المتبقي من العقد (${remaining} د.ك)`);
     }
+    // ز1 — حارس المتاح الكمي (مرآة SubIPC §3.4): أسطر بنود BOQ لا تتجاوز متاح كل بند
+    const boqGuard = await guardInvoiceBoqAvailability(db, contractId, built.items);
+    if (!boqGuard.ok) return jsonError(boqGuard.error);
   }
 
   // مزامنة عدّاد INV مع أعلى invoiceNo قائمة (الفواتير المرحَّلة من أرشيف ما قبل
@@ -204,6 +209,13 @@ export async function POST(req: NextRequest) {
           const advanceRecovered = contractId
             ? await computeAdvanceRecoveryForContract(tx, contractId, built.total)
             : 0;
+          // ز1 — حارس المتاح لحظة الحقيقة داخل المعاملة (سباق متوازي يتراجع كليًا)
+          let boqTxMap = new Map<number, number>();
+          if (contractId) {
+            const boqGuard = await guardInvoiceBoqAvailability(tx, contractId, built.items);
+            if (!boqGuard.ok) throw new Error(boqGuard.error);
+            boqTxMap = boqGuard.invoicedBeforeByBoqItem;
+          }
           const invoice = await tx.invoice.create({
             data: {
               invoiceNumber,
@@ -232,6 +244,9 @@ export async function POST(req: NextRequest) {
               discountPct: it.discountPct,
               lineTotal: it.lineTotal,
               sortOrder: i,
+              boqItemId: it.boqItemId ?? null,
+              // ز1 — لقطة التراكمي لحظة الإصدار: تُحسب من المفوتر السابق داخل المعاملة نفسها
+              cumulativeQty: contractId ? buildBoqCumulativeSnapshots(built.items, boqTxMap)[i] ?? 0 : 0,
             })),
           });
 
@@ -304,8 +319,14 @@ export async function POST(req: NextRequest) {
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
-      if (msg.includes("مقفلة") || msg.includes("فاتورة غير صالحة") || msg.includes("بند")) {
-        return jsonError(msg, 400); // أخطاء التحقق الدلالي (فترة مقفلة…) — لا إعادة محاولة
+      if (
+        msg.includes("مقفلة") ||
+        msg.includes("فاتورة غير صالحة") ||
+        msg.includes("بند") ||
+        msg.includes("المتاح") ||
+        msg.includes("بنود BOQ")
+      ) {
+        return jsonError(msg, 400); // أخطاء التحقق الدلالي (فترة مقفلة، تجاوز المتاح…) — لا إعادة محاولة
       }
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002" && attempt < 4) {
         lastError = e; // تضارب رقم الفاتورة — أعِد المحاولة

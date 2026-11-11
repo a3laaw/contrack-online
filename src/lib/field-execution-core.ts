@@ -18,6 +18,7 @@ export interface TakeoffInputRow {
   changeQty: number; // نصيب البند من الأوامر التغييرية المعتمدة
   executedQty: number; // Σ سجلات التنفيذ
   documentedQty: number; // Σ سجلات التنفيذ الموثقة
+  invoicedQty?: number; // ز1 — المفوتر بالبند: Σ كميات أسطر فواتير العميل غير الملغاة المرتبطة بالبند
 }
 
 /** صف المقايسة المشتق (G9 — لا حالة مخزنة) */
@@ -30,6 +31,7 @@ export interface TakeoffRow {
   plannedQty: number; // المخطط
   executedQty: number; // المنفذ
   documentedQty: number; // الموثق
+  invoicedQty: number; // المفوتر بالبند (ز1 — من أسطر الفواتير المرتبطة بالبند حصرًا)
   unitPrice: number; // سعر الوحدة — لحساب مجاميع المقايسة
   executedAmount: number; // المنفذ × سعر الوحدة
   progressPct: number; // نسبة الإنجاز — قد تتجاوز 100% عند التنفيذ الزائد (إشارة حقيقية لا خطأ)
@@ -56,6 +58,7 @@ export function deriveTakeoffRow(row: TakeoffInputRow): TakeoffRow {
     plannedQty: r3(row.plannedQty),
     executedQty: r3(row.executedQty),
     documentedQty: r3(row.documentedQty),
+    invoicedQty: r3(row.invoicedQty ?? 0),
     unitPrice: r3(row.unitPrice),
     executedAmount,
     progressPct,

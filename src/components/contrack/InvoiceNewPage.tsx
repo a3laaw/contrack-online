@@ -6,6 +6,8 @@
  * (وصف/كمية/سعر/خصم%) بإجماليات حية محصلة على الرأس، تاريخ/استحقاق، ملاحظات.
  * الإصدار ينشر قيدًا آليًا (مدين ذمم العملاء / دائن إيراد العقود) داخل معاملة واحدة.
  * تُعرض مكان شاشة الفواتير (بلا مسار جديد)، والشريط السفلي sticky.
+ * ز1 (docs/boq-state-timeline-design.md §2): مع عقد — منتقي بند BOQ لكل سطر:
+ * السعر والوصف يُملآن من البند، والمتاح الكمي (كمية البند − المفوتر) يُحارس آليًا.
  */
 
 import * as React from "react";
@@ -51,9 +53,24 @@ interface DraftItem {
   quantity: string;
   unitPrice: string;
   discountPct: string;
+  /** ز1 — بند BOQ المرتبط ("none" = سطر حر) */
+  boqItemId: string;
 }
 
-const EMPTY_ITEM: DraftItem = { description: "", quantity: "1", unitPrice: "", discountPct: "0" };
+/** بند BOQ كما تعيده /api/contracts/[id]/boq (ز1 — مع المفوتر والمتاح) */
+interface BoqOption {
+  id: number;
+  itemNo: string;
+  divisionCode: string;
+  description: string;
+  qty: number;
+  unit: string;
+  unitPrice: number;
+  invoicedQty: number;
+  availableQty: number;
+}
+
+const EMPTY_ITEM: DraftItem = { description: "", quantity: "1", unitPrice: "", discountPct: "0", boqItemId: "none" };
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
@@ -122,6 +139,19 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
   const nAdvance = contractDetailQuery.data?.contract?.advanceAmount ?? 0;
   const nAdvancePct = contractDetailQuery.data?.contract?.advanceRecoveryPct ?? 0;
 
+  // ز1 — بنود BOQ للعقد (منتقي البند + حارس المتاح على الواجهة — الخادم يُحارس حصرًا)
+  const contractBoqQuery = useQuery<{ items: BoqOption[] }>({
+    queryKey: ["contract", nContractIdNum, "boq"],
+    queryFn: () => apiGet<{ items: BoqOption[] }>(`/api/contracts/${nContractIdNum}/boq`),
+    enabled: nContractIdNum !== null,
+  });
+  const nBoqItems = contractBoqQuery.data?.items ?? [];
+  const boqById = new Map(nBoqItems.map((b) => [b.id, b]));
+  const boqOptions = nBoqItems.map((b) => ({
+    value: String(b.id),
+    label: `${b.itemNo ? `${b.itemNo} · ` : ""}${b.description.length > 55 ? `${b.description.slice(0, 55)}…` : b.description}`,
+  }));
+
   // المفوتر سابقًا على هذا العقد (لغير الملغاة) — تنبيه السقف قبل الرفض الخادمي
   const contractInvoicesQuery = useQuery<InvoicesResponse>({
     queryKey: ["invoices", nContractIdNum ? `contractId=${nContractIdNum}` : "__none__"],
@@ -167,6 +197,40 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
   };
 
+  // ز1 — اختيار بند BOQ: الوصف (إن كان فارغًا) والسعر يُملآن من البند — والمسح يعيد سطرًا حرًا
+  const selectBoqItem = (idx: number, raw: string) => {
+    const boqItemId = raw === "" ? "none" : raw;
+    const item = boqItemId !== "none" ? boqById.get(Number(boqItemId)) : undefined;
+    setItems((prev) =>
+      prev.map((it, i) =>
+        i === idx
+          ? {
+              ...it,
+              boqItemId,
+              description: item && !it.description.trim() ? item.description : it.description,
+              unitPrice: item && item.unitPrice > 0 ? String(item.unitPrice) : it.unitPrice,
+            }
+          : it
+      )
+    );
+  };
+
+  // ز1 — حارس المتاح على الواجهة (مرآة الخادم): Σ كميات الأسطر على البند ≤ المتاح
+  const boqQtyInForm = new Map<number, number>();
+  for (const it of items) {
+    if (it.boqItemId === "none") continue;
+    const id = Number(it.boqItemId);
+    boqQtyInForm.set(id, r3((boqQtyInForm.get(id) || 0) + num(it.quantity)));
+  }
+  const boqViolationFor = (boqItemId: string): { want: number; available: number } | null => {
+    if (boqItemId === "none") return null;
+    const id = Number(boqItemId);
+    const item = boqById.get(id);
+    if (!item) return null;
+    const want = boqQtyInForm.get(id) || 0;
+    return want > item.availableQty + 0.001 ? { want, available: item.availableQty } : null;
+  };
+
   const submitNew = () => {
     if (nCustomerId === "none") {
       toast({ variant: "destructive", title: "اختر العميل" });
@@ -199,6 +263,7 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
         quantity: num(it.quantity),
         unitPrice: num(it.unitPrice),
         discountPct: num(it.discountPct),
+        boqItemId: it.boqItemId !== "none" ? Number(it.boqItemId) : undefined,
       })),
     });
   };
@@ -236,7 +301,11 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
               <Label className="text-xs">العقد (اختياري)</Label>
               <Select
                 value={nContractId}
-                onValueChange={setNContractId}
+                onValueChange={(v) => {
+                  setNContractId(v);
+                  // ز1 — تغيير العقد يفك ربط الأسطر ببنود BOQ (بنود عقد آخر لا تنتمي هنا)
+                  setItems((prev) => prev.map((it) => ({ ...it, boqItemId: "none" })));
+                }}
                 disabled={nCustomerId === "none"}
               >
                 <SelectTrigger className="h-9">
@@ -370,6 +439,7 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-xs text-muted-foreground">
+                  <th className="w-56 p-2 text-start font-semibold">بند BOQ</th>
                   <th className="p-2 text-start font-semibold">البيان</th>
                   <th className="w-24 p-2 text-start font-semibold">الكمية</th>
                   <th className="w-32 p-2 text-start font-semibold">سعر الوحدة</th>
@@ -384,6 +454,35 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
                   const lineTotal = r3(gross * (1 - Math.min(100, Math.max(0, num(it.discountPct))) / 100));
                   return (
                     <tr key={idx} className="border-b">
+                      <td className="p-1">
+                        {/* ز1 — منتقي بند BOQ: السعر والوصف يُملآن من البند — الخادم يُحارس المتاح */}
+                        <SearchableSelect
+                          value={it.boqItemId}
+                          onValueChange={(v) => selectBoqItem(idx, v)}
+                          options={boqOptions}
+                          placeholder={nContractIdNum !== null ? "بند من بنود العقد (اختياري)" : "بلا عقد"}
+                          searchPlaceholder="ابحث برقم البند أو البيان…"
+                          emptyText="لا بنود كميات على هذا العقد"
+                          disabled={nContractIdNum === null}
+                          allowClear
+                          clearLabel="عودة لسطر حر"
+                        />
+                        {(() => {
+                          if (it.boqItemId === "none") return null;
+                          const b = boqById.get(Number(it.boqItemId));
+                          if (!b) return null;
+                          const v = boqViolationFor(it.boqItemId);
+                          return v ? (
+                            <p className="mt-0.5 text-[10px] font-bold text-status-danger">
+                              المطلوب {v.want} &gt; المتاح {v.available} {b.unit}
+                            </p>
+                          ) : (
+                            <p className="mt-0.5 text-[10px] text-muted-foreground">
+                              المتاح {b.availableQty} {b.unit} · مفوتر {b.invoicedQty}
+                            </p>
+                          );
+                        })()}
+                      </td>
                       <td className="p-1">
                         <Input
                           className="h-8"
@@ -461,6 +560,37 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
                       <Trash2 className="size-3.5" />
                     </Button>
                   </div>
+                  {/* ز1 — منتقي بند BOQ (موبايل) */}
+                  {nContractIdNum !== null && (
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">بند BOQ (اختياري)</Label>
+                      <SearchableSelect
+                        value={it.boqItemId}
+                        onValueChange={(v) => selectBoqItem(idx, v)}
+                        options={boqOptions}
+                        placeholder="بند من بنود العقد (اختياري)"
+                        searchPlaceholder="ابحث برقم البند أو البيان…"
+                        emptyText="لا بنود كميات على هذا العقد"
+                        allowClear
+                        clearLabel="عودة لسطر حر"
+                      />
+                      {(() => {
+                        if (it.boqItemId === "none") return null;
+                        const b = boqById.get(Number(it.boqItemId));
+                        if (!b) return null;
+                        const v = boqViolationFor(it.boqItemId);
+                        return v ? (
+                          <p className="mt-0.5 text-[10px] font-bold text-status-danger">
+                            المطلوب {v.want} &gt; المتاح {v.available} {b.unit}
+                          </p>
+                        ) : (
+                          <p className="mt-0.5 text-[10px] text-muted-foreground">
+                            المتاح {b.availableQty} {b.unit} · مفوتر {b.invoicedQty}
+                          </p>
+                        );
+                      })()}
+                    </div>
+                  )}
                   <Input
                     className="h-9"
                     placeholder="وصف البند…"
