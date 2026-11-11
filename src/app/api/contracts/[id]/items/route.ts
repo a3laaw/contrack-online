@@ -51,14 +51,20 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   let itemsTotal = 0
   const rows = items.map((it) => {
-    const total = round3(Number(it.qty) * Number(it.unitPrice))
+    // البنود المستوردة من BOQ (لها رقم بند) تحمل مبلغ الملف الحقيقي (عمود الإجمالي) —
+    // قد يخالف كميه×سعره في بنود الدمج والمشمولات (INCLUDED)؛ واليدوية تُحسب كميه×سعره كما كانت
+    const total = it.itemNo ? round3(Number(it.amount)) : round3(Number(it.qty) * Number(it.unitPrice))
     itemsTotal += total
     return {
       id: it.id,
+      itemNo: it.itemNo,
+      divisionCode: it.divisionCode,
+      divisionName: it.divisionName,
       description: it.description,
       qty: it.qty,
       unit: it.unit,
       unitPrice: it.unitPrice,
+      amount: round3(Number(it.amount)),
       total,
       stageId: it.stageId,
       stageName: it.stage?.name ?? null,

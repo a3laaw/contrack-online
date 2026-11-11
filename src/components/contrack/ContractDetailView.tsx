@@ -34,6 +34,7 @@ import {
   Download,
   FileText,
   Lock,
+  Upload,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -123,6 +124,7 @@ import { ContractEditPage } from "./ContractEditPage";
 import { ContractSettlePage } from "./ContractSettlePage";
 import { SubContractNewPage } from "./SubContractNewPage";
 import { ContractBoqPage } from "./ContractBoqPage";
+import { BoqImportDialog } from "./BoqImportDialog";
 import { ContractSupervisionPage } from "./ContractSupervisionPage";
 
 interface ContractDetailViewProps {
@@ -428,6 +430,7 @@ export function ContractDetailView({
 
   // ===== بنود الكميات (الصفحة الداخلية) — تأكيد الحذف يبقى نافذة =====
   const [deleteBoqId, setDeleteBoqId] = React.useState<number | null>(null);
+  const [boqImportOpen, setBoqImportOpen] = React.useState(false);
   const deleteBoqMutation = useMutation({
     mutationFn: (itemId: number) => apiDelete(`/api/contracts/${contractId}/boq?itemId=${itemId}`),
     onSuccess: () => {
@@ -951,6 +954,8 @@ export function ContractDetailView({
           boq={boqQuery.data?.items ?? []}
           boqLoading={boqQuery.isLoading}
           subs={contractSubsQuery.data?.items ?? []}
+          contractNumber={detail?.contractNumber ?? ""}
+          contractAmount={Number(detail?.amount ?? 0)}
           onAddPay={() => setAddPayOpen(true)}
           onDeletePay={(id) => setDeletePayId(id)}
           onReceipt={() => setVoucherPage("receipt")}
@@ -958,6 +963,7 @@ export function ContractDetailView({
           onExport={onPayExport}
           exporting={payExporting}
           onAddBoq={() => setFlowPage("boq")}
+          onImportBoq={() => setBoqImportOpen(true)}
           onDeleteBoq={(id) => setDeleteBoqId(id)}
           onSubDetail={(id) => setSubDetailId(id)}
           onNewSub={() => setFlowPage("sub-new")}
@@ -1253,6 +1259,23 @@ export function ContractDetailView({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ===== حوار استيراد BOQ من ملف (docs/boq-import-design.md §2.4) ===== */}
+      {detail && (
+        <BoqImportDialog
+          contractId={contractId}
+          contractNumber={detail.contractNumber}
+          contractAmount={Number(detail.amount)}
+          open={boqImportOpen}
+          onOpenChange={setBoqImportOpen}
+          onImported={() => {
+            qc.invalidateQueries({ queryKey: ["contract", contractId, "boq"] });
+            qc.invalidateQueries({ queryKey: ["contract", contractId] });
+            qc.invalidateQueries({ queryKey: ["dashboard"] });
+          }}
+          onAuthError={onAuthError}
+        />
+      )}
 
       {/* ===== تنازل إشراف ===== */}
       <Dialog open={waiveOpen} onOpenChange={setWaiveOpen}>
@@ -2444,6 +2467,8 @@ function PayPage({
   boq,
   boqLoading,
   subs,
+  contractNumber,
+  contractAmount,
   onAddPay,
   onDeletePay,
   onReceipt,
@@ -2451,6 +2476,7 @@ function PayPage({
   onExport,
   exporting,
   onAddBoq,
+  onImportBoq,
   onDeleteBoq,
   onSubDetail,
   onNewSub,
@@ -2468,6 +2494,8 @@ function PayPage({
   boq: BoqResponse["items"];
   boqLoading: boolean;
   subs: SubContractsResponse["items"];
+  contractNumber: string;
+  contractAmount: number;
   onAddPay: () => void;
   onDeletePay: (id: number) => void;
   onReceipt: () => void;
@@ -2476,6 +2504,7 @@ function PayPage({
   /** المرحلة 8: حالة جارٍ تصدير xlsx — يبدّل الأيقونة لسبينر ويُعطل الزر */
   exporting?: boolean;
   onAddBoq: () => void;
+  onImportBoq: () => void;
   onDeleteBoq: (id: number) => void;
   onSubDetail: (id: number) => void;
   onNewSub: () => void;
@@ -2705,10 +2734,16 @@ function PayPage({
           <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
             <span>بنود الكميات · بنود: {boq.length}</span>
             {manager && (
-              <Button size="sm" className="h-9 gap-1.5" onClick={onAddBoq}>
-                <Plus className="size-4" />
-                إضافة بند
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={onImportBoq}>
+                  <Upload className="size-4" />
+                  استيراد ملف BOQ
+                </Button>
+                <Button size="sm" className="h-9 gap-1.5" onClick={onAddBoq}>
+                  <Plus className="size-4" />
+                  إضافة بند
+                </Button>
+              </div>
             )}
           </CardTitle>
         </CardHeader>
@@ -2727,7 +2762,9 @@ function PayPage({
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-24">رقم البند</TableHead>
                       <TableHead className="min-w-40">الوصف</TableHead>
+                      <TableHead className="w-28">القسم</TableHead>
                       <TableHead className="w-20 text-center">الكمية</TableHead>
                       <TableHead className="w-20 text-center">مخطط</TableHead>
                       <TableHead className="w-20 text-center">الوحدة</TableHead>
@@ -2739,9 +2776,20 @@ function PayPage({
                   <TableBody>
                     {boq.map((it) => (
                       <TableRow key={it.id}>
+                        <TableCell className="tabular-nums text-muted-foreground" dir="ltr">{it.itemNo || "—"}</TableCell>
                         <TableCell>
                           <div className="font-medium">{it.description}</div>
                           {it.stageName && <div className="text-xs text-muted-foreground">المرحلة: {it.stageName}</div>}
+                        </TableCell>
+                        <TableCell>
+                          {it.divisionName ? (
+                            <Badge variant="outline" className="whitespace-nowrap text-[11px]">
+                              <span className="tabular-nums me-1 opacity-70" dir="ltr">{it.divisionCode}</span>
+                              {it.divisionName}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-center tabular-nums" dir="ltr">{Number(it.qty)}</TableCell>
                         <TableCell className="text-center tabular-nums" dir="ltr">{Number(it.plannedQty || 0) || "—"}</TableCell>

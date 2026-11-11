@@ -304,6 +304,11 @@ model BoqItem {
   qty               Decimal           @default(1)
   unit              String            @default("")
   unitPrice         Decimal           @default(0) @map("unit_price")
+  // استيراد BOQ (docs/boq-import-design.md §2.1) — هوية البند في ملف الأصل
+  // مفتاح مطابقة المستخلصات لاحقاً: مدني «03.30.01» / ميكانيكي «B1-2»
+  itemNo            String            @default("") @map("item_no")
+  divisionCode      String            @default("") @map("division_code") // رقم القسم (CSI MasterFormat) — «03»
+  divisionName      String            @default("") @map("division_name") // اسم القسم — «CONCRETE»
   plannedQty        Decimal           @default(0) @map("planned_qty") @db.Decimal(18, 3) // الكمية المخططة للتنفيذ — عداد «مخطط» في مقايسة التنفيذ (بند NOVA 5)
   amount            Decimal           @default(0)
   sortOrder         Int               @default(0) @map("sort_order")

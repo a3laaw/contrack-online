@@ -856,6 +856,10 @@ export interface BoqItemDTO {
   plannedQty?: number;
   amount: number;
   sortOrder?: number;
+  // استيراد BOQ (docs/boq-import-design.md §2.1) — هوية البند في ملف الأصل
+  itemNo?: string; // «03.30.01» / «B1-2» / «F1»
+  divisionCode?: string; // «03»
+  divisionName?: string; // «CONCRETE»
 }
 
 export interface BoqResponse {

@@ -4,6 +4,8 @@
 // ============================================================
 import { ApiError, getStoredToken } from '@/components/contrack/api'
 import type {
+  BoqImportPreviewDTO,
+  BoqImportRunDTO,
   BoqInput,
   BoqSummaryDTO,
   SupervisionDTO,
@@ -36,6 +38,30 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 const jsonBody = (body: unknown): RequestInit => ({ body: JSON.stringify(body) })
 
+/** رفع ملف BOQ — multipart (لا يضبط Content-Type ليترك للمتصفح حد_boundary). */
+async function upload<T>(url: string, file: File, mode: 'preview' | 'run'): Promise<T> {
+  const token = getStoredToken()
+  const fd = new FormData()
+  fd.append('file', file)
+  fd.append('mode', mode)
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: fd,
+  })
+  if (!res.ok) {
+    let msg = 'تعذر استيراد الملف'
+    try {
+      const data = (await res.json()) as { error?: string }
+      if (data?.error) msg = data.error
+    } catch {
+      /* تجاهل */
+    }
+    throw new ApiError(msg, res.status)
+  }
+  return (await res.json()) as T
+}
+
 export const boqApi = {
   // ---------- بنود العقد (BOQ) ----------
   boqItems: (contractId: number) => request<BoqSummaryDTO>(`/api/contracts/${contractId}/items`),
@@ -57,4 +83,10 @@ export const boqApi = {
       method: 'PATCH',
       ...jsonBody(input),
     }),
+
+  // ---------- استيراد BOQ من ملف ----------
+  importPreview: (contractId: number, file: File) =>
+    upload<BoqImportPreviewDTO>(`/api/contracts/${contractId}/boq/import`, file, 'preview'),
+  importRun: (contractId: number, file: File) =>
+    upload<BoqImportRunDTO>(`/api/contracts/${contractId}/boq/import`, file, 'run'),
 }

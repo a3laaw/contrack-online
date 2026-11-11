@@ -27,6 +27,9 @@ export async function GET(req: NextRequest, { params }: P) {
       contractId: it.contractId,
       stageId: it.stageId,
       stageName: it.stage?.name || "",
+      itemNo: it.itemNo,
+      divisionCode: it.divisionCode,
+      divisionName: it.divisionName,
       description: it.description,
       qty: Number(it.qty),
       unit: it.unit,
@@ -72,6 +75,9 @@ export async function POST(req: NextRequest, { params }: P) {
     data: {
       contractId,
       stageId,
+      itemNo: String(body.itemNo || "").trim(),
+      divisionCode: String(body.divisionCode || "").trim(),
+      divisionName: String(body.divisionName || "").trim(),
       description,
       qty,
       unit: String(body.unit || ""),
@@ -98,6 +104,9 @@ export async function PATCH(req: NextRequest, { params }: P) {
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const data: Record<string, unknown> = {};
+  if (body.itemNo !== undefined) data.itemNo = String(body.itemNo || "").trim();
+  if (body.divisionCode !== undefined) data.divisionCode = String(body.divisionCode || "").trim();
+  if (body.divisionName !== undefined) data.divisionName = String(body.divisionName || "").trim();
   if (body.description !== undefined) {
     const d = String(body.description).trim();
     if (!d) return jsonError("وصف البند مطلوب");
