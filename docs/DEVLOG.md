@@ -240,6 +240,15 @@
 2. **تسجيل الدَين رسمياً:** مهمة **1i** في جدول المعلقة — سلسلة «حسابات قديمة» بأمر المالك: إما إصلاح أنواعها أو إخراجها من النطاق.
 3. **رفع الإصلاح إلى main** → Vercel يعيد النشر تلقائياً (كوميت الإصلاح يلي الجلسة 9 مباشرة).
 
+**التصحيح الثاني (بعد وصول لوق المالك الحقيقي — الدليل القاطع):**
+
+المالك أرسل ذيل اللوق: **Turbopack يرفض البناء كلياً** — `The export suggestBridgeLinks was not found in module accounting-core` — أي أن المشكلة أعمق من فحص الأنواع: **19 استيراداً لرموز غير موجودة إطلاقاً** (TS2305) في مسارات/مكونات الجيل القديم — كانت «تحذيراً» فقط في عهد Webpack (Next 15) وصارت **فادحة** مع Turbopack (Next 16). الصمّام لا يعالج هذا — العلاج جراحي:
+
+4. **حفر أثري كامل قبل الحذف:** جدول الرموز التسعة المفقودة (suggestBridgeLinks · parseAmount · pad4 · addContractEvent · isAdminRole · voucherTypeBadgeClass · KUWAIT_GOVERNORATES · monthStartStr · ExpenseAccountDTO) — لا واحد منها موجود في أي إصدار تاريخي لمكتباتنا (حتى لقطة الاستعادة 944385c!) — أي أن هذه الملفات لم تُجمَّع سليماً قط. وفحص الاستيراد الحرفي (`from "./X"` + صيغة alias + dynamic import) أثبت: **7 مكونات و10 مسارات API كلها يتيمة** (السلف الحقيقي يعمل على `/api/employees/advances/*`، والمقاولون من الباطن على `/api/subcontractors` والصفحات الجديدة SubContract*، والسندات على VoucherPage).
+5. **حذف جراحي لـ18 ملفاً ميتاً:** مكونات (ArchiveView · ContractVouchersTab · SupervisionTab · CustomerDialog · PaymentVoucherDialog · CustomerDetailView · VoucherDialog — كلها استُبدلت بجيل أحدث) + مسارات API (accounts/bridge · advances · groups(+[id]) · other-transfers(+[id]) · payments/[id](+trigger) · subcontracts(+[id]+payments) — بلا أي مستدعٍ حي).
+6. **التحقق بعد الحذف:** TS2305: **19 → صفر** · إجمالي أخطاء الأنواع: 299 → **133** (الميت كان يحمل 166) · الاختبارات **1031/1031** · lint نظيف · فحص حي: المسارات الحية 401 (تعمل)، المحذوفة 404. الصمّام يبقى للـ133 المتبقية (ضوضاء أنواع — دَين 1i).
+7. **رفع الموجة الثانية** → Vercel يعيد البناء.
+
 **ملاحظة ما بعد النشر (معلقة على المالك):** بعد نجاح النشر تحتاج قاعدة Supabase أعمدة ز1 (`boq_item_id` + `cumulativeQty` على `invoice_item` — مهمة 4) عبر `prisma db push` على رابط Supabase، وإلا أظهرت شاشات المستخلصات/المقايسة/اللوحة P2022 (عمود غير موجود).
 
 **بانتظار أمر المالك:** تأكيد نجاح النشر (وإن تكرر الفشل: آخر 30 سطراً حمراء من Build Logs) + **ز2**.
