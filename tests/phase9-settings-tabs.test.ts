@@ -4,6 +4,9 @@
  *   settings.py:508-533  بناء التبويبات حسب الدور (is_admin يشمل المطور —
  *                        auth_service.py:166-168 · is_developer :171-173).
  *   settings.py:1020-1242 أدوات المطور تابات داخلية خمسة بترتيبها الحرفي.
+ * الجلسة 12 — قرار المالك: تابا «أنواع العقود» و«مراحل المتابعة» حُذفا من الإعدادات
+ *   — موضعُهما الوحيد وحدة «القوائم المرجعية» (انحراف ويب معتمد)، والأقسام القديمة
+ *   تُرد للتبويب الافتراضي عبر resolveInitialSection.
  * الدوال كلها نقية — بلا قاعدة بيانات ولا React.
  */
 
@@ -16,13 +19,11 @@ import {
   TAB_APPEARANCE,
   TAB_BACKUP,
   TAB_COMPANY,
-  TAB_CONTRACT_TYPES,
   TAB_DEVELOPER,
   TAB_SECURITY_ADMIN,
   TAB_SECURITY_SECRETARY,
   TAB_POSTING_RULES,
   TAB_VISITS,
-  TAB_WORKFLOW,
   defaultSettingsTab,
   resolveInitialSection,
   securityTabLabel,
@@ -30,15 +31,13 @@ import {
 } from "@/components/contrack/settings/tabs-catalog";
 
 describe("SETTINGS_TABS — التبويبات بترتيب المكتبي وأسمائه الحرفية (settings.py:509-532)", () => {
-  test("أحد عشر تبويباً — الإدارية العشرة + أدوات المطور (انحراف ويب معتمد: تاب جدول الكميات BOQ بعد أنواع العقود — قرار المالك 2026-11)", () => {
+  test("تسعة تبويبات — الجلسة 12: بلا أنواع العقود ومراحل المتابعة (في «القوائم المرجعية» حصراً — قرار المالك)", () => {
     expect(SETTINGS_TABS.map((t) => t.value)).toEqual([
       "company",
       "companies",
       "appearance",
       "security",
-      "contract-types",
       "boq-docs",
-      "workflow",
       "visits",
       "posting-rules",
       "backup",
@@ -52,10 +51,10 @@ describe("SETTINGS_TABS — التبويبات بترتيب المكتبي وأ�
     expect(byValue.get("companies")).toBe("🏢  الشركات"); // Task 85 — SaaS
     expect(byValue.get("appearance")).toBe("▤  الطباعة والعرض");
     expect(byValue.get("security")).toBe("◆  الأمان والمستخدمون");
-    expect(byValue.get("contract-types")).toBe("☰  أنواع العقود");
     expect(byValue.get("boq-docs")).toBe("▦  جدول الكميات BOQ"); // انحراف ويب معتمد — قرار المالك
     expect(byValue.get("expense-accounts")).toBeUndefined(); // Task 105 — أُسقط مع الشجرة القديمة
-    expect(byValue.get("workflow")).toBe("⇄  مراحل المتابعة");
+    expect(byValue.get("contract-types")).toBeUndefined(); // الجلسة 12 — في «القوائم المرجعية» حصراً
+    expect(byValue.get("workflow")).toBeUndefined(); // الجلسة 12 — في «القوائم المرجعية» حصراً
     expect(byValue.get("visits")).toBe("◷  جدول الزيارات");
     expect(byValue.get("posting-rules")).toBe("≡  قواعد الترحيل"); // Task 106
     expect(byValue.get("backup")).toBe("⊞  البيانات والنسخ الاحتياطي");
@@ -64,7 +63,7 @@ describe("SETTINGS_TABS — التبويبات بترتيب المكتبي وأ�
 
   test("بوابات الأدوار: الإدارية adminOnly وأدوات المطور developerOnly", () => {
     const adminOnly = SETTINGS_TABS.filter((t) => t.adminOnly).map((t) => t.value);
-    expect(adminOnly).toEqual(["company", "companies", "contract-types", "boq-docs", "workflow", "visits", "posting-rules", "backup"]);
+    expect(adminOnly).toEqual(["company", "companies", "boq-docs", "visits", "posting-rules", "backup"]);
     // Task 97 — قرار معتمد: الشركات للمطور حصرًا (انحراف ويب موثق عن المكتبي)
     const devOnly = SETTINGS_TABS.filter((t) => t.developerOnly).map((t) => t.value);
     expect(devOnly).toEqual(["companies", "developer"]);
@@ -78,9 +77,7 @@ describe("visibleSettingsTabs — قواعد الظهور الثلاثة كال�
       "company",
       "appearance",
       "security",
-      "contract-types",
       "boq-docs",
-      "workflow",
       "visits",
       "posting-rules",
       "backup",
@@ -90,7 +87,7 @@ describe("visibleSettingsTabs — قواعد الظهور الثلاثة كال�
   test("المطور: كل التبويبات — is_admin يشمل المطور (auth_service.py:168)", () => {
     const tabs = visibleSettingsTabs(true, true);
     expect(tabs.map((t) => t.value)).toEqual(SETTINGS_TABS.map((t) => t.value));
-    expect(tabs.length).toBe(11); // انحراف ويب معتمد: 10 إدارية (بواب BOQ) + أدوات المطور
+    expect(tabs.length).toBe(9); // الجلسة 12: 8 إدارية+عامة (بواب BOQ) + أدوات المطور
   });
 
   test("السكرتير: الطباعة والعرض + كلمة المرور فقط بترتيب المكتبي (settings.py:510-515)", () => {
@@ -117,9 +114,14 @@ describe("visibleSettingsTabs — قواعد الظهور الثلاثة كال�
 
 describe("resolveInitialSection — قسم الشل إلى تبويب صالح للدور", () => {
   test("أقسام الشل الحقيقية تمر كما هي للمدير", () => {
-    for (const s of ["company", "appearance", "security", "contract-types", "boq-docs", "workflow", "visits", "posting-rules"]) {
+    for (const s of ["company", "appearance", "security", "boq-docs", "visits", "posting-rules"]) {
       expect(resolveInitialSection(s, true, false)).toBe(s);
     }
+  });
+
+  test("قسما الأنواع والمراحل القديمان يُردان للتبويب الافتراضي (الجلسة 12 — انتقلا للقوائم المرجعية)", () => {
+    expect(resolveInitialSection("contract-types", true, false)).toBe("company");
+    expect(resolveInitialSection("workflow", true, false)).toBe("company");
   });
 
   test("قسم developer يفتح أدوات المطور للمطور فقط ويُرد للمدير والسكرتير", () => {

@@ -4,10 +4,12 @@
  * شاشة الإعدادات — نقطة الدخول (المرحلة 9 · بند 6).
  * أُعيدت هيكلتها إلى تبويبات مطابقة للمكتبي حرفيًا (settings.py:461-533):
  *   ⌂ بيانات الشركة · ▤ الطباعة والعرض · ◆ الأمان والمستخدمون/كلمة المرور ·
- *   ☰ أنواع العقود · ⇄ مراحل المتابعة · ◷ جدول الزيارات ·
+ *   ▦ جدول الكميات BOQ · ◷ جدول الزيارات ·
  *   ⊞ البيانات والنسخ الاحتياطي · ⚙ أدوات المطور (developer فقط — بتابات
  *   داخلية خمسة). المحتوى موزع في src/components/contrack/settings/*.
  *   Task 105 — تاب «حسابات المصروفات» أُسقط مع دمج الشجرة في دليل الحسابات الموحد.
+ *   الجلسة 12 — قرار المالك: تابا «أنواع العقود» و«مراحل المتابعة» حُذفا من الإعدادات
+ *   — موضعُهما الوحيد وحدة «القوائم المرجعية» (RefListsView تضمّن المدرّين نفسهما).
  *
  * كل الأسلاك القائمة محفوظة: /api/settings (بيانات الشركة والنسخ التلقائي)،
  * /api/payment-methods، تبويب المزايا الحي عبر /api/feature-flags، وحروف
@@ -25,13 +27,11 @@ import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, apiPut } from "./api";
 import type { PaymentMethodsResponse, SettingsResponse, User } from "./contrack-types";
 import { errMessage } from "./contrack-types";
-import { ContractTypesManager } from "./ContractTypesManager";
 import { BoqDocsTab } from "./settings/boq-docs-tab";
 import { CompanyTab } from "./settings/company-tab";
 import { CompaniesTab } from "./settings/companies-tab";
 import { AppearanceTab } from "./settings/appearance-tab";
 import { SecurityTab } from "./settings/security-tab";
-import { WorkflowTab } from "./settings/workflow-tab";
 import { VisitsTab } from "./settings/visits-tab";
 import { PostingRulesTab } from "./settings/posting-rules-tab";
 import { BackupTab } from "./settings/backup-tab";
@@ -104,7 +104,7 @@ export function SettingsView({ user, onAuthError, initialSection }: SettingsView
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-lg font-bold whitespace-nowrap">الإعدادات</h1>
-        <span className="hidden xl:inline text-xs text-muted-foreground">بيانات الشركة والطباعة والمستخدمون والأنواع والمراحل والنسخ — تُحفظ كل مجموعة من زرها</span>
+        <span className="hidden xl:inline text-xs text-muted-foreground">بيانات الشركة والطباعة والأمان وBOQ والزيارات والنسخ — والأنواع والمراحل في «القوائم المرجعية»</span>
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="gap-4">
@@ -159,27 +159,18 @@ export function SettingsView({ user, onAuthError, initialSection }: SettingsView
           <SecurityTab manager={manager} username={user.username} />
         </TabsContent>
 
-        {/* ===== 4) أنواع العقود (مدير) — إدارة كاملة (المرحلة 7-ج) ===== */}
-        {manager && (
-          <TabsContent value="contract-types" className="space-y-4">
-            <ContractTypesManager onAuthError={onAuthError} />
-          </TabsContent>
-        )}
-
-        {/* ===== 4-ب) وثائق جدول الكميات BOQ (مدير) — انحراف ويب معتمد:
-             وثائق مستقلة تُبنى قبل العقد (قرار المالك 2026-11 — docs/boq-doc-design.md) ===== */}
+        {/* ===== 4) وثائق جدول الكميات BOQ (مدير) — انحراف ويب معتمد:
+             وثائق مستقلة تُبنى قبل العقد (قرار المالك 2026-11 — docs/boq-doc-design.md)
+             — أنواع العقود ومراحل المتابعة في وحدة «القوائم المرجعية» (الجلسة 12) ===== */}
         {manager && <TabsContent value="boq-docs"><BoqDocsTab /></TabsContent>}
 
-        {/* ===== 5) مراحل المتابعة (مدير) ===== */}
-        {manager && <TabsContent value="workflow"><WorkflowTab onAuthError={onAuthError} /></TabsContent>}
-
-        {/* ===== 6) جدول الزيارات (مدير) ===== */}
+        {/* ===== 5) جدول الزيارات (مدير) ===== */}
         {manager && <TabsContent value="visits"><VisitsTab onAuthError={onAuthError} /></TabsContent>}
 
-        {/* ===== 6-ب) قواعد الترحيل (مدير — Task 106): قوالب القيد الآلي للسندات ===== */}
+        {/* ===== 5-ب) قواعد الترحيل (مدير — Task 106): قوالب القيد الآلي للسندات ===== */}
         {manager && <TabsContent value="posting-rules"><PostingRulesTab onAuthError={onAuthError} /></TabsContent>}
 
-        {/* ===== 7) البيانات والنسخ الاحتياطي (مدير) ===== */}
+        {/* ===== 6) البيانات والنسخ الاحتياطي (مدير) ===== */}
         {manager && (
           <TabsContent value="backup" className="space-y-4">
             {!formReady ? (
@@ -196,7 +187,7 @@ export function SettingsView({ user, onAuthError, initialSection }: SettingsView
           </TabsContent>
         )}
 
-        {/* ===== 8) أدوات المطور (developer فقط — بتابات داخلية خمسة) ===== */}
+        {/* ===== 7) أدوات المطور (developer فقط — بتابات داخلية خمسة) ===== */}
         {isDeveloper && <TabsContent value="developer"><DeveloperTab onAuthError={onAuthError} /></TabsContent>}
       </Tabs>
     </div>

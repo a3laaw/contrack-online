@@ -137,7 +137,9 @@ export interface NavModule {
  *   4. الاستشارات: الفريق الهندسي، إسناد المشاريع، ساعات العمل، الإجازات (موديول consulting)
  *   5. المحاسبة: سندات القبض/الصرف، كشف الحساب، العُهد، السلف، البوابة، الشركة الأخرى، المطالبات، الفواتير
  *   6. التقارير: التقارير الـ11 بنودًا حقيقية في القائمة الجانبية الرسمية كالمحاسبة (توجيه المستخدم — الخيار 2)
- *   7. الإعدادات: الشركة، الطباعة، الأمان، المستخدمون، الأنواع، المصروفات، المراحل، الزيارات، النسخ، أدوات المطور
+ *   7. الإعدادات: الشركة، الطباعة، الأمان، المستخدمون، جدول الكميات BOQ، الزيارات، قواعد الترحيل، النسخ، أدوات المطور
+ *      (الجلسة 12 — قرار المالك: «أنواع العقود» و«مراحل العمل» انتقلتا حصرًا إلى وحدة القوائم المرجعية
+ *       وحُذف تابيهما المكرر من الإعدادات)
  * خارج النطاق (لا يُضاف): عروض الأسعار، الأرشيف، الواتساب، الاستيراد من Excel.
  */
 export const NAV_MODULES: NavModule[] = [
@@ -306,7 +308,9 @@ export const NAV_MODULES: NavModule[] = [
   {
     // القوائم المرجعية (الجلسة 11) — مركز المرجعيات المشتركة: الأوزان · المناطق · الوظائف ·
     // الأقسام · الإدارات · أنواع العقود · مراحل العمل، وإطار عام لأي قائمة جديدة («وغيرها»)
-    // — بند القائمة العامة فقط يكلف screen_ref_lists، والقسمان الآخران يضمّنان المدرّين القائمين
+    // — بند القائمة العامة فقط يكلف screen_ref_lists، والقسمان الآخران يضمّنان المدرّين القائمين.
+    // الجلسة 12 — قرار المالك: هذا الموضع هو المرجع الوحيد للأنواع والمراحل؛ تابا الإعدادات
+    //   (contract-types/workflow) حُذفا فلا تكرار بعد اليوم
     id: "refs",
     label: "القوائم المرجعية",
     icon: BookMarked,
@@ -325,10 +329,9 @@ export const NAV_MODULES: NavModule[] = [
       { id: "settings-printing", label: "الطباعة والعرض", icon: FileText, view: "settings", section: "appearance", perm: "screen_settings" },
       { id: "settings-security", label: "الأمان وكلمة المرور", icon: ShieldCheck, view: "settings", section: "security", perm: "screen_settings" },
       { id: "users", label: "المستخدمون والصلاحيات", icon: UserCog, view: "users", adminOnly: true },
-      { id: "contract-types", label: "أنواع العقود", icon: FileStack, view: "settings", section: "contract-types", adminOnly: true },
       // وثائق جدول الكميات BOQ — انحراف ويب معتمد (قرار المالك 2026-11: الـBOQ في الإعدادات قبل العقد)
+      // (أنواع العقود ومراحل العمل في وحدة «القوائم المرجعية» — الجلسة 12 بلا تكرار هنا)
       { id: "boq-docs-config", label: "جدول الكميات BOQ", icon: FileSpreadsheet, view: "settings", section: "boq-docs", adminOnly: true },
-      { id: "workflow-stages", label: "مراحل المتابعة", icon: ClipboardList, view: "settings", section: "workflow", adminOnly: true },
       { id: "visits-config", label: "إعدادات الزيارات", icon: CalendarDays, view: "settings", section: "visits", adminOnly: true },
       { id: "posting-rules", label: "قواعد الترحيل", icon: ListChecks, view: "settings", section: "posting-rules", adminOnly: true },
       { id: "backup", label: "النسخ الاحتياطي", icon: FileSpreadsheet, view: "data-mgmt", section: "backup", adminOnly: true, flag: "full_backup" },
