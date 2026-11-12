@@ -81,6 +81,10 @@ const TENANT_MODELS = new Set<string>([
   "consultingRevision",
   // القوائم المرجعية (الجلسة 11): الأوزان/المناطق/الوظائف/الأقسام/الإدارات والمخصصة — فصل الشركات من اليوم الأول
   "refList", "refItem", "refItemStage",
+  // تصحيح الجلسة 11: وثائق BOQ المستقلة (كوميت المرحلة أ) حملت company_id في المخطط
+  // لكنها فاتتها قائمة الحجب — والمسارات تعتمد على الغلاف (findMany بلا where.companyId)
+  // ⇒ تسريب بين الشركات على نمط درس T111 — تسجيلهما إلزامي
+  "boqDoc", "boqDocItem",
 ]);
 
 interface Ctx { companyId: number }
