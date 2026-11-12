@@ -126,3 +126,62 @@ export interface BoqImportRunDTO {
   existingCount: number
   meta: BoqImportMetaDTO
 }
+
+// ============================================================
+// وثيقة جدول كميات مستقلة (BOQ Doc) — قرار المالك 2026-11:
+// «بنود العقد حاجة والـBOQ حاجة تانية» — الوثيقة تُبنى في الإعدادات
+// قبل العقد، وعند الربط تُنسخ بنودها إلى بنود العقد (المرحلة ب).
+// ============================================================
+
+export interface BoqDocDTO {
+  id: number
+  name: string
+  projectName: string
+  clientName: string
+  consultantName: string
+  status: 'draft' | 'ready'
+  notes: string
+  createdAt: string
+  updatedAt: string
+  itemCount: number
+  grandTotal: number
+}
+
+export interface BoqDocItemDTO {
+  id: number
+  docId: number
+  itemNo: string
+  divisionCode: string
+  divisionName: string
+  description: string
+  qty: number
+  unit: string
+  unitPrice: number
+  amount: number
+  total: number // المبلغ الفعلي للبند (amount إن وُجد وإلا qty×unitPrice)
+}
+
+export interface BoqDocDetailDTO extends Omit<BoqDocDTO, 'itemCount' | 'grandTotal'> {
+  items: BoqDocItemDTO[]
+  itemCount: number
+  grandTotal: number
+}
+
+export interface BoqDocInput {
+  name: string
+  projectName?: string
+  clientName?: string
+  consultantName?: string
+  notes?: string
+  status?: 'draft' | 'ready'
+}
+
+export interface BoqDocItemInput {
+  description: string
+  qty?: number
+  unit?: string
+  unitPrice?: number
+  itemNo?: string
+  divisionCode?: string
+  divisionName?: string
+}

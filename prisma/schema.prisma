@@ -331,6 +331,50 @@ model BoqItem {
   @@map("boq_items")
 }
 
+// ============================================================
+// وثيقة جدول كميات مستقلة (BOQ Doc) — قرار المالك 2026-11: «بنود العقد
+// حاجة والـBOQ حاجة تانية» — الوثيقة تُبنى في الإعدادات قبل العقد (شجرة
+// أقسام وبنود: إضافة يدوية أو استيراد إكسل بنفس محلل boq-parse)، وعند
+// إنشاء العقد يتربط بها وتُنسخ بنودها إلى بنود العقد لحظة الربط (نسخ
+// لا مرجع — العقد الموقّع ثابت، والتعديلات اللاحقة بأوامر التغيير).
+// المرحلة أ: الوثيقة والشجرة — المرحلة ب: الربط — docs/boq-doc-design.md
+// ============================================================
+model BoqDoc {
+  companyId      Int          @default(1) @map("company_id")
+  id             Int          @id @default(autoincrement())
+  name           String // اسم الوثيقة — «BOQ مستوصف صباح السالم الجنوبي»
+  projectName    String       @default("") @map("project_name")
+  clientName     String       @default("") @map("client_name") // المالك — وزارة الصحة
+  consultantName String       @default("") @map("consultant_name") // الاستشاري — سور
+  status         String       @default("draft") // draft=مسودة | ready=جاهزة للربط
+  notes          String       @default("")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  items          BoqDocItem[]
+
+  @@index([companyId])
+  @@map("boq_docs")
+}
+
+model BoqDocItem {
+  companyId    Int     @default(1) @map("company_id")
+  id           Int     @id @default(autoincrement())
+  docId        Int     @map("doc_id")
+  doc          BoqDoc  @relation(fields: [docId], references: [id], onDelete: Cascade)
+  itemNo       String  @default("") @map("item_no") // «03.30.01» / «B1-2» — هوية البند في الأصل
+  divisionCode String  @default("") @map("division_code") // رقم القسم — «03» / «26» (الشجرة مشتقة منه)
+  divisionName String  @default("") @map("division_name") // اسم القسم — «CONCRETE»
+  description  String
+  qty          Decimal @default(1)
+  unit         String  @default("") // كما وردت حرفياً — L.S. / M2 / م² / عدد
+  unitPrice    Decimal @default(0) @map("unit_price")
+  amount       Decimal @default(0) // مبلغ الملف الأصلي عند الاستيراد — وإلا كمية×سعر
+  sortOrder    Int     @default(0) @map("sort_order")
+
+  @@index([docId])
+  @@map("boq_doc_items")
+}
+
 model PaymentPlanItem {
   companyId         Int                @default(1) @map("company_id")
   id                Int                @id @default(autoincrement())

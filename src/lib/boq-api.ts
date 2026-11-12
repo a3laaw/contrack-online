@@ -4,6 +4,10 @@
 // ============================================================
 import { ApiError, getStoredToken } from '@/components/contrack/api'
 import type {
+  BoqDocDTO,
+  BoqDocDetailDTO,
+  BoqDocInput,
+  BoqDocItemInput,
   BoqImportPreviewDTO,
   BoqImportRunDTO,
   BoqInput,
@@ -89,4 +93,24 @@ export const boqApi = {
     upload<BoqImportPreviewDTO>(`/api/contracts/${contractId}/boq/import`, file, 'preview'),
   importRun: (contractId: number, file: File) =>
     upload<BoqImportRunDTO>(`/api/contracts/${contractId}/boq/import`, file, 'run'),
+
+  // ---------- وثائق جدول الكميات المستقلة (BOQ Doc — الإعدادات) ----------
+  docs: () => request<{ docs: BoqDocDTO[] }>('/api/boq-docs'),
+  createDoc: (input: BoqDocInput) =>
+    request<{ doc: BoqDocDTO }>('/api/boq-docs', { method: 'POST', ...jsonBody(input) }),
+  doc: (docId: number) => request<BoqDocDetailDTO>(`/api/boq-docs/${docId}`),
+  updateDoc: (docId: number, input: Partial<BoqDocInput>) =>
+    request<{ doc: BoqDocDetailDTO }>(`/api/boq-docs/${docId}`, { method: 'PATCH', ...jsonBody(input) }),
+  deleteDoc: (docId: number) =>
+    request<{ ok: boolean }>(`/api/boq-docs/${docId}`, { method: 'DELETE' }),
+  addDocItem: (docId: number, input: BoqDocItemInput) =>
+    request<{ id: number }>(`/api/boq-docs/${docId}/items`, { method: 'POST', ...jsonBody(input) }),
+  updateDocItem: (itemId: number, input: Partial<BoqDocItemInput>) =>
+    request<{ id: number }>(`/api/boq-doc-items/${itemId}`, { method: 'PATCH', ...jsonBody(input) }),
+  deleteDocItem: (itemId: number) =>
+    request<{ ok: boolean }>(`/api/boq-doc-items/${itemId}`, { method: 'DELETE' }),
+  docImportPreview: (docId: number, file: File) =>
+    upload<BoqImportPreviewDTO>(`/api/boq-docs/${docId}/import`, file, 'preview'),
+  docImportRun: (docId: number, file: File) =>
+    upload<BoqImportRunDTO>(`/api/boq-docs/${docId}/import`, file, 'run'),
 }

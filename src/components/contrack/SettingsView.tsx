@@ -26,6 +26,7 @@ import { ApiError, apiGet, apiPut } from "./api";
 import type { PaymentMethodsResponse, SettingsResponse, User } from "./contrack-types";
 import { errMessage } from "./contrack-types";
 import { ContractTypesManager } from "./ContractTypesManager";
+import { BoqDocsTab } from "./settings/boq-docs-tab";
 import { CompanyTab } from "./settings/company-tab";
 import { CompaniesTab } from "./settings/companies-tab";
 import { AppearanceTab } from "./settings/appearance-tab";
@@ -164,6 +165,10 @@ export function SettingsView({ user, onAuthError, initialSection }: SettingsView
             <ContractTypesManager onAuthError={onAuthError} />
           </TabsContent>
         )}
+
+        {/* ===== 4-ب) وثائق جدول الكميات BOQ (مدير) — انحراف ويب معتمد:
+             وثائق مستقلة تُبنى قبل العقد (قرار المالك 2026-11 — docs/boq-doc-design.md) ===== */}
+        {manager && <TabsContent value="boq-docs"><BoqDocsTab /></TabsContent>}
 
         {/* ===== 5) مراحل المتابعة (مدير) ===== */}
         {manager && <TabsContent value="workflow"><WorkflowTab onAuthError={onAuthError} /></TabsContent>}
