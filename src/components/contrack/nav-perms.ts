@@ -104,6 +104,8 @@ export const VIEW_PERMS: Partial<Record<ViewName, string>> = {
   reports: "screen_reports",
   "reports-home": "screen_reports",
   settings: "screen_settings",
+  // القوائم المرجعية (الجلسة 11) — باب فتح مباشر بنفس مفتاح بند القائمة الجانبية
+  "ref-lists": "screen_ref_lists",
 };
 
 /** هل يفتح هذا المستخدم هذا الـview؟ — users/data-mgmt إدارة ويبية للمدير/المطور فقط،

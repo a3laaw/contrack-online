@@ -942,6 +942,8 @@ model WorkflowStage {
   templateLinks           TypePaymentStage[]
   scopes                  ContractScope[]
   paymentTriggerTemplates TypePaymentTemplate[] @relation("paymentTrigger")
+  // القوائم المرجعية — مراحل مربوطة بعناصر القوائم (RefItemStage)
+  refLinks                RefItemStage[]
 
   @@unique([companyId, transactionType, contractType, stageName])
   @@map("workflow_stages")
@@ -956,6 +958,57 @@ model ContractScope {
 
   @@id([contractId, templateStageId])
   @@map("contract_scope")
+}
+
+// ==================== القوائم المرجعية (Master Data) ====================
+// إطار عام قابل للتوسعة (الجلسة 11): الأوزان · المناطق · الوظائف · الأقسام · الإدارات —
+// وأي قائمة يضيفها المالك لاحقًا («وغيرها»). كل عنصر يمكن ربطه بمراحل العمل (RefItemStage) —
+// والقوائم المدمجة (system) لا تُحذف ولا يتغير مفتاحها، وبنودها قابلة للتعديل والإضافة والحذف.
+
+model RefList {
+  companyId   Int       @default(1) @map("company_id")
+  id          Int       @id @default(autoincrement())
+  // مفتاح ثابت للقوائم المدمجة (weights|areas|jobs|departments|admins) والمخصصة custom-*
+  key         String
+  name        String
+  description String    @default("")
+  system      Boolean   @default(false) @map("system") // مدمجة — لا تُحذف
+  active      Boolean   @default(true)
+  items       RefItem[]
+
+  @@unique([companyId, key])
+  @@map("ref_lists")
+}
+
+model RefItem {
+  companyId  Int             @default(1) @map("company_id")
+  id         Int             @id @default(autoincrement())
+  listId     Int             @map("list_id")
+  list       RefList         @relation(fields: [listId], references: [id], onDelete: Cascade)
+  name       String
+  code       String          @default("") // رمز اختياري
+  // قيمة اختيارية — للأوزان (0.30) وأي قائمة رقمية مستقبلًا
+  value      Decimal?        @db.Decimal(18, 4)
+  notes      String          @default("")
+  active     Boolean         @default(true)
+  sortOrder  Int             @default(0) @map("sort_order")
+  stageLinks RefItemStage[]
+
+  @@unique([listId, name])
+  @@map("ref_items")
+}
+
+// ربط العنصر المرجعي بمراحل العمل (متعدد-متعدد) — «ربطها مع مراحل العمل»
+model RefItemStage {
+  companyId Int           @default(1) @map("company_id")
+  id        Int           @id @default(autoincrement())
+  itemId    Int           @map("item_id")
+  item      RefItem       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  stageId   Int           @map("stage_id")
+  stage     WorkflowStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, stageId])
+  @@map("ref_item_stages")
 }
 
 // ==================== الإعدادات والمراجع ====================

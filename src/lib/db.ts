@@ -79,6 +79,8 @@ const TENANT_MODELS = new Set<string>([
   "maintenancePlan", "maintenanceOccurrence", "workOrder",
   // الاستشارات — مراجعات المخططات (docs/revisions-ipc-design.md §1): بعد contract/engineer لارتباطاته
   "consultingRevision",
+  // القوائم المرجعية (الجلسة 11): الأوزان/المناطق/الوظائف/الأقسام/الإدارات والمخصصة — فصل الشركات من اليوم الأول
+  "refList", "refItem", "refItemStage",
 ]);
 
 interface Ctx { companyId: number }

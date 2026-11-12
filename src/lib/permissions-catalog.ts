@@ -55,6 +55,8 @@ export const PERMISSIONS: { key: string; label: string; group: string; secretary
   // مفتاح ويب-فقط لقسم المشاريع (مركز عمليات الموقع: اللوحة/التقرير اليومي/تنفيذ البنود)
   // — بلا مقابل مكتبي: secretary:true (شاشة تشغيلية ملك نشاط المقاولات)
   { key: "screen_projects", label: "شاشة المشاريع (اللوحة/التقرير اليومي/تنفيذ البنود)", group: "الشاشات", secretary: true },
+  // مفتاح ويب-فقط لشاشة القوائم المرجعية (الجلسة 11) — إدارة مرجعية للمدير: السكرتير بلا وصول افتراضيًا
+  { key: "screen_ref_lists", label: "شاشة القوائم المرجعية (الأوزان/المناطق/الوظائف/الأقسام/الإدارات)", group: "الشاشات", secretary: false },
   // ---------- التقارير ----------
   { key: "report_customers_balances", label: "تقرير العملاء والأرصدة", group: "التقارير", secretary: false, desktop: "rep_customers" },
   { key: "report_stage_dues", label: "مستحقات المراحل", group: "التقارير", secretary: true, desktop: "rep_dues_board" },

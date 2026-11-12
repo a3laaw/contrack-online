@@ -28,7 +28,8 @@ export const MODULE_CATALOG: ModuleDef[] = [
     desc: "السندات والأستاذ والقوائم المالية والفواتير والتسوية — عمود النظام المشترك",
     available: true,
     core: true,
-    navModules: ["accounting", "settings"],
+    // «refs» القوائم المرجعية (الجلسة 11) — مرجعيات مشتركة تخدم كل الأنشطة فتسير مع عمود النظام
+    navModules: ["accounting", "settings", "refs"],
   },
   {
     code: "contracting",

@@ -42,6 +42,7 @@ import { WarehousesView, type WarehousesSection } from "./WarehousesView";
 import { SalesView, type SalesSection } from "./SalesView";
 import { MaintenanceView, type MaintenanceSection } from "./MaintenanceView";
 import { ProjectsView } from "./ProjectsView";
+import { RefListsView, type RefListsSection } from "./RefListsView";
 import { ReportsView } from "./ReportsView";
 import { ReportsHomeView } from "./ReportsHomeView";
 import { DEFAULT_REPORT_KEY } from "./reports-list";
@@ -138,6 +139,8 @@ function AppRoot() {
   const [maintenanceSection, setMaintenanceSection] = React.useState<MaintenanceSection>("contracts");
   // المشاريع — قسم مركز عمليات الموقع (لوحة/تقرير يومي/تنفيذ بنود)
   const [projectsSection, setProjectsSection] = React.useState<ProjectsSection>("hub");
+  // القوائم المرجعية — قسم الشاشة الموحدة (القوائم العامة/أنواع العقود/مراحل العمل)
+  const [refListsSection, setRefListsSection] = React.useState<RefListsSection>("lists");
 
   // معرّف البند النشط في القائمة الجانبية (يحدد الوحدة والبند المُبرز)
   const activeNav =
@@ -168,6 +171,9 @@ function AppRoot() {
         : view === "projects"
         ? (NAV_MODULES.flatMap((m) => m.children).find((c) => c.view === "projects" && c.section === projectsSection)?.id ??
           "projects-hub")
+        : view === "ref-lists"
+        ? (NAV_MODULES.flatMap((m) => m.children).find((c) => c.view === "ref-lists" && c.section === refListsSection)?.id ??
+          "ref-lists")
         : view === "data-mgmt"
           ? dmSection === "devtools"
             ? "devtools"
@@ -199,6 +205,7 @@ function AppRoot() {
       if (child.view === "sales" && child.section) setSalesSection(child.section as SalesSection);
       if (child.view === "maintenance" && child.section) setMaintenanceSection(child.section as MaintenanceSection);
       if (child.view === "projects" && child.section) setProjectsSection(child.section as ProjectsSection);
+      if (child.view === "ref-lists" && child.section) setRefListsSection(child.section as RefListsSection);
       setView(child.view);
       if (child.view !== "contract") setContractId(null);
       if (child.view !== "customer-file") setCustomerFileId(null);
@@ -468,6 +475,14 @@ function AppRoot() {
           section={projectsSection}
           onSectionChange={setProjectsSection}
           onOpenContract={openContract}
+        />
+      )}
+      {view === "ref-lists" && (
+        <RefListsView
+          user={user}
+          onAuthError={onAuthError}
+          section={refListsSection}
+          onSectionChange={setRefListsSection}
         />
       )}
       {view === "reports-home" && (

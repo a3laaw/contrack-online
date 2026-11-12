@@ -41,6 +41,8 @@ export type ViewName =
   | "bank-recon"
   | "zakat-xbrl"
   | "settings"
+  // القوائم المرجعية (الجلسة 11) — الأوزان/المناطق/الوظائف/الأقسام/الإدارات/أنواع العقود
+  | "ref-lists"
   | "users"
   | "data-mgmt"
   | "dev-console";

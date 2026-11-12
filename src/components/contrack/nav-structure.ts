@@ -57,6 +57,8 @@ import {
   Radar,
   // المشاريع — مركز عمليات الموقع
   FolderKanban,
+  // القوائم المرجعية — مركز البيانات المرجعية
+  BookMarked,
 } from "lucide-react";
 
 import type { ViewName } from "./contrack-types";
@@ -92,6 +94,8 @@ export type ModuleId =
   | "maintenance"
   | "accounting"
   | "reports"
+  // القوائم المرجعية (الجلسة 11) — مركز البيانات المرجعية المشتركة بين كل الأنشطة
+  | "refs"
   | "settings";
 
 /** بند فرعي داخل وحدة — الشاشة الواحدة مستوى تنقل فرعي واحد فقط */
@@ -297,6 +301,19 @@ export const NAV_MODULES: NavModule[] = [
         // Task 114: ترويسة التصنيف في القائمة الجانبية (العملاء والتحصيل/العقود/الخزينة/المحاسبة)
         groupLabel: reportCategory(r.category).label,
       })),
+    ],
+  },
+  {
+    // القوائم المرجعية (الجلسة 11) — مركز المرجعيات المشتركة: الأوزان · المناطق · الوظائف ·
+    // الأقسام · الإدارات · أنواع العقود · مراحل العمل، وإطار عام لأي قائمة جديدة («وغيرها»)
+    // — بند القائمة العامة فقط يكلف screen_ref_lists، والقسمان الآخران يضمّنان المدرّين القائمين
+    id: "refs",
+    label: "القوائم المرجعية",
+    icon: BookMarked,
+    children: [
+      { id: "ref-lists", label: "القوائم العامة", icon: BookMarked, view: "ref-lists", section: "lists", adminOnly: true, perm: "screen_ref_lists" },
+      { id: "ref-contract-types", label: "أنواع العقود", icon: FileStack, view: "ref-lists", section: "contract-types", adminOnly: true },
+      { id: "ref-stages", label: "مراحل العمل", icon: ClipboardList, view: "ref-lists", section: "stages", adminOnly: true },
     ],
   },
   {
