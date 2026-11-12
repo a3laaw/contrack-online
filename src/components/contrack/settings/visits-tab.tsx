@@ -3,7 +3,9 @@
 /**
  * تبويب «◷ جدول الزيارات» — مرآة _tab_visits المكتبية (settings.py:3342-3536):
  * ساعات عمل جدول الزيارات + الموظفون (أعمدة الجدول) — الأسلاك عبر
- * /api/visits/config و/api/visits/staff كما كانت حرفيًا.
+ * /api/visits/config و/api/visits/staff.
+ * الجلسة 13 — توحيد المصدر: الإعدادات صارت محفوظة فعلًا في uiPrefs لكل شركة
+ * (كانت ثابتة بتجاهل صامت) — التحرير هنا يبني صفوف شبكة الزيارات مباشرة.
  */
 
 import * as React from "react";
@@ -50,7 +52,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "../api";
+import { ApiError, apiDelete, apiGet, apiPatch, apiPost, apiPut } from "../api";
 import { errMessage } from "../contrack-types";
 
 interface VisitConfigDTO {
@@ -60,6 +62,8 @@ interface VisitConfigDTO {
   editable: boolean;
   note?: string;
 }
+
+const ALLOWED_SLOTS = [15, 20, 30, 60, 90, 120] as const;
 
 interface VisitStaffDTO {
   id: number;
@@ -90,6 +94,35 @@ export function VisitsTab({ onAuthError }: { onAuthError: () => void }) {
     toast({ variant: "destructive", title, description: errMessage(e) });
   };
   const refresh = () => qc.invalidateQueries({ queryKey: ["visits-staff"] });
+
+  // ===== محرر الإعدادات (توحيد الجلسة 13 — التخزين في uiPrefs) =====
+  const [cfgForm, setCfgForm] = React.useState<{ slotMinutes: number; startHour: number; endHour: number } | null>(null);
+  React.useEffect(() => {
+    if (configQuery.data) {
+      setCfgForm({
+        slotMinutes: configQuery.data.slotMinutes,
+        startHour: configQuery.data.startHour,
+        endHour: configQuery.data.endHour,
+      });
+    }
+  }, [configQuery.data]);
+
+  const cfgValid =
+    !!cfgForm &&
+    (ALLOWED_SLOTS as readonly number[]).includes(cfgForm.slotMinutes) &&
+    Number.isInteger(cfgForm.startHour) && cfgForm.startHour >= 0 && cfgForm.startHour <= 23 &&
+    Number.isInteger(cfgForm.endHour) && cfgForm.endHour >= 1 && cfgForm.endHour <= 24 &&
+    cfgForm.endHour > cfgForm.startHour;
+
+  const saveConfigMutation = useMutation({
+    mutationFn: () => apiPut<VisitConfigDTO>("/api/visits/config", cfgForm),
+    onSuccess: () => {
+      toast({ title: "تم حفظ إعدادات الجدول", description: "صفوف شبكة الزيارات تُبنى من هذه القيم" });
+      qc.invalidateQueries({ queryKey: ["visits-config"] });
+      qc.invalidateQueries({ queryKey: ["visits"] });
+    },
+    onError: (e) => fail(e, "تعذر حفظ الإعدادات"),
+  });
 
   const [addOpen, setAddOpen] = React.useState(false);
   const [addForm, setAddForm] = React.useState({ name: "", phone: "" });
@@ -151,6 +184,65 @@ export function VisitsTab({ onAuthError }: { onAuthError: () => void }) {
             <Skeleton className="h-10 w-72 rounded-lg" />
           ) : configQuery.isError ? (
             <p className="text-sm text-destructive">تعذر تحميل الإعدادات — {errMessage(configQuery.error)}</p>
+          ) : configQuery.data?.editable && cfgForm ? (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="vc-slot">مدة الحصة</Label>
+                  <Select
+                    value={String(cfgForm.slotMinutes)}
+                    onValueChange={(v) => setCfgForm({ ...cfgForm, slotMinutes: Number(v) })}
+                  >
+                    <SelectTrigger id="vc-slot" className="h-9 w-36">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {ALLOWED_SLOTS.map((m) => (
+                        <SelectItem key={m} value={String(m)}>{m} دقيقة</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="vc-start">من الساعة (0-23)</Label>
+                  <Input
+                    id="vc-start"
+                    className="h-9 w-28"
+                    type="number"
+                    min={0}
+                    max={23}
+                    dir="ltr"
+                    value={cfgForm.startHour}
+                    onChange={(e) => setCfgForm({ ...cfgForm, startHour: Math.trunc(Number(e.target.value)) })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="vc-end">إلى الساعة (1-24)</Label>
+                  <Input
+                    id="vc-end"
+                    className="h-9 w-28"
+                    type="number"
+                    min={1}
+                    max={24}
+                    dir="ltr"
+                    value={cfgForm.endHour}
+                    onChange={(e) => setCfgForm({ ...cfgForm, endHour: Math.trunc(Number(e.target.value)) })}
+                  />
+                </div>
+                <Button
+                  className="h-9"
+                  disabled={!cfgValid || saveConfigMutation.isPending}
+                  onClick={() => saveConfigMutation.mutate()}
+                >
+                  {saveConfigMutation.isPending ? "جارٍ الحفظ…" : "حفظ الإعدادات"}
+                </Button>
+              </div>
+              {!cfgValid && (
+                <p className="text-xs text-destructive">
+                  ساعة النهاية يجب أن تكون بعد البداية (وعند أقصاه 24) — ومدة الحصة إحدى: {ALLOWED_SLOTS.join(" / ")} دقيقة.
+                </p>
+              )}
+            </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span>من الساعة: <b className="tabular-nums">{configQuery.data?.startHour}</b></span>

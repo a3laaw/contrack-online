@@ -168,17 +168,30 @@ describe("DEV_TABS — تابات أدوات المطور الخمسة الدا�
 
 describe("توافق الشل — كل قسم في بنود الإعدادات (nav-structure) يقود تبويبًا مرئيًا", () => {
   const settingsModule = NAV_MODULES.find((m) => m.id === "settings");
-  test("كل بند settings في الشل له section يفتح تبويبًا صالحًا للمدير", () => {
+  test("كل بند settings في الشل له section يفتح تبويبًا صالحًا لدوره", () => {
     expect(settingsModule).toBeDefined();
     for (const child of settingsModule!.children) {
       if (child.view !== "settings" || !child.section) continue;
-      expect(resolveInitialSection(child.section, true, false)).toBe(child.section);
+      // developerOnly (الشركات/أدوات المطور — الجلسة 14) يُقاس بدور المطور
+      const isDev = child.developerOnly === true;
+      expect(resolveInitialSection(child.section, true, isDev)).toBe(child.section);
+    }
+  });
+
+  test("بنود developerOnly تُخفى عن المدير غير المطور وتفتح للمطور (Task 97 + الجلسة 14)", () => {
+    const devOnly = settingsModule!.children.filter((c) => c.developerOnly && c.view === "settings");
+    expect(devOnly.map((c) => c.section)).toEqual(["companies", "developer"]);
+    for (const child of devOnly) {
+      // للمدير غير المطور: القسم يرد للتبويب الافتراضي بدل فتح تاب محجوب
+      expect(resolveInitialSection(child.section!, true, false)).not.toBe(child.section!);
+      // للمطور: يفتح التاب نفسه
+      expect(resolveInitialSection(child.section!, true, true)).toBe(child.section!);
     }
   });
 
   test("بنود الشل غير الإدارية (screen_settings) تصلح للسكرتير أيضًا", () => {
     for (const child of settingsModule!.children) {
-      if (child.view !== "settings" || !child.section || child.adminOnly) continue;
+      if (child.view !== "settings" || !child.section || child.adminOnly || child.developerOnly) continue;
       expect(resolveInitialSection(child.section, false, false)).toBe(child.section);
     }
   });

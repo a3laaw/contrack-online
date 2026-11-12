@@ -15,7 +15,7 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Boxes, ClipboardList, FileStack, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +26,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "./api";
@@ -109,21 +109,8 @@ export function RefListsView({ user, onAuthError, section = "lists", onSectionCh
         </span>
       </div>
 
+      {/* الجلسة 14 — قرار المالك: القائمة الجانبية هي الملاحّ الوحيد — بلا شريط تبويبات داخلي */}
       <Tabs value={section} onValueChange={(v) => onSectionChange?.(v as RefListsSection)} className="gap-4">
-        <TabsList className="h-10 w-full justify-start overflow-x-auto sm:w-auto" aria-label="أقسام القوائم المرجعية">
-          <TabsTrigger value="lists" className="whitespace-nowrap">
-            <Boxes className="size-4 me-1.5" />
-            القوائم العامة
-          </TabsTrigger>
-          <TabsTrigger value="contract-types" className="whitespace-nowrap">
-            <FileStack className="size-4 me-1.5" />
-            أنواع العقود
-          </TabsTrigger>
-          <TabsTrigger value="stages" className="whitespace-nowrap">
-            <ClipboardList className="size-4 me-1.5" />
-            مراحل العمل
-          </TabsTrigger>
-        </TabsList>
 
         <TabsContent value="lists" className="space-y-4">
           <ListsPanel user={user} onFail={onFail} />

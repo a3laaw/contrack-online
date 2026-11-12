@@ -28,15 +28,18 @@ export function permAllows(perms: PermsMap, key: string, isManager = false): boo
   return perms[key] !== false;
 }
 
-/** مدخلات باب البند — الثلاثة نفسها التي يفلتر بها AppShell (adminOnly ثم الميزة ثم الصلاحية) */
+/** مدخلات باب البند — الأربعة نفسها التي يفلتر بها AppShell (adminOnly ثم developerOnly ثم الميزة ثم الصلاحية) */
 export interface ChildGateInput {
   adminOnly?: boolean;
+  /** يظهر للمطور حصرًا (is_developer) — الجلسة 14: بندا «الشركات» و«أدوات المطور» في الشل */
+  developerOnly?: boolean;
   flag?: string;
   perm?: string;
 }
 
 export interface ChildGate {
   isAdmin: boolean;
+  isDeveloper?: boolean;
   flagOn: (f: string) => boolean;
   permOn: (k: string) => boolean;
 }
@@ -44,19 +47,24 @@ export interface ChildGate {
 /** مرآة فلتر الشل لبند واحد — بنفس ترتيب شروط visibleChildren المكتبية */
 export function isChildVisible(child: ChildGateInput, gate: ChildGate): boolean {
   if (child.adminOnly && !gate.isAdmin) return false;
+  if (child.developerOnly && !gate.isDeveloper) return false;
   if (child.flag && !gate.flagOn(child.flag)) return false;
   if (child.perm && !gate.permOn(child.perm)) return false;
   return true;
 }
 
-/** بنود وحدة معروصة بالصلاحيات والمزايا — نُقل من AppShell لنقية قابلة للاختبار (نفس السلوك) */
+/** بنود وحدة معروصة بالصلاحيات والمزايا — نُقل من AppShell لنقية قابلة للاختبار (نفس السلوك).
+ *  isDeveloper اختياري يفترض غيابه — بند developerOnly يُخفى عن غير المطور دائمًا. */
 export function visibleChildren(
   module: NavModule,
   isAdmin: boolean,
   flagOn: (f: string) => boolean,
-  permOn: (k: string) => boolean
+  permOn: (k: string) => boolean,
+  isDeveloper = false
 ): NavChild[] {
-  return module.children.filter((c) => isChildVisible(c, { isAdmin, flagOn, permOn }));
+  return module.children.filter((c) =>
+    isChildVisible(c, { isAdmin, isDeveloper, flagOn, permOn })
+  );
 }
 
 /**

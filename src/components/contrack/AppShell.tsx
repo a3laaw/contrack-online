@@ -41,6 +41,7 @@ interface AppShellProps {
  */
 export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearch, perms, onOpenTransaction, onOpenDevConsole, onReturnToDevConsole, children }: AppShellProps) {
   const manager = isManagerRole(user.role);
+  const isDeveloper = user.role === "developer";
   // Task 100: اللوحة شاشة قائمة بذاتها (بلا قوائم شركة) — كل أدوات التنقل مخفية فيها،
   // والدخول للشركات من أزرار «دخول» في جدولها حصرًا
   const inDevConsole = activeNav === "dev-console";
@@ -104,8 +105,8 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
     el?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [activeNav, activeModuleId]);
 
-  // بند الإعدادات مستثنى من شريط التابات: شريطه الداخلي تنقّل أصلي يصل لأقسام
-  // لا بنود لها في الشل (الشركات/أدوات المطور/إدارة البيانات) — docs/mobile-tabs-design.md §2.4
+  // بند الإعدادات كأي وحدة الآن (الجلسة 14): كل أقسامه بنود شل كاملة العدّ —
+  // شريط التابات الأفقي داخل الشاشة حُذف والقائمة الجانبية هي الملاحّ الوحيد
 
   // الوحدات ذات بنود مرئية فقط
   // خطة الأنشطة: تبويبات الشل تُحصر بأنشطة الشركة الفعّالة أولاً (user.modules —
@@ -114,9 +115,9 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
   const modules = React.useMemo(
     () =>
       NAV_MODULES.filter((m) => !allowedNavIds || allowedNavIds.has(m.id as ModuleId))
-        .map((m) => ({ module: m, children: visibleChildren(m, manager, flagOn, permOn) }))
+        .map((m) => ({ module: m, children: visibleChildren(m, manager, flagOn, permOn, isDeveloper) }))
         .filter((m) => m.children.length > 0),
-    [manager, flagOn, permOn, allowedNavIds]
+    [manager, isDeveloper, flagOn, permOn, allowedNavIds]
   );
 
   const currentModule = modules.find((m) => m.module.id === activeModuleId) ?? modules[0];
@@ -235,7 +236,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
         </div>
 
         {/* ===== تابات الوحدة — الهاتف والتابلت فقط (< lg): مرآة بنود الجانبي بعد نفس الفلترة ===== */}
-        {!inDevConsole && currentModule && currentModule.module.id !== "settings" && currentModule.children.length >= 2 && (
+        {!inDevConsole && currentModule && currentModule.children.length >= 2 && (
           <nav aria-label={`تبويبات ${currentModule.module.label}`} className="border-t bg-card lg:hidden">
             <div ref={tabsBarRef} className="flex h-12 items-center gap-1 overflow-x-auto px-2 sm:px-3">
               {currentModule.children.map((child) => {

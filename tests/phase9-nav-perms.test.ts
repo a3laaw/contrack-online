@@ -103,23 +103,39 @@ describe("visibleChildren — فلتر الشل (نقل من AppShell بلا ت�
     expect(on.map((c) => c.id)).toContain("statement");
   });
 
-  test("adminOnly يُخفى عن غير المدير ويظهر للمدير (users وbackup وdevtools)", () => {
+  test("أبواب الشل للأعدادات — adminOnly وdeveloperOnly (الجلسة 14: كل تاب له بند شل)", () => {
     const settings = NAV_MODULES.find((m) => m.id === "settings")!;
     const perms = secretaryPerms();
     forSecretary: {
       const kids = visibleChildren(settings, false, flagOnTrue, (k) => permAllows(perms, k));
       const ids = kids.map((c) => c.id);
+      // السكرتير: الطباعة والأمان فقط — الإدارية والمطورية كلها مخفية
       expect(ids).not.toContain("users");
       expect(ids).not.toContain("backup");
+      expect(ids).not.toContain("data-mgmt");
+      expect(ids).not.toContain("settings-companies");
       expect(ids).not.toContain("devtools");
       expect(ids).toContain("settings-printing"); // صلاحية screen_settings الافتراضية للسكرتير
+      expect(ids).toContain("settings-security");
       break forSecretary;
     }
+    // المدير (غير المطور): الإدارية كلها ما عدا developerOnly (الشركات وأدوات المطور)
     const kidsAdmin = visibleChildren(settings, true, flagOnTrue, (k) => permAllows(allDenied, k, true));
     const idsAdmin = kidsAdmin.map((c) => c.id);
     expect(idsAdmin).toContain("users");
     expect(idsAdmin).toContain("backup");
-    expect(idsAdmin).toContain("devtools");
+    expect(idsAdmin).toContain("data-mgmt");
+    expect(idsAdmin).not.toContain("settings-companies"); // developerOnly — Task 97
+    expect(idsAdmin).not.toContain("devtools"); // developerOnly — مرآة is_developer المكتبية
+    // المطور: كل بنود الوحدة بلا استثناء (11 بندًا)
+    const kidsDev = visibleChildren(settings, true, flagOnTrue, (k) => permAllows(allDenied, k, true), true);
+    const idsDev = kidsDev.map((c) => c.id);
+    expect(idsDev).toContain("settings-companies");
+    expect(idsDev).toContain("devtools");
+    expect(idsDev.length).toBe(settings.children.length);
+    // developerOnly في الشل = بندا الشركات وأدوات المطور حصرًا
+    const devOnlyIds = settings.children.filter((c) => c.developerOnly).map((c) => c.id);
+    expect(devOnlyIds).toEqual(["settings-companies", "devtools"]);
   });
 
   test("وحدة تصير بلا بنود مرئية تُسقط كليًا من الشل (البوابة الافتراضية ممنوعة على السكرتير)", () => {

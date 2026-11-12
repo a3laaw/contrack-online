@@ -40,6 +40,7 @@ import {
   UsersRound,
   CalendarCheck2,
   Banknote,
+  DatabaseBackup,
   Wallet,
   Wrench,
   // المخازن — أيقونات موديول المستودعات
@@ -112,6 +113,8 @@ export interface NavChild {
   /** مفتاح التقرير داخل شاشة مركز التقارير (view=reports) */
   report?: string;
   adminOnly?: boolean;
+  /** يظهر للمطور حصرًا (is_developer) — نمط Task 97: بابان معًا يستثني المدير والسكرتير */
+  developerOnly?: boolean;
   /** مفتاح الميزة (feature_flags) الذي يخفي البند عند تعطيله — كالشجرة المكتبية */
   flag?: string;
   /** مفتاح الصلاحية (المواءمة المكتبية) الذي يخفي البند عن من لا يملكه — المرحلة 2/ب */
@@ -324,8 +327,16 @@ export const NAV_MODULES: NavModule[] = [
     id: "settings",
     label: "الإعدادات",
     icon: SettingsIcon,
+    // الجلسة 14 — قرار المالك «احنا عندنا قواعد للقائمه الجانبيه»: القائمة الجانبية
+    // هي الملاحّ الوحيد داخل الإعدادات — شريط التبويبات الأفقي (مرآة المكتبي القديمة
+    // settings.py QTabWidget) حُذف من الشاشة، وكل تاب له بند هنا كاملة العدّ:
+    // «الشركات» (مطور حصرًا — Task 97) و«النسخ الاحتياطي» (إعداد النسخ الآلي —
+    // مرآة settings.py _tab_backup) و«أدوات المطور» (التابات الخمسة settings.py:1020-1242)
+    // وشاشة «إدارة البيانات» (سجل التدقيق/النسخ/المحو) بينهما.
     children: [
       { id: "settings-company", label: "بيانات الشركة", icon: SettingsIcon, view: "settings", section: "company", adminOnly: true },
+      // Task 97 — قرار معتمد: الشركات للمطور حصرًا (البابان معًا — يستثني المدير والسكرتير)
+      { id: "settings-companies", label: "الشركات", icon: Building2, view: "settings", section: "companies", adminOnly: true, developerOnly: true },
       { id: "settings-printing", label: "الطباعة والعرض", icon: FileText, view: "settings", section: "appearance", perm: "screen_settings" },
       { id: "settings-security", label: "الأمان وكلمة المرور", icon: ShieldCheck, view: "settings", section: "security", perm: "screen_settings" },
       { id: "users", label: "المستخدمون والصلاحيات", icon: UserCog, view: "users", adminOnly: true },
@@ -334,16 +345,28 @@ export const NAV_MODULES: NavModule[] = [
       { id: "boq-docs-config", label: "جدول الكميات BOQ", icon: FileSpreadsheet, view: "settings", section: "boq-docs", adminOnly: true },
       { id: "visits-config", label: "إعدادات الزيارات", icon: CalendarDays, view: "settings", section: "visits", adminOnly: true },
       { id: "posting-rules", label: "قواعد الترحيل", icon: ListChecks, view: "settings", section: "posting-rules", adminOnly: true },
-      { id: "backup", label: "النسخ الاحتياطي", icon: FileSpreadsheet, view: "data-mgmt", section: "backup", adminOnly: true, flag: "full_backup" },
-      { id: "devtools", label: "أدوات المطور", icon: Wrench, view: "data-mgmt", section: "devtools", adminOnly: true },
+      // إعداد النسخ الاحتياطي الآلي — مرآة settings.py _tab_backup داخل الإعدادات (الجلسة 14)
+      { id: "backup", label: "النسخ الاحتياطي", icon: DatabaseBackup, view: "settings", section: "backup", adminOnly: true, flag: "full_backup" },
+      // شاشة إدارة البيانات — سجل التدقيق والنسخ والمحو بتاباتها الداخلية (حوكمة النظام)
+      { id: "data-mgmt", label: "إدارة البيانات", icon: ScrollText, view: "data-mgmt", section: "backup", adminOnly: true },
+      // أدوات المطور — التابات الخمسة الحرفية: المزايا/الهوية/الترحيل/الشبكة/التنظيف (للمطور حصرًا كالمكتبي is_developer — البابان معًا)
+      { id: "devtools", label: "أدوات المطور", icon: Wrench, view: "settings", section: "developer", adminOnly: true, developerOnly: true },
     ],
   },
 ];
 
 /** البند النشط الافتراضي لكل وحدة (أول بند مرئي) */
-export function firstChildId(module: NavModule, isAdmin: boolean, flagOn: (f: string) => boolean): string | undefined {
+export function firstChildId(
+  module: NavModule,
+  isAdmin: boolean,
+  flagOn: (f: string) => boolean,
+  isDeveloper = isAdmin
+): string | undefined {
   const visible = module.children.filter(
-    (c) => (!c.adminOnly || isAdmin) && (!c.flag || flagOn(c.flag))
+    (c) =>
+      (!c.adminOnly || isAdmin) &&
+      (!c.developerOnly || isDeveloper) &&
+      (!c.flag || flagOn(c.flag))
   );
   return visible[0]?.id;
 }

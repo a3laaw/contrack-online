@@ -127,6 +127,7 @@ function AppRoot() {
   // ===== وضع السندات وأقسام الإعدادات وإدارة البيانات والتقارير والاستشارات (هيكل التنقل المعتمد) =====
   const [vouchersMode, setVouchersMode] = React.useState<"receipt" | "payment">("receipt");
   const [settingsSection, setSettingsSection] = React.useState<string>("company");
+  // قسم إدارة البيانات — بند شل وحيد (الجلسة 14) يفتح شاشة الحوكمة بتاب «النسخ» الافتراضي
   const [dmSection, setDmSection] = React.useState<string>("backup");
   const [reportsKey, setReportsKey] = React.useState<string>(DEFAULT_REPORT_KEY);
   const [consultingSection, setConsultingSection] = React.useState<ConsultingSection>("team");
@@ -175,14 +176,13 @@ function AppRoot() {
         ? (NAV_MODULES.flatMap((m) => m.children).find((c) => c.view === "ref-lists" && c.section === refListsSection)?.id ??
           "ref-lists")
         : view === "data-mgmt"
-          ? dmSection === "devtools"
-            ? "devtools"
-            : "backup"
+          ? "data-mgmt"
           : view;
 
   const user = authQuery.data?.user ?? null;
   const perms = authQuery.data?.perms ?? null;
   const manager = isManagerRole(user?.role);
+  const isDeveloper = user?.role === "developer";
   // بند 5: مرآة has_permission المكتبي — الدور أولًا (المدير/المطور الكل دائمًا) ثم
   // الخريطة (الممنوع=false فقط يُرفض) والمفتاح المجهول/غير المحمّل لا يقيّد
   const permOn = React.useCallback((k: string) => permAllows(perms, k, manager), [perms, manager]);
@@ -191,7 +191,7 @@ function AppRoot() {
   // بند شل بلا صلاحية لا يُفتح ويظهر توست المكتبي الحرفي — والميزات لا تمنع الفتح (تخفي الزر فقط)
   const selectChild = React.useCallback(
     (child: NavChild) => {
-      if (!isChildVisible(child, { isAdmin: manager, flagOn: () => true, permOn })) {
+      if (!isChildVisible(child, { isAdmin: manager, isDeveloper, flagOn: () => true, permOn })) {
         toast({ title: NAVIGATE_DENIED_MSG });
         return;
       }
@@ -210,7 +210,7 @@ function AppRoot() {
       if (child.view !== "contract") setContractId(null);
       if (child.view !== "customer-file") setCustomerFileId(null);
     },
-    [manager, permOn, toast]
+    [manager, isDeveloper, permOn, toast]
   );
 
   // أي 401 في أي شاشة ⇒ إعادة فحص الجلسة ⇒ عرض شاشة الدخول

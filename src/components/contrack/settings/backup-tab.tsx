@@ -12,7 +12,6 @@ import { DatabaseBackup } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { SaveRow, type SettingsFormDTO } from "./shared";
 
@@ -102,9 +101,4 @@ export function BackupTab({ form, upd, onReset, onSave, savePending }: BackupTab
       </Card>
     </div>
   );
-}
-
-// Skeleton مستخدم للحفاظ على نمط التحميل في نقطة الدخول
-export function BackupTabSkeleton() {
-  return <Skeleton className="h-52 rounded-xl" />;
 }

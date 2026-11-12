@@ -10,17 +10,19 @@
  *   Task 105 — تاب «حسابات المصروفات» أُسقط مع دمج الشجرة في دليل الحسابات الموحد.
  *   الجلسة 12 — قرار المالك: تابا «أنواع العقود» و«مراحل المتابعة» حُذفا من الإعدادات
  *   — موضعُهما الوحيد وحدة «القوائم المرجعية» (RefListsView تضمّن المدرّين نفسهما).
+ *   الجلسة 14 — قرار المالك «احنا عندنا قواعد للقائمه الجانبيه»: شريط التبويبات
+ *   الأفقي حُذف من الشاشة — القائمة الجانبية (nav-structure) هي الملاحّ الوحيد،
+ *   وكل تاب له بند شل كاملة العدّ (الشركات للمطور · النسخ الآلي · أدوات المطور
+ *   · إدارة البيانات شاشة مستقلة). الأقسام تقودها حروف الشل (initialSection) فقط.
  *
  * كل الأسلاك القائمة محفوظة: /api/settings (بيانات الشركة والنسخ التلقائي)،
- * /api/payment-methods، تبويب المزايا الحي عبر /api/feature-flags، وحروف
- * الشل (initialSection) تقود التبويب النشط كما في السابق — مع ظهور شريط
- * التبويبات نفسه للتنقل المباشر بينها.
+ * /api/payment-methods، تبويب المزايا الحي عبر /api/feature-flags.
  */
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -37,7 +39,7 @@ import { PostingRulesTab } from "./settings/posting-rules-tab";
 import { BackupTab } from "./settings/backup-tab";
 import { DeveloperTab } from "./settings/developer-tab";
 import { type SettingsFormDTO } from "./settings/shared";
-import { resolveInitialSection, visibleSettingsTabs } from "./settings/tabs-catalog";
+import { resolveInitialSection } from "./settings/tabs-catalog";
 
 interface SettingsViewProps {
   user: User;
@@ -53,8 +55,7 @@ export function SettingsView({ user, onAuthError, initialSection }: SettingsView
   const manager = user.role === "admin" || user.role === "developer";
   const isDeveloper = user.role === "developer";
 
-  // القسم النشط — يقوده اختيار القائمة الجانبية، وشريط التبويبات يسمح
-  // بالتنقل المباشر بين التبويبات المرئية للدور (كترتيب المكتبي نفسه)
+  // القسم النشط — يقوده اختيار القائمة الجانبية حصرًا (الجلسة 14: بلا شريط تبويبات داخلي)
   const [tab, setTab] = React.useState(() => resolveInitialSection(initialSection, manager, isDeveloper));
   React.useEffect(() => {
     setTab(resolveInitialSection(initialSection, manager, isDeveloper));
@@ -96,7 +97,6 @@ export function SettingsView({ user, onAuthError, initialSection }: SettingsView
 
   const upd = (patch: Partial<SettingsFormDTO>) => setForm((f) => (f ? { ...f, ...patch } : f));
 
-  const tabs = visibleSettingsTabs(manager, isDeveloper);
   const formReady = manager && !settingsQuery.isLoading && !!form;
   const formError = manager && settingsQuery.isError;
 
@@ -108,15 +108,6 @@ export function SettingsView({ user, onAuthError, initialSection }: SettingsView
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="gap-4">
-        {/* شريط التبويبات الحرفي بترتيب المكتبي — والأقسام تقودها القائمة الجانبية أيضًا */}
-        <TabsList className="h-10 w-full justify-start overflow-x-auto sm:w-auto" aria-label="تبويبات الإعدادات">
-          {tabs.map((t) => (
-            <TabsTrigger key={t.value} value={t.value} className="whitespace-nowrap">
-              {t.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
         {/* ===== 0) الشركات — SaaS (Task 97: للمطور فقط — مدير الشركة يبقى داخل شركته) ===== */}
         {isDeveloper && (
           <TabsContent value="companies" className="space-y-4">
@@ -154,9 +145,10 @@ export function SettingsView({ user, onAuthError, initialSection }: SettingsView
           <AppearanceTab />
         </TabsContent>
 
-        {/* ===== 3) الأمان والمستخدمون / كلمة المرور ===== */}
+        {/* ===== 3) الأمان والمستخدمون / كلمة المرور — الجلسة 13: تغيير كلمة المرور الذاتي
+             عبر /api/auth/credentials (كان المسار يتيمًا بلا واجهة) ===== */}
         <TabsContent value="security" className="space-y-4">
-          <SecurityTab manager={manager} username={user.username} />
+          <SecurityTab manager={manager} username={user.username} onAuthError={onAuthError} />
         </TabsContent>
 
         {/* ===== 4) وثائق جدول الكميات BOQ (مدير) — انحراف ويب معتمد:

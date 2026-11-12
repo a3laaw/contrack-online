@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { audit, authGuard, jsonError, ok, parseDay, todayStr } from "@/lib/api-utils";
-import { HOUR_SLOT_RE, VISITS_CONFIG, buildHourSlots } from "@/lib/visits-server";
+import { HOUR_SLOT_RE, getVisitsConfig } from "@/lib/visits-server";
+import { hourSlots } from "@/lib/visit-slots";
 
 /** جدول الزيارات ليوم محدد — شبكة [ساعة][موظف] مع أسماء العملاء */
 export async function GET(req: NextRequest) {
@@ -21,7 +22,9 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  const hours = buildHourSlots();
+  // صفوف الشبكة من المصدر الموحد (uiPrefs لكل شركة — الافتراضي 8→17 بخطوة الحصة)
+  const cfg = await getVisitsConfig();
+  const hours = hourSlots(cfg);
   // الشبكة: cells[hourSlot][staffId] = بيانات الزيارة
   const cells: Record<string, Record<string, Record<string, unknown>>> = {};
   for (const h of hours) cells[h] = {};
@@ -42,7 +45,7 @@ export async function GET(req: NextRequest) {
 
   return ok({
     date,
-    config: { ...VISITS_CONFIG },
+    config: cfg,
     hours,
     cells,
     staff: staff.map((s) => ({
