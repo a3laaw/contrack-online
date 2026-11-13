@@ -36,13 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Dropdown } from "./dropdown";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -312,38 +306,49 @@ export function CustomerFilePage({
             <Button variant="outline" className="h-9 gap-1.5" onClick={openWhatsapp} disabled={!(customer.phone || "").trim()} title="إرسال ملخص الحساب واتساب">
               💬 واتساب
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-9 gap-1.5">
-                  <MoreHorizontal className="size-4" />
+            <Dropdown
+              align="end"
+              triggerLabel="المزيد من إجراءات العميل"
+              trigger={
+                <>
+                  <MoreHorizontal className="size-4" aria-hidden />
                   المزيد
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {/* قائمة «المزيد» — كالمصدر _customer_more_menu */}
-                <DropdownMenuItem onClick={() => switchPage("contracts")}>عقود العميل</DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    if (onOpenCommentsCenter) onOpenCommentsCenter();
-                  }}
-                  disabled={!onOpenCommentsCenter}
-                >
-                  مركز التعليقات
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => {
-                    switchPage("overview");
-                    // تمرير إلى بطاقة الملفات والمستندات
-                    requestAnimationFrame(() => {
-                      document.getElementById("customer-docs-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    });
-                  }}
-                >
-                  الملفات والمستندات
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                </>
+              }
+              triggerClassName="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors hover:bg-secondary"
+              minWidth={210}
+              groups={[
+                {
+                  key: "pages",
+                  items: [
+                    // قائمة «المزيد» — كالمصدر _customer_more_menu
+                    { key: "contracts", label: "عقود العميل", onSelect: () => switchPage("contracts") },
+                    {
+                      key: "comments",
+                      label: "مركز التعليقات",
+                      disabled: !onOpenCommentsCenter,
+                      onSelect: () => onOpenCommentsCenter?.(),
+                    },
+                  ],
+                },
+                {
+                  key: "docs",
+                  items: [
+                    {
+                      key: "docs-card",
+                      label: "الملفات والمستندات",
+                      onSelect: () => {
+                        switchPage("overview");
+                        // تمرير إلى بطاقة الملفات والمستندات
+                        requestAnimationFrame(() => {
+                          document.getElementById("customer-docs-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        });
+                      },
+                    },
+                  ],
+                },
+              ]}
+            />
           </div>
         </div>
       </div>
@@ -980,37 +985,43 @@ function CommentsPanel({
                       {row.pinned && <span className="ms-1.5 font-extrabold text-status-warn">مثبّت</span>}
                       {row.editedAt && <span className="ms-1.5 font-normal text-muted-foreground/80">عُدّل بواسطة {row.editor || "مدير"}</span>}
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="size-7 shrink-0" aria-label="إجراءات التعليق">
-                          <MoreHorizontal className="size-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          disabled={!manager}
-                          onClick={() => {
-                            setEditTarget(row);
-                            setEditBody(row.body);
-                          }}
-                        >
-                          {manager ? "تعديل التعليق" : "تعديل التعليق (مدير فقط)"}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          disabled={!manager}
-                          onClick={() =>
-                            mutateComment.mutate({ id: row.id, action: row.pinned ? "unpin" : "pin" }, { onSuccess: () => toast({ title: row.pinned ? "أُلغي التثبيت" : "تم التثبيت" }) })
-                          }
-                        >
-                          {row.pinned ? "إلغاء التثبيت" : "تثبيت في الأعلى"}
-                          {!manager ? " (مدير)" : ""}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem disabled={!canDelete} className="text-destructive focus:text-destructive" onClick={() => setDeleteTarget(row)}>
-                          حذف التعليق
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <Dropdown
+                      align="end"
+                      triggerLabel="إجراءات التعليق"
+                      trigger={<MoreHorizontal className="size-4" aria-hidden />}
+                      triggerClassName="flex size-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-secondary"
+                      minWidth={210}
+                      groups={[
+                        {
+                          key: "edit",
+                          items: [
+                            {
+                              key: "edit-comment",
+                              label: manager ? "تعديل التعليق" : "تعديل التعليق (مدير فقط)",
+                              disabled: !manager,
+                              onSelect: () => {
+                                setEditTarget(row);
+                                setEditBody(row.body);
+                              },
+                            },
+                            {
+                              key: "pin",
+                              label: `${row.pinned ? "إلغاء التثبيت" : "تثبيت في الأعلى"}${!manager ? " (مدير)" : ""}`,
+                              disabled: !manager,
+                              onSelect: () =>
+                                mutateComment.mutate(
+                                  { id: row.id, action: row.pinned ? "unpin" : "pin" },
+                                  { onSuccess: () => toast({ title: row.pinned ? "أُلغي التثبيت" : "تم التثبيت" }) }
+                                ),
+                            },
+                          ],
+                        },
+                        {
+                          key: "remove",
+                          items: [{ key: "delete", label: "حذف التعليق", danger: true, disabled: !canDelete, onSelect: () => setDeleteTarget(row) }],
+                        },
+                      ]}
+                    />
                   </div>
                   {contractLabel && <div className="text-[11px] font-bold text-primary-ink">{contractLabel}</div>}
                   <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-relaxed">{row.body}</p>

@@ -6,7 +6,6 @@ import {
   BarChart3,
   Download,
   FileSpreadsheet,
-  ListFilter,
   Loader2,
   ScrollText,
 } from "lucide-react";
@@ -20,9 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -40,7 +37,7 @@ import { ApiError, apiGet, getStoredToken } from "./api";
 import type { ReportCellValue, ReportResponse, User } from "./contrack-types";
 import { errMessage } from "./contrack-types";
 import { fetchBlobDownload } from "@/lib/download-blob";
-import { REPORTS, REPORT_CATEGORIES, reportCategory, visibleReports } from "./reports-list";
+import { REPORTS, reportCategory, visibleReports } from "./reports-list";
 import { useFeatureFlags } from "./FeatureFlagsProvider";
 import { formatKWD } from "@/lib/format";
 import { monthlyChartData } from "@/lib/cashflow-modes-core";
@@ -107,7 +104,7 @@ async function downloadCsv(report: string, params: Record<string, string>, title
   URL.revokeObjectURL(url);
 }
 
-export function ReportsView({ user: _user, onAuthError, selected, onSelect }: ReportsViewProps) {
+export function ReportsView({ user: _user, onAuthError, selected }: ReportsViewProps) {
   const { toast } = useToast();
   // المرحلة 3/ب: التقارير المرئية حسب مزاياها rep_* (المنسدلة والافتراضي — والقائمة الرسمية تخفي من nav)
   const { enabled: flagOn } = useFeatureFlags();
@@ -208,33 +205,7 @@ export function ReportsView({ user: _user, onAuthError, selected, onSelect }: Re
       </div>
 
       <div className="space-y-3">
-        {/* اختيار التقرير — أقل من lg (القائمة الجانبية الرسمية تظهر من lg وما فوق) */}
-        <div className="lg:hidden">
-          <Label className="mb-1.5 block text-xs text-muted-foreground">اختر التقرير</Label>
-          <Select value={selected} onValueChange={onSelect}>
-            <SelectTrigger className="h-10 w-full gap-2">
-              <ListFilter className="size-4 shrink-0 text-muted-foreground" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {/* Task 114: منسدلة الجوال مصنفة بمجموعات المركز نفسها (لا قائمة مسطحة) */}
-              {REPORT_CATEGORIES.map((cat) => {
-                const items = visReports.filter((r) => r.category === cat.id);
-                if (items.length === 0) return null;
-                return (
-                  <SelectGroup key={cat.id}>
-                    <SelectLabel>{cat.label}</SelectLabel>
-                    {items.map((r) => (
-                      <SelectItem key={r.key} value={r.key}>
-                        {r.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                );
-              })}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* الجلسة 15 — بلا مبدّل تقارير داخل الصفحة: الشريط العلوي (التقارير ▾ / منسدلة الوحدة في الموبايل) هو الملاحّ الوحيد */}
 
         {/* الفلاتر */}
           <Card>

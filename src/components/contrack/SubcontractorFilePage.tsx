@@ -24,14 +24,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Dropdown } from "./dropdown";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, apiGet } from "./api";
 import { errMessage, isManagerRole } from "./contrack-types";
@@ -237,37 +230,38 @@ export function SubcontractorFilePage({ subcontractorId, user, onAuthError, onCl
             ) : null}
           </div>
           <div className="ms-auto flex items-center gap-2">
-            {/* زر التصدير — لكل العقود أو العقد المختار (Excel + طباعة) */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button className="h-9 gap-1.5" disabled={blocks.length === 0} title="تصدير كل العقود أو العقد المختار">
-                  <FileSpreadsheet className="size-4" />
+            {/* زر التصدير — لكل العقود أو العقد المختار (Excel + طباعة) — منسدلة النظام الموحد (الجلسة 15) */}
+            <Dropdown
+              align="end"
+              triggerLabel="تصدير وطباعة كشف الباطن"
+              triggerTitle="تصدير كل العقود أو العقد المختار"
+              minWidth={230}
+              disabled={blocks.length === 0}
+              trigger={
+                <>
+                  <FileSpreadsheet className="size-4" aria-hidden />
                   تصدير / طباعة
-                  <MoreVertical className="size-3 opacity-60" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Excel</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => downloadCsv("all")}>
-                  <FileSpreadsheet className="size-4" />
-                  تصدير كل العقود ({blocks.length})
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => downloadCsv("one")} disabled={!sel}>
-                  <FileSpreadsheet className="size-4" />
-                  تصدير العقد المختار{sel ? ` — ${sel.contractNumber}` : ""}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>🖨 طباعة</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => printScope("all")}>
-                  <Printer className="size-4" />
-                  طباعة كل العقود
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => printScope("one")} disabled={!sel}>
-                  <Printer className="size-4" />
-                  طباعة العقد المختار{sel ? ` — ${sel.contractNumber}` : ""}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <MoreVertical className="size-3 opacity-60" aria-hidden />
+                </>
+              }
+              triggerClassName="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
+              groups={[
+                {
+                  key: "excel",
+                  items: [
+                    { key: "csv-all", label: `تصدير كل العقود (${blocks.length})`, icon: FileSpreadsheet, onSelect: () => downloadCsv("all") },
+                    { key: "csv-one", label: `تصدير العقد المختار${sel ? ` — ${sel.contractNumber}` : ""}`, icon: FileSpreadsheet, disabled: !sel, onSelect: () => downloadCsv("one") },
+                  ],
+                },
+                {
+                  key: "print",
+                  items: [
+                    { key: "print-all", label: "طباعة كل العقود", icon: Printer, onSelect: () => printScope("all") },
+                    { key: "print-one", label: `طباعة العقد المختار${sel ? ` — ${sel.contractNumber}` : ""}`, icon: Printer, disabled: !sel, onSelect: () => printScope("one") },
+                  ],
+                },
+              ]}
+            />
           </div>
         </div>
       </div>

@@ -60,13 +60,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Dropdown } from "./dropdown";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -771,44 +765,45 @@ export function ContractDetailView({
             >
               ◉ ملف العميل
             </Button>
-            {/* ☰ إجراءات العقد — المرجع: contract_hub.py:248–282 */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" className="h-9 gap-1.5" title="إظهار إجراءات العقد عند الحاجة">
-                  <Menu className="size-4" />
+            {/* ☰ إجراءات العقد — المرجع: contract_hub.py:248–282 — منسدلة النظام الموحد (الجلسة 15) */}
+            <Dropdown
+              align="end"
+              triggerLabel="إجراءات العقد"
+              triggerTitle="إظهار إجراءات العقد عند الحاجة"
+              minWidth={224}
+              trigger={
+                <>
+                  <Menu className="size-4" aria-hidden />
                   ☰ إجراءات العقد
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem className="gap-2" onClick={() => setFlowPage("edit")}>
-                  <Pencil className="size-4" />
-                  ✎ تعديل البيانات
-                </DropdownMenuItem>
-                {manager && (
-                  <DropdownMenuItem className="gap-2" onClick={openStatus}>
-                    <ArrowLeftRight className="size-4" />
-                    ⇄ تغيير الحالة
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem
-                  className="gap-2"
-                  disabled={!onOpenStatement}
-                  onClick={() => onOpenStatement?.({ kind: "contract", id: contractId })}
-                >
-                  <FileText className="size-4" />
-                  ▦ كشف حساب
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="gap-2" onClick={() => setWaiveOpen(true)}>
-                  <BadgeCheck className="size-4" />
-                  ✖ إلغاء أشهر تمديد
-                </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2" onClick={() => setFlowPage("settle")}>
-                  <CheckCircle2 className="size-4" />
-                  ✔ تصفية وإغلاق
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                </>
+              }
+              triggerClassName="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              groups={[
+                {
+                  key: "basic",
+                  items: [
+                    { key: "edit", label: "✎ تعديل البيانات", icon: Pencil, onSelect: () => setFlowPage("edit") },
+                    ...(manager
+                      ? [{ key: "status", label: "⇄ تغيير الحالة", icon: ArrowLeftRight, onSelect: openStatus }]
+                      : []),
+                    {
+                      key: "statement",
+                      label: "▦ كشف حساب",
+                      icon: FileText,
+                      disabled: !onOpenStatement,
+                      onSelect: () => onOpenStatement?.({ kind: "contract", id: contractId }),
+                    },
+                  ],
+                },
+                {
+                  key: "close",
+                  items: [
+                    { key: "waive", label: "✖ إلغاء أشهر تمديد", icon: BadgeCheck, onSelect: () => setWaiveOpen(true) },
+                    { key: "settle", label: "✔ تصفية وإغلاق", icon: CheckCircle2, onSelect: () => setFlowPage("settle") },
+                  ],
+                },
+              ]}
+            />
           </div>
         </div>
 

@@ -35,12 +35,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Dropdown } from "./dropdown";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, apiPatch, apiPost } from "./api";
@@ -314,29 +309,31 @@ export function DashboardView({
                     {data.alertsHidden > 0 ? `أُخفي ${data.alertsHidden} تنبيهًا أقدم من 30 يومًا — تفاصيلها في التقارير` : ""}
                   </span>
                 )}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="size-8" aria-label="خيارات التنبيهات">
-                      <MoreHorizontal className="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64">
-                    <DropdownMenuItem
-                      disabled={alerts.length === 0 || dismissMutation.isPending}
-                      onSelect={() => setDismissOpen(true)}
-                    >
-                      🙈 إخفاء كل التنبيهات النظامية
-                    </DropdownMenuItem>
-                    {data.dismissedCount > 0 && (
-                      <DropdownMenuItem
-                        disabled={restoreMutation.isPending}
-                        onSelect={() => restoreMutation.mutate()}
-                      >
-                        ↩ إظهار التنبيهات المخفية
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Dropdown
+                  align="end"
+                  triggerLabel="خيارات التنبيهات"
+                  trigger={<MoreHorizontal className="size-4" aria-hidden />}
+                  triggerClassName="flex size-8 items-center justify-center rounded-md transition-colors hover:bg-secondary"
+                  minWidth={220}
+                  items={[
+                    {
+                      key: "dismiss-all",
+                      label: "🙈 إخفاء كل التنبيهات النظامية",
+                      disabled: alerts.length === 0 || dismissMutation.isPending,
+                      onSelect: () => setDismissOpen(true),
+                    },
+                    ...(data.dismissedCount > 0
+                      ? [
+                          {
+                            key: "restore",
+                            label: "↩ إظهار التنبيهات المخفية",
+                            disabled: restoreMutation.isPending,
+                            onSelect: () => restoreMutation.mutate(),
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
               </div>
             </div>
 

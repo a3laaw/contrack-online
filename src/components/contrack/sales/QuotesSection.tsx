@@ -21,14 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Dropdown } from "../dropdown";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -355,32 +348,23 @@ export function QuotesSection({ user, onAuthError, onOpenPos }: QuotesSectionPro
                   <TableCell className="text-sm">{row.customerName}</TableCell>
                   <TableCell className="text-sm">{row.projectName || "—"}</TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80 ${quotationStatusBadgeClass(row.status)}`}
-                          aria-label={`تغيير حالة ${row.quotationNumber}`}
-                        >
+                    <Dropdown
+                      align="start"
+                      triggerLabel={`تغيير حالة ${row.quotationNumber}`}
+                      minWidth={170}
+                      trigger={
+                        <>
                           {row.status || "—"}
-                          <ChevronDown className="size-3" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start">
-                        <DropdownMenuLabel className="text-xs text-muted-foreground">تغيير الحالة</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        {QUOTATION_STATUSES.filter((s) => s !== row.status).map((s) => (
-                          <DropdownMenuItem
-                            key={s}
-                            onClick={() => transitionMutation.mutate({ id: row.id, status: s })}
-                          >
-                            <span className={`inline-flex rounded-md px-2 py-0.5 text-xs ${quotationStatusBadgeClass(s)}`}>
-                              {s}
-                            </span>
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          <ChevronDown className="size-3" aria-hidden />
+                        </>
+                      }
+                      triggerClassName={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80 ${quotationStatusBadgeClass(row.status)}`}
+                      items={QUOTATION_STATUSES.filter((s) => s !== row.status).map((s) => ({
+                        key: s,
+                        label: s,
+                        onSelect: () => transitionMutation.mutate({ id: row.id, status: s }),
+                      }))}
+                    />
                   </TableCell>
                   <TableCell className="text-center text-sm tabular-nums" dir="ltr">
                     {formatKWD(row.totalAmount)}

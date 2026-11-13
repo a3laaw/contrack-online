@@ -64,12 +64,6 @@ interface ProjectsViewProps {
   onOpenContract: (id: number) => void;
 }
 
-const SECTION_TABS: { key: ProjectsSection; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { key: "hub", label: "لوحة المشاريع", icon: ClipboardList },
-  { key: "daily", label: "التقرير اليومي", icon: NotebookPen },
-  { key: "takeoff", label: "تنفيذ البنود", icon: Activity },
-];
-
 export function ProjectsView({ user, onAuthError, section, onSectionChange, onOpenContract }: ProjectsViewProps) {
   void user;
   const qc = useQueryClient();
@@ -117,7 +111,7 @@ export function ProjectsView({ user, onAuthError, section, onSectionChange, onOp
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6 print:hidden">
-        {/* الترويسة + مبدّل الأقسام */}
+        {/* الترويسة — الجلسة 15: بلا مبدّل أقسام داخل الصفحة؛ الشريط العلوي هو ملاحّ الأقسام الوحيد */}
         <header className="mb-4 flex flex-col gap-3 sm:mb-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -126,25 +120,6 @@ export function ProjectsView({ user, onAuthError, section, onSectionChange, onOp
                 مركز عمليات الموقع — اللوحة والتقرير اليومي وتنفيذ البنود في مكان واحد
               </p>
             </div>
-            <nav aria-label="أقسام المشاريع" className="flex flex-wrap gap-1.5">
-              {SECTION_TABS.map((t) => {
-                const Icon = t.icon;
-                const active = section === t.key;
-                return (
-                  <Button
-                    key={t.key}
-                    variant={active ? "default" : "outline"}
-                    size="sm"
-                    className="h-11 gap-1.5 px-3 sm:h-9"
-                    aria-current={active ? "page" : undefined}
-                    onClick={() => onSectionChange(t.key)}
-                  >
-                    <Icon className="size-4" />
-                    {t.label}
-                  </Button>
-                );
-              })}
-            </nav>
           </div>
         </header>
 
