@@ -14,6 +14,7 @@ import {
   NAV_MODULES,
   findNavChild,
   topSectionIdForChild,
+  topSectionItemGroups,
   topSectionsFor,
 } from "@/components/contrack/nav-structure";
 import { REPORTS } from "@/components/contrack/reports-list";
@@ -153,6 +154,20 @@ describe("الأسماء — أسماء الأقسام تُختصر وأسماء
     expect(sections.length).toBe(2);
     const all = sections.find((s) => s.section.id === "t-rep-all")!;
     expect(all.children.map((c) => c.id)).toEqual(REPORTS.map((r) => `report-${r.key}`));
+  });
+
+  test("فواصل التصنيفات: قائمة التقارير تنقسم مجموعات متتالية بلا ترويسات (الجلسة 15)", () => {
+    const reports = moduleById("reports");
+    const all = topSectionsFor(reports, ALL_VISIBLE).find((s) => s.section.id === "t-rep-all")!;
+    const groups = topSectionItemGroups(all.children);
+    // تصنيفات المركز: العملاء والتحصيل ← العقود ← الخزينة ← المحاسبة — وأي تقرير بلا تصنيف مجموعة صامتة
+    expect(groups.length).toBeGreaterThanOrEqual(2);
+    // كل بنود القسم موزعة على المجموعات بلا فقد ولا تكرار
+    expect(groups.flatMap((g) => g.map((c) => c.id))).toEqual(all.children.map((c) => c.id));
+    // وحدة بلا groupLabel = مجموعة واحدة (لا فواصل زائفة)
+    const accounting = moduleById("accounting");
+    const vouchers = topSectionsFor(accounting, ALL_VISIBLE).find((s) => s.section.id === "t-acc-vouchers")!;
+    expect(topSectionItemGroups(vouchers.children).length).toBe(1);
   });
 });
 

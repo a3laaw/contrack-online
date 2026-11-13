@@ -16,8 +16,9 @@ import type { DropdownGroupDef } from "./dropdown";
 import {
   NAV_MODULES,
   findNavChild,
-  topSectionsFor,
   topSectionIdForChild,
+  topSectionItemGroups,
+  topSectionsFor,
   type ModuleId,
   type NavChild,
   type NavModule,
@@ -209,7 +210,10 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
                   ? "font-semibold text-foreground"
                   : "text-muted-foreground hover:bg-secondary hover:text-foreground"
             )}
-            items={s.children.map((c) => ({ key: c.id, label: c.label, onSelect: () => pick(c) }))}
+            groups={topSectionItemGroups(s.children).map((kids, gi) => ({
+              key: `${s.section.id}-${gi}`,
+              items: kids.map((c) => ({ key: c.id, label: c.label, onSelect: () => pick(c) })),
+            }))}
           />
         );
       })}

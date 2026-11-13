@@ -478,3 +478,19 @@ export function topSectionsFor(module: NavModule, visibleIds: Set<string>): TopS
 export function topSectionIdForChild(module: NavModule, childId: string): string | undefined {
   return (module.top ?? defaultTopSections(module)).find((s) => s.children.includes(childId))?.id;
 }
+
+/**
+ * تقسيم بنود قسم واحد إلى مجموعات متتالية وفق ترويسات groupLabel المتسلسلة (التقارير — Task 114):
+ * قوائم الشريط بلا ترويسات مجموعات (قرار المواصفة) — ترويسة التصنيف تظهر **فاصلًا** بين المجموعات فقط.
+ * البنود بلا groupLabel تصير مجموعة واحدة فلا فواصل (سلوك باقي الوحدات).
+ */
+export function topSectionItemGroups(children: NavChild[]): NavChild[][] {
+  const groups: NavChild[][] = [];
+  for (const c of children) {
+    const last = groups[groups.length - 1];
+    const prev = last?.[last.length - 1];
+    if (last && prev?.groupLabel === c.groupLabel) last.push(c);
+    else groups.push([c]);
+  }
+  return groups;
+}
