@@ -123,11 +123,26 @@ export interface NavChild {
   groupLabel?: string;
 }
 
+/**
+ * قسم علوي في الشريط (التحول الطرازي العلوي — الجلسة 15، قرار المالك «كله علوي»):
+ *   بند واحد ⇒ رابط مباشر بلا ▾ · أكثر من بند ⇒ قائمة منسدلة (بلا ترويسات مجموعات).
+ *   label اختياري لاختصار عنوان القسم — أسماء البنود داخل القائمة تبقى حرفية.
+ *   children يجب أن تغطي بنود الوحدة مرة واحدة بالضبط (حارس اختباري — tests/nav-top-structure.test.ts).
+ *   الوحدة بلا top = كل بنودها أقسامًا مباشرة بالترتيب.
+ */
+export interface NavTopSection {
+  id: string;
+  label?: string;
+  children: string[];
+}
+
 export interface NavModule {
   id: ModuleId;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   children: NavChild[];
+  /** أقسام الشريط العلوي — غيابها = كل البنود روابط مباشرة */
+  top?: NavTopSection[];
 }
 
 /**
@@ -163,6 +178,14 @@ export const NAV_MODULES: NavModule[] = [
       { id: "visits", label: "جدول الزيارات", icon: CalendarDays, view: "visits", flag: "visits", perm: "screen_visits" },
       { id: "comments", label: "التعليقات", icon: MessageSquareText, view: "comments", flag: "comments", perm: "screen_customers" },
       { id: "followup", label: "المتابعة", icon: ClipboardList, view: "followup", flag: "followup", perm: "screen_followup" },
+    ],
+    // الجلسة 15 — أقسام الشريط العلوي (10 بنود ← 5 أقسام): «المهام المستحقة» أول بند في قائمة المهام
+    top: [
+      { id: "t-clients-home", children: ["dashboard"] },
+      { id: "t-clients-customers", label: "العملاء والعقود", children: ["customers", "contracts", "contract-groups"] },
+      { id: "t-clients-forms", children: ["forms"] },
+      { id: "t-clients-tasks", label: "المهام والزيارات", children: ["due", "tasks", "visits"] },
+      { id: "t-clients-followup", label: "المتابعة والتعليقات", children: ["comments", "followup"] },
     ],
   },
   {
@@ -200,6 +223,15 @@ export const NAV_MODULES: NavModule[] = [
       { id: "consulting-leaves", label: "الإجازات", icon: CalendarDays, view: "consulting", section: "leaves", perm: "screen_consulting" },
       { id: "consulting-radar", label: "رادار المواعيد", icon: Radar, view: "consulting", section: "radar", perm: "screen_consulting" },
     ],
+    // الجلسة 15 — أقسام مباشرة بعناوين مختصرة (6 بنود ← 6 أقسام) لتثبيت عرض الشريط
+    top: [
+      { id: "t-con-team", children: ["consulting-team"] },
+      { id: "t-con-assign", label: "الإسناد", children: ["consulting-assignments"] },
+      { id: "t-con-timesheets", children: ["consulting-timesheets"] },
+      { id: "t-con-revisions", label: "المراجعات", children: ["consulting-revisions"] },
+      { id: "t-con-leaves", children: ["consulting-leaves"] },
+      { id: "t-con-radar", children: ["consulting-radar"] },
+    ],
   },
   {
     // الموارد البشرية (HR-1) — موديول مستقل: الموظف الموحد (توسعة كيان السلف القائم) + الحضور اليدوي
@@ -218,6 +250,15 @@ export const NAV_MODULES: NavModule[] = [
       // HR-3 — الأطقم والتكليفات وتوزيع تكلفة العمالة على العقود
       { id: "hr-labor", label: "الأطقم والتكليفات", icon: Network, view: "hr", section: "labor", perm: "screen_hr" },
       { id: "hr-reports", label: "التقارير", icon: ClipboardList, view: "hr", section: "reports", perm: "screen_hr" },
+    ],
+    // الجلسة 15 — 9 بنود ← 6 أقسام
+    top: [
+      { id: "t-hr-team", children: ["hr-team"] },
+      { id: "t-hr-att", label: "الحضور والإجازات", children: ["hr-attendance", "hr-leaves", "hr-permissions"] },
+      { id: "t-hr-payroll", label: "الرواتب", children: ["hr-payroll"] },
+      { id: "t-hr-advances", label: "السلف", children: ["hr-advances"] },
+      { id: "t-hr-eos", children: ["hr-eos"] },
+      { id: "t-hr-labor", label: "الأطقم والتقارير", children: ["hr-labor", "hr-reports"] },
     ],
   },
   {
@@ -286,6 +327,15 @@ export const NAV_MODULES: NavModule[] = [
       { id: "claims", label: "المطالبات المالية", icon: ReceiptText, view: "claims", perm: "screen_claims" },
       { id: "invoices", label: "الفواتير", icon: FileStack, view: "invoices", flag: "invoices", perm: "screen_invoices" },
     ],
+    // الجلسة 15 — 16 بندًا ← 6 أقسام (أسوأ حالة أثقل وحدة — تبقى الشريط ثابت العرض)
+    top: [
+      { id: "t-acc-coa", children: ["chart-of-accounts"] },
+      { id: "t-acc-journal", label: "القيود", children: ["journal-entries"] },
+      { id: "t-acc-vouchers", label: "السندات", children: ["vouchers-receipt", "vouchers-payment"] },
+      { id: "t-acc-ledger", label: "الأستاذ والقوائم", children: ["ledger", "financial-statements", "bank-recon", "zakat-xbrl", "fiscal-close"] },
+      { id: "t-acc-custody", label: "العُهد والكشوف", children: ["statement", "custody", "advances", "claims"] },
+      { id: "t-acc-billing", label: "الفوترة والبوابة", children: ["invoices", "gateway", "other-company"] },
+    ],
   },
   {
     id: "reports",
@@ -306,6 +356,11 @@ export const NAV_MODULES: NavModule[] = [
         // Task 114: ترويسة التصنيف في القائمة الجانبية (العملاء والتحصيل/العقود/الخزينة/المحاسبة)
         groupLabel: reportCategory(r.category).label,
       })),
+    ],
+    // الجلسة 15 — نظرة عامة مباشرة + قائمة واحدة للتقارير الـ11 بفواصل تصنيفاتها (Task 114)
+    top: [
+      { id: "t-rep-home", children: ["reports-home"] },
+      { id: "t-rep-all", label: "التقارير", children: REPORTS.map((r) => `report-${r.key}`) },
     ],
   },
   {
@@ -352,6 +407,16 @@ export const NAV_MODULES: NavModule[] = [
       // أدوات المطور — التابات الخمسة الحرفية: المزايا/الهوية/الترحيل/الشبكة/التنظيف (للمطور حصرًا كالمكتبي is_developer — البابان معًا)
       { id: "devtools", label: "أدوات المطور", icon: Wrench, view: "settings", section: "developer", adminOnly: true, developerOnly: true },
     ],
+    // الجلسة 15 — 11 بندًا ← 6 أقسام للمدير (7 للمطور: قسم «أدوات المطور» يجفّ عن غيره فيختفي)
+    top: [
+      { id: "t-set-company", children: ["settings-company"] },
+      { id: "t-set-print-sec", label: "الطباعة والأمان", children: ["settings-printing", "settings-security"] },
+      { id: "t-set-users", label: "المستخدمون", children: ["users"] },
+      { id: "t-set-boq", label: "جدول الكميات BOQ", children: ["boq-docs-config"] },
+      { id: "t-set-rules", label: "الزيارات والترحيل", children: ["visits-config", "posting-rules"] },
+      { id: "t-set-backup", label: "النسخ والبيانات", children: ["backup", "data-mgmt"] },
+      { id: "t-set-dev", label: "أدوات المطور", children: ["settings-companies", "devtools"] },
+    ],
   },
 ];
 
@@ -378,4 +443,38 @@ export function findNavChild(activeId: string): { module: NavModule; child: NavC
     if (child) return { module: m, child };
   }
   return null;
+}
+
+// ===== أقسام الشريط العلوي (الجلسة 15 — طراز Odoo) — منطق نقي قابل للاختبار =====
+
+/** قسم الشريط بعد الفلترة: البنود المرئية فقط بترتيب القسم */
+export interface TopSectionView {
+  section: NavTopSection;
+  children: NavChild[];
+}
+
+function defaultTopSections(module: NavModule): NavTopSection[] {
+  return module.children.map((c) => ({ id: `t-${c.id}`, children: [c.id] }));
+}
+
+/**
+ * أقسام الشريط العلوي لوحدة — مفلترة بالبنود المرئية (visibleIds):
+ * القسم الذي جفّت كل بنوده يختفي كليًا، والقسم المباشر (بند واحد) يصير رابطًا.
+ */
+export function topSectionsFor(module: NavModule, visibleIds: Set<string>): TopSectionView[] {
+  const byId = new Map(module.children.map((c) => [c.id, c] as const));
+  const out: TopSectionView[] = [];
+  for (const section of module.top ?? defaultTopSections(module)) {
+    const kids = section.children
+      .map((id) => byId.get(id))
+      .filter((c): c is NavChild => !!c && visibleIds.has(c.id));
+    if (kids.length === 0) continue;
+    out.push({ section, children: kids });
+  }
+  return out;
+}
+
+/** معرّف قسم الشريط العلوي الحاوي للبند النشط — لتمييز القسم النشط في الشريط */
+export function topSectionIdForChild(module: NavModule, childId: string): string | undefined {
+  return (module.top ?? defaultTopSections(module)).find((s) => s.children.includes(childId))?.id;
 }

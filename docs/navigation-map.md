@@ -13,13 +13,13 @@
 | لا يوجد URL Router | — | التنقل **حالة داخلية**: `view` + أوضاع (mode/section/report) داخل `ConTrackApp` — «المسار» = `activeNav` (معرّف بند الشل) مشتق من الحالة |
 | جذر التطبيق | `ConTrackApp.tsx` | `selectChild` (حرس `_navigate` المكتبي) + `navigate` (حرس الفتح الجانبي) + اشتقاق `activeNav` من view/section |
 | الهيكل | `AppShell.tsx` | شريط علوي 56px (شعار + تابات الوحدات ≥md) + **قائمة جانبية ≥lg قابلة للطي** + **درج Sheet <lg** + **تابات مرآة <lg** + شريط تمييز المطور + تذييل |
-| مصدر الحقيقة | `nav-structure.ts` | `NAV_MODULES` — 12 وحدة × **80 بندًا** (id/label/view/mode/section/report/adminOnly/developerOnly/flag/perm/groupLabel) |
+| مصدر الحقيقة | `nav-structure.ts` | `NAV_MODULES` — 12 وحدة × **79 بندًا** (id/label/view/mode/section/report/adminOnly/developerOnly/flag/perm/groupLabel) |
 | باب الصلاحيات | `nav-perms.ts` | `isChildVisible/visibleChildren` (فلتر الشل) + `canOpenView/VIEW_PERMS` (حرس الفتح) — مرآة `has_permission` المكتبي |
 | فلتر الأنشطة | `src/lib/modules-catalog.ts` | `navModulesFor(user.modules)` — تبويبات الشل تُحصر بأنشطة الشركة |
 | المزايا | `FeatureFlagsProvider.tsx` | `flagOn(f)` — إخفاء البنود بمفتاح الميزة |
 | كتالوج الإعدادات | `settings/tabs-catalog.ts` | قيم الأقسام (section) وترتيبها المكتبي — **يبقى** مصدرًا للقيم، لا للعرض |
 
-## 2. جرد الشاشات الكامل — 80 بند شل (الوحدة ← البند ← الشاشة)
+## 2. جرد الشاشات الكامل — 79 بند شل (الوحدة ← البند ← الشاشة)
 
 الأبواب: 🛡=adminOnly · ⚙=developerOnly · 🚩=flag · 🔑=perm
 
@@ -39,7 +39,7 @@
 
 **الصيانة والتشغيل (maintenance) — 3**: عقود الصيانة · الجدول الوقائي · أوامر العمل (🔑screen_maintenance)
 
-**المحاسبة (accounting) — 17**: دليل الحسابات 🔑screen_chart_of_accounts · القيود اليومية 🔑screen_journal_entries · دفتر الأستاذ والميزان 🔑screen_ledger · القوائم المالية 🔑screen_financial_statements · التسوية البنكية 🔑screen_bank_recon · الزكاة والتقديم 🔑screen_zakat_xbrl · الفترات والإقفال 🔑screen_fiscal_close · سندات القبض 🔑screen_receipts · سندات الصرف 🔑screen_payments · كشف الحساب 🚩statement🔑screen_statement · العُهد 🚩custody🔑screen_custody · سلف الموظفين 🚩custody🔑screen_custody · بوابة الدفع 🚩payment_gateway🔑screen_gateway · الشركة الأخرى 🔑screen_other_company · المطالبات المالية 🔑screen_claims · الفواتير 🚩invoices🔑screen_invoices
+**المحاسبة (accounting) — 16**: دليل الحسابات 🔑screen_chart_of_accounts · القيود اليومية 🔑screen_journal_entries · دفتر الأستاذ والميزان 🔑screen_ledger · القوائم المالية 🔑screen_financial_statements · التسوية البنكية 🔑screen_bank_recon · الزكاة والتقديم 🔑screen_zakat_xbrl · الفترات والإقفال 🔑screen_fiscal_close · سندات القبض 🔑screen_receipts · سندات الصرف 🔑screen_payments · كشف الحساب 🚩statement🔑screen_statement · العُهد 🚩custody🔑screen_custody · سلف الموظفين 🚩custody🔑screen_custody · بوابة الدفع 🚩payment_gateway🔑screen_gateway · الشركة الأخرى 🔑screen_other_company · المطالبات المالية 🔑screen_claims · الفواتير 🚩invoices🔑screen_invoices
 
 **التقارير (reports) — 12**: نظرة عامة 🔑screen_reports + 11 تقريرًا (باب مستقل report_* لكل تقرير + مفاتيح مزايا rep_*)
 
@@ -83,7 +83,7 @@
 | المخازن | الأصناف والمستودعات · أذون المخازن · الأرصدة والتقارير |
 | المبيعات | عروض الأسعار · نقاط البيع |
 | الصيانة والتشغيل | عقود الصيانة · الجدول الوقائي · أوامر العمل |
-| المحاسبة | دليل الحسابات · القيود ▾(القيود اليومية) · السندات ▾(قبض/صرف) · الأستاذ والقوائم ▾(الأستاذ/القوائم/التسوية/الزكاة) · العُهد والكشوف ▾(كشف الحساب/العُهد/السلف/المطالبات) · الفوترة والبوابة ▾(الفواتير/البوابة/الشركة الأخرى) |
+| المحاسبة | دليل الحسابات · القيود ▾(القيود اليومية) · السندات ▾(قبض/صرف) · الأستاذ والقوائم ▾(الأستاذ/القوائم/التسوية/الزكاة/الفترات والإقفال) · العُهد والكشوف ▾(كشف الحساب/العُهد/السلف/المطالبات) · الفوترة والبوابة ▾(الفواتير/البوابة/الشركة الأخرى) |
 | التقارير | نظرة عامة · التقارير ▾(الـ11 بفواصل تصنيفاتها) |
 | القوائم المرجعية | القوائم العامة · أنواع العقود · مراحل العمل |
 | الإعدادات | بيانات الشركة · الطباعة والأمان ▾ · المستخدمون ▾(المستخدمون والصلاحيات) · جدول الكميات BOQ · الزيارات والترحيل ▾ · النسخ والبيانات ▾(النسخ/إدارة البيانات) · أدوات المطور ▾(الشركات/الأدوات — ⚙ يختفي عن غير المطور) |
@@ -114,7 +114,7 @@
 
 ## 6. ضمانات قبل/بعد
 
-1. كل بند من الـ80 يبقى مفتوحًا بنفس `view/section/mode/report` وبنفس الأبواب — الجدول أعلاه هو المرجع،
+1. كل بند من الـ79 يبقى مفتوحًا بنفس `view/section/mode/report` وبنفس الأبواب — الجدول أعلاه هو المرجع،
    والمسارات الجانبية (بحث/إشعارات/روابط داخلية) تُفتح بحرس `canOpenView` نفسه بلا تغيير.
 2. لا حذف شاشة ولا تغيير URL/حالة ولا تعديل صلاحية — التغيير **عرضي** (AppShell + مكوّن القائمة) حصرًا.
 3. حارس آلي: اختبار يفشل إذا لم تُغطَّ بنود كل وحدة بأقسامها مرة واحدة بالضبط، أو تجاوزت الأقسام

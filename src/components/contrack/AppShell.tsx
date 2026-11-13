@@ -1,24 +1,33 @@
 "use client";
 
 import * as React from "react";
-import { ChevronLeft, FileSignature, LogOut, Menu, PanelRightClose, PanelRightOpen, Search, ShieldCheck, X } from "lucide-react";
+import { ChevronDown, Grip, LogOut, Search, ShieldCheck, UserRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import type { User } from "./contrack-types";
 import { ROLE_LABEL, isManagerRole } from "./contrack-types";
 import { useFeatureFlags } from "./FeatureFlagsProvider";
 import { NotificationBell } from "./NotificationBell";
 import { CompanySwitcher } from "./CompanySwitcher";
-import { NAV_MODULES, findNavChild, type NavChild, type ModuleId } from "./nav-structure";
+import { Dropdown } from "./dropdown";
+import type { DropdownGroupDef } from "./dropdown";
+import {
+  NAV_MODULES,
+  findNavChild,
+  topSectionsFor,
+  topSectionIdForChild,
+  type ModuleId,
+  type NavChild,
+  type NavModule,
+} from "./nav-structure";
 import { permAllows, visibleChildren } from "./nav-perms";
 import { navModulesFor } from "@/lib/modules-catalog";
 
 interface AppShellProps {
   user: User;
-  /** معرّف البند النشط (child.id) — يحدد الوحدة والبند المُبرز */
+  /** معرّف البند النشط (child.id) — يحدد الوحدة والقسم المُبرز */
   activeNav: string;
   onSelectChild: (child: NavChild) => void;
   onLogout: () => void;
@@ -34,10 +43,19 @@ interface AppShellProps {
   children?: React.ReactNode;
 }
 
+interface ModuleWithChildren {
+  module: NavModule;
+  children: NavChild[];
+}
+
 /**
- * الهيكل المعتمد (المرحلة 3): شريط علوي للوحدات الأربع + قائمة جانبية داخل كل وحدة
- * قابلة للطي إلى أيقونات + درج منزلق على الشاشات الصغيرة. بلا شريط سفلي.
- * بند 5 (المرحلة 2/ب): الفلترة بالصلاحيات visibleChildren نُقلت إلى nav-perms.ts النقي.
+ * الهيكل المعتمد (الجلسة 15 — التحول الطرازي العلوي «كله علوي» بطراز Odoo، قرار المالك):
+ *   شريط علوي 48px أبيض بحد سفلي رفيع بلا أي قائمة جانبية في كل النظام —
+ *   RTL: زر التطبيقات ⊞ (طبقة أيقونات الوحدات) ← اسم الوحدة ← أقسامها الظاهرة (≤6؛
+ *   بند واحد رابط مباشر وأكثر قائمة منسدلة موحدة) ← أقصى اليسار: البحث والإشعارات والحساب.
+ *   شريط تمييز المطور يبقى فوق الشريط أرقّ وأثبت. الموبايل <900px: منسدلة واحدة باسم الوحدة.
+ *   مصدر الأقسام config واحد (nav-structure.ts top) — يُمنع تعريف قوائم داخل الصفحات.
+ *   بند 5 (المرحلة 2/ب): الفلترة بالصلاحيات visibleChildren نُقلت إلى nav-perms.ts النقي.
  */
 export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearch, perms, onOpenTransaction, onOpenDevConsole, onReturnToDevConsole, children }: AppShellProps) {
   const manager = isManagerRole(user.role);
@@ -50,23 +68,12 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
     user.role === "developer" && (user.companyId ?? 0) > 0 && !inDevConsole;
   const { enabled: featureEnabled } = useFeatureFlags();
   const flagOn = React.useCallback((f: string) => featureEnabled(f), [featureEnabled]);
-  // بند 5 (المرحلة 2/ب): إخفاء البنود حسب الصلاحيات — مرآة has_permission المكتبي:
-  // الدور أولًا (المدير والمطور يريان كل شيء دائمًا) ثم الخريطة (الممنوع=false فقط يُخفى)
-  // والمفتاح المجهول/الخريطة غير المحمّلة لا يقيّدان (لا وميض أخفاء قبل جلب /api/auth/me)
+  // بند 5: إخفاء البنود حسب الصلاحيات — مرآة has_permission المكتبي (الدور أولًا ثم الخريطة)
   const permOn = React.useCallback(
     (k: string) => permAllows(perms, k, manager),
     [perms, manager]
   );
 
-  const [drawerOpen, setDrawerOpen] = React.useState(false);
-  const [collapsed, setCollapsed] = React.useState(false);
-  React.useEffect(() => {
-    try {
-      setCollapsed(window.localStorage.getItem("ctrk-sidebar-collapsed") === "1");
-    } catch {
-      /* التخزين غير متاح */
-    }
-  }, []);
   // Task 93: عجلة الماوس (البكرة) لا تغيّر قيمة الخانات الرقمية — أي input رقمي تحت العجلة
   // يفقد التركيز فورًا فلا تتغير قيمته، والصفحة تظل تتمرر طبيعيًا. الأرقام والمبالغ كتابة حرة بالكيبورد فقط.
   React.useEffect(() => {
@@ -79,40 +86,11 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
     document.addEventListener("wheel", onWheel, { passive: true });
     return () => document.removeEventListener("wheel", onWheel);
   }, []);
-  const toggleCollapsed = React.useCallback(() => {
-    setCollapsed((prev) => {
-      try {
-        window.localStorage.setItem("ctrk-sidebar-collapsed", prev ? "0" : "1");
-      } catch {
-        /* تجاهل */
-      }
-      return !prev;
-    });
-  }, []);
 
-  // تابات الوحدة (docs/mobile-tabs-design.md) — الهاتف/التابلت فقط (< lg): مرآة بنود الجانبي
-  // للتنقل السريع بلا درج، والتمييز من activeNav المشتقّ فيتزامن مع كل تغيير قسم داخلي
-  const tabsBarRef = React.useRef<HTMLDivElement | null>(null);
-
-  const active = findNavChild(activeNav);
-  const activeModuleId = active?.module.id ?? "clients";
-
-  // تمرير التاب النشط لمنطقة الرؤية — block:"nearest" يمنع أي قفز رأسي للصفحة
-  React.useEffect(() => {
-    const bar = tabsBarRef.current;
-    if (!bar) return;
-    const el = bar.querySelector<HTMLElement>(`[data-nav-tab="${CSS.escape(activeNav)}"]`);
-    el?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [activeNav, activeModuleId]);
-
-  // بند الإعدادات كأي وحدة الآن (الجلسة 14): كل أقسامه بنود شل كاملة العدّ —
-  // شريط التابات الأفقي داخل الشاشة حُذف والقائمة الجانبية هي الملاحّ الوحيد
-
-  // الوحدات ذات بنود مرئية فقط
   // خطة الأنشطة: تبويبات الشل تُحصر بأنشطة الشركة الفعّالة أولاً (user.modules —
   // null/غياب = الكل: مطور أو جلسة قديمة) ثم الفلترة المعتادة بالصلاحيات والمزايا
   const allowedNavIds = React.useMemo(() => navModulesFor(user.modules), [user.modules]);
-  const modules = React.useMemo(
+  const modules = React.useMemo<ModuleWithChildren[]>(
     () =>
       NAV_MODULES.filter((m) => !allowedNavIds || allowedNavIds.has(m.id as ModuleId))
         .map((m) => ({ module: m, children: visibleChildren(m, manager, flagOn, permOn, isDeveloper) }))
@@ -120,316 +98,380 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
     [manager, isDeveloper, flagOn, permOn, allowedNavIds]
   );
 
-  const currentModule = modules.find((m) => m.module.id === activeModuleId) ?? modules[0];
+  const active = findNavChild(activeNav);
+  const activeModuleId = active?.module.id ?? modules[0]?.module.id ?? "clients";
+  const current = modules.find((m) => m.module.id === activeModuleId) ?? modules[0];
+
+  // أقسام الشريط العلوي — من config التنقل الواحد مفلترة بالبنود المرئية
+  const visibleIds = React.useMemo(() => new Set(current?.children.map((c) => c.id) ?? []), [current]);
+  const sections = React.useMemo(
+    () => (current ? topSectionsFor(current.module, visibleIds) : []),
+    [current, visibleIds]
+  );
+  const activeSectionId = current ? topSectionIdForChild(current.module, activeNav) : undefined;
+
+  const [appsOpen, setAppsOpen] = React.useState(false);
+  const [openSection, setOpenSection] = React.useState<string | null>(null);
+  const appsBtnRef = React.useRef<HTMLButtonElement>(null);
+
+  // تغيير الشاشة يغلق أي قائمة قسم مفتوحة
+  React.useEffect(() => {
+    setOpenSection(null);
+  }, [activeNav]);
 
   const pick = React.useCallback(
     (child: NavChild) => {
       onSelectChild(child);
-      setDrawerOpen(false);
     },
     [onSelectChild]
   );
 
+  const openModule = React.useCallback(
+    (child: NavChild) => {
+      pick(child);
+      setAppsOpen(false);
+    },
+    [pick]
+  );
+
+  // Esc يغلق طبقة التطبيقات ويعيد التركيز لزرها
+  React.useEffect(() => {
+    if (!appsOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setAppsOpen(false);
+        appsBtnRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [appsOpen]);
+
+  // منسدلة الموبايل الواحدة — كل أقسام الوحدة مجموعات بفواصل (بلا ترويسات)
+  const mobileGroups = React.useMemo<DropdownGroupDef[]>(
+    () =>
+      sections.map((s) => ({
+        key: s.section.id,
+        items: s.children.map((c) => ({
+          key: c.id,
+          label: c.label,
+          icon: c.icon,
+          onSelect: () => pick(c),
+        })),
+      })),
+    [sections, pick]
+  );
+
+  const sectionNav = current && !inDevConsole && sections.length > 0 && (
+    <nav aria-label={`أقسام ${current.module.label}`} className="flex min-w-0 items-stretch">
+      {sections.map((s) => {
+        const isActive = s.section.id === activeSectionId;
+        const isOpen = openSection === s.section.id;
+        if (s.children.length === 1) {
+          const child = s.children[0];
+          return (
+            <button
+              key={s.section.id}
+              type="button"
+              onClick={() => pick(child)}
+              aria-current={isActive ? "page" : undefined}
+              className={cn(
+                "flex items-center whitespace-nowrap px-2.5 text-[13px] font-medium transition-colors",
+                isActive ? "font-semibold text-foreground" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              )}
+            >
+              {s.section.label ?? child.label}
+            </button>
+          );
+        }
+        return (
+          <Dropdown
+            key={s.section.id}
+            align="start"
+            open={isOpen}
+            onOpenChange={(o) => setOpenSection(o ? s.section.id : null)}
+            onTriggerHover={() => {
+              // وهو مفتوح قسمٌ ما، التحويم على قسم آخر يبدّله فورًا (طراز Odoo)
+              if (openSection !== null && openSection !== s.section.id) setOpenSection(s.section.id);
+            }}
+            activeKey={activeNav}
+            trigger={
+              <>
+                <ChevronDown className="size-3.5 opacity-70" aria-hidden />
+                <span>{s.section.label}</span>
+              </>
+            }
+            triggerClassName={cn(
+              "flex items-center whitespace-nowrap rounded-none px-2.5 text-[13px] font-medium transition-colors",
+              isOpen
+                ? "h-12 bg-[#E9ECEF] text-foreground"
+                : isActive
+                  ? "font-semibold text-foreground"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            )}
+            items={s.children.map((c) => ({ key: c.id, label: c.label, onSelect: () => pick(c) }))}
+          />
+        );
+      })}
+    </nav>
+  );
+
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
-      {/* ===== الشريط العلوي: الوحدات الأربع (في اللوحة: أدوات اللوحة فقط) ===== */}
-      <header className="sticky top-0 z-40 border-b bg-card">
-        <div className="flex h-14 items-center gap-2 px-3 lg:px-4">
-          {/* زر الدرج — الشاشات الصغيرة (مخفي في اللوحة) */}
-          {!inDevConsole && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden size-9 shrink-0"
-              onClick={() => setDrawerOpen(true)}
-              aria-label="فتح قائمة التنقل"
-            >
-              <Menu className="size-5" />
-            </Button>
-          )}
-
-          {/* الشعار */}
-          <button
-            type="button"
-            onClick={inDevConsole ? undefined : () => pick(currentModule.children[0])}
-            className="flex items-center gap-2 shrink-0 rounded-md px-1 py-0.5"
-            aria-label="ConTrack — الصفحة الأولى"
-          >
-            <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <FileSignature className="size-5" />
-            </span>
-            <span className="hidden sm:block text-base font-extrabold text-primary-ink tracking-tight">ConTrack</span>
-          </button>
-
-          {/* الوحدات — الحاسوب (مخفية في اللوحة) */}
-          {!inDevConsole && (
-            <nav aria-label="الوحدات" className="hidden md:flex items-center gap-0.5 overflow-x-auto">
-              {modules.map(({ module, children: kids }) => {
-                const Icon = module.icon;
-                const isActiveModule = module.id === activeModuleId;
-                return (
-                  <button
-                    key={module.id}
-                    type="button"
-                    // بند 5: أول بند مرئي بعد الفلترة — لا أول بند خام (قد يكون محجوبًا بالصلاحية)
-                    onClick={() => kids[0] && pick(kids[0])}
-                    aria-current={isActiveModule ? "page" : undefined}
-                    className={cn(
-                      "flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors",
-                      isActiveModule
-                        ? "bg-primary-soft text-primary-soft-foreground"
-                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                    )}
-                  >
-                    <Icon className="size-4" />
-                    {module.label}
-                  </button>
-                );
-              })}
-            </nav>
-          )}
-
-          {/* البحث والإشعارات والمستخدم والخروج */}
-          <div className="ms-auto flex items-center gap-2">
-            {user.role === "developer" && onOpenDevConsole && !inDevConsole && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-9 text-primary-ink hover:text-primary-ink"
-                onClick={onOpenDevConsole}
-                aria-label="لوحة تحكم المطور"
-                title="لوحة تحكم المطور"
+      <div className="sticky top-0 z-40">
+        {/* شريط تمييز المطور — فوق الشريط العلوي، أرقّ وأثبت (الجلسة 15) */}
+        {insideForeignCompany && (
+          <div className="flex h-7 items-center justify-between gap-2 border-b border-primary/20 bg-primary-soft px-3" role="status">
+            <p className="flex items-center gap-1.5 text-[11px] font-medium text-primary-soft-foreground">
+              <ShieldCheck className="size-3" aria-hidden />
+              أنت داخل شركة «{user.companyName}» كمطوّر — البيانات معزولة لنطاقها
+            </p>
+            {onReturnToDevConsole && (
+              <button
+                type="button"
+                onClick={onReturnToDevConsole}
+                className="rounded-md bg-primary-ink px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-primary-ink/90"
               >
-                <ShieldCheck className="size-4" />
-              </Button>
+                رجوع للوحة المطور
+              </button>
             )}
-            {!inDevConsole && <CompanySwitcher user={user} />}
+          </div>
+        )}
+
+        {/* ===== الشريط العلوي 48px — الوحدة الواحدة بأقسامها (لا تابات وحدات ولا قوائم جانبية) ===== */}
+        <header className="h-12 border-b bg-card">
+          <div className="flex h-12 items-stretch gap-0.5 px-1.5">
+            {/* زر طبقة التطبيقات ⊞ — من اليمين (مخفي في لوحة المطور) */}
             {!inDevConsole && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-9 text-muted-foreground"
-                onClick={onOpenSearch}
-                aria-label="بحث شامل (Ctrl+K)"
-                title="بحث شامل (Ctrl+K)"
+              <button
+                ref={appsBtnRef}
+                type="button"
+                onClick={() => setAppsOpen((o) => !o)}
+                aria-haspopup="dialog"
+                aria-expanded={appsOpen}
+                aria-label="التطبيقات — كل الوحدات"
+                title="التطبيقات"
+                className={cn(
+                  "flex w-11 shrink-0 items-center justify-center transition-colors",
+                  appsOpen ? "bg-[#E9ECEF] text-foreground" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                )}
               >
-                <Search className="size-4" />
-              </Button>
+                <Grip className="size-5" aria-hidden />
+              </button>
             )}
-            <NotificationBell onOpenTransaction={onOpenTransaction} />
-            <div className="hidden sm:flex flex-col items-end leading-tight">
-              <span className="text-sm font-medium">{user.fullName || user.username}</span>
-              <Badge variant="secondary" className="h-5 px-1.5 text-xs">
-                {ROLE_LABEL[user.role] || user.role}
-              </Badge>
+
+            {/* اسم الوحدة + أقسامها — الحاسوب ≥900px */}
+            {current && !inDevConsole && (
+              <div className="hidden min-w-0 items-stretch min-[900px]:flex">
+                <span className="flex items-center whitespace-nowrap px-2 text-sm font-bold text-foreground">
+                  {current.module.label}
+                </span>
+                {sectionNav}
+              </div>
+            )}
+
+            {/* منسدلة الوحدة الواحدة — الموبايل <900px (أهداف لمس ≥44px) */}
+            {current && !inDevConsole && (
+              <div className="flex min-w-0 items-center min-[900px]:hidden">
+                <Dropdown
+                  align="start"
+                  activeKey={activeNav}
+                  triggerLabel={`أقسام ${current.module.label}`}
+                  trigger={
+                    <>
+                      <ChevronDown className="size-3.5 opacity-70" aria-hidden />
+                      {React.createElement(current.module.icon, { className: "size-4", "aria-hidden": true })}
+                      <span className="font-bold">{current.module.label}</span>
+                    </>
+                  }
+                  triggerClassName="flex h-12 items-center gap-1.5 whitespace-nowrap px-2 text-sm text-foreground transition-colors hover:bg-secondary"
+                  groups={mobileGroups}
+                  itemClassName="min-h-11"
+                />
+              </div>
+            )}
+
+            {/* الأدوات — أقصى اليسار: البحث والإشعارات والحساب */}
+            <div className="ms-auto flex shrink-0 items-center gap-0.5">
+              {user.role === "developer" && onOpenDevConsole && !inDevConsole && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 text-primary-ink hover:text-primary-ink"
+                  onClick={onOpenDevConsole}
+                  aria-label="لوحة تحكم المطور"
+                  title="لوحة تحكم المطور"
+                >
+                  <ShieldCheck className="size-4" aria-hidden />
+                </Button>
+              )}
+              {!inDevConsole && <CompanySwitcher user={user} />}
+              {!inDevConsole && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 text-muted-foreground"
+                  onClick={onOpenSearch}
+                  aria-label="بحث شامل (Ctrl+K)"
+                  title="بحث شامل (Ctrl+K)"
+                >
+                  <Search className="size-4" aria-hidden />
+                </Button>
+              )}
+              <NotificationBell onOpenTransaction={onOpenTransaction} />
+              <Dropdown
+                align="end"
+                triggerLabel="قائمة الحساب"
+                trigger={
+                  <>
+                    <div className="hidden flex-col items-end leading-tight sm:flex">
+                      <span className="text-sm font-medium">{user.fullName || user.username}</span>
+                      <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+                        {ROLE_LABEL[user.role] || user.role}
+                      </Badge>
+                    </div>
+                    <UserRound className="size-4 sm:hidden" aria-hidden />
+                  </>
+                }
+                triggerClassName="flex h-12 items-center gap-2 px-2 transition-colors hover:bg-secondary"
+                items={[{ key: "logout", label: "تسجيل الخروج", icon: LogOut, onSelect: onLogout }]}
+              />
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-9 text-destructive hover:text-destructive"
-              onClick={onLogout}
-              aria-label="تسجيل الخروج"
-            >
-              <LogOut className="size-4" />
-            </Button>
           </div>
-        </div>
-
-        {/* ===== تابات الوحدة — الهاتف والتابلت فقط (< lg): مرآة بنود الجانبي بعد نفس الفلترة ===== */}
-        {!inDevConsole && currentModule && currentModule.children.length >= 2 && (
-          <nav aria-label={`تبويبات ${currentModule.module.label}`} className="border-t bg-card lg:hidden">
-            <div ref={tabsBarRef} className="flex h-12 items-center gap-1 overflow-x-auto px-2 sm:px-3">
-              {currentModule.children.map((child) => {
-                const Icon = child.icon;
-                const isActive = child.id === activeNav;
-                return (
-                  <button
-                    key={child.id}
-                    type="button"
-                    data-nav-tab={child.id}
-                    onClick={() => pick(child)}
-                    aria-current={isActive ? "page" : undefined}
-                    title={child.label}
-                    className={cn(
-                      "flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors",
-                      isActive
-                        ? "bg-primary-soft text-primary-soft-foreground"
-                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                    )}
-                  >
-                    <Icon className={cn("size-4 shrink-0", isActive && "text-primary-ink")} />
-                    <span>{child.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </nav>
-        )}
-      </header>
-
-      {/* لوحة المطور (Task 100) — شريط تمييز: المطور داخل شركة (جاء إليها من اللوحة) */}
-      {insideForeignCompany && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-primary/20 bg-primary-soft px-4 py-1.5" role="status">
-          <p className="flex items-center gap-1.5 text-xs font-medium text-primary-soft-foreground">
-            <ShieldCheck className="size-3.5" />
-            أنت داخل شركة «{user.companyName}» كمطوّر — البيانات معزولة لنطاقها
-          </p>
-          {onReturnToDevConsole && (
-            <button
-              type="button"
-              onClick={onReturnToDevConsole}
-              className="rounded-md px-2 py-0.5 text-xs font-semibold text-primary-ink underline-offset-2 hover:underline"
-            >
-              رجوع للوحة المطور
-            </button>
-          )}
-        </div>
-      )}
-
-      <div className="flex flex-1 w-full min-h-0">
-        {/* ===== القائمة الجانبية للوحدة — مخفية كليًا في لوحة المطور (شاشة مستقلة) ===== */}
-        {!inDevConsole && (
-          <aside
-            className={cn(
-              "hidden lg:flex h-full shrink-0 flex-col border-l bg-card transition-[width] duration-200",
-              collapsed ? "w-14" : "w-56"
-            )}
-            aria-label={`أقسام ${currentModule.module.label}`}
-          >
-          <div className={cn("flex h-11 items-center justify-between border-b px-3", collapsed && "justify-center px-0")}>
-            {!collapsed && (
-              <span className="text-xs font-semibold text-muted-foreground">{currentModule.module.label}</span>
-            )}
-            <button
-              type="button"
-              onClick={toggleCollapsed}
-              className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary"
-              aria-label={collapsed ? "توسيع القائمة الجانبية" : "طي القائمة الجانبية"}
-              title={collapsed ? "توسيع" : "طي"}
-            >
-              {collapsed ? <PanelRightOpen className="size-4" /> : <PanelRightClose className="size-4" />}
-            </button>
-          </div>
-          <nav className="flex-1 overflow-y-auto p-2">
-            <ul className="space-y-0.5">
-              {currentModule.children.map((child, idx) => {
-                const Icon = child.icon;
-                const isActive = child.id === activeNav;
-                // Task 114: ترويسة المجموعة قبل أول بند يتغير فيها (البنود المرئية فقط — مفلترة أعلاه)
-                const prevGroup = idx > 0 ? currentModule.children[idx - 1].groupLabel : undefined;
-                const showGroup = !collapsed && !!child.groupLabel && child.groupLabel !== prevGroup;
-                return (
-                  <li key={child.id}>
-                    {showGroup && (
-                      <div className="px-3 pb-1 pt-2.5 text-[11px] font-semibold text-muted-foreground/70">
-                        {child.groupLabel}
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => pick(child)}
-                      aria-current={isActive ? "page" : undefined}
-                      title={child.label}
-                      className={cn(
-                        "flex min-h-9 w-full items-center gap-2 rounded-md text-sm font-medium transition-colors",
-                        collapsed ? "justify-center px-0" : "px-3",
-                        isActive
-                          ? "bg-primary-soft text-primary-soft-foreground"
-                          : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                      )}
-                    >
-                      <Icon className={cn("size-4 shrink-0", isActive && "text-primary-ink")} />
-                      {!collapsed && <span className="truncate">{child.label}</span>}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
-          </aside>
-        )}
-
-        {/* ===== المحتوى — حاوية التمرير الوحيدة: الصفحة تتمرر كسكرول واحد والشريط السفلي يثبت دائمًا فوق التذييل (Task 92) ===== */}
-        <main className="min-w-0 flex-1 overflow-y-auto">
-          <div className="w-full space-y-3 px-3 py-3 sm:px-4 lg:px-6">{children}</div>
-        </main>
+        </header>
       </div>
 
-      {/* التذييل — مرئي دائمًا أسفل حاوية التمرير (لا ينزاح ولا يدفع الشريط السفلي) */}
+      {/* ===== طبقة التطبيقات ⊞ — تغطية تحت الشريط: كل الوحدات مفلترة بالصلاحيات (الجلسة 15) ===== */}
+      {appsOpen && !inDevConsole && (
+        <AppsLayer
+          modules={modules}
+          activeModuleId={activeModuleId}
+          onPickChild={openModule}
+          onClose={() => {
+            setAppsOpen(false);
+            appsBtnRef.current?.focus();
+          }}
+          topOffset={insideForeignCompany ? 76 : 48}
+        />
+      )}
+
+      {/* المحتوى — بكامل العرض (لا قائمة جانبية تقتط منه) — حاوية التمرير الوحيدة */}
+      <main className="min-w-0 flex-1 overflow-y-auto">
+        <div className="w-full space-y-3 px-3 py-3 sm:px-4 lg:px-6">{children}</div>
+      </main>
+
+      {/* التذييل — يثبت أسفل حاوية التمرير دائمًا */}
       <footer className="border-t bg-muted/40">
         <div className="px-4 py-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] text-center text-xs text-muted-foreground">
           ConTrack V9.15 — إدارة العقود والمحاسبة
         </div>
       </footer>
+    </div>
+  );
+}
 
-      {/* ===== الدرج المنزلق — الشاشات الصغيرة ===== */}
-      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent side="right" className="w-72 overflow-y-auto p-0">
-          <SheetHeader className="border-b">
-            <SheetTitle className="flex items-center gap-2 text-base">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <FileSignature className="size-4" />
-              </span>
-              ConTrack
-            </SheetTitle>
-          </SheetHeader>
-          <nav aria-label="التنقل" className="p-2">
-            {modules.map(({ module, children: kids }) => (
-              <div key={module.id} className="mb-2">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-muted-foreground">
-                  <module.icon className="size-3.5" />
-                  {module.label}
-                </div>
-                <ul className="space-y-0.5">
-                  {kids.map((child, idx) => {
-                    const Icon = child.icon;
-                    const isActive = child.id === activeNav;
-                    const prevGroup = idx > 0 ? kids[idx - 1].groupLabel : undefined;
-                    const showGroup = !!child.groupLabel && child.groupLabel !== prevGroup;
-                    return (
-                      <li key={child.id}>
-                        {showGroup && (
-                          <div className="px-3 pb-1 pt-2 text-[11px] font-semibold text-muted-foreground/70">
-                            {child.groupLabel}
-                          </div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => pick(child)}
-                          aria-current={isActive ? "page" : undefined}
-                          className={cn(
-                            "flex min-h-10 w-full items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors",
-                            isActive
-                              ? "bg-primary-soft text-primary-soft-foreground"
-                              : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                          )}
-                        >
-                          <Icon className={cn("size-4 shrink-0", isActive && "text-primary-ink")} />
-                          <span className="truncate">{child.label}</span>
-                          {isActive && <ChevronLeft className="ms-auto size-3.5 shrink-0" />}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))}
-          </nav>
-          <div className="border-t p-3">
+/**
+ * طبقة التطبيقات (طراز Odoo): أيقونات الوحدات 72px بأسمائها — الوحدة الحالية مميزة،
+ * النقر يدخل أول بند مرئي ويغلق الطبقة، Esc يغلق، الأسهم تنقل وEnter يختار،
+ * عمودان على الموبايل وأهداف لمس ≥44px.
+ */
+function AppsLayer({
+  modules,
+  activeModuleId,
+  onPickChild,
+  onClose,
+  topOffset,
+}: {
+  modules: ModuleWithChildren[];
+  activeModuleId: string;
+  onPickChild: (child: NavChild) => void;
+  onClose: () => void;
+  topOffset: number;
+}) {
+  const gridRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      const grid = gridRef.current;
+      if (!grid) return;
+      const target =
+        grid.querySelector<HTMLElement>("[data-apps-active='true']") ??
+        grid.querySelector<HTMLElement>("button[data-app-tile]");
+      target?.focus();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+      return;
+    }
+    const tiles = Array.from(grid.querySelectorAll<HTMLButtonElement>("button[data-app-tile]"));
+    const idx = tiles.indexOf(document.activeElement as HTMLButtonElement);
+    if (idx < 0) return;
+    const cols = getComputedStyle(grid).gridTemplateColumns.split(" ").length || 1;
+    let next = -1;
+    // RTL: اليسار = التالي بصريًا
+    if (e.key === "ArrowLeft") next = idx + 1;
+    else if (e.key === "ArrowRight") next = idx - 1;
+    else if (e.key === "ArrowDown") next = idx + cols;
+    else if (e.key === "ArrowUp") next = idx - cols;
+    if (next >= 0 && next < tiles.length) {
+      e.preventDefault();
+      tiles[next]?.focus();
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-x-0 bottom-0 z-30 bg-background"
+      style={{ top: topOffset }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="التطبيقات — كل الوحدات"
+      onKeyDown={onKeyDown}
+    >
+      <div
+        ref={gridRef}
+        className="mx-auto grid max-w-3xl grid-cols-2 gap-2 p-4 sm:grid-cols-3 sm:gap-3 sm:p-6 md:grid-cols-4 lg:grid-cols-6"
+      >
+        {modules.map(({ module, children }) => {
+          const Icon = module.icon;
+          const isActive = module.id === activeModuleId;
+          return (
             <button
+              key={module.id}
               type="button"
-              onClick={() => {
-                setDrawerOpen(false);
-                onLogout();
-              }}
-              className="flex min-h-10 w-full items-center gap-2 rounded-md px-3 text-sm font-medium text-destructive hover:bg-status-danger-bg"
+              data-app-tile
+              data-apps-active={isActive || undefined}
+              aria-current={isActive ? "page" : undefined}
+              onClick={() => children[0] && onPickChild(children[0])}
+              className={cn(
+                "group flex min-h-11 flex-col items-center gap-2 rounded-xl p-2.5 text-sm font-medium transition-colors focus-visible:outline-none sm:p-3",
+                isActive
+                  ? "bg-primary-soft text-primary-soft-foreground ring-1 ring-primary-soft-border"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:bg-secondary focus-visible:text-foreground"
+              )}
             >
-              <X className="size-4" />
-              تسجيل الخروج
+              <span
+                className={cn(
+                  "flex size-[72px] items-center justify-center rounded-2xl border transition-colors",
+                  isActive
+                    ? "border-primary-soft-border bg-card text-primary-ink"
+                    : "border-border bg-card text-muted-foreground group-hover:text-foreground"
+                )}
+              >
+                <Icon className="size-9" aria-hidden />
+              </span>
+              {module.label}
             </button>
-          </div>
-        </SheetContent>
-      </Sheet>
+          );
+        })}
+      </div>
     </div>
   );
 }

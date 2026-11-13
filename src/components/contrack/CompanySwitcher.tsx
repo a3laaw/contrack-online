@@ -4,12 +4,14 @@
  * Task 85 — SaaS: مبدّل الشركات للشريط العلوي (مدير/مطور).
  * يظهر فقط عند وجود أكثر من شركة فعّالة. التبديل يعيد إصدار التوكن
  * ثم تحديثًا كاملًا للصفحة (سياق الخادم يتبدل مع الكوكي الجديد).
+ * الجلسة 15 — التحول الطرازي العلوي: مُوحّد على Dropdown النظام الوحيد
+ * (docs/navigation-map.md §5) بدل Radix DropdownMenu المنفرد.
  */
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, Check, ChevronsUpDown } from "lucide-react";
+import { Building2, ChevronsUpDown } from "lucide-react";
 
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dropdown } from "./dropdown";
 import { errMessage } from "./contrack-types";
 import { apiGet, apiPost, setStoredToken } from "./api";
 
@@ -43,6 +45,7 @@ export function CompanySwitcher({ user, onAuthError }: { user: { companyId?: num
   if (!show) return null;
 
   const current = data.companies.find((c) => c.id === data.currentCompanyId);
+  const currentName = current?.name || user.companyName || "";
 
   const switchTo = async (id: number) => {
     if (switching) return;
@@ -59,34 +62,29 @@ export function CompanySwitcher({ user, onAuthError }: { user: { companyId?: num
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          className="flex h-9 items-center gap-1.5 rounded-md px-2 text-sm hover:bg-accent disabled:opacity-60"
-          disabled={switching}
-          aria-label="تبديل الشركة"
-          title="تبديل الشركة"
-        >
-          <Building2 className="size-4 text-muted-foreground" />
-          <span className="hidden max-w-36 truncate md:inline">{current?.name || user.companyName || ""}</span>
-          <ChevronsUpDown className="size-3.5 text-muted-foreground" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
-        <DropdownMenuLabel className="text-xs text-muted-foreground">الشركة الحالية</DropdownMenuLabel>
-        <DropdownMenuItem className="pointer-events-none font-medium">
-          <Check className="size-4" />
-          {current?.name || user.companyName}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="text-xs text-muted-foreground">التبديل إلى</DropdownMenuLabel>
-        {others.map((c) => (
-          <DropdownMenuItem key={c.id} onSelect={() => void switchTo(c.id)} disabled={switching}>
-            <Building2 className="size-4 text-muted-foreground" />
-            <span className="truncate">{c.name}</span>
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Dropdown
+      align="start"
+      triggerLabel="تبديل الشركة"
+      triggerTitle="تبديل الشركة"
+      disabled={switching}
+      trigger={
+        <>
+          <Building2 className="size-4 text-muted-foreground" aria-hidden />
+          <span className="hidden max-w-36 truncate md:inline">{currentName}</span>
+          <ChevronsUpDown className="size-3 text-muted-foreground" aria-hidden />
+        </>
+      }
+      triggerClassName="flex h-9 items-center gap-1.5 rounded-md px-2 text-sm transition-colors hover:bg-secondary disabled:opacity-60"
+      items={[
+        // الشركة الحالية — بند إعلامي بمُشير ✓ (نقره يغلق دون فعل)
+        { key: "current", label: currentName, checked: true },
+        ...others.map((c) => ({
+          key: `co-${c.id}`,
+          label: c.name,
+          icon: Building2,
+          onSelect: () => void switchTo(c.id),
+        })),
+      ]}
+    />
   );
 }
