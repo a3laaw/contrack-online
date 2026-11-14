@@ -5,8 +5,13 @@
  * «أنواع العقود ومراحل العمل والدفعات كلها في صفحة واحدة — نوع العقد أمامه عمود
  *  مراحل العمل، اختيار مرحلة العمل يُظهر عمود الدفعة المرتبطة».
  *
+ * مراجعة التكرار (طلب المالك): هذه الشاشة هي المصدر الوحيد للأنواع والمراحل —
+ * حُذف تبويبا المدرّين القديمين («أنواع العقود (تفصيلي)» و«مراحل العمل (الشجرة)»)
+ * وانتقلت حقول النوع الكاملة (التصنيف · نمط التسعير · وحدة القياس · الإشرافي ·
+ * المسار اليدوي · الملاحظات) إلى حوار النوع هنا بنفس الحرس الحرفي (validateTypeInput).
+ *
  * ثلاثة أعمدة متتالية (تتكدس على الجوال):
- *   1) أنواع العقود — الاختيار المفتاح: تعديل/تفعيل/حذف بنفس مسارات الإدارة القائمة.
+ *   1) أنواع العقود — الاختيار المفتاح: إضافة/تعديل/تفعيل/حذف بالحقول الكاملة.
  *   2) مراحل العمل للنوع المحدد — شجرة رئيسيات/فرعيات مع اختيار مرحلة.
  *   3) الدفعة المرتبطة بالمرحلة المختارة — إضافة/تعديل/فك الربط/حذف عبر قوالب
  *      الدفع القائمة (/api/payment-templates) بقواعدها الحرفية:
@@ -48,6 +53,17 @@ import { errMessage, type User } from "./contrack-types";
 import { adminApi } from "@/lib/admin-api";
 import type { PaymentTemplateDTO } from "@/lib/admin-types";
 import { formatKWD } from "@/lib/format";
+import {
+  PRICING_MODES,
+  deriveTypeCategories,
+  normalizeTypeCategory,
+  pricingModeLabel,
+  validateTypeInput,
+} from "@/lib/contract-types-admin";
+
+/** قيمة خاصة في قائمة التصنيف تعني «إنشاء تصنيف جديد» — مرآة المدير القديم حرفيًا */
+const CATEGORY_NEW = "__new__";
+const CATEGORY_NONE = "__none__";
 
 // ===== أنواع الـAPI =====
 /** صف نوع عقد من GET /api/contract-types */
@@ -61,6 +77,8 @@ interface TspType {
   manualTrack?: boolean;
   pricingMode?: string;
   isSupervision?: boolean;
+  unitLabel?: string;
+  unitPrice?: number;
   contractsCount?: number;
   templatesCount?: number;
 }
@@ -207,27 +225,72 @@ export function TypesStagesPaymentsView({ user, onAuthError, onFailToast }: Type
   // طفرات الكتابة — كلها عبر مسارات الإدارة القائمة (adminGuard خلفها)
   // ======================================================================
 
-  // ---- نوع العقد ----
+  // ---- نوع العقد — الحقول الكاملة (نقلًا من المدير التفصيلي بعد حذفه — مراجعة التكرار) ----
   const [typeDialog, setTypeDialog] = React.useState<{ mode: "add" | "edit" } | null>(null);
   const [typeName, setTypeName] = React.useState("");
   const [typeAmount, setTypeAmount] = React.useState("0");
+  const [typeCategory, setTypeCategory] = React.useState("");
+  const [typePricingMode, setTypePricingMode] = React.useState("lump");
+  const [typeUnitLabel, setTypeUnitLabel] = React.useState("");
+  const [typeUnitPrice, setTypeUnitPrice] = React.useState("0");
+  const [typeSupervision, setTypeSupervision] = React.useState(false);
+  const [typeManualTrack, setTypeManualTrack] = React.useState(false);
+  const [typeNotes, setTypeNotes] = React.useState("");
+  /** وضع «تصنيف جديد»: يُكتب الاسم مرة واحدة هنا فقط — كما في المدير القديم (Task 95) */
+  const [newCatMode, setNewCatMode] = React.useState(false);
   const [deleteType, setDeleteType] = React.useState<TspType | null>(null);
 
+  /** قائمة التصنيفات مشتقة تلقائيًا من الأنواع نفسها — بلا جدول مستقل */
+  const existingCategories = React.useMemo(() => deriveTypeCategories(types), [types]);
+  const catSelectValue = newCatMode
+    ? CATEGORY_NEW
+    : typeCategory
+      ? typeCategory
+      : CATEGORY_NONE;
+
   const openTypeDialog = (mode: "add" | "edit") => {
-    setTypeName(mode === "edit" && selectedType ? selectedType.name : "");
-    setTypeAmount(mode === "edit" && selectedType ? String(selectedType.defaultAmount ?? 0) : "0");
+    const t = mode === "edit" ? selectedType : null;
+    setTypeName(t ? t.name : "");
+    setTypeAmount(t ? String(t.defaultAmount ?? 0) : "0");
+    setTypeCategory(t ? t.category || "" : "");
+    setTypePricingMode(t ? t.pricingMode || "lump" : "lump");
+    setTypeUnitLabel(t ? t.unitLabel || "" : "");
+    setTypeUnitPrice(t ? String(t.unitPrice ?? 0) : "0");
+    setTypeSupervision(t ? Boolean(t.isSupervision) : false);
+    setTypeManualTrack(t ? Boolean(t.manualTrack) : false);
+    setTypeNotes(t ? t.notes || "" : "");
+    setNewCatMode(Boolean(t?.category) && !existingCategories.includes(t?.category || ""));
     setTypeDialog({ mode });
   };
 
   const saveTypeMutation = useMutation({
     mutationFn: () => {
       const name = typeName.trim();
-      if (!name) throw new Error("اسم النوع مطلوب");
       const amount = Number(typeAmount || 0);
-      if (!Number.isFinite(amount) || amount < 0) throw new Error("المبلغ الافتراضي غير صالح");
+      const unitPrice = Number(typeUnitPrice || 0);
+      // حرس المكتبي الحرفي — نفس الرسائل والترتيب (validateTypeInput)
+      const guard = validateTypeInput({
+        name,
+        defaultAmount: amount,
+        unitPrice,
+        pricingMode: typePricingMode,
+        isSupervision: typeSupervision,
+      });
+      if (guard) throw new Error(guard);
+      const payload = {
+        name,
+        category: normalizeTypeCategory(typeCategory),
+        pricingMode: typePricingMode,
+        isSupervision: typeSupervision,
+        manualTrack: typeManualTrack,
+        defaultAmount: amount,
+        unitLabel: typeUnitLabel.trim(),
+        unitPrice,
+        notes: typeNotes.trim(),
+      };
       return typeDialog?.mode === "edit" && selectedType
-        ? apiPatch(`/api/contract-types/${selectedType.id}`, { name, defaultAmount: amount })
-        : apiPost("/api/contract-types", { name, defaultAmount: amount, pricingMode: "lump" });
+        ? apiPatch(`/api/contract-types/${selectedType.id}`, payload)
+        : apiPost("/api/contract-types", payload);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["contract-types"] });
@@ -577,7 +640,14 @@ export function TypesStagesPaymentsView({ user, onAuthError, onFailToast }: Type
                             )}
                           </span>
                           <span className="flex w-full items-center gap-2 text-[11px] text-muted-foreground">
-                            {t.category ? <span className="truncate">{t.category}</span> : null}
+                            {t.category ? <span className="truncate" title={t.category}>{t.category}</span> : null}
+                            {t.pricingMode && t.pricingMode !== "lump" && (
+                              <span className="truncate" title={`نمط التسعير: ${pricingModeLabel(t.pricingMode)}`}>
+                                {pricingModeLabel(t.pricingMode)}
+                                {t.isSupervision ? " (إشرافي)" : ""}
+                              </span>
+                            )}
+                            {t.manualTrack && <span className="shrink-0" title="مسار يدوي">🔧</span>}
                             <span className="numeric ms-auto">
                               {t.contractsCount ?? 0} عقد · {t.templatesCount ?? 0} دفعة
                             </span>
@@ -774,17 +844,17 @@ export function TypesStagesPaymentsView({ user, onAuthError, onFailToast }: Type
         </Card>
       </div>
 
-      {/* ================== نوافذ نوع العقد ================== */}
+      {/* ================== نوافذ نوع العقد — الحقول الكاملة ================== */}
       <Dialog open={typeDialog !== null} onOpenChange={(o) => !o && setTypeDialog(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{typeDialog?.mode === "edit" ? "تعديل نوع العقد" : "إضافة نوع عقد"}</DialogTitle>
             <DialogDescription>
-              بعد التعريف تُربط مراحله ودفعاته من الأعمدة المجاورة في هذه الصفحة نفسها.
+              بعد التعريف تُربط مراحله ودفعاته من الأعمدة المجاورة — النمط يحدد شكل نافذة العقد الجديدة والتغيير لا يعيد حساب أي عقد قائم.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-3 py-1">
-            <div className="space-y-1.5">
+          <div className="grid grid-cols-1 gap-3 py-1 sm:grid-cols-2">
+            <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="tsp-type-name">اسم النوع</Label>
               <Input
                 id="tsp-type-name"
@@ -794,6 +864,74 @@ export function TypesStagesPaymentsView({ user, onAuthError, onFailToast }: Type
                 onChange={(e) => setTypeName(e.target.value)}
               />
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tsp-type-cat">التصنيف</Label>
+              <Select
+                value={catSelectValue}
+                onValueChange={(v) => {
+                  if (v === CATEGORY_NEW) {
+                    setNewCatMode(true);
+                    setTypeCategory("");
+                  } else {
+                    setNewCatMode(false);
+                    setTypeCategory(v === CATEGORY_NONE ? "" : v);
+                  }
+                }}
+              >
+                <SelectTrigger id="tsp-type-cat" className="h-10">
+                  <SelectValue placeholder="بلا تصنيف" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  <SelectItem value={CATEGORY_NONE}>بلا تصنيف</SelectItem>
+                  {existingCategories.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                  <SelectItem value={CATEGORY_NEW}>＋ تصنيف جديد…</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {newCatMode && (
+              <div className="space-y-1.5">
+                <Label htmlFor="tsp-type-cat-new">اسم التصنيف الجديد</Label>
+                <Input
+                  id="tsp-type-cat-new"
+                  className="h-10"
+                  placeholder="مثال: رخص · تصميم · إشراف"
+                  value={typeCategory}
+                  onChange={(e) => setTypeCategory(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            )}
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="tsp-type-mode">نمط التسعير</Label>
+              <Select value={typePricingMode} onValueChange={(v) => setTypePricingMode(v)}>
+                <SelectTrigger id="tsp-type-mode" className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {PRICING_MODES.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <label className="flex items-start gap-2 rounded-lg border p-2.5 text-sm sm:col-span-2">
+              <Checkbox
+                className="mt-0.5"
+                checked={typeSupervision}
+                onCheckedChange={(v) => setTypeSupervision(v === true)}
+              />
+              <span>عقد إشراف هندسي (تاريخ تعهد + تمديد تلقائي)</span>
+            </label>
+            <label className="flex items-start gap-2 rounded-lg border p-2.5 text-sm sm:col-span-2">
+              <Checkbox
+                className="mt-0.5"
+                checked={typeManualTrack}
+                onCheckedChange={(v) => setTypeManualTrack(v === true)}
+              />
+              <span>🔧 مسار يدوي (تعليم حر للمراحل)</span>
+            </label>
             <div className="space-y-1.5">
               <Label htmlFor="tsp-type-amount">المبلغ الافتراضي (د.ك)</Label>
               <Input
@@ -805,6 +943,39 @@ export function TypesStagesPaymentsView({ user, onAuthError, onFailToast }: Type
                 className="h-10 numeric text-start"
                 value={typeAmount}
                 onChange={(e) => setTypeAmount(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tsp-type-unit">وحدة القياس</Label>
+              <Input
+                id="tsp-type-unit"
+                className="h-10"
+                placeholder="واجهة · دور · متر — للفراغ للمقطوع"
+                value={typeUnitLabel}
+                onChange={(e) => setTypeUnitLabel(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tsp-type-unit-price">سعر الوحدة الواحدة</Label>
+              <Input
+                id="tsp-type-unit-price"
+                type="number"
+                min="0"
+                step="0.001"
+                dir="ltr"
+                className="h-10 numeric text-start"
+                value={typeUnitPrice}
+                onChange={(e) => setTypeUnitPrice(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tsp-type-notes">ملاحظات</Label>
+              <Input
+                id="tsp-type-notes"
+                className="h-10"
+                placeholder="ملاحظات (اختياري)"
+                value={typeNotes}
+                onChange={(e) => setTypeNotes(e.target.value)}
               />
             </div>
           </div>

@@ -1,21 +1,22 @@
 "use client";
 
 /**
- * شاشة القوائم المرجعية (الجلسة 11) — مركز البيانات المرجعية بثلاثة أقسام:
- *   1) القوائم العامة: إطار عام قابل للتوسعة — الأوزان · المناطق · الوظائف · الأقسام ·
- *      الإدارات مدمجة (لا تُحذف)، وأي قائمة يضيفها المالك («وغيرها») مع بنودها
- *      قابلة للإضافة والتعديل والترتيب والإيقاف والحذف.
- *   2) ربطها مع مراحل العمل: كل بند يُربط بمراحل متعددة (RefItemStage) من شجرة
- *      مراحل التنفيذ القائمة — والمراحل نفسها تُدار من القسم الثالث.
- *   3) أنواع العقود ومراحل العمل: تضمين المدرّين القائمين حرفيًا (بلا أي هجرة)
- *      كي يكون المكان موحّدًا لكل المرجعيات.
+ * شاشة القوائم المرجعية — مراجعة التكرار (طلب المالك): «في تكرار المناطق لازالت موجودة
+ * في قائمة مرجعية أخرى بالشكل القديم وكذلك الوظائف والعقود ومراحل العمل».
+ * القرار التنفيذي — مصدر واحد لكل كيان:
+ *   1) القوائم العامة: الأوزان وأي قائمة يضيفها المالك («وغيرها») فقط — القوائم المدمجة
+ *      ذات الشاشات المخصصة (المناطق/الوظائف/الأقسام/الإدارات) مستبعدة من هنا حصريًا
+ *      (بياناتها كما هي وتُدار من شاشاتها في نفس المجموعة بالقائمة الجانبية).
+ *   2) أنواع العقود ومراحل العمل والدفعات: الشاشة الموحدة الثلاثية فقط
+ *      (TypesStagesPaymentsView) — حُذف تبويبا المدرّين القديمين (تفصيلي/شجرة)
+ *      وانتقلت حقول النوع الكاملة إلى حوار الشاشة الموحدة.
  * الأسلاك: /api/ref-lists + /api/ref-lists/[id] + /api/ref-lists/[id]/items +
  *          /api/ref-items/[id] + /api/ref-items/[id]/move — الكتابة للمدير فقط.
  */
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, BookMarked, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -31,13 +32,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "./api";
 import { errMessage, type User } from "./contrack-types";
-import { ContractTypesManager } from "./ContractTypesManager";
 import { OrgStructureView } from "./OrgStructureView";
 import { AreasStructureView } from "./AreasStructureView";
 import { TypesStagesPaymentsView } from "./TypesStagesPaymentsView";
-import { WorkflowTab } from "./settings/workflow-tab";
 
-export type RefListsSection = "types-stages-payments" | "org-structure" | "areas" | "lists" | "contract-types" | "stages";
+export type RefListsSection = "types-stages-payments" | "org-structure" | "areas" | "lists";
+
+/**
+ * مفاتيح القوائم المدمجة التي صارت لها شاشات مخصصة في نفس المجموعة —
+ * تُستبعد من «القوائم العامة» حصريًا (طلب المالك: لا تكرار بالشكل القديم).
+ */
+const DEDICATED_LIST_KEYS = new Set(["areas", "jobs", "departments", "admins"]);
 
 // ===== أنواع الـAPI — عقد /api/ref-lists الموثق =====
 interface RefStageLink {
@@ -108,7 +113,7 @@ export function RefListsView({ user, onAuthError, section = "lists", onSectionCh
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-lg font-bold whitespace-nowrap">القوائم المرجعية</h1>
         <span className="hidden xl:inline text-xs text-muted-foreground">
-          الأوزان · المناطق · الوظائف · الأقسام · الإدارات · أنواع العقود — إضافة وتعديل وربط بمراحل العمل، وقوائم جديدة وقتما تحتاج
+          الأوزان وقوائمك الخاصة هنا — والمناطق والوظائف والإدارات والأقسام والأنواع والمراحل لكل منها شاشتها المخصصة في نفس المجموعة
         </span>
       </div>
 
@@ -133,29 +138,15 @@ export function RefListsView({ user, onAuthError, section = "lists", onSectionCh
         <TabsContent value="lists" className="space-y-4">
           <ListsPanel user={user} onFail={onFail} />
         </TabsContent>
-
-        {/* أنواع العقود — المدرّ القائم حرفيًا (بلا هجرة) داخل الموضع الموحد */}
-        <TabsContent value="contract-types" className="space-y-4">
-          <p className="text-xs text-muted-foreground">
-            أنواع العقود وقوالب دفعها ومكوّناتها — تُدار هنا كما في الإعدادات تمامًا، وهي المرجع المستخدم في إنشاء العقود.
-          </p>
-          <ContractTypesManager onAuthError={onAuthError} />
-        </TabsContent>
-
-        {/* مراحل العمل — تبويب مراحل المتابعة القائم: مصدر المراحل التي تُربط بها البنود */}
-        <TabsContent value="stages" className="space-y-4">
-          <p className="text-xs text-muted-foreground">
-            شجرة مراحل التنفيذ لكل نوع معاملة — المراحل هنا هي التي تُربط بها بنود القوائم المرجعية من قسم «القوائم العامة».
-          </p>
-          <WorkflowTab onAuthError={onAuthError} />
-        </TabsContent>
       </Tabs>
     </div>
   );
 }
 
 // ====================================================================
-// قسم القوائم العامة — لوحة القوائم (يمين) وبنود القائمة المحددة (يسار)
+// قسم القوائم العامة — الأوزان والقوائم المخصصة فقط:
+// القوائم المدمجة ذات الشاشات المخصصة (المناطق/الوظائف/الأقسام/الإدارات)
+// مستبعدة هنا حصريًا — طلب المالك: لا تكرار بالشكل القديم
 // ====================================================================
 
 function ListsPanel({
@@ -178,7 +169,13 @@ function ListsPanel({
     queryFn: () => apiGet<{ stages: RefStageDTO[] }>("/api/workflow-stages"),
   });
 
-  const lists = listsQuery.data?.lists ?? [];
+  // استبعاد القوائم ذات الشاشات المخصصة — بياناتها كما هي وتُدار من شاشاتها حصريًا
+  const allLists = listsQuery.data?.lists ?? [];
+  const dedicatedHere = React.useMemo(
+    () => allLists.filter((l) => DEDICATED_LIST_KEYS.has(l.key)).map((l) => l.name),
+    [allLists]
+  );
+  const lists = React.useMemo(() => allLists.filter((l) => !DEDICATED_LIST_KEYS.has(l.key)), [allLists]);
   const [selectedId, setSelectedId] = React.useState<number | null>(null);
   const selected = React.useMemo(
     () => lists.find((l) => l.id === selectedId) ?? lists[0] ?? null,
@@ -242,7 +239,20 @@ function ListsPanel({
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[260px_1fr] items-start">
+    <div className="space-y-4">
+      {/* مراجعة التكرار — توضيح موضع القوائم ذات الشاشات المخصصة */}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
+        <BookMarked className="size-4 shrink-0 text-primary" aria-hidden />
+        <span>
+          هنا الأوزان وقوائمك الخاصة فقط — قوائم{' '}
+          <span className="font-semibold text-foreground">
+            {dedicatedHere.length > 0 ? dedicatedHere.join(' · ') : 'المناطق والوظائف والأقسام والإدارات'}
+          </span>
+          {' '}تُدار من شاشاتها المخصصة في نفس المجموعة بالقائمة الجانبية (لا تظهر هنا مرتين).
+        </span>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[260px_1fr] items-start">
       {/* ===== لوحة القوائم ===== */}
       <Card>
         <CardHeader className="pb-3">
@@ -470,6 +480,7 @@ function ListsPanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   );
 }
