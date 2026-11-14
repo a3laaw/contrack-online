@@ -71,9 +71,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       excludeTemplateId: id,
     })
 
-    await db.$transaction([
-      db.typePaymentStage.deleteMany({ where: { paymentId: id } }),
-      db.typePaymentTemplate.update({
+    // الشكل الدالة (callback) — الشكل المصفوفة غير مدعوم عبر غلاف db
+    // (المصفوفة تُنشئ استعلامات خارج المعاملة ثم يرفضها Prisma — درس PATCH 500)
+    await db.$transaction(async (tx) => {
+      await tx.typePaymentStage.deleteMany({ where: { paymentId: id } });
+      await tx.typePaymentTemplate.update({
         where: { id },
         data: {
           title: v.title,
@@ -86,8 +88,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
             create: v.stageIds.map((stageId) => ({ stageId })),
           },
         },
-      }),
-    ])
+      });
+    })
 
     return NextResponse.json({ id })
   } catch (e) {

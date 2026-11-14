@@ -376,9 +376,11 @@ export const NAV_MODULES: NavModule[] = [
     label: "القوائم المرجعية",
     icon: BookMarked,
     children: [
+      // الشاشة الموحدة — قرار المالك: «أنواع العقود ومراحل العمل والدفعات كلها في صفحة واحدة»
+      { id: "ref-tsp", label: "الأنواع والمراحل والدفعات", icon: Layers, view: "ref-lists", section: "types-stages-payments", adminOnly: true },
       { id: "ref-lists", label: "القوائم العامة", icon: BookMarked, view: "ref-lists", section: "lists", adminOnly: true, perm: "screen_ref_lists" },
-      { id: "ref-contract-types", label: "أنواع العقود", icon: FileStack, view: "ref-lists", section: "contract-types", adminOnly: true },
-      { id: "ref-stages", label: "مراحل العمل", icon: ClipboardList, view: "ref-lists", section: "stages", adminOnly: true },
+      { id: "ref-contract-types", label: "أنواع العقود (تفصيلي)", icon: FileStack, view: "ref-lists", section: "contract-types", adminOnly: true },
+      { id: "ref-stages", label: "مراحل العمل (الشجرة)", icon: ClipboardList, view: "ref-lists", section: "stages", adminOnly: true },
     ],
   },
   {

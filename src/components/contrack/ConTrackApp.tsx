@@ -141,8 +141,8 @@ function AppRoot() {
   const [maintenanceSection, setMaintenanceSection] = React.useState<MaintenanceSection>("contracts");
   // المشاريع — قسم مركز عمليات الموقع (لوحة/تقرير يومي/تنفيذ بنود)
   const [projectsSection, setProjectsSection] = React.useState<ProjectsSection>("hub");
-  // القوائم المرجعية — قسم الشاشة الموحدة (القوائم العامة/أنواع العقود/مراحل العمل)
-  const [refListsSection, setRefListsSection] = React.useState<RefListsSection>("lists");
+  // القوائم المرجعية — قسم الشاشة الموحدة الافتراضي (الأنواع والمراحل والدفعات) ثم بقية الأقسام
+  const [refListsSection, setRefListsSection] = React.useState<RefListsSection>("types-stages-payments");
 
   // معرّف البند النشط في القائمة الجانبية (يحدد الوحدة والبند المُبرز)
   const activeNav =

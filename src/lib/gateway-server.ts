@@ -1918,13 +1918,14 @@ export async function wipeGatewayData(username: string): Promise<Record<string, 
     db.transferOpAlloc.count(),
     db.gatewayFeeVoucher.count(),
   ]);
-  await db.$transaction([
-    db.gatewayFeeVoucher.deleteMany(),
-    db.transferOpAlloc.deleteMany(),
-    db.otherCompanyTransfer.deleteMany(),
-    db.gatewayOp.deleteMany(),
-    db.bankLine.deleteMany(),
-  ]);
+  // الشكل الدالة — المصفوفة تُنشئ استعلامات خارج المعاملة عبر غلاف db
+  await db.$transaction(async (tx) => {
+    await tx.gatewayFeeVoucher.deleteMany();
+    await tx.transferOpAlloc.deleteMany();
+    await tx.otherCompanyTransfer.deleteMany();
+    await tx.gatewayOp.deleteMany();
+    await tx.bankLine.deleteMany();
+  });
   await audit(db, {
     username,
     action: "gateway_wipe",

@@ -25,11 +25,12 @@ export async function DELETE(req: NextRequest, { params }: P) {
       return jsonError("لا يمكن حذف عملية مرتبطة بسند عمولة — ألغِ سند العمولة أولًا.");
     if (op._count.allocs > 0)
       return jsonError("لا يمكن حذف عملية مرتبطة بتخصيصات تحويل — ألغِ التخصيصات أولًا.");
-    await db.$transaction([
-      db.transferOpAlloc.deleteMany({ where: { opId: id } }),
-      db.gatewayFeeVoucher.deleteMany({ where: { opId: id } }),
-      db.gatewayOp.delete({ where: { id } }),
-    ]);
+    // الشكل الدالة — المصفوفة تُنشئ استعلامات خارج المعاملة عبر غلاف db
+    await db.$transaction(async (tx) => {
+      await tx.transferOpAlloc.deleteMany({ where: { opId: id } });
+      await tx.gatewayFeeVoucher.deleteMany({ where: { opId: id } });
+      await tx.gatewayOp.delete({ where: { id } });
+    });
     await audit(db, {
       username: guard.user.username,
       action: "gateway_op_delete",

@@ -248,6 +248,14 @@ function wrapClient<T extends object>(client: T, fixedId: number | null): T {
             return orig.call(t, async (tx: unknown, ...rest: unknown[]) =>
               (cb as (a: unknown, ...r: unknown[]) => unknown)(wrapClient(tx as object, fixedId), ...rest), args[1]);
           }
+          // درس PATCH 500: الشكل المصفوفة $transaction([q1, q2]) عبر الغلاف يُنشئ
+          // الاستعلامات فورًا خارج المعاملة (أسلوب الـasync wrapper) ثم يرفضها Prisma —
+          // فانحرفت البيانات مع رسالة فشل. المنع الصريح يجبر الشكل الدالة الآمن.
+          if (Array.isArray(args[0])) {
+            throw new Error(
+              "$transaction(array) غير مدعوم عبر غلاف db — استخدم الشكل الدالة: $transaction(async (tx) => { ... })"
+            );
+          }
           return (orig as (...a: unknown[]) => unknown).apply(t, args);
         };
       }

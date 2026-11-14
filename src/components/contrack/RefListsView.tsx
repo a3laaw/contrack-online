@@ -32,9 +32,10 @@ import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "./api";
 import { errMessage, type User } from "./contrack-types";
 import { ContractTypesManager } from "./ContractTypesManager";
+import { TypesStagesPaymentsView } from "./TypesStagesPaymentsView";
 import { WorkflowTab } from "./settings/workflow-tab";
 
-export type RefListsSection = "lists" | "contract-types" | "stages";
+export type RefListsSection = "types-stages-payments" | "lists" | "contract-types" | "stages";
 
 // ===== أنواع الـAPI — عقد /api/ref-lists الموثق =====
 interface RefStageLink {
@@ -111,6 +112,11 @@ export function RefListsView({ user, onAuthError, section = "lists", onSectionCh
 
       {/* الجلسة 14 — قرار المالك: القائمة الجانبية هي الملاحّ الوحيد — بلا شريط تبويبات داخلي */}
       <Tabs value={section} onValueChange={(v) => onSectionChange?.(v as RefListsSection)} className="gap-4">
+
+        {/* الشاشة الموحدة — قرار المالك: أنواع العقود ومراحل العمل والدفعات كلها في صفحة واحدة */}
+        <TabsContent value="types-stages-payments" className="space-y-4">
+          <TypesStagesPaymentsView user={user} onAuthError={onAuthError} onFailToast={onFail} />
+        </TabsContent>
 
         <TabsContent value="lists" className="space-y-4">
           <ListsPanel user={user} onFail={onFail} />
