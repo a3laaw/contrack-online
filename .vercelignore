@@ -1,0 +1,8 @@
+# حماية الملفات المحلية من الرفع إلى Vercel
+.env
+.env.*
+nova-reference
+.embedded-pgdata
+dev-verify.log
+*.log
+db/
