@@ -10,6 +10,8 @@ export type ViewName =
   | "customer-file"
   | "contracts"
   | "contract-groups"
+  // الشاشة الموحدة «المراحل والدفعات» — قرار المالك: عقد ← مرحلة ← دفعاتها في صفحة واحدة
+  | "stage-payments"
   | "forms"
   | "contract"
   | "vouchers"

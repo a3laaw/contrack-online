@@ -20,6 +20,7 @@ import { CustomersView } from "./CustomersView";
 import { CustomerFilePage } from "./CustomerFilePage";
 import { ContractsView } from "./ContractsView";
 import { ContractGroupsView } from "./ContractGroupsView";
+import { StagePaymentsView } from "./StagePaymentsView";
 import { FormsCenterView } from "./FormsCenterView";
 import { ContractDetailView } from "./ContractDetailView";
 import { VouchersView } from "./VouchersView";
@@ -409,6 +410,8 @@ function AppRoot() {
         />
       )}
       {view === "contract-groups" && <ContractGroupsView user={user} onAuthError={onAuthError} />}
+      {/* الشاشة الموحدة «المراحل والدفعات» — قرار المالك: عقد ← مرحلة ← دفعاتها في صفحة واحدة */}
+      {view === "stage-payments" && <StagePaymentsView user={user} onAuthError={onAuthError} />}
       {view === "forms" && <FormsCenterView user={user} onAuthError={onAuthError} />}
       {view === "contract" && contractId !== null && (
         <ContractDetailView

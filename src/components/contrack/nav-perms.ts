@@ -81,6 +81,8 @@ export const VIEW_PERMS: Partial<Record<ViewName, string>> = {
   "customer-file": "screen_customers",
   contracts: "screen_customers",
   "contract-groups": "screen_customers",
+  // الشاشة الموحدة «المراحل والدفعات» — باب فتح مباشر بمفتاح شاشة العقود نفسه
+  "stage-payments": "screen_customers",
   forms: "screen_forms",
   contract: "screen_customers",
   comments: "screen_customers",
