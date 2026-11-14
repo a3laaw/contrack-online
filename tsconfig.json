@@ -41,6 +41,7 @@
     "scripts",
     "tests",
     "examples",
-    "skills"
+    "skills",
+    "nova-reference"
   ]
 }
