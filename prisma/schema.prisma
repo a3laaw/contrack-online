@@ -994,10 +994,17 @@ model RefItem {
   notes       String           @default("")
   active      Boolean          @default(true)
   sortOrder   Int              @default(0) @map("sort_order")
+  // الهيكل التنظيمي (docs/org-structure-design.md D1): ارتباط اختياري عابر للقوائم —
+  // قسم ← بند إدارة، وظيفة ← بند قسم. الأب مقيّد بنوع القائمة في الـAPI فلا دوران بنيوياً،
+  // وRestrict حارس قاعدة البيانات الأخير لحذف أب لا يزال عليه أبناء.
+  parentId    Int?             @map("parent_id")
+  parent      RefItem?         @relation("RefItemTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children    RefItem[]        @relation("RefItemTree")
   stageLinks  RefItemStage[]
   paymentLinks RefItemPayment[]
 
   @@unique([listId, name])
+  @@index([parentId])
   @@map("ref_items")
 }
 

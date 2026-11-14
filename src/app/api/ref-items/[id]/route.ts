@@ -1,13 +1,15 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { adminGuard, audit, jsonError, ok } from "@/lib/api-utils";
-import { mapRefItem, parseStageIds, refItemInclude } from "@/lib/ref-lists-shared";
+import { mapRefItem, parseStageIds, resolveRefParent, refItemInclude, withChildrenCount } from "@/lib/ref-lists-shared";
 
 type P = { params: Promise<{ id: string }> };
 
 /**
  * تعديل بند مرجعي (الاسم/الرمز/القيمة/الملاحظات/التفعيل) — وروابط المراحل
  * تُستبدل ككتلة (deleteMany ثم createMany داخل معاملة) إن وردت في الطلب.
+ * + الهيكل التنظيمي (org-structure-design D1): parentId عند وروده —
+ *   null = فك الارتباط، رقم = ربط بعد تحقق نوع الأب (قسم←إدارة / وظيفة←قسم).
  */
 export async function PATCH(req: NextRequest, { params }: P) {
   const guard = await adminGuard(req);
@@ -15,11 +17,11 @@ export async function PATCH(req: NextRequest, { params }: P) {
 
   const id = Number((await params).id);
   if (!Number.isInteger(id)) return jsonError("معرّف غير صحيح");
-  const item = await db.refItem.findFirst({ where: { id } });
+  const item = await db.refItem.findFirst({ where: { id }, include: { list: { select: { key: true } } } });
   if (!item) return jsonError("البند غير موجود", 404);
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-  const data: { name?: string; code?: string; value?: number | null; notes?: string; active?: boolean } = {};
+  const data: { name?: string; code?: string; value?: number | null; notes?: string; active?: boolean; parentId?: number | null } = {};
   if (body.name !== undefined) {
     const name = String(body.name || "").trim();
     if (!name) return jsonError("اسم البند مطلوب");
@@ -46,6 +48,13 @@ export async function PATCH(req: NextRequest, { params }: P) {
     if (stages.length !== stageIds.length) return jsonError("إحدى المراحل المختارة غير موجودة");
   }
 
+  // الهيكل التنظيمي — undefined = لا تغيير، null = فك الارتباط، رقم = ربط (بتحقق نوع الأب)
+  if (body.parentId !== undefined) {
+    const rp = await resolveRefParent(body.parentId, item.list.key, id);
+    if (typeof rp === "string") return jsonError(rp);
+    data.parentId = rp.parentId;
+  }
+
   await db.$transaction(async (tx) => {
     if (Object.keys(data).length > 0) await tx.refItem.update({ where: { id }, data });
     if (stageIds) {
@@ -66,10 +75,11 @@ export async function PATCH(req: NextRequest, { params }: P) {
   });
 
   const full = await db.refItem.findFirst({ where: { id }, include: refItemInclude });
-  return ok({ item: full ? mapRefItem(full) : null });
+  return ok({ item: full ? mapRefItem(withChildrenCount(full)) : null });
 }
 
-/** حذف بند — بلا سجلات تعتمد عليه بعد (مرآة حذف بنود القوائم) فحذف قاطع بروابطه (Cascade) */
+/** حذف بند — بحارس الهيكل التنظيمي (D2): بند عليه أبناء مرتبطون لا يُحذف حتى يُفك ارتباطهم،
+ *  وRestrict على FK حارس أخير. خارج ذلك حذف قاطع بروابطه (Cascade) كما هو. */
 export async function DELETE(req: NextRequest, { params }: P) {
   const guard = await adminGuard(req);
   if ("response" in guard) return guard.response;
@@ -78,6 +88,13 @@ export async function DELETE(req: NextRequest, { params }: P) {
   if (!Number.isInteger(id)) return jsonError("معرّف غير صحيح");
   const item = await db.refItem.findFirst({ where: { id } });
   if (!item) return jsonError("البند غير موجود", 404);
+
+  const childrenCount = await db.refItem.count({ where: { parentId: id } });
+  if (childrenCount > 0) {
+    return jsonError(
+      `لا يمكن الحذف — البند عليه ${childrenCount} بند مرتبط (أقسام/وظائف). فُكّ ارتباطها أولًا`
+    );
+  }
 
   await db.refItem.delete({ where: { id } });
   await audit(db, {

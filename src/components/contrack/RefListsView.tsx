@@ -32,10 +32,11 @@ import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "./api";
 import { errMessage, type User } from "./contrack-types";
 import { ContractTypesManager } from "./ContractTypesManager";
+import { OrgStructureView } from "./OrgStructureView";
 import { TypesStagesPaymentsView } from "./TypesStagesPaymentsView";
 import { WorkflowTab } from "./settings/workflow-tab";
 
-export type RefListsSection = "types-stages-payments" | "lists" | "contract-types" | "stages";
+export type RefListsSection = "types-stages-payments" | "org-structure" | "lists" | "contract-types" | "stages";
 
 // ===== أنواع الـAPI — عقد /api/ref-lists الموثق =====
 interface RefStageLink {
@@ -116,6 +117,11 @@ export function RefListsView({ user, onAuthError, section = "lists", onSectionCh
         {/* الشاشة الموحدة — قرار المالك: أنواع العقود ومراحل العمل والدفعات كلها في صفحة واحدة */}
         <TabsContent value="types-stages-payments" className="space-y-4">
           <TypesStagesPaymentsView user={user} onAuthError={onAuthError} onFailToast={onFail} />
+        </TabsContent>
+
+        {/* الشاشة الموحدة الثانية — قرار المالك: الإدارات والأقسام والوظائف كلها مترابطة بنفس الثلاثة أعمدة */}
+        <TabsContent value="org-structure" className="space-y-4">
+          <OrgStructureView user={user} onAuthError={onAuthError} onFailToast={onFail} />
         </TabsContent>
 
         <TabsContent value="lists" className="space-y-4">

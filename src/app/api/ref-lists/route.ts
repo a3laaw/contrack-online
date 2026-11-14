@@ -61,6 +61,8 @@ export async function GET(req: NextRequest) {
             orderBy: { id: "asc" as const },
             include: { stage: { select: { stageName: true, transactionType: true } } },
           },
+          // الهيكل التنظيمي — عدّاد الأبناء لشارة «عدد الأقسام/الوظائف» (org-structure-design D1)
+          _count: { select: { children: true } },
         },
       },
     },
@@ -74,7 +76,7 @@ export async function GET(req: NextRequest) {
       description: l.description,
       system: l.system,
       active: l.active,
-      items: l.items.map(mapRefItem),
+      items: l.items.map((it) => mapRefItem({ ...it, childrenCount: it._count.children })),
     })),
   });
 }

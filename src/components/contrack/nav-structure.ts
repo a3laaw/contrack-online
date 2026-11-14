@@ -378,6 +378,8 @@ export const NAV_MODULES: NavModule[] = [
     children: [
       // الشاشة الموحدة — قرار المالك: «أنواع العقود ومراحل العمل والدفعات كلها في صفحة واحدة»
       { id: "ref-tsp", label: "الأنواع والمراحل والدفعات", icon: Layers, view: "ref-lists", section: "types-stages-payments", adminOnly: true },
+      // الشاشة الموحدة الثانية — قرار المالك: «الوظائف والأقسام والإدارات كلها مترابطة — نفس الثلاثة أعمدة»
+      { id: "ref-org", label: "الإدارات والأقسام والوظائف", icon: Network, view: "ref-lists", section: "org-structure", adminOnly: true },
       { id: "ref-lists", label: "القوائم العامة", icon: BookMarked, view: "ref-lists", section: "lists", adminOnly: true, perm: "screen_ref_lists" },
       { id: "ref-contract-types", label: "أنواع العقود (تفصيلي)", icon: FileStack, view: "ref-lists", section: "contract-types", adminOnly: true },
       { id: "ref-stages", label: "مراحل العمل (الشجرة)", icon: ClipboardList, view: "ref-lists", section: "stages", adminOnly: true },

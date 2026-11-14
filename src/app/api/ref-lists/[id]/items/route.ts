@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { adminGuard, audit, jsonError, ok } from "@/lib/api-utils";
-import { mapRefItem, parseStageIds, refItemInclude } from "@/lib/ref-lists-shared";
+import { mapRefItem, parseStageIds, resolveRefParent, refItemInclude, withChildrenCount } from "@/lib/ref-lists-shared";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -9,6 +9,7 @@ type P = { params: Promise<{ id: string }> };
  * إضافة بند لقائمة مرجعية — الاسم مطلوب وفريد ضمن القائمة،
  * والقيمة عشرية اختيارية (الأوزان 0.30 وغيرها)، وروابط المراحل تُنشأ
  * بcreateMany منفصلة ليحقن الغلاف companyId لكل صف (لا nested create).
+ * + الهيكل التنظيمي: parentId اختياري — قسم←إدارة / وظيفة←قسم (org-structure-design D1).
  */
 export async function POST(req: NextRequest, { params }: P) {
   const guard = await adminGuard(req);
@@ -36,12 +37,20 @@ export async function POST(req: NextRequest, { params }: P) {
   const dup = await db.refItem.findFirst({ where: { listId, name } });
   if (dup) return jsonError("البند موجود مسبقًا في هذه القائمة");
 
+  // الهيكل التنظيمي — أب اختياري بنوع قائمة صحيح (قسم←إدارة / وظيفة←قسم)
+  let parentId: number | null = null;
+  if (body.parentId !== undefined && body.parentId !== null) {
+    const rp = await resolveRefParent(body.parentId, list.key, null);
+    if (typeof rp === "string") return jsonError(rp);
+    parentId = rp.parentId;
+  }
+
   // الترتيب: آخر القائمة — والحركة أعلى/أسفل تعيد الترقيم موحدًا
   const last = await db.refItem.findFirst({ where: { listId }, orderBy: { sortOrder: "desc" } });
   const sortOrder = (last?.sortOrder ?? 0) + 1;
 
   const created = await db.refItem.create({
-    data: { listId, name, code, value: value ?? null, notes, sortOrder },
+    data: { listId, name, code, value: value ?? null, notes, sortOrder, parentId },
   });
 
   const stageIds = parseStageIds(body.stageIds);
@@ -62,5 +71,5 @@ export async function POST(req: NextRequest, { params }: P) {
   });
 
   const full = await db.refItem.findFirst({ where: { id: created.id }, include: refItemInclude });
-  return ok({ item: full ? mapRefItem(full) : null }, 201);
+  return ok({ item: full ? mapRefItem(withChildrenCount(full)) : null }, 201);
 }
