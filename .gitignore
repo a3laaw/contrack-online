@@ -82,3 +82,7 @@ backups/
 # بند NOVA 3 — بيانات Postgres المضمّن وسجل التحقق الحي لا تُتتبع
 .embedded-pgdata/
 dev-verify.log
+
+# مرجع NOVA الأساسي (كود المالك للقراءة فقط) — يحتوي .env خاصًا بـFirebase
+# و.git داخليًا ولا يُرفع للمستودع إطلاقًا
+nova-reference/
