@@ -1,15 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Cairo } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { AppDirectionProvider } from "@/components/app-direction-provider";
 
 // الخط المعتمد: Cairo (قيد 6 من التوجيه)
-const cairo = Cairo({
-  variable: "--font-cairo",
-  subsets: ["arabic", "latin"],
-  weight: ["400", "500", "600", "700", "800"],
-});
+// تعريف الخط في globals.css (@font-face محلي من public/fonts) بدل next/font/google
+// لتفادي فشل بناء Vercel عند تعذر جلب Google Fonts من بيئة البناء.
 
 export const metadata: Metadata = {
   title: "ConTrack — إدارة العقود والمحاسبة",
@@ -28,7 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" dir="rtl" className={cairo.variable} suppressHydrationWarning>
+    <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body className="antialiased bg-background text-foreground font-sans">
         <AppDirectionProvider>
           {children}
