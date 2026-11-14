@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { authGuard, jsonError, ok, parseDay } from "@/lib/api-utils";
 import { EPS, r3 } from "@/lib/contrack-core";
 import { loadContractCore } from "@/lib/contrack-server";
+import { resolveRefItemIds } from "@/lib/ref-lists-shared";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -76,6 +77,15 @@ export async function POST(req: NextRequest, { params }: P) {
     where: { contractId },
     _max: { sortOrder: true },
   });
+
+  // ربط القوائم المرجعية — بنود القوائم المرتبطة بهذه الدفعة (تحقق: موجودة ومفعلة بقوائم مفعلة)
+  let refItemIds: number[] = [];
+  if (body.refItemIds !== undefined) {
+    const resolved = await resolveRefItemIds(body.refItemIds);
+    if (typeof resolved === "string") return jsonError(resolved);
+    refItemIds = resolved;
+  }
+
   const line = await db.$transaction(async (tx) => {
     const created = await tx.paymentPlanItem.create({
       data: {
@@ -87,15 +97,20 @@ export async function POST(req: NextRequest, { params }: P) {
         stageId,
       },
     });
+    if (refItemIds.length > 0) {
+      await tx.refItemPayment.createMany({
+        data: refItemIds.map((itemId) => ({ itemId, paymentId: created.id })),
+      });
+    }
     await tx.contractEvent.create({
       data: {
         contractId,
         eventType: "إضافة دفعة للخطة",
-        description: `أُضيفت دفعة «${title}» بمبلغ ${amount} بتاريخ استحقاق ${dueDate}`,
+        description: `أُضيفت دفعة «${title}» بمبلغ ${amount} بتاريخ استحقاق ${dueDate}${refItemIds.length > 0 ? ` — مربوطة بـ${refItemIds.length} بند مرجعي` : ""}`,
         username: guard.user.username,
       },
     });
     return created;
   });
-  return ok({ line: { id: line.id, title: line.title, dueDate: line.dueDate, amount: Number(line.amount), sortOrder: line.sortOrder, stageId: line.stageId } }, 201);
+  return ok({ line: { id: line.id, title: line.title, dueDate: line.dueDate, amount: Number(line.amount), sortOrder: line.sortOrder, stageId: line.stageId, refItemIds } }, 201);
 }

@@ -33,6 +33,7 @@ import {
   Menu,
   Download,
   FileText,
+  Link2,
   Lock,
   Upload,
 } from "lucide-react";
@@ -95,6 +96,7 @@ import type {
   PayViewSubLine,
   PlanLine,
   ReadyIpcItem,
+  RefTagLite,
   StatementTarget,
   StageQuantumDTO,
   SubContractsResponse,
@@ -122,6 +124,65 @@ import { BoqImportDialog } from "./BoqImportDialog";
 import { ScheduleImportDialog } from "./ScheduleImportDialog";
 import { ScheduleSection } from "./ScheduleSection";
 import { ContractSupervisionPage } from "./ContractSupervisionPage";
+
+// ==================== ربط القوائم المرجعية مع الدفعات ====================
+/** بند قائمة مرجعية للمنتقي — شكل مصغر متوافق مع mapRefItem في GET /api/ref-lists */
+interface RefPickerItem {
+  id: number;
+  name: string;
+  active: boolean;
+}
+interface RefPickerList {
+  id: number;
+  name: string;
+  active: boolean;
+  items: RefPickerItem[];
+}
+
+/**
+ * منتقي بنود القوائم المرجعية (RefItemPayment) — مجموعات checkboxes بمجموعة لكل قائمة:
+ * القوائم المفعلة ذات البنود المفعلة فقط، ويُحدد المالك البنود التي تُوسم بها الدفعة
+ * (المنطقة · القسم · الوظيفة… — نفس بنود «القوائم المرجعية» من شاشة الإعدادات).
+ */
+function RefItemsPicker({
+  lists,
+  selected,
+  onChange,
+}: {
+  lists: RefPickerList[];
+  selected: number[];
+  onChange: (ids: number[]) => void;
+}) {
+  const usable = lists.filter((l) => l.active && l.items.some((it) => it.active));
+  if (usable.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        لا توجد قوائم مرجعية مفعّلة ببنود — أضِف البنود من شاشة «القوائم المرجعية» ثم ارجع للربط.
+      </p>
+    );
+  }
+  const toggle = (id: number) =>
+    onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+  return (
+    <div className="max-h-48 space-y-2 overflow-y-auto rounded-md border bg-muted/20 p-2">
+      {usable.map((l) => (
+        <div key={l.id}>
+          <p className="text-[11px] font-bold text-muted-foreground">{l.name}</p>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1.5">
+            {l.items
+              .filter((it) => it.active)
+              .map((it) => (
+                <label key={it.id} className="flex cursor-pointer items-center gap-1.5 text-sm">
+                  <Checkbox checked={selected.includes(it.id)} onCheckedChange={() => toggle(it.id)} />
+                  {it.name}
+                </label>
+              ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 interface ContractDetailViewProps {
   contractId: number;
@@ -371,7 +432,19 @@ export function ContractDetailView({
   // ===== الدفعات =====
   const [addPayOpen, setAddPayOpen] = React.useState(false);
   // Task 82: stageId اختياري — الدفعة المرتبطة بمرحلة تُستحق تلقائيًا عند إنهائها
-  const [payForm, setPayForm] = React.useState({ title: "", amount: "", dueDate: todayStr(), stageId: "" });
+  // ربط القوائم المرجعية — بنود القوائم المرتبطة بالدفعة الجديدة (RefItemPayment)
+  const [payForm, setPayForm] = React.useState({ title: "", amount: "", dueDate: todayStr(), stageId: "", refItemIds: [] as number[] });
+
+  // ===== نافذة تعديل ربط القوائم المرجعية على دفعة قائمة (زر 🔗 في جدول الخطة) =====
+  const [editRefsLine, setEditRefsLine] = React.useState<{ id: number; title: string; refItems?: RefTagLite[] } | null>(null);
+  const [editRefsIds, setEditRefsIds] = React.useState<number[]>([]);
+
+  // القوائم المرجعية للمنتقي — تُحمّل فقط عند فتح إضافة دفعة أو نافذة تعديل الربط
+  const refListsQuery = useQuery<{ lists: RefPickerList[] }>({
+    queryKey: ["ref-lists-picker"],
+    queryFn: () => apiGet<{ lists: RefPickerList[] }>("/api/ref-lists"),
+    enabled: addPayOpen || editRefsLine !== null,
+  });
 
   // المرحلة 8: زر «تصدير Excel» في تاب الدفعات ⇒ xlsx حقيقي بتنزيل blob (كان window.open لCSV نصي)
   const [payExporting, setPayExporting] = React.useState(false);
@@ -400,15 +473,40 @@ export function ContractDetailView({
         amount: Number(payForm.amount || 0),
         dueDate: payForm.dueDate,
         ...(payForm.stageId ? { stageId: Number(payForm.stageId) } : {}),
+        refItemIds: payForm.refItemIds,
       }),
     onSuccess: () => {
       invalidateAll();
       qc.invalidateQueries({ queryKey: ["contract", contractId, "pay-view"] });
-      toast({ title: "تمت الإضافة", description: payForm.stageId ? "أُضيفت الدفعة وارتبطت بالمرحلة — تُستحق تلقائيًا عند إنهائها" : "أُضيفت الدفعة للخطة" });
+      toast({
+        title: "تمت الإضافة",
+        description:
+          (payForm.stageId ? "أُضيفت الدفعة وارتبطت بالمرحلة — تُستحق تلقائيًا عند إنهائها" : "أُضيفت الدفعة للخطة") +
+          (payForm.refItemIds.length > 0 ? ` · مربوطة بـ${payForm.refItemIds.length} بند مرجعي` : ""),
+      });
       setAddPayOpen(false);
-      setPayForm({ title: "", amount: "", dueDate: todayStr(), stageId: "" });
+      setPayForm({ title: "", amount: "", dueDate: todayStr(), stageId: "", refItemIds: [] });
     },
     onError: (e) => fail(e, "رُفضت الإضافة"),
+  });
+
+  // فتح نافذة الربط من زر 🔗 في جدول الخطة
+  const openEditPayRefs = React.useCallback((line: { id: number; title: string; refItems?: RefTagLite[] }) => {
+    setEditRefsLine(line);
+    setEditRefsIds((line.refItems ?? []).map((t) => t.id));
+  }, []);
+  const saveRefsMutation = useMutation({
+    mutationFn: () => apiPatch(`/api/contracts/${contractId}/plan/${editRefsLine?.id ?? 0}`, { refItemIds: editRefsIds }),
+    onSuccess: () => {
+      invalidateAll();
+      qc.invalidateQueries({ queryKey: ["contract", contractId, "pay-view"] });
+      toast({
+        title: "تم حفظ الربط",
+        description: editRefsIds.length > 0 ? `الدفعة مربوطة بـ${editRefsIds.length} بند مرجعي` : "فُكّت كل روابط البنود المرجعية",
+      });
+      setEditRefsLine(null);
+    },
+    onError: (e) => fail(e, "تعذر حفظ الربط"),
   });
 
   const [deletePayId, setDeletePayId] = React.useState<number | null>(null);
@@ -966,6 +1064,7 @@ export function ContractDetailView({
           contractAmount={Number(detail?.amount ?? 0)}
           onAddPay={() => setAddPayOpen(true)}
           onDeletePay={(id) => setDeletePayId(id)}
+          onEditPayRefs={openEditPayRefs}
           onReceipt={() => setVoucherPage("receipt")}
           onPayment={() => setVoucherPage("payment")}
           onExport={onPayExport}
@@ -1221,6 +1320,22 @@ export function ContractDetailView({
                 </p>
               </div>
             )}
+            {/* ربط القوائم المرجعية — بنود تُوسم بها الدفعة (المنطقة · القسم · الوظيفة…) */}
+            <div className="space-y-1.5">
+              <Label>بنود القوائم المرجعية (اختياري)</Label>
+              {refListsQuery.isLoading ? (
+                <Skeleton className="h-16 rounded-md" />
+              ) : (
+                <RefItemsPicker
+                  lists={refListsQuery.data?.lists ?? []}
+                  selected={payForm.refItemIds}
+                  onChange={(ids) => setPayForm((f) => ({ ...f, refItemIds: ids }))}
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                وسوم مرجعية على الدفعة من قوائم «القوائم المرجعية» — تظهر في جدول الخطة وتُدار لاحقًا بزر 🔗.
+              </p>
+            </div>
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" className="h-9" onClick={() => setAddPayOpen(false)} disabled={addPayMutation.isPending}>
@@ -1259,6 +1374,32 @@ export function ContractDetailView({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ===== نافذة ربط القوائم المرجعية بدفعة قائمة (زر 🔗 في جدول الخطة) ===== */}
+      <Dialog open={editRefsLine !== null} onOpenChange={(open) => !open && setEditRefsLine(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>ربط بنود القوائم المرجعية</DialogTitle>
+            <DialogDescription>
+              الدفعة «{editRefsLine?.title ?? ""}» — اختر البنود المرتبطة بها (استبدال كامل للروابط الحالية).
+            </DialogDescription>
+          </DialogHeader>
+          {refListsQuery.isLoading ? (
+            <Skeleton className="h-24 rounded-md" />
+          ) : (
+            <RefItemsPicker lists={refListsQuery.data?.lists ?? []} selected={editRefsIds} onChange={setEditRefsIds} />
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" className="h-9" onClick={() => setEditRefsLine(null)} disabled={saveRefsMutation.isPending}>
+              إلغاء
+            </Button>
+            <Button className="h-9 gap-1.5" disabled={saveRefsMutation.isPending} onClick={() => saveRefsMutation.mutate()}>
+              {saveRefsMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Link2 className="size-4" />}
+              {saveRefsMutation.isPending ? "جارٍ الحفظ…" : "حفظ الربط"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ===== تأكيد حذف بند ===== */}
       <AlertDialog open={deleteBoqId !== null} onOpenChange={(open) => !open && setDeleteBoqId(null)}>
@@ -2509,6 +2650,7 @@ function PayPage({
   contractAmount,
   onAddPay,
   onDeletePay,
+  onEditPayRefs,
   onReceipt,
   onPayment,
   onExport,
@@ -2531,6 +2673,8 @@ function PayPage({
   contractAmount: number;
   onAddPay: () => void;
   onDeletePay: (id: number) => void;
+  /** ربط القوائم المرجعية — فتح نافذة تعديل روابط بنود القوائم على سطر دفعة */
+  onEditPayRefs: (line: { id: number; title: string; refItems?: RefTagLite[] }) => void;
   onReceipt: () => void;
   onPayment: (subContractId?: number, subLabel?: string) => void;
   onExport: () => void;
@@ -2636,6 +2780,7 @@ function PayPage({
               manager={manager}
               onDelete={onDeletePay}
               onAdd={onAddPay}
+              onEditRefs={onEditPayRefs}
             />
             <p className="text-xs text-muted-foreground">
               {m.client.lines.length > 0

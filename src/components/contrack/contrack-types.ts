@@ -681,6 +681,8 @@ export interface PayViewLine {
   notes?: string;
   sortOrder?: number;
   stageId?: number | null;
+  /** بنود القوائم المرجعية المربوطة بهذا السطر */
+  refItems?: RefTagLite[];
 }
 
 export interface PayViewSubLine extends PayViewLine {
@@ -818,6 +820,13 @@ export interface SubcontractorLedgerResponse {
 
 // ==================== خطة الدفعات ====================
 
+/** ربط القوائم المرجعية مع الدفعات — وسم بند مرجعي على سطر دفعة (RefItemPayment) */
+export interface RefTagLite {
+  id: number;
+  name: string;
+  listName: string;
+}
+
 export interface PlanLine {
   id: number;
   title: string;
@@ -832,6 +841,8 @@ export interface PlanLine {
   triggeredAt?: string;
   stageId?: number | null;
   notes?: string;
+  /** بنود القوائم المرجعية المربوطة بهذا السطر */
+  refItems?: RefTagLite[];
 }
 
 /** استجابة GET /api/contracts/[id]/plan */

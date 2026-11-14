@@ -106,7 +106,14 @@ export async function loadContractCore(
     db.paymentPlanItem.findMany({
       where: { contractId },
       orderBy: [{ dueDate: "asc" }, { sortOrder: "asc" }],
-      include: { stage: { select: { isSkipped: true, endDate: true } } },
+      include: {
+        stage: { select: { isSkipped: true, endDate: true } },
+        // القوائم المرجعية — بنود مربوطة بسطر الدفعة (RefItemPayment) مع اسم قائمتها
+        refLinks: {
+          orderBy: { id: "asc" },
+          include: { item: { include: { list: { select: { name: true } } } } },
+        },
+      },
     }),
     db.voucherPaymentLink.findMany({
       where: { kind: "receipt", voucher: { contractId, vtype: "receipt", cancelled: false } },
@@ -140,6 +147,11 @@ export async function loadContractCore(
     triggeredAt: p.triggeredAt,
     notes: p.notes,
     stage: p.stage ? { isSkipped: p.stage.isSkipped, endDate: p.stage.endDate } : null,
+    refItems: (p.refLinks ?? []).map((l) => ({
+      id: l.itemId,
+      name: l.item.name,
+      listName: l.item.list.name,
+    })),
   }));
 
   const actualEnd = actualSupervisionEnd(stages);

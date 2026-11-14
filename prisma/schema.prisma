@@ -394,6 +394,8 @@ model PaymentPlanItem {
   claims            Claim[]
   // جسر الإنجاز إلى الفوترة (docs/revisions-ipc-design.md §2) — فواتير مرتبطة بهذا السطر
   invoices          Invoice[]
+  // القوائم المرجعية — بنود مرجعية مربوطة بسطر الدفعة (RefItemPayment)
+  refLinks          RefItemPayment[]
   createdAt         DateTime           @default(now())
 
   @@index([contractId, dueDate, sortOrder])
@@ -981,18 +983,19 @@ model RefList {
 }
 
 model RefItem {
-  companyId  Int             @default(1) @map("company_id")
-  id         Int             @id @default(autoincrement())
-  listId     Int             @map("list_id")
-  list       RefList         @relation(fields: [listId], references: [id], onDelete: Cascade)
-  name       String
-  code       String          @default("") // رمز اختياري
+  companyId   Int              @default(1) @map("company_id")
+  id          Int              @id @default(autoincrement())
+  listId      Int              @map("list_id")
+  list        RefList          @relation(fields: [listId], references: [id], onDelete: Cascade)
+  name        String
+  code        String           @default("") // رمز اختياري
   // قيمة اختيارية — للأوزان (0.30) وأي قائمة رقمية مستقبلًا
-  value      Decimal?        @db.Decimal(18, 4)
-  notes      String          @default("")
-  active     Boolean         @default(true)
-  sortOrder  Int             @default(0) @map("sort_order")
-  stageLinks RefItemStage[]
+  value       Decimal?         @db.Decimal(18, 4)
+  notes       String           @default("")
+  active      Boolean          @default(true)
+  sortOrder   Int              @default(0) @map("sort_order")
+  stageLinks  RefItemStage[]
+  paymentLinks RefItemPayment[]
 
   @@unique([listId, name])
   @@map("ref_items")
@@ -1009,6 +1012,20 @@ model RefItemStage {
 
   @@unique([itemId, stageId])
   @@map("ref_item_stages")
+}
+
+// ربط العنصر المرجعي بسطور خطة الدفعات (متعدد-متعدد) — «ربط القوائم المرجعية مع الدفعات»:
+// كل دفعة في خطة العقد يمكن وسمها ببنود القوائم (المنطقة · القسم · الوظيفة…) وكل بند يدخل في عدة دفعات
+model RefItemPayment {
+  companyId Int             @default(1) @map("company_id")
+  id        Int             @id @default(autoincrement())
+  itemId    Int             @map("item_id")
+  item      RefItem         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  paymentId Int             @map("payment_id")
+  payment   PaymentPlanItem @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, paymentId])
+  @@map("ref_item_payments")
 }
 
 // ==================== الإعدادات والمراجع ====================

@@ -11,14 +11,14 @@
  */
 
 import * as React from "react";
-import { Lock, Plus, Trash2 } from "lucide-react";
+import { Link2, Lock, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PAYMENT_STATUS_LABEL, fmtDate, formatKWD } from "@/lib/format";
 import { StatusBadge } from "./StatusBadge";
-import type { PayViewLine, PayViewSubLine } from "./contrack-types";
+import type { PayViewLine, PayViewSubLine, RefTagLite } from "./contrack-types";
 
 export function PayBlockCard({
   title,
@@ -278,18 +278,40 @@ export function UnifiedPayTable({
   );
 }
 
+/** شارات البنود المرجعية المرتبطة بسطر الدفعة — صف واحد مختصر (تستعمل في الجدول والبطاقة) */
+function RefTags({ tags }: { tags?: RefTagLite[] }) {
+  if (!tags || tags.length === 0) return null;
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1">
+      {tags.map((t) => (
+        <Badge
+          key={t.id}
+          variant="outline"
+          className="px-1.5 py-0 text-[10px] font-normal text-muted-foreground"
+          title={`مرتبط بقائمة ${t.listName}`}
+        >
+          🏷 {t.listName}: {t.name}
+        </Badge>
+      ))}
+    </div>
+  );
+}
+
 export function PlanTable({
   lines,
   manager,
   onDelete,
   readOnly,
   onAdd,
+  onEditRefs,
 }: {
-  lines: { id: number; title: string; dueDate: string; amountN: number; covered: number; remaining: number; state: string; stateLabel?: string; notes?: string; stageName?: string }[];
+  lines: { id: number; title: string; dueDate: string; amountN: number; covered: number; remaining: number; state: string; stateLabel?: string; notes?: string; stageName?: string; refItems?: RefTagLite[] }[];
   manager: boolean;
   onDelete: (id: number) => void;
   readOnly?: boolean;
   onAdd?: () => void;
+  /** ربط القوائم المرجعية — عند توفيرها يظهر زر 🔗 لكل سطر يفتح نافذة تعديل الربط */
+  onEditRefs?: (line: { id: number; title: string; refItems?: RefTagLite[] }) => void;
 }) {
   return (
     <>
@@ -304,7 +326,7 @@ export function PlanTable({
               <TableHead className="w-28 text-end">المغطى</TableHead>
               <TableHead className="w-28 text-end">المتبقي</TableHead>
               <TableHead className="w-32">الحالة</TableHead>
-              {manager && !readOnly && <TableHead className="w-16 text-center">حذف</TableHead>}
+              {manager && !readOnly && <TableHead className="w-24 text-center">أدوات</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -319,6 +341,7 @@ export function PlanTable({
                       </Badge>
                     )}
                   </div>
+                  <RefTags tags={ln.refItems} />
                   {ln.notes ? <div className="text-xs text-muted-foreground">{ln.notes}</div> : null}
                 </TableCell>
                 <TableCell dir="ltr" className="tabular-nums">{fmtDate(ln.dueDate)}</TableCell>
@@ -334,15 +357,29 @@ export function PlanTable({
                 </TableCell>
                 {manager && !readOnly && (
                   <TableCell className="text-center">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-destructive hover:text-destructive"
-                      onClick={() => onDelete(ln.id)}
-                      aria-label="حذف الدفعة"
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    <div className="flex items-center justify-center gap-0.5">
+                      {onEditRefs && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          onClick={() => onEditRefs(ln)}
+                          aria-label={`ربط بنود القوائم المرجعية بـ${ln.title}`}
+                          title="ربط بنود القوائم المرجعية"
+                        >
+                          <Link2 className="size-4" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-destructive hover:text-destructive"
+                        onClick={() => onDelete(ln.id)}
+                        aria-label="حذف الدفعة"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 )}
               </TableRow>
@@ -377,6 +414,7 @@ export function PlanTable({
                 className="px-2 py-0.5 text-[10px]"
               />
             </div>
+            <RefTags tags={ln.refItems} />
             <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
               <span>الاستحقاق: {fmtDate(ln.dueDate)}</span>
               <span className="tabular-nums" dir="ltr">المبلغ: {formatKWD(ln.amountN)}</span>
@@ -385,7 +423,19 @@ export function PlanTable({
             </div>
             {ln.notes && <p className="text-xs text-muted-foreground">{ln.notes}</p>}
             {manager && !readOnly && (
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-1">
+                {onEditRefs && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 gap-1"
+                    onClick={() => onEditRefs(ln)}
+                    aria-label={`ربط بنود القوائم المرجعية بـ${ln.title}`}
+                  >
+                    <Link2 className="size-3.5" />
+                    ربط
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"

@@ -53,6 +53,8 @@ export async function GET(req: NextRequest, { params }: P) {
     notes: l.notes,
     sortOrder: l.sortOrder,
     stageId: l.stageId,
+    // ربط القوائم المرجعية — بنود القوائم المرتبطة بسطر الدفعة
+    refItems: l.refItems ?? [],
   }));
   const clientDue = r3(clientLines.filter((l) => (l.triggeredAt || "").trim()).reduce((s, l) => s + l.amountN, 0));
   const clientCollected = r3(clientLines.reduce((s, l) => s + l.covered, 0));

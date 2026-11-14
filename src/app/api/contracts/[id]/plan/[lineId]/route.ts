@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { authGuard, jsonError, ok, parseDay } from "@/lib/api-utils";
 import { EPS, r3 } from "@/lib/contrack-core";
 import { loadContractCore } from "@/lib/contrack-server";
+import { resolveRefItemIds } from "@/lib/ref-lists-shared";
 
 type P = { params: Promise<{ id: string; lineId: string }> };
 
@@ -52,6 +53,14 @@ export async function PATCH(req: NextRequest, { params }: P) {
     }
   }
 
+  // ربط القوائم المرجعية — استبدال كامل لارتباطات السطر (تمرير [] لفك كل الروابط)
+  let refItemIds: number[] | null = null;
+  if (body.refItemIds !== undefined) {
+    const resolved = await resolveRefItemIds(body.refItemIds);
+    if (typeof resolved === "string") return jsonError(resolved);
+    refItemIds = resolved;
+  }
+
   // السقف بعد استثناء الدفعة نفسها
   const agg = await db.paymentPlanItem.aggregate({
     where: { contractId, id: { not: lineId } },
@@ -64,16 +73,26 @@ export async function PATCH(req: NextRequest, { params }: P) {
 
   await db.$transaction(async (tx) => {
     await tx.paymentPlanItem.update({ where: { id: lineId }, data });
+    if (refItemIds !== null) {
+      await tx.refItemPayment.deleteMany({ where: { paymentId: lineId } });
+      if (refItemIds.length > 0) {
+        await tx.refItemPayment.createMany({
+          data: refItemIds.map((itemId) => ({ itemId, paymentId: lineId })),
+        });
+      }
+    }
     await tx.contractEvent.create({
       data: {
         contractId,
         eventType: "تعديل دفعة",
-        description: `تعديل دفعة «${data.title ?? line.title}» إلى ${newAmount}`,
+        description:
+          `تعديل دفعة «${data.title ?? line.title}» إلى ${newAmount}` +
+          (refItemIds !== null ? ` — الربط المرجعي: ${refItemIds.length} بند` : ""),
         username: guard.user.username,
       },
     });
   });
-  return ok({ message: "تم تعديل الدفعة" });
+  return ok({ message: "تم تعديل الدفعة", refItemIds: refItemIds ?? undefined });
 }
 
 /** حذف دفعة — ممنوع إن كانت مغطاة بروابط صريحة أو مرتبطة بمطالبة */
