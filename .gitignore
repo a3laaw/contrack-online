@@ -84,5 +84,5 @@ backups/
 dev-verify.log
 
 # مرجع NOVA الأساسي (كود المالك للقراءة فقط) — يحتوي .env خاصًا بـFirebase
-# و.git داخليًا ولا يُرفع للمستودع إطلاقًا
-nova-reference/
+# و.git داخليًا ولا يُرفع للمستودع إطلاقًا (الـREADME الموثّق يبقى متتبعًا)
+nova-reference/nova-erp/
