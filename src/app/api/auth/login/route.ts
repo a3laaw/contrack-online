@@ -20,6 +20,9 @@ import { ensureSeedData } from "@/lib/seed-defaults";
 import { forCompany } from "@/lib/db";
 import { permsForUser } from "@/lib/auth";
 import { enabledModuleCodes } from "@/lib/modules-server";
+import { seedCompanyModules } from "@/lib/modules-server";
+import { MODULE_CATALOG } from "@/lib/modules-catalog";
+import { ensurePostingRules } from "@/lib/posting-rules-server";
 
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as { username?: string; password?: string };
@@ -70,6 +73,31 @@ export async function POST(req: NextRequest) {
         },
       ],
     });
+  }
+
+  // تهيئة أول تشغيل: قاعدة بلا شركة تعني توكن بسياق 0 (المطوّر حصرًا) فتتحول كل
+  // الطلبات المتبقية إلى 401 دائمًا — لذا عند خلو جدول الشركات ننشئ «الشركة الرئيسية»،
+  // نربط بها كل مستخدم بلا شركة (غير المطور)، ونزر كل الأنشطة المتاحة بالكتالوج.
+  // idempotent: بمجرد وجود أي شركة لا يُلمس شيء (تأثير صفر على الأنظمة العاملة).
+  const companiesCount = await db.company.count();
+  if (companiesCount === 0) {
+    try {
+      const bootstrap = await db.company.create({
+        data: { name: "الشركة الرئيسية", shortName: "الرئيسية" },
+      });
+      await ensurePostingRules(forCompany(bootstrap.id));
+      await seedCompanyModules(
+        bootstrap.id,
+        MODULE_CATALOG.filter((m) => m.available && !m.core).map((m) => m.code),
+        "بذر أول تشغيل"
+      );
+      await db.user.updateMany({
+        where: { companyId: null, role: { not: "developer" } },
+        data: { companyId: bootstrap.id },
+      });
+    } catch (e) {
+      console.error("bootstrap company error", e);
+    }
   }
 
   const user = await db.user.findUnique({ where: { username } });
