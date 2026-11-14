@@ -61,6 +61,8 @@ import {
   FolderKanban,
   // القوائم المرجعية — مركز البيانات المرجعية
   BookMarked,
+  // المناطق — الهرمية الجغرافية
+  MapPin,
 } from "lucide-react";
 
 import type { ViewName } from "./contrack-types";
@@ -378,8 +380,11 @@ export const NAV_MODULES: NavModule[] = [
     children: [
       // الشاشة الموحدة — قرار المالك: «أنواع العقود ومراحل العمل والدفعات كلها في صفحة واحدة»
       { id: "ref-tsp", label: "الأنواع والمراحل والدفعات", icon: Layers, view: "ref-lists", section: "types-stages-payments", adminOnly: true },
-      // الشاشة الموحدة الثانية — قرار المالك: «الوظائف والأقسام والإدارات كلها مترابطة — نفس الثلاثة أعمدة»
-      { id: "ref-org", label: "الإدارات والأقسام والوظائف", icon: Network, view: "ref-lists", section: "org-structure", adminOnly: true },
+      // الشاشة الموحدة الثانية — تغيير المالك: «هتكون الوظائف وتاني عمود الادارة وتلت عمود
+      // القسم ورابع عمود الوظيفه» — أربعة أعمدة: مكتبة الوظائف ← الإدارة ← القسم ← الوظيفة
+      { id: "ref-org", label: "الوظائف والإدارات والأقسام", icon: Network, view: "ref-lists", section: "org-structure", adminOnly: true },
+      // الشاشة الموحدة الثالثة — قرار المالك: «المناطق — هتكون المحافظة — المدينة / المنطقة عمود»
+      { id: "ref-areas", label: "المناطق", icon: MapPin, view: "ref-lists", section: "areas", adminOnly: true },
       { id: "ref-lists", label: "القوائم العامة", icon: BookMarked, view: "ref-lists", section: "lists", adminOnly: true, perm: "screen_ref_lists" },
       { id: "ref-contract-types", label: "أنواع العقود (تفصيلي)", icon: FileStack, view: "ref-lists", section: "contract-types", adminOnly: true },
       { id: "ref-stages", label: "مراحل العمل (الشجرة)", icon: ClipboardList, view: "ref-lists", section: "stages", adminOnly: true },

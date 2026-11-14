@@ -33,10 +33,11 @@ import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "./api";
 import { errMessage, type User } from "./contrack-types";
 import { ContractTypesManager } from "./ContractTypesManager";
 import { OrgStructureView } from "./OrgStructureView";
+import { AreasStructureView } from "./AreasStructureView";
 import { TypesStagesPaymentsView } from "./TypesStagesPaymentsView";
 import { WorkflowTab } from "./settings/workflow-tab";
 
-export type RefListsSection = "types-stages-payments" | "org-structure" | "lists" | "contract-types" | "stages";
+export type RefListsSection = "types-stages-payments" | "org-structure" | "areas" | "lists" | "contract-types" | "stages";
 
 // ===== أنواع الـAPI — عقد /api/ref-lists الموثق =====
 interface RefStageLink {
@@ -119,9 +120,14 @@ export function RefListsView({ user, onAuthError, section = "lists", onSectionCh
           <TypesStagesPaymentsView user={user} onAuthError={onAuthError} onFailToast={onFail} />
         </TabsContent>
 
-        {/* الشاشة الموحدة الثانية — قرار المالك: الإدارات والأقسام والوظائف كلها مترابطة بنفس الثلاثة أعمدة */}
+        {/* الشاشة الموحدة الثانية — تغيير المالك: الوظائف والإدارة والقسم والوظيفة في أربعة أعمدة مترابطة */}
         <TabsContent value="org-structure" className="space-y-4">
           <OrgStructureView user={user} onAuthError={onAuthError} onFailToast={onFail} />
+        </TabsContent>
+
+        {/* الشاشة الموحدة الثالثة — قرار المالك: المناطق هرمية المحافظة ← المدينة ← المنطقة */}
+        <TabsContent value="areas" className="space-y-4">
+          <AreasStructureView user={user} onAuthError={onAuthError} onFailToast={onFail} />
         </TabsContent>
 
         <TabsContent value="lists" className="space-y-4">

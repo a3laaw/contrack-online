@@ -72,16 +72,20 @@ export function withChildrenCount<T extends { _count?: { children: number } }>(i
 /**
  * قواعد أب الهيكل التنظيمي حسب مفتاح قائمة الابن (D1):
  *   الأقسامdepartments ← أبها من الإداراتadmins · الوظائفjobs ← أبها من الأقسامdepartments.
- * خارج هذين النوعين لا هرمية — فلا دوران بنيويًا أصلًا.
+ * + المناطقareas ← أبها من قائمة المناطق نفسها (طلب المالك: «المحافظة ← المدينة ← المنطقة»)
+ *   — هرمية ذاتية بثلاثة مستويات لا تتجاوزها، وقواعدها الخاصة في resolveRefParent أدناه.
+ * خارج هذه الأنواع لا هرمية — فلا دوران بنيويًا أصلًا.
  */
 const PARENT_LIST_KEY: Record<string, string> = {
   departments: "admins",
   jobs: "departments",
+  areas: "areas",
 };
 
 const PARENT_KIND_MSG: Record<string, string> = {
   departments: "أب القسم يجب أن يكون بندًا من قائمة الإدارات",
   jobs: "أب الوظيفة يجب أن يكون بندًا من قائمة الأقسام",
+  areas: "أب المنطقة يجب أن يكون بندًا من قائمة المناطق",
 };
 
 /**
@@ -90,6 +94,14 @@ const PARENT_KIND_MSG: Record<string, string> = {
  * - raw رقم ⇒ الأب موجود بنفس الشركة (حصر الغلاف آليًا) ومفعّل، ومن نوع القائمة الصحيح،
  *   وليس البند نفسه. يعيد { parentId } أو رسالة خطأ عربية.
  * - selfId: معرّف البند المعدَّل لمنع الأب عن نفسه (null عند الإضافة).
+ *
+ * قواعد هرمية المناطق الذاتية (areas←areas — «المحافظة ← المدينة ← المنطقة»):
+ * - عمق الأب ≤ 1: الأب إما محافظة (بلا أب) أو مدينة (أبها محافظة) — فلا يتجاوز البنَّاء
+ *   المستوى الثالث «منطقة» مهما كان المدخل.
+ * - لا دوران: الأب المقترح لا يكون البنَّاء نفسه ولا من سلسلة أجداده (فحص مستويين
+ *   يكفي لأن العمق مقيّد بـ2).
+ * - البنَّاء الذي عليه أبناء لا يُنقل لمستوى أعمق مما تحتمله شجرته (فحص ارتفاع الشجرة
+ *   الفرعية) — كي لا يخرج أي حفيد عن المستويات الثلاثة.
  */
 export async function resolveRefParent(
   raw: unknown,
@@ -106,10 +118,48 @@ export async function resolveRefParent(
 
   const parent = await db.refItem.findFirst({
     where: { id: n, active: true },
-    select: { id: true, name: true, list: { select: { key: true, name: true } } },
+    select: {
+      id: true,
+      name: true,
+      list: { select: { key: true, name: true } },
+      // سلسلة الأجداد بمستويين — تكفي لفحص العمق والدوران (العمق الكلي ≤ 2)
+      parentId: true,
+      parent: { select: { parentId: true } },
+    },
   });
   if (!parent) return "البند الأب غير موجود أو غير مفعّل";
   if (parent.list.key !== allowedKey) return PARENT_KIND_MSG[childListKey];
+
+  // قواعد الهرمية الذاتية للمناطق — الأب من القائمة نفسها
+  if (childListKey === "areas" && allowedKey === "areas") {
+    // 1) عمق الأب ≤ 1: إما محافظة (بلا أب) أو مدينة (أبها بلا أب)
+    const grandparentHasParent = parent.parentId !== null && (parent.parent?.parentId ?? null) !== null;
+    if (grandparentHasParent) {
+      return "لا يمكن تجاوز المستويات الثلاثة — المحافظة ← المدينة ← المنطقة";
+    }
+
+    // 2) لا دوران: الأب المقترح ليس البنَّاء ولا أحد أجداده
+    if (selfId !== null && (parent.parentId === selfId || parent.parent?.parentId === selfId)) {
+      return "لا يمكن ربط البند بأحد أفرعه — فُكّ الارتباط أولًا";
+    }
+
+    // 3) ارتفاع شجرة البنَّاء (فقط عند نقل بند قائم — selfId موجود): عمق الأب + ارتفاع الشجرة ≤ 2
+    if (selfId !== null) {
+      const childrenCount = await db.refItem.count({ where: { parentId: selfId } });
+      if (childrenCount > 0) {
+        const childIds = (
+          await db.refItem.findMany({ where: { parentId: selfId }, select: { id: true } })
+        ).map((c) => c.id);
+        const grandchildren = await db.refItem.count({ where: { parentId: { in: childIds } } });
+        // الارتفاع: بند أوراق=1 · عليه أبناء=2 · عليه أحفاد=3
+        const height = grandchildren > 0 ? 3 : 2;
+        const parentDepth = parent.parentId === null ? 0 : 1;
+        if (parentDepth + height > 2) {
+          return "لا يمكن نقل البند — انقل أو احذف بنوده المرتبطة أولًا كي لا تتجاوز الشجرة المستويات الثلاثة";
+        }
+      }
+    }
+  }
 
   return { parentId: parent.id };
 }

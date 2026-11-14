@@ -1,13 +1,15 @@
 "use client";
 
 /**
- * الشاشة الموحدة «الإدارات ← الأقسام ← الوظائف» — طلب المالك الحرفي:
- * «الوظائف والأقسام والإدارات كلها مترابطة — هتتعمل نفس الثلاث أعمدة».
+ * الشاشة الموحدة «الوظائف ← الإدارة ← القسم ← الوظيفة» — تغيير المالك الحرفي:
+ * «هتكون الوظائف وتاني عمود الادارة وتلت عمود القسم ورابع عمود الوظيفه».
  *
- * ثلاثة أعمدة متتالية (تتكدس على الجوال):
- *   1) الإدارات — بنود قائمة الإدارات المرجعية، شارة بعدد الأقسام المرتبطة.
- *   2) الأقسام — أقسام الإدارة المحددة ثم الأقسام العامة (بدون إدارة)، شارة عدد الوظائف.
- *   3) الوظائف — وظائف القسم المحدد ثم الوظائف العامة (بدون قسم).
+ * أربعة أعمدة (2×2 على التابلت lg، متكدسة على الجوال):
+ *   1) الوظائف — مكتبة المسميات الوظيفية الكاملة (قائمة jobs المرجعية) مع شارة
+ *      موضع الارتباط «القسم — الإدارة» لكل مسمى، والإضافة من هنا عامة بلا ربط.
+ *   2) الإدارات — بنود قائمة الإدارات المرجعية (admins)، شارة بعدد الأقسام المرتبطة.
+ *   3) الأقسام — أقسام الإدارة المحددة ثم الأقسام العامة (بدون إدارة)، شارة عدد الوظائف.
+ *   4) الوظيفة — وظائف القسم المحدد ثم الوظائف العامة (بدون قسم) — هنا الربط والفك.
  *
  * الارتباط اختياري عبر RefItem.parentId (org-structure-design.md D1/D3/D4) —
  * بلا أي جداول أو مسارات جديدة؛ كل الكتابة عبر مسارات القوائم المرجعية القائمة
@@ -20,6 +22,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDown,
   ArrowUp,
+  BookMarked,
   Building2,
   ClipboardList,
   Link2,
@@ -138,6 +141,19 @@ export function OrgStructureView({ user, onAuthError, onFailToast }: OrgStructur
   );
   const generalJobs = React.useMemo(() => jobs.filter((j) => !j.parentId), [jobs]);
 
+  /** موضع ارتباط كل وظيفة للشارة في مكتبة العمود الأول — «القسم — الإدارة» */
+  const jobPlacementById = React.useMemo(() => {
+    const m = new Map<number, string>();
+    for (const j of jobs) {
+      if (j.parentId === null) continue;
+      const dept = departments.find((d) => d.id === j.parentId);
+      if (!dept) continue;
+      const adm = dept.parentId ? directorates.find((a) => a.id === dept.parentId) : null;
+      m.set(j.id, adm ? `${dept.name} — ${adm.name}` : dept.name);
+    }
+    return m;
+  }, [jobs, departments, directorates]);
+
   const qc = useQueryClient();
   const invalidate = React.useCallback(() => {
     qc.invalidateQueries({ queryKey: ["ref-lists"] });
@@ -150,7 +166,7 @@ export function OrgStructureView({ user, onAuthError, onFailToast }: OrgStructur
     kind: OrgKind;
     mode: "add" | "edit";
     item?: OrgRefItem;
-    /** إضافة عامة (بلا ربط بالأب المحدد) من رأس المجموعة العامة */
+    /** إضافة عامة (بلا ربط بالأب المحدد) من رأس المجموعة العامة أو مكتبة الوظائف */
     general?: boolean;
   } | null>(null);
   const [itemName, setItemName] = React.useState("");
@@ -221,15 +237,6 @@ export function OrgStructureView({ user, onAuthError, onFailToast }: OrgStructur
     },
   });
 
-  const toggleItemMutation = useMutation({
-    mutationFn: (it: OrgRefItem) => apiPatch(`/api/ref-items/${it.id}`, { active: !it.active }),
-    onSuccess: () => {
-      invalidate();
-      toast({ title: "تم تحديث حالة البند" });
-    },
-    onError: (e: unknown) => onFail(e, "تعذر تحديث البند"),
-  });
-
   const moveItemMutation = useMutation({
     mutationFn: ({ id, dir }: { id: number; dir: "up" | "down" }) =>
       apiPost(`/api/ref-items/${id}/move`, { dir }),
@@ -251,137 +258,156 @@ export function OrgStructureView({ user, onAuthError, onFailToast }: OrgStructur
   const busy = saveItemMutation.isPending || deleteItemMutation.isPending || linkMutation.isPending;
 
   // ======================================================================
-  // صف بند موحد للثلاثة أعمدة — اختيار/شارات/أزرار إجراءات
+  // صف بند موحد — نمطان: مكتبة (بلا تحديد + شارة موضع الارتباط) واعتيادي (اختيار/ربط)
   // ======================================================================
   const renderRow = (
     it: OrgRefItem,
     kind: OrgKind,
-    opts: { selected: boolean; onSelect: () => void; parentSelected: boolean; parentLabel?: string }
-  ) => (
-    <li key={it.id}>
-      <div
-        role="button"
-        tabIndex={0}
-        aria-pressed={opts.selected}
-        onClick={opts.onSelect}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            opts.onSelect();
-          }
-        }}
-        className={`flex w-full flex-col gap-1 rounded-lg border px-3 py-2 transition-colors cursor-pointer ${
-          opts.selected ? "border-primary/60 bg-primary/10" : "hover:bg-muted/60"
-        }`}
-      >
-        <span className="flex w-full items-center gap-2">
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={it.name}>
-            {it.name}
-          </span>
-          {!it.active && <Badge variant="secondary" className="text-[10px]">معطّل</Badge>}
-          {it.parentId !== null && kind !== "admins" && (
-            <Badge variant="outline" className="text-[10px] shrink-0">مرتبط</Badge>
-          )}
-        </span>
-        <span className="flex w-full items-center gap-2 text-[11px] text-muted-foreground">
-          {it.code ? <span className="numeric truncate" dir="ltr">{it.code}</span> : null}
-          <span className="numeric ms-auto">
-            {kind === "admins"
-              ? `${it.childrenCount} قسم`
-              : kind === "departments"
-                ? `${it.childrenCount} وظيفة`
-                : ""}
-          </span>
-          {manager && (
-            <span className="flex items-center gap-0.5 shrink-0">
-              <Button
-                size="icon"
-                variant="ghost"
-                className="size-6"
-                aria-label={`تحريك ${it.name} لأعلى`}
-                disabled={moveItemMutation.isPending}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  moveItemMutation.mutate({ id: it.id, dir: "up" });
-                }}
-              >
-                <ArrowUp className="size-3.5" aria-hidden />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="size-6"
-                aria-label={`تحريك ${it.name} لأسفل`}
-                disabled={moveItemMutation.isPending}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  moveItemMutation.mutate({ id: it.id, dir: "down" });
-                }}
-              >
-                <ArrowDown className="size-3.5" aria-hidden />
-              </Button>
-              {kind !== "admins" && (
-                it.parentId === null && opts.parentSelected ? (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="size-6 text-primary hover:text-primary"
-                    aria-label={`ربط ${it.name} بـ${opts.parentLabel ?? KIND_LABEL[kind]}`}
-                    disabled={busy}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const parentId = kind === "departments" ? selectedDirectorate?.id : selectedDepartment?.id;
-                      if (parentId) linkMutation.mutate({ id: it.id, parentId });
-                    }}
-                  >
-                    <Link2 className="size-3.5" aria-hidden />
-                  </Button>
-                ) : it.parentId !== null ? (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="size-6"
-                    aria-label={`فك ربط ${it.name}`}
-                    disabled={busy}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      linkMutation.mutate({ id: it.id, parentId: null });
-                    }}
-                  >
-                    <Unlink className="size-3.5" aria-hidden />
-                  </Button>
-                ) : null
-              )}
-              <Button
-                size="icon"
-                variant="ghost"
-                className="size-6"
-                aria-label={`تعديل ${it.name}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openItemDialog(kind, "edit", it);
-                }}
-              >
-                <Pencil className="size-3.5" aria-hidden />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="size-6 text-destructive hover:text-destructive"
-                aria-label={`حذف ${it.name}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDeleteItem({ kind, item: it });
-                }}
-              >
-                <Trash2 className="size-3.5" aria-hidden />
-              </Button>
+    opts: {
+      selected?: boolean;
+      onSelect?: () => void;
+      parentSelected?: boolean;
+      parentLabel?: string;
+      /** نمط مكتبة الوظائف (العمود الأول) — بلا تحديد وبشارة موضع الارتباط */
+      library?: boolean;
+    }
+  ) => {
+    const placement = opts.library ? jobPlacementById.get(it.id) ?? null : null;
+    return (
+      <li key={it.id}>
+        <div
+          {...(opts.library
+            ? {}
+            : {
+                role: "button",
+                tabIndex: 0,
+                "aria-pressed": opts.selected ?? false,
+                onClick: opts.onSelect,
+                onKeyDown: (e: React.KeyboardEvent) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    opts.onSelect?.();
+                  }
+                },
+              })}
+          className={`flex w-full flex-col gap-1 rounded-lg border px-3 py-2 transition-colors ${
+            opts.library ? "cursor-default" : "cursor-pointer"
+          } ${!opts.library && opts.selected ? "border-primary/60 bg-primary/10" : "hover:bg-muted/60"}`}
+        >
+          <span className="flex w-full items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={it.name}>
+              {it.name}
             </span>
-          )}
-        </span>
-      </div>
-    </li>
-  );
+            {!it.active && <Badge variant="secondary" className="text-[10px]">معطّل</Badge>}
+            {opts.library && placement && (
+              <Badge variant="outline" className="text-[10px] shrink-0 max-w-[55%]" title={`مرتبطة بـ${placement}`}>
+                <span className="truncate">← {placement}</span>
+              </Badge>
+            )}
+            {!opts.library && it.parentId !== null && kind !== "admins" && (
+              <Badge variant="outline" className="text-[10px] shrink-0">مرتبط</Badge>
+            )}
+          </span>
+          <span className="flex w-full items-center gap-2 text-[11px] text-muted-foreground">
+            {it.code ? <span className="numeric truncate" dir="ltr">{it.code}</span> : null}
+            <span className="numeric ms-auto">
+              {kind === "admins"
+                ? `${it.childrenCount} قسم`
+                : kind === "departments"
+                  ? `${it.childrenCount} وظيفة`
+                  : ""}
+            </span>
+            {manager && (
+              <span className="flex items-center gap-0.5 shrink-0">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-6"
+                  aria-label={`تحريك ${it.name} لأعلى`}
+                  disabled={moveItemMutation.isPending}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    moveItemMutation.mutate({ id: it.id, dir: "up" });
+                  }}
+                >
+                  <ArrowUp className="size-3.5" aria-hidden />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-6"
+                  aria-label={`تحريك ${it.name} لأسفل`}
+                  disabled={moveItemMutation.isPending}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    moveItemMutation.mutate({ id: it.id, dir: "down" });
+                  }}
+                >
+                  <ArrowDown className="size-3.5" aria-hidden />
+                </Button>
+                {!opts.library && kind !== "admins" && (
+                  it.parentId === null && opts.parentSelected ? (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-6 text-primary hover:text-primary"
+                      aria-label={`ربط ${it.name} بـ${opts.parentLabel ?? KIND_LABEL[kind]}`}
+                      disabled={busy}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const parentId = kind === "departments" ? selectedDirectorate?.id : selectedDepartment?.id;
+                        if (parentId) linkMutation.mutate({ id: it.id, parentId });
+                      }}
+                    >
+                      <Link2 className="size-3.5" aria-hidden />
+                    </Button>
+                  ) : it.parentId !== null ? (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-6"
+                      aria-label={`فك ربط ${it.name}`}
+                      disabled={busy}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        linkMutation.mutate({ id: it.id, parentId: null });
+                      }}
+                    >
+                      <Unlink className="size-3.5" aria-hidden />
+                    </Button>
+                  ) : null
+                )}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-6"
+                  aria-label={`تعديل ${it.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openItemDialog(kind, "edit", it);
+                  }}
+                >
+                  <Pencil className="size-3.5" aria-hidden />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-6 text-destructive hover:text-destructive"
+                  aria-label={`حذف ${it.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeleteItem({ kind, item: it });
+                  }}
+                >
+                  <Trash2 className="size-3.5" aria-hidden />
+                </Button>
+              </span>
+            )}
+          </span>
+        </div>
+      </li>
+    );
+  };
 
   /** رأس مجموعة داخل عمود — عنوان + (للمجموعة العامة) زر إضافة عامة */
   const renderGroupHeader = (title: string, kind?: OrgKind, general?: boolean) => (
@@ -408,14 +434,56 @@ export function OrgStructureView({ user, onAuthError, onFailToast }: OrgStructur
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-lg font-bold whitespace-nowrap">الإدارات والأقسام والوظائف</h1>
+        <h1 className="text-lg font-bold whitespace-nowrap">الوظائف والإدارات والأقسام</h1>
         <span className="hidden xl:inline text-xs text-muted-foreground">
-          اختر إدارة ← تظهر أقسامها ← اختر قسمًا فتظهر وظائفه — والارتباط اختياري والأبناء يمنعون الحذف
+          مكتبة الوظائف ← الإدارة ← القسم ← الوظيفة — الارتباط اختياري والأبناء يمنعون الحذف
         </span>
       </div>
 
-      <div className="grid items-start gap-4 lg:grid-cols-3">
-        {/* ============ العمود 1: الإدارات ============ */}
+      <div className="grid items-start gap-4 lg:grid-cols-2 xl:grid-cols-4">
+        {/* ============ العمود 1: الوظائف — مكتبة المسميات ============ */}
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+            <CardTitle className="flex items-center gap-1.5 text-sm">
+              <BookMarked className="size-4 text-primary" aria-hidden />
+              الوظائف
+              <span className="numeric text-xs font-normal text-muted-foreground">({jobs.length})</span>
+            </CardTitle>
+            {manager && (
+              <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" onClick={() => openItemDialog("jobs", "add", undefined, true)}>
+                <Plus className="size-3.5" aria-hidden />
+                إضافة وظيفة
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            {listsQuery.isLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 rounded-lg" />
+                ))}
+              </div>
+            ) : listsQuery.isError ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                تعذر تحميل القوائم — {errMessage(listsQuery.error)}
+              </p>
+            ) : jobs.length === 0 ? (
+              emptyBox(manager ? "لا وظائف بعد — أضف أول مسمى وظيفي بالزر أعلى" : "لا وظائف بعد")
+            ) : (
+              <ul className="max-h-96 space-y-1.5 overflow-y-auto pe-1" aria-label="مكتبة الوظائف">
+                {jobs.map((j) =>
+                  renderRow(j, "jobs", { library: true })
+                )}
+              </ul>
+            )}
+            <p className="mt-3 rounded-lg border border-dashed p-2.5 text-[11px] leading-5 text-muted-foreground">
+              هذه مكتبة كل المسميات الوظيفية — شارة «←» تُظهر موضع الارتباط (القسم — الإدارة).
+              لربط وظيفة بقسم: اختر الإدارة ثم القسم من العمودين التاليين ثم استخدم عمود «الوظيفة».
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* ============ العمود 2: الإدارات ============ */}
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
             <CardTitle className="flex items-center gap-1.5 text-sm">
@@ -436,10 +504,6 @@ export function OrgStructureView({ user, onAuthError, onFailToast }: OrgStructur
                   <Skeleton key={i} className="h-12 rounded-lg" />
                 ))}
               </div>
-            ) : listsQuery.isError ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                تعذر تحميل القوائم — {errMessage(listsQuery.error)}
-              </p>
             ) : directorates.length === 0 ? (
               emptyBox(manager ? "لا إدارات بعد — أضف أول إدارة بالزر أعلى" : "لا إدارات بعد")
             ) : (
@@ -451,7 +515,6 @@ export function OrgStructureView({ user, onAuthError, onFailToast }: OrgStructur
                       setSelectedDirectorateId(d.id);
                       setSelectedDepartmentId(null);
                     },
-                    parentSelected: false,
                   })
                 )}
               </ul>
@@ -459,7 +522,7 @@ export function OrgStructureView({ user, onAuthError, onFailToast }: OrgStructur
           </CardContent>
         </Card>
 
-        {/* ============ العمود 2: الأقسام (المرتبطة + العامة) ============ */}
+        {/* ============ العمود 3: الأقسام (المرتبطة + العامة) ============ */}
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
             <CardTitle className="flex items-center gap-1.5 text-sm">
@@ -536,12 +599,12 @@ export function OrgStructureView({ user, onAuthError, onFailToast }: OrgStructur
           </CardContent>
         </Card>
 
-        {/* ============ العمود 3: الوظائف (المرتبطة + العامة) ============ */}
+        {/* ============ العمود 4: الوظيفة (وظائف القسم + العامة) ============ */}
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
             <CardTitle className="flex items-center gap-1.5 text-sm">
               <ClipboardList className="size-4 text-primary" aria-hidden />
-              الوظائف
+              الوظيفة
               {selectedDepartment && (
                 <span className="truncate font-normal text-muted-foreground" title={selectedDepartment.name}>
                   — {selectedDepartment.name}
@@ -563,11 +626,11 @@ export function OrgStructureView({ user, onAuthError, onFailToast }: OrgStructur
                 ))}
               </div>
             ) : jobs.length === 0 ? (
-              emptyBox(manager ? "لا وظائف بعد — أضف أول وظيفة بالزر أعلى" : "لا وظائف بعد")
+              emptyBox(manager ? "لا وظائف بعد — أضف أول وظيفة من مكتبة «الوظائف»" : "لا وظائف بعد")
             ) : !selectedDepartment ? (
               <>
                 <p className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
-                  اختر قسمًا من عمود «الأقسام» لعرض وظائفه — الوظائف العامة تظهر أدناه
+                  اختر قسمًا من عمود «الأقسام» لعرض وظائفه وربط وظائف جديدة به — الوظائف العامة تظهر أدناه
                 </p>
                 <div className="space-y-1.5">
                   {renderGroupHeader("وظائف عامة (بدون قسم)", "jobs", true)}
@@ -578,11 +641,7 @@ export function OrgStructureView({ user, onAuthError, onFailToast }: OrgStructur
                   ) : (
                     <ul className="max-h-72 space-y-1.5 overflow-y-auto pe-1" aria-label="الوظائف العامة">
                       {generalJobs.map((j) =>
-                        renderRow(j, "jobs", {
-                          selected: false,
-                          onSelect: () => undefined,
-                          parentSelected: false,
-                        })
+                        renderRow(j, "jobs", { parentSelected: false })
                       )}
                     </ul>
                   )}
@@ -600,8 +659,6 @@ export function OrgStructureView({ user, onAuthError, onFailToast }: OrgStructur
                     <ul className="max-h-72 space-y-1.5 overflow-y-auto pe-1" aria-label="وظائف القسم المحدد">
                       {deptJobs.map((j) =>
                         renderRow(j, "jobs", {
-                          selected: false,
-                          onSelect: () => undefined,
                           parentSelected: Boolean(selectedDepartment),
                           parentLabel: selectedDepartment.name,
                         })
@@ -619,8 +676,6 @@ export function OrgStructureView({ user, onAuthError, onFailToast }: OrgStructur
                     <ul className="max-h-72 space-y-1.5 overflow-y-auto pe-1" aria-label="الوظائف العامة">
                       {generalJobs.map((j) =>
                         renderRow(j, "jobs", {
-                          selected: false,
-                          onSelect: () => undefined,
                           parentSelected: Boolean(selectedDepartment),
                           parentLabel: selectedDepartment.name,
                         })
@@ -642,18 +697,18 @@ export function OrgStructureView({ user, onAuthError, onFailToast }: OrgStructur
               {itemDialog?.mode === "edit"
                 ? `تعديل ${itemDialog.kind ? KIND_LABEL[itemDialog.kind] : "البند"}`
                 : itemDialog?.general
-                  ? `إضافة ${itemDialog.kind ? KIND_LABEL[itemDialog.kind] : "بند"} عامة (بدون ربط)`
+                  ? `إضافة ${itemDialog.kind === "jobs" ? "وظيفة جديدة (بدون ربط)" : `${itemDialog.kind ? KIND_LABEL[itemDialog.kind] : "بند"} عامة (بدون ربط)`}`
                   : `إضافة ${itemDialog?.kind === "departments" && selectedDirectorate ? `قسم إلى «${selectedDirectorate.name}»` : itemDialog?.kind === "jobs" && selectedDepartment ? `وظيفة إلى «${selectedDepartment.name}»` : itemDialog?.kind ? KIND_LABEL[itemDialog.kind] : "بند"}`}
             </DialogTitle>
             <DialogDescription>
               {itemDialog?.kind === "admins"
-                ? "الإدارات هي قمة الهيكل — الأقسام تُربط بها من العمود الثاني."
+                ? "الإدارات هي قمة الهيكل — الأقسام تُربط بها من عمود «الأقسام»."
                 : itemDialog?.kind === "departments"
                   ? itemDialog?.general || !selectedDirectorate
                     ? "قسم عام بلا إدارة — يمكنك ربطه لاحقًا بأيقونة الرابط."
                     : "سيُربط القسم آلياً بالإدارة المحددة، ويمكن فك الارتباط لاحقاً."
                   : itemDialog?.general || !selectedDepartment
-                    ? "وظيفة عامة بلا قسم — يمكنك ربطها لاحقاً بأيقونة الرابط."
+                    ? "وظيفة بلا قسم — تظهر في مكتبة «الوظائف» ويمكن ربطها لاحقًا من عمود «الوظيفة»."
                     : "ستُربط الوظيفة آلياً بالقسم المحدد، ويمكن فك الارتباط لاحقاً."}
             </DialogDescription>
           </DialogHeader>
