@@ -204,6 +204,7 @@
 - [x] 🔧 **رفع ملف أكواد NOVA** — تم 2026-11-14 (`upload/project (1).zip` → `nova-reference/nova-erp/`، المرجع الأساسي المعتمد).
 - [x] 🔧 **تأكيد بيانات اعتماد Supabase** للإنتاج — تم 2026-11-14: منطقة ap-northeast-1، العبّامان 6543/5432 يعملان، والمخطط «already in sync».
 - [x] 🔧 **النشر الإنتاجي الكامل (Supabase + GitHub + Vercel)** — تم 2026-11-14: `contrack-online.vercel.app` يعمل على قاعدة الإنتاج، متحقق حيًا.
+- [x] 🔧 **إصلاح فشل بناء Vercel (خط Cairo)** — تم 2026-11-14: فشل `next build` على Vercel بـ module-not-found لأن بيئة البناء تعذر عليها جلب Google Fonts (`next/font/google`). الحل الدائم: ملفات Cairo المتغيّرة محلية في `public/fonts/` (عربي + لاتيني، وزن 200–1000) مع `@font-face` و`unicode-range` في `globals.css`، و`--font-cairo` معرّف في `:root` وخط احتياطي بقياسات مطابقة (`size-adjust` على Arial). تحقق حي: الإنتاج يحمّل Cairo من `/fonts/*.woff2` (200) بلا أي مرجع لـ Google Fonts.
 - [ ] **لوحة المطور**: رفض طلب الانضمام التجريبي `test-catering-01`.
 - [ ] **تدوير كلمات المرور/المفاتيح** بعد انتهاء فترة التحقق الحالية.
 
