@@ -38,6 +38,19 @@ function ensureIcuSymlinks() {
 }
 
 ensureIcuSymlinks();
+
+// D15 — حارس بيئة dev: الصندوق يعيد أحيانًا قالب .env الخاطئ (SQLite) — يُصحَّح
+// تلقائيًا عند كل إقلاع: .env = Postgres المضمّن حصرًا (DATABASE_URL و DIRECT_URL معًا —
+// المخطط يطلب المفتاحين: الإنتاج مزدوج Supabase والمحلي واحد).
+const ENV_FILE = path.join(ROOT, ".env");
+const PG_URL = `postgresql://contrack@localhost:${PORT}/contrack`;
+const ENV_TEXT = `DATABASE_URL=${PG_URL}\nDIRECT_URL=${PG_URL}\n`;
+const currentEnv = fs.existsSync(ENV_FILE) ? fs.readFileSync(ENV_FILE, "utf8") : "";
+if (!currentEnv.includes(PG_URL) || !currentEnv.includes("DIRECT_URL=")) {
+  fs.writeFileSync(ENV_FILE, ENV_TEXT);
+  console.log("صُحّح .env إلى Postgres المضمّن (كان قالبًا خاطئًا — D15)");
+}
+
 if (await portOpen(PORT)) {
   console.log(`Postgres يعمل أصلًا على ${PORT} — لا شيء يُفعل`);
   process.exit(0);
