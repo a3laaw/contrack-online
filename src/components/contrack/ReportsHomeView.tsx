@@ -25,6 +25,7 @@ import { permAllows, type PermsMap } from "./nav-perms";
 import { REPORT_PERM } from "./nav-structure";
 import { useFeatureFlags } from "./FeatureFlagsProvider";
 import {
+  CATEGORY_TONE,
   REPORT_CATEGORIES,
   reportsByCategory,
   screenLinksByCategory,
@@ -80,11 +81,11 @@ export function ReportsHomeView({ user, perms, onOpenReport, onOpenView }: Repor
   const shownTotal = filtered.reduce((n, s) => n + s.reports.length + s.links.length, 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* الترويسة */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary-ink">
+          <div className="flex size-10 items-center justify-center rounded-lg bg-brand-gold-soft text-brand-orange">
             <BarChart3 className="size-5" />
           </div>
           <div>
@@ -124,20 +125,23 @@ export function ReportsHomeView({ user, perms, onOpenReport, onOpenView }: Repor
       ) : (
         filtered.map(({ cat, reports, links }) => {
           const CatIcon = cat.icon;
+          const tone = CATEGORY_TONE[cat.id];
           return (
-            <section key={cat.id} aria-label={cat.label} className="space-y-2">
+            <section key={cat.id} aria-label={cat.label} className="space-y-2.5 pt-1">
+              {/* عنوان المجموعة: أيقونة + اسم + عدّاد — ومسافة واضحة عن المجموعة السابقة */}
               <div className="flex items-center gap-2">
-                <div className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary-ink">
+                <div className={cn("flex size-7 items-center justify-center rounded-md", tone.tile, tone.icon)}>
                   <CatIcon className="size-4" />
                 </div>
                 <h2 className="text-sm font-bold">{cat.label}</h2>
-                <Badge variant="outline" className="h-5 px-1.5 text-[11px] font-normal text-muted-foreground">
+                <Badge variant="secondary" className="h-5 px-1.5 text-[11px] font-medium tabular-nums">
                   {reports.length + links.length}
                 </Badge>
                 <span className="hidden truncate text-xs text-muted-foreground sm:block">— {cat.desc}</span>
               </div>
 
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {/* شبكة الكروت: 3 أعمدة كبيرة · 2 متوسطة · 1 موبايل — منتظمة بلا فراغات صفوف */}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {reports.map((r) => {
                   const Icon = r.icon;
                   return (
@@ -146,20 +150,23 @@ export function ReportsHomeView({ user, perms, onOpenReport, onOpenView }: Repor
                       type="button"
                       onClick={() => onOpenReport(r.key)}
                       className={cn(
-                        "group flex items-center gap-3 rounded-xl border bg-card p-3.5 text-start transition-colors",
-                        "hover:border-primary/40 hover:bg-primary-soft/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        "group flex flex-col gap-2 rounded-xl border border-border bg-card p-3.5 text-start transition-all",
+                        "hover:border-brand-orange hover:shadow-xs hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       )}
                     >
-                      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary-ink">
-                        <Icon className="size-5" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-bold">{r.label}</span>
-                        <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground line-clamp-2">
-                          {r.desc}
+                      <span className="flex items-center gap-2.5">
+                        <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", tone.tile, tone.icon)}>
+                          <Icon className="size-[18px]" />
+                        </span>
+                        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                          <span className="truncate text-sm font-bold">{r.label}</span>
+                          {/* السهم جنب العنوان بدل أقصى الطرف (الهوية — المرحلة 4) */}
+                          <ChevronLeft className="size-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-brand-orange" />
                         </span>
                       </span>
-                      <ChevronLeft className="size-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-primary-ink" />
+                      <span className="line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
+                        {r.desc}
+                      </span>
                     </button>
                   );
                 })}
@@ -171,25 +178,26 @@ export function ReportsHomeView({ user, perms, onOpenReport, onOpenView }: Repor
                       type="button"
                       onClick={() => onOpenView(l.view)}
                       className={cn(
-                        "group flex items-center gap-3 rounded-xl border bg-card p-3.5 text-start transition-colors",
-                        "hover:border-primary/40 hover:bg-primary-soft/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        "group flex flex-col gap-2 rounded-xl border border-border bg-card p-3.5 text-start transition-all",
+                        "hover:border-brand-orange hover:shadow-xs hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       )}
                     >
-                      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
-                        <Icon className="size-5" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-1.5">
+                      <span className="flex items-center gap-2.5">
+                        <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", tone.tile, tone.icon)}>
+                          <Icon className="size-[18px]" />
+                        </span>
+                        <span className="flex min-w-0 flex-1 items-center gap-1.5">
                           <span className="truncate text-sm font-bold">{l.label}</span>
+                          {/* بادج «شاشة» بنمط موحد من مكوّن Badge */}
                           <Badge variant="secondary" className="h-4.5 shrink-0 px-1.5 text-[10px] font-medium">
                             شاشة
                           </Badge>
-                        </span>
-                        <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground line-clamp-2">
-                          {l.desc}
+                          <ChevronLeft className="size-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-brand-orange" />
                         </span>
                       </span>
-                      <ChevronLeft className="size-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-primary-ink" />
+                      <span className="line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
+                        {l.desc}
+                      </span>
                     </button>
                   );
                 })}

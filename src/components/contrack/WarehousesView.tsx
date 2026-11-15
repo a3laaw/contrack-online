@@ -21,6 +21,7 @@ import {
 
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { ApiError, apiGet } from "./api";
 import { errMessage, type User } from "./contrack-types";
 import { ItemsSection } from "./warehouses/ItemsSection";
@@ -87,21 +88,33 @@ function KpiCard({
   value,
   sub,
   tone,
+  /** الكارت الحرج (نافد/تحت الحد الأدنى) — حد وخلفية فاتحة من الخطر (الهوية — المرحلة 4) */
+  critical,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
   sub?: string;
   tone?: string;
+  critical?: boolean;
 }) {
   return (
-    <Card className="gap-1 p-4">
+    <Card className={cn("gap-1 p-4", critical && "border-danger/40 bg-danger-soft/50")}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">{label}</span>
-        <Icon className="size-4 shrink-0 text-primary-ink/70" />
+        <span
+          className={cn(
+            "flex size-7 shrink-0 items-center justify-center rounded-md",
+            critical ? "bg-danger-soft text-danger" : "bg-info-soft text-info-blue-text"
+          )}
+        >
+          <Icon className="size-4" />
+        </span>
       </div>
-      <p className={`text-base font-bold tabular-nums sm:text-lg ${tone || ""}`}>{value}</p>
-      {sub && <p className="truncate text-[11px] text-muted-foreground">{sub}</p>}
+      <p className={cn("text-xl font-bold tabular-nums sm:text-2xl", critical ? "text-danger" : tone)}>{value}</p>
+      {sub && (
+        <p className={cn("truncate text-[11px]", critical ? "text-danger" : "text-muted-foreground")}>{sub}</p>
+      )}
     </Card>
   );
 }
@@ -148,7 +161,7 @@ export function WarehousesView({ user, onAuthError, section }: WarehousesViewPro
               label="أذون هذا الشهر"
               value={fmtNum(kpis?.docsThisMonth ?? 0)}
               sub={(kpis?.belowMin ?? 0) > 0 ? `${fmtNum(kpis?.belowMin ?? 0)} صنف تحت الحد الأدنى` : "لا أصناف تحت الحد الأدنى"}
-              tone={(kpis?.belowMin ?? 0) > 0 ? "text-status-warn" : undefined}
+              critical={(kpis?.belowMin ?? 0) > 0}
             />
           </>
         )}

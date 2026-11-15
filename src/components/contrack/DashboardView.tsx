@@ -262,7 +262,7 @@ export function DashboardView({
         </Button>
       </div>
 
-      {/* ===== بطاقات العدادات ===== */}
+      {/* ===== بطاقات العدادات — الأرقام كبيرة (الهوية — المرحلة 4) ===== */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {counters.map((c) => (
           <Card key={c.key} className="flex items-center gap-3 p-4">
@@ -271,7 +271,7 @@ export function DashboardView({
             </span>
             <div className="min-w-0">
               <p className="truncate text-xs text-muted-foreground">{c.label}</p>
-              <p className="text-lg font-bold tabular-nums" dir="ltr">
+              <p className="text-xl font-bold tabular-nums sm:text-2xl" dir="ltr">
                 {c.value}
               </p>
             </div>

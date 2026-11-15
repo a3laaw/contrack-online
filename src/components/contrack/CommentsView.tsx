@@ -128,7 +128,7 @@ function KpiCard({
         <span className="text-xs text-muted-foreground">{label}</span>
         <Icon className="size-4 shrink-0 text-primary-ink/70" />
       </div>
-      <p className={`text-base font-bold tabular-nums sm:text-lg ${tone || ""}`}>{value}</p>
+      <p className={`text-xl font-bold tabular-nums sm:text-2xl ${tone || ""}`}>{value}</p>
       {sub && <p className="text-[11px] text-muted-foreground">{sub}</p>}
     </Card>
   );

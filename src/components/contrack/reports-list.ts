@@ -45,6 +45,21 @@ export interface ReportCategory {
   icon: React.ComponentType<{ className?: string }>;
 }
 
+/**
+ * لون التصنيف في بطاقات المركز (الهوية البصرية — المرحلة 4):
+ * العملاء والتحصيل/الخزينة/المحاسبة = العائلة الذهبية/البرتقالية · العقود والتنفيذ = الأزرق التشغيلي.
+ * أيقونة داخل مربع ملوّن فاتح 12% — من tokens حصرًا.
+ */
+export const CATEGORY_TONE: Record<
+  ReportCategoryId,
+  { tile: string; icon: string }
+> = {
+  clients: { tile: "bg-brand-gold-soft", icon: "text-brand-orange" },
+  ops: { tile: "bg-info-soft", icon: "text-info-blue-text" },
+  treasury: { tile: "bg-brand-gold-soft", icon: "text-brand-orange" },
+  accounting: { tile: "bg-brand-gold-soft", icon: "text-brand-orange" },
+};
+
 export const REPORT_CATEGORIES: ReportCategory[] = [
   {
     id: "clients",
