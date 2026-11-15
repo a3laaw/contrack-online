@@ -4,15 +4,13 @@
  *
  * قواعد الظهور المكتبية (SettingsPage._build):
  *   - is_admin() = الدور admin أو developer (auth_service.py:166-168) ⇒
- *     «بيانات الشركة» وجدول الكميات BOQ
- *     وجدول الزيارات والبيانات والنسخ الاحتياطي للمدير/المطور فقط.
+ *     «بيانات الشركة» وجدول الزيارات والبيانات والنسخ الاحتياطي للمدير/المطور فقط.
  *   - الجلسة 12 — قرار المالك: تابا «أنواع العقود» و«مراحل المتابعة» حُذفا
  *     من الإعدادات — موضعُهما الوحيد وحدة «القوائم المرجعية» (لا تكرار).
+ *   - 2026-11-15 — قرار المالك: تاب «▦ جدول الكميات BOQ» نُقل كذلك إلى وحدة
+ *     «القوائم المرجعية» فلا مدخل له هنا (نفس المكوّن BoqDocsTab بلا تكرار).
  *   - Task 105 — تاب «حسابات المصروفات» أُسقط نهائيًا: الشجرة دُمجت في
  *     دليل الحسابات الموحد (Account) وأُزيل مدخلها من الكتالوج.
- *   - انحراف ويب معتمد (قرار المالك 2026-11): تاب «▦ جدول الكميات BOQ»
- *     بعد الأمان — وثائق BOQ المستقلة تُبنى في الإعدادات قبل العقد
- *     (docs/boq-doc-design.md — المرحلة أ).
  *   - «الطباعة والعرض» للجميع، و«الأمان والمستخدمون» للجميع مع اختلاف
  *     التسمية: «◆ الأمان والمستخدمون» للإدارة و«◆ كلمة المرور» للسكرتير.
  *   - «⚙ أدوات المطور» لـ developer فقط (is_developer — auth_service.py:171).
@@ -40,22 +38,20 @@ export const TAB_COMPANIES = "🏢  الشركات";
 export const TAB_APPEARANCE = "▤  الطباعة والعرض";
 export const TAB_SECURITY_ADMIN = "◆  الأمان والمستخدمون";
 export const TAB_SECURITY_SECRETARY = "◆  كلمة المرور";
-export const TAB_BOQ_DOCS = "▦  جدول الكميات BOQ"; // انحراف ويب معتمد — قرار المالك 2026-11 (قبل العقد)
 export const TAB_VISITS = "◷  جدول الزيارات";
 export const TAB_POSTING_RULES = "≡  قواعد الترحيل";
 export const TAB_BACKUP = "⊞  البيانات والنسخ الاحتياطي";
 export const TAB_DEVELOPER = "⚙  أدوات المطور";
 
 /** كل التبويبات بترتيب المكتبي مع انحرافات الويب الموثقة — أنواع العقود ومراحل المتابعة
- *  انتقلتا إلى وحدة «القوائم المرجعية» (الجلسة 12 — قرار المالك) فلا مدخل لهما هنا */
+ *  انتقلتا إلى وحدة «القوائم المرجعية» (الجلسة 12 — قرار المالك) وجدول الكميات BOQ
+ *  انتقل كذلك (2026-11-15 — قرار المالك) فلا مدخل لهما هنا */
 export const SETTINGS_TABS: SettingsTabDef[] = [
   { value: "company", label: TAB_COMPANY, adminOnly: true, developerOnly: false },
   // Task 97 — قرار معتمد: الشركات للمطور حصرًا (البابان معًا = يستثني المدير والسكرتير)
   { value: "companies", label: TAB_COMPANIES, adminOnly: true, developerOnly: true },
   { value: "appearance", label: TAB_APPEARANCE, adminOnly: false, developerOnly: false },
   { value: "security", label: TAB_SECURITY_ADMIN, adminOnly: false, developerOnly: false },
-  // وثائق BOQ المستقلة — انحراف ويب معتمد (قرار المالك: الـBOQ في الإعدادات قبل العقد)
-  { value: "boq-docs", label: TAB_BOQ_DOCS, adminOnly: true, developerOnly: false },
   { value: "visits", label: TAB_VISITS, adminOnly: true, developerOnly: false },
   // Task 106 — قوالب قيود السندات القابلة للضبط لكل شركة (بعد الزيارات وقبل النسخ)
   { value: "posting-rules", label: TAB_POSTING_RULES, adminOnly: true, developerOnly: false },

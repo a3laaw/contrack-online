@@ -4,12 +4,15 @@
  * شاشة الإعدادات — نقطة الدخول (المرحلة 9 · بند 6).
  * أُعيدت هيكلتها إلى تبويبات مطابقة للمكتبي حرفيًا (settings.py:461-533):
  *   ⌂ بيانات الشركة · ▤ الطباعة والعرض · ◆ الأمان والمستخدمون/كلمة المرور ·
- *   ▦ جدول الكميات BOQ · ◷ جدول الزيارات ·
+ *   ◷ جدول الزيارات ·
  *   ⊞ البيانات والنسخ الاحتياطي · ⚙ أدوات المطور (developer فقط — بتابات
  *   داخلية خمسة). المحتوى موزع في src/components/contrack/settings/*.
  *   Task 105 — تاب «حسابات المصروفات» أُسقط مع دمج الشجرة في دليل الحسابات الموحد.
  *   الجلسة 12 — قرار المالك: تابا «أنواع العقود» و«مراحل المتابعة» حُذفا من الإعدادات
  *   — موضعُهما الوحيد وحدة «القوائم المرجعية» (RefListsView تضمّن المدرّين نفسهما).
+ *   2026-11-15 — قرار المالك: تاب «▦ جدول الكميات BOQ» نُقل كذلك إلى وحدة
+ *   «القوائم المرجعية» («انقل جدول الكميات من الاعدادت الي القوائم المرجعيه»)
+ *   — نفس المكوّن BoqDocsTab يُصيّر هناك بلا تكرار.
  *   الجلسة 14 — قرار المالك «احنا عندنا قواعد للقائمه الجانبيه»: شريط التبويبات
  *   الأفقي حُذف من الشاشة — القائمة الجانبية (nav-structure) هي الملاحّ الوحيد،
  *   وكل تاب له بند شل كاملة العدّ (الشركات للمطور · النسخ الآلي · أدوات المطور
@@ -29,7 +32,6 @@ import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, apiPut } from "./api";
 import type { PaymentMethodsResponse, SettingsResponse, User } from "./contrack-types";
 import { errMessage } from "./contrack-types";
-import { BoqDocsTab } from "./settings/boq-docs-tab";
 import { CompanyTab } from "./settings/company-tab";
 import { CompaniesTab } from "./settings/companies-tab";
 import { AppearanceTab } from "./settings/appearance-tab";
@@ -104,7 +106,7 @@ export function SettingsView({ user, onAuthError, initialSection }: SettingsView
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-lg font-bold whitespace-nowrap">الإعدادات</h1>
-        <span className="hidden xl:inline text-xs text-muted-foreground">بيانات الشركة والطباعة والأمان وBOQ والزيارات والنسخ — والأنواع والمراحل في «القوائم المرجعية»</span>
+        <span className="hidden xl:inline text-xs text-muted-foreground">بيانات الشركة والطباعة والأمان والزيارات والنسخ — وBOQ والأنواع والمراحل في «القوائم المرجعية»</span>
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="gap-4">
@@ -150,11 +152,6 @@ export function SettingsView({ user, onAuthError, initialSection }: SettingsView
         <TabsContent value="security" className="space-y-4">
           <SecurityTab manager={manager} username={user.username} onAuthError={onAuthError} />
         </TabsContent>
-
-        {/* ===== 4) وثائق جدول الكميات BOQ (مدير) — انحراف ويب معتمد:
-             وثائق مستقلة تُبنى قبل العقد (قرار المالك 2026-11 — docs/boq-doc-design.md)
-             — أنواع العقود ومراحل المتابعة في وحدة «القوائم المرجعية» (الجلسة 12) ===== */}
-        {manager && <TabsContent value="boq-docs"><BoqDocsTab /></TabsContent>}
 
         {/* ===== 5) جدول الزيارات (مدير) ===== */}
         {manager && <TabsContent value="visits"><VisitsTab onAuthError={onAuthError} /></TabsContent>}

@@ -158,7 +158,8 @@ export interface NavModule {
  *   4. الاستشارات: الفريق الهندسي، إسناد المشاريع، ساعات العمل، الإجازات (موديول consulting)
  *   5. المحاسبة: سندات القبض/الصرف، كشف الحساب، العُهد، السلف، البوابة، الشركة الأخرى، المطالبات، الفواتير
  *   6. التقارير: التقارير الـ11 بنودًا حقيقية في القائمة الجانبية الرسمية كالمحاسبة (توجيه المستخدم — الخيار 2)
- *   7. الإعدادات: الشركة، الطباعة، الأمان، المستخدمون، جدول الكميات BOQ، الزيارات، قواعد الترحيل، النسخ، أدوات المطور
+ *   7. الإعدادات: الشركة، الطباعة، الأمان، المستخدمون، الزيارات، قواعد الترحيل، النسخ، أدوات المطور
+ *      (2026-11-15 — قرار المالك: «جدول الكميات» نُقل إلى وحدة القوائم المرجعية)
  *      (الجلسة 12 — قرار المالك: «أنواع العقود» و«مراحل العمل» انتقلتا حصرًا إلى وحدة القوائم المرجعية
  *       وحُذف تابيهما المكرر من الإعدادات)
  * خارج النطاق (لا يُضاف): عروض الأسعار، الأرشيف، الواتساب، الاستيراد من Excel.
@@ -387,6 +388,9 @@ export const NAV_MODULES: NavModule[] = [
       { id: "ref-org", label: "الوظائف والإدارات والأقسام", icon: Network, view: "ref-lists", section: "org-structure", adminOnly: true },
       // الشاشة الموحدة الثالثة — قرار المالك: «المناطق — هتكون المحافظة — المدينة / المنطقة عمود»
       { id: "ref-areas", label: "المناطق", icon: MapPin, view: "ref-lists", section: "areas", adminOnly: true },
+      // جدول الكميات BOQ — قرار المالك 2026-11-15: «انقل جدول الكميات من الاعدادت الي القوائم المرجعية»
+      // وثائق BOQ المستقلة مكتبة مرجعية تُبنى قبل العقد — المكوّن نفسه (BoqDocsTab) بلا تكرار
+      { id: "boq-docs-config", label: "جدول الكميات BOQ", icon: FileSpreadsheet, view: "ref-lists", section: "boq-docs", adminOnly: true },
       // القوائم العامة — الأوزان والقوائم المخصصة فقط (بلا تكرار للشاشات أعلاه)
       { id: "ref-lists", label: "القوائم العامة", icon: BookMarked, view: "ref-lists", section: "lists", adminOnly: true, perm: "screen_ref_lists" },
     ],
@@ -408,9 +412,6 @@ export const NAV_MODULES: NavModule[] = [
       { id: "settings-printing", label: "الطباعة والعرض", icon: FileText, view: "settings", section: "appearance", perm: "screen_settings" },
       { id: "settings-security", label: "الأمان وكلمة المرور", icon: ShieldCheck, view: "settings", section: "security", perm: "screen_settings" },
       { id: "users", label: "المستخدمون والصلاحيات", icon: UserCog, view: "users", adminOnly: true },
-      // وثائق جدول الكميات BOQ — انحراف ويب معتمد (قرار المالك 2026-11: الـBOQ في الإعدادات قبل العقد)
-      // (أنواع العقود ومراحل العمل في وحدة «القوائم المرجعية» — الجلسة 12 بلا تكرار هنا)
-      { id: "boq-docs-config", label: "جدول الكميات BOQ", icon: FileSpreadsheet, view: "settings", section: "boq-docs", adminOnly: true },
       { id: "visits-config", label: "إعدادات الزيارات", icon: CalendarDays, view: "settings", section: "visits", adminOnly: true },
       { id: "posting-rules", label: "قواعد الترحيل", icon: ListChecks, view: "settings", section: "posting-rules", adminOnly: true },
       // إعداد النسخ الاحتياطي الآلي — مرآة settings.py _tab_backup داخل الإعدادات (الجلسة 14)
@@ -420,12 +421,12 @@ export const NAV_MODULES: NavModule[] = [
       // أدوات المطور — التابات الخمسة الحرفية: المزايا/الهوية/الترحيل/الشبكة/التنظيف (للمطور حصرًا كالمكتبي is_developer — البابان معًا)
       { id: "devtools", label: "أدوات المطور", icon: Wrench, view: "settings", section: "developer", adminOnly: true, developerOnly: true },
     ],
-    // الجلسة 15 — 11 بندًا ← 6 أقسام للمدير (7 للمطور: قسم «أدوات المطور» يجفّ عن غيره فيختفي)
+    // الجلسة 15 ثم نقل BOQ إلى القوائم المرجعية (2026-11-15) — 10 بنود ← 6 أقسام للمطور
+    // (5 للمدير: قسم «أدوات المطور» يجفّ عن غيره فيختفي)
     top: [
       { id: "t-set-company", children: ["settings-company"] },
       { id: "t-set-print-sec", label: "الطباعة والأمان", children: ["settings-printing", "settings-security"] },
       { id: "t-set-users", label: "المستخدمون", children: ["users"] },
-      { id: "t-set-boq", label: "جدول الكميات BOQ", children: ["boq-docs-config"] },
       { id: "t-set-rules", label: "الزيارات والترحيل", children: ["visits-config", "posting-rules"] },
       { id: "t-set-backup", label: "النسخ والبيانات", children: ["backup", "data-mgmt"] },
       { id: "t-set-dev", label: "أدوات المطور", children: ["settings-companies", "devtools"] },

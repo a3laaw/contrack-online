@@ -10,6 +10,9 @@
  *   2) أنواع العقود ومراحل العمل والدفعات: الشاشة الموحدة الثلاثية فقط
  *      (TypesStagesPaymentsView) — حُذف تبويبا المدرّين القديمين (تفصيلي/شجرة)
  *      وانتقلت حقول النوع الكاملة إلى حوار الشاشة الموحدة.
+ *   3) جدول الكميات BOQ: نُقل من الإعدادات إلى هذه الوحدة بقرار المالك 2026-11-15
+ *      («انقل جدول الكميات من الاعدادت الي القوائم المرجعيه») — قسم «boq-docs»
+ *      يعرض BoqDocsTab نفسه حرفيًا (صفر تكرار وصفر كود جديد).
  * الأسلاك: /api/ref-lists + /api/ref-lists/[id] + /api/ref-lists/[id]/items +
  *          /api/ref-items/[id] + /api/ref-items/[id]/move — الكتابة للمدير فقط.
  */
@@ -35,8 +38,9 @@ import { errMessage, type User } from "./contrack-types";
 import { OrgStructureView } from "./OrgStructureView";
 import { AreasStructureView } from "./AreasStructureView";
 import { TypesStagesPaymentsView } from "./TypesStagesPaymentsView";
+import { BoqDocsTab } from "./settings/boq-docs-tab";
 
-export type RefListsSection = "types-stages-payments" | "org-structure" | "areas" | "lists";
+export type RefListsSection = "types-stages-payments" | "org-structure" | "areas" | "boq-docs" | "lists";
 
 /**
  * مفاتيح القوائم المدمجة التي صارت لها شاشات مخصصة في نفس المجموعة —
@@ -113,7 +117,7 @@ export function RefListsView({ user, onAuthError, section = "lists", onSectionCh
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-lg font-bold whitespace-nowrap">القوائم المرجعية</h1>
         <span className="hidden xl:inline text-xs text-muted-foreground">
-          الأوزان وقوائمك الخاصة هنا — والمناطق والوظائف والإدارات والأقسام والأنواع والمراحل لكل منها شاشتها المخصصة في نفس المجموعة
+          الأوزان وقوائمك الخاصة ووثائق جدول الكميات BOQ هنا — والمناطق والوظائف والإدارات والأقسام والأنواع والمراحل لكل منها شاشتها المخصصة في نفس المجموعة
         </span>
       </div>
 
@@ -133,6 +137,12 @@ export function RefListsView({ user, onAuthError, section = "lists", onSectionCh
         {/* الشاشة الموحدة الثالثة — قرار المالك: المناطق هرمية المحافظة ← المدينة ← المنطقة */}
         <TabsContent value="areas" className="space-y-4">
           <AreasStructureView user={user} onAuthError={onAuthError} onFailToast={onFail} />
+        </TabsContent>
+
+        {/* جدول الكميات BOQ — قرار المالك 2026-11-15: النقل من الإعدادات إلى القوائم المرجعية —
+            وثائق مستقلة تُبنى قبل العقد (docs/boq-doc-design.md) — المكوّن نفسه حرفيًا بلا تكرار */}
+        <TabsContent value="boq-docs" className="space-y-4">
+          <BoqDocsTab />
         </TabsContent>
 
         <TabsContent value="lists" className="space-y-4">
