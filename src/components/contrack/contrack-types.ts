@@ -9,6 +9,8 @@ export type ViewName =
   | "customers"
   | "customer-file"
   | "contracts"
+  // لوحة «أين وصلنا» — ربط العقود بمراحل العمل وموقع التقدم (قرار المالك 2026-11)
+  | "contract-progress"
   | "contract-groups"
   // الشاشة الموحدة «المراحل والدفعات» — قرار المالك: عقد ← مرحلة ← دفعاتها في صفحة واحدة
   | "stage-payments"

@@ -19,6 +19,7 @@ import { DashboardView, type DashboardQuickAction } from "./DashboardView";
 import { CustomersView } from "./CustomersView";
 import { CustomerFilePage } from "./CustomerFilePage";
 import { ContractsView } from "./ContractsView";
+import { ContractProgressView } from "./ContractProgressView";
 import { ContractGroupsView } from "./ContractGroupsView";
 import { StagePaymentsView } from "./StagePaymentsView";
 import { FormsCenterView } from "./FormsCenterView";
@@ -408,6 +409,10 @@ function AppRoot() {
           presetCustomerId={newContractCustomerId}
           onConsumePreset={() => setNewContractCustomerId(null)}
         />
+      )}
+      {/* لوحة «أين وصلنا» — ربط العقود بمراحل العمل وموقع التقدم (قرار المالك 2026-11) */}
+      {view === "contract-progress" && (
+        <ContractProgressView user={user} perms={perms} onAuthError={onAuthError} onOpenContract={openContract} />
       )}
       {view === "contract-groups" && <ContractGroupsView user={user} onAuthError={onAuthError} />}
       {/* الشاشة الموحدة «المراحل والدفعات» — قرار المالك: عقد ← مرحلة ← دفعاتها في صفحة واحدة */}

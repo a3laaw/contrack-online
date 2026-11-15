@@ -80,6 +80,8 @@ export const VIEW_PERMS: Partial<Record<ViewName, string>> = {
   customers: "screen_customers",
   "customer-file": "screen_customers",
   contracts: "screen_customers",
+  // لوحة «أين وصلنا» — ربط العقود بمراحل العمل (قرار المالك 2026-11) — باب شاشة العقود نفسه
+  "contract-progress": "screen_customers",
   "contract-groups": "screen_customers",
   // الشاشة الموحدة «المراحل والدفعات» — باب فتح مباشر بمفتاح شاشة العقود نفسه
   "stage-payments": "screen_customers",

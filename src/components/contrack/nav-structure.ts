@@ -32,6 +32,7 @@ import {
   ListTree,
   LockKeyhole,
   MessageSquareText,
+  Milestone,
   Receipt,
   ReceiptText,
   Settings as SettingsIcon,
@@ -174,6 +175,8 @@ export const NAV_MODULES: NavModule[] = [
       { id: "due", label: "المهام المستحقة", icon: CalendarClock, view: "due", perm: "screen_customers" },
       { id: "customers", label: "العملاء", icon: UsersIcon, view: "customers", perm: "screen_customers" },
       { id: "contracts", label: "العقود", icon: FileText, view: "contracts", perm: "screen_customers" },
+      // لوحة «أين وصلنا» — ربط العقود بمراحل العمل وموقع التقدم (قرار المالك 2026-11)
+      { id: "contract-progress", label: "أين وصلنا", icon: Milestone, view: "contract-progress", perm: "screen_customers" },
       // الشاشة الموحدة «المراحل والدفعات» — قرار المالك: أنواع العقود ومراحل العمل والدفعات في صفحة واحدة
       { id: "stage-payments", label: "المراحل والدفعات", icon: ListTree, view: "stage-payments", perm: "screen_customers" },
       { id: "contract-groups", label: "مجموعات العقود", icon: Layers, view: "contract-groups", perm: "screen_customers" },
@@ -188,7 +191,7 @@ export const NAV_MODULES: NavModule[] = [
     // الجلسة 15 — أقسام الشريط العلوي (10 بنود ← 5 أقسام): «المهام المستحقة» أول بند في قائمة المهام
     top: [
       { id: "t-clients-home", children: ["dashboard"] },
-      { id: "t-clients-customers", label: "العملاء والعقود", children: ["customers", "contracts", "stage-payments", "contract-groups"] },
+      { id: "t-clients-customers", label: "العملاء والعقود", children: ["customers", "contracts", "contract-progress", "stage-payments", "contract-groups"] },
       { id: "t-clients-forms", children: ["forms"] },
       { id: "t-clients-tasks", label: "المهام والزيارات", children: ["due", "tasks", "visits"] },
       { id: "t-clients-followup", label: "المتابعة والتعليقات", children: ["comments", "followup"] },
