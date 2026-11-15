@@ -486,6 +486,10 @@ function AppRoot() {
           onAuthError={onAuthError}
           section={refListsSection}
           onSectionChange={setRefListsSection}
+          onOpenDocTemplates={() => {
+            navigate("ref-lists");
+            setRefListsSection("doc-templates");
+          }}
         />
       )}
       {view === "reports-home" && (

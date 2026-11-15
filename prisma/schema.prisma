@@ -842,6 +842,7 @@ model ContractType {
   paymentTemplates TypePaymentTemplate[]
   bundleParents    TypeBundleComponent[] @relation("bundleParent")
   bundleComponents TypeBundleComponent[] @relation("bundleComponent")
+  docTemplates     DocTemplate[]         @relation("docTemplates")
 
   @@unique([companyId, name])
   @@map("contract_types")
@@ -864,6 +865,34 @@ model TypePaymentTemplate {
 
   @@unique([contractTypeId, payNo])
   @@map("type_payment_tpl")
+}
+
+/**
+ * مصمم المستندات التعاقدية — «تصميم العقد وعرض السعر» (docs/contract-template-design.md)
+ * قالب مستند TipTap JSON: نص حر + كتل موسومة (بنود/دفعات/BOQ/جدول) — D2/D3.
+ * جدول جديد لا يلمس أي جدول قائم — الربط بالنوع اختياري (SetNull عند حذف النوع).
+ */
+model DocTemplate {
+  companyId      Int           @default(1) @map("company_id")
+  id             Int           @id @default(autoincrement())
+  /** "quotation" قالب عرض سعر | "contract_type" قالب نوع عقد — D3 */
+  kind           String
+  /** لقالب النوع: الربط بنوع العقد (يرث مراحله وقوالب دفعاته — D4) */
+  contractTypeId Int?          @map("contract_type_id")
+  contractType   ContractType? @relation("docTemplates", fields: [contractTypeId], references: [id], onDelete: SetNull)
+  name           String
+  /** مسودة | معتمد — مرآة قوالب النظام */
+  status         String        @default("مسودة")
+  /** جسم القالب TipTap JSON (نص حر + كتل) — D2 */
+  contentJson    String        @default("") @map("content_json")
+  createdBy      Int?          @map("created_by")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  @@index([companyId])
+  @@index([kind])
+  @@index([contractTypeId])
+  @@map("doc_templates")
 }
 
 model TypePaymentStage {

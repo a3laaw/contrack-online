@@ -215,3 +215,298 @@ input[type='number'] {
     transform: translateY(0);
   }
 }
+
+/* ============================================================
+   مصمم المستندات التعاقدية — ورقة A4 + محرر وورد-مثل + طباعة
+   (docs/contract-template-design.md — الجلسة 2026-11-15 (7))
+   ============================================================ */
+
+/* شريط أدوات المصمم */
+.doc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  background: hsl(var(--muted) / 0.4);
+  padding: 4px;
+}
+.doc-tb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: 0.375rem;
+  padding: 4px 6px;
+  font-size: 11px;
+  color: hsl(var(--foreground));
+  min-width: 28px;
+  justify-content: center;
+}
+.doc-tb-btn:hover:not(:disabled) {
+  background: hsl(var(--accent));
+}
+.doc-tb-btn:disabled {
+  opacity: 0.4;
+}
+.doc-tb-btn-active {
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+  font-weight: 700;
+}
+.doc-tb-sep {
+  width: 1px;
+  height: 20px;
+  background: hsl(var(--border));
+  margin-inline: 4px;
+}
+
+/* ورقة المستند (A4 شكلية) */
+.doc-sheet-wrap {
+  max-height: 65vh;
+  overflow-y: auto;
+  border-radius: 0.5rem;
+  background: hsl(var(--muted) / 0.5);
+  padding: 1rem;
+}
+.doc-sheet {
+  background: #fff;
+  color: #111;
+  width: 100%;
+  max-width: 210mm;
+  margin-inline: auto;
+  padding: 16mm 15mm;
+  min-height: 240mm;
+  border-radius: 2px;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.15);
+  font-size: 14px;
+  line-height: 1.8;
+}
+.doc-sheet .doc-prose {
+  outline: none;
+  min-height: 320px;
+}
+.doc-sheet .doc-prose p {
+  margin: 0.35em 0;
+}
+.doc-sheet .doc-prose h1 {
+  font-size: 1.55rem;
+  font-weight: 800;
+  margin: 0.6em 0 0.45em;
+}
+.doc-sheet .doc-prose h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0.55em 0 0.35em;
+}
+.doc-sheet .doc-prose h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0.45em 0 0.3em;
+}
+.doc-sheet .doc-prose ul {
+  list-style: disc;
+  padding-inline-start: 1.5em;
+  margin: 0.4em 0;
+}
+.doc-sheet .doc-prose ol {
+  list-style: decimal;
+  padding-inline-start: 1.7em;
+  margin: 0.4em 0;
+}
+.doc-sheet .doc-prose blockquote {
+  border-inline-start: 3px solid hsl(var(--border));
+  padding-inline-start: 0.8em;
+  color: #444;
+}
+.doc-sheet .doc-prose table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.6em 0;
+  font-size: 13px;
+}
+.doc-sheet .doc-prose th,
+.doc-sheet .doc-prose td {
+  border: 1px solid #94a3b8;
+  padding: 4px 8px;
+  vertical-align: top;
+  position: relative;
+}
+.doc-sheet .doc-prose th {
+  background: #f1f5f9;
+  font-weight: 700;
+}
+.doc-sheet .doc-prose table p {
+  margin: 0;
+}
+.doc-sheet .doc-prose .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(245 158 11 / 0.12);
+  pointer-events: none;
+}
+.doc-sheet .doc-prose .column-resize-handle {
+  position: absolute;
+  inset-inline-end: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: #f59e0b;
+  cursor: col-resize;
+}
+.doc-sheet .doc-prose.resize-cursor {
+  cursor: col-resize;
+}
+.doc-sheet .doc-prose p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  float: start;
+  height: 0;
+  pointer-events: none;
+}
+
+/* ترويسة الهوية (D9 — هوية المطبوعات) */
+.doc-header {
+  text-align: center;
+  margin-bottom: 14px;
+}
+.doc-header-name {
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+.doc-header-sub {
+  font-size: 0.8rem;
+  color: #555;
+}
+.doc-header-contact {
+  font-size: 0.68rem;
+  color: #666;
+}
+.doc-header-rule {
+  border: none;
+  border-top: 2px solid #222;
+  margin-top: 6px;
+}
+
+/* الكتل الموسومة وقت التصميم */
+.doc-block {
+  margin: 0.85rem 0;
+  position: relative;
+}
+.doc-block-card {
+  border: 1px dashed #94a3b8;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  padding: 0.7rem 0.75rem;
+}
+.doc-block-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.78rem;
+  color: #475569;
+  margin-bottom: 0.5rem;
+}
+.doc-block-tools {
+  position: absolute;
+  inset-inline-end: 0.4rem;
+  top: 0.4rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.4rem;
+  padding: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 5;
+  direction: ltr;
+}
+.doc-block:hover .doc-block-tools,
+.doc-block:focus-within .doc-block-tools {
+  opacity: 1;
+}
+.doc-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 0.3rem;
+  color: #475569;
+}
+.doc-tool-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+.doc-tool-btn:disabled {
+  opacity: 0.35;
+}
+.doc-tool-btn.static {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+.doc-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  cursor: grab;
+}
+.ProseMirror-selectednode > .doc-block-card {
+  outline: 2px solid #f59e0b;
+  outline-offset: 2px;
+}
+.doc-clause-list {
+  list-style: decimal;
+  padding-inline-start: 1.6em;
+  display: grid;
+  gap: 0.25rem;
+}
+.doc-preview-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+.doc-preview-table th,
+.doc-preview-table td {
+  border: 1px solid #cbd5e1;
+  padding: 4px 8px;
+  text-align: start;
+}
+.doc-preview-table th {
+  background: #f1f5f9;
+  font-weight: 700;
+}
+
+/* الطباعة — منطقة المستند حصرًا (D7) */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+  body.doc-printing * {
+    visibility: hidden;
+  }
+  body.doc-printing .doc-print-area,
+  body.doc-printing .doc-print-area * {
+    visibility: visible;
+  }
+  body.doc-printing .doc-print-area {
+    position: absolute;
+    inset-inline-start: 0;
+    top: 0;
+    width: 100%;
+  }
+  body.doc-printing .doc-sheet {
+    box-shadow: none;
+    border-radius: 0;
+    max-width: none;
+    min-height: auto;
+    padding: 0;
+  }
+}
+

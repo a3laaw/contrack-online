@@ -391,6 +391,9 @@ export const NAV_MODULES: NavModule[] = [
       // جدول الكميات BOQ — قرار المالك 2026-11-15: «انقل جدول الكميات من الاعدادت الي القوائم المرجعية»
       // وثائق BOQ المستقلة مكتبة مرجعية تُبنى قبل العقد — المكوّن نفسه (BoqDocsTab) بلا تكرار
       { id: "boq-docs-config", label: "جدول الكميات BOQ", icon: FileSpreadsheet, view: "ref-lists", section: "boq-docs", adminOnly: true },
+      // مصمم القوالب — «تصميم العقد وعرض السعر» زي ملف ورد داخل النظام
+      // (docs/contract-template-design.md — D1-D11 معتمدة والجلسة 2026-11-15 (7)) — مرجعية تُبنى قبل العقد
+      { id: "doc-templates", label: "مصمم القوالب", icon: FileSignature, view: "ref-lists", section: "doc-templates", adminOnly: true },
       // القوائم العامة — الأوزان والقوائم المخصصة فقط (بلا تكرار للشاشات أعلاه)
       { id: "ref-lists", label: "القوائم العامة", icon: BookMarked, view: "ref-lists", section: "lists", adminOnly: true, perm: "screen_ref_lists" },
     ],

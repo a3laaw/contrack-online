@@ -39,8 +39,9 @@ import { OrgStructureView } from "./OrgStructureView";
 import { AreasStructureView } from "./AreasStructureView";
 import { TypesStagesPaymentsView } from "./TypesStagesPaymentsView";
 import { BoqDocsTab } from "./settings/boq-docs-tab";
+import { DocTemplatesTab } from "./doc-templates/doc-templates-tab";
 
-export type RefListsSection = "types-stages-payments" | "org-structure" | "areas" | "boq-docs" | "lists";
+export type RefListsSection = "types-stages-payments" | "org-structure" | "areas" | "boq-docs" | "doc-templates" | "lists";
 
 /**
  * مفاتيح القوائم المدمجة التي صارت لها شاشات مخصصة في نفس المجموعة —
@@ -99,9 +100,11 @@ interface RefListsViewProps {
   /** القسم المبدئي من القائمة الجانبية (lists/contract-types/stages) */
   section?: RefListsSection;
   onSectionChange?: (s: RefListsSection) => void;
+  /** فتح مصمم القوالب من شاشة الأنواع — زر «تصميم قالب المستند» (التصميم §6) */
+  onOpenDocTemplates?: () => void;
 }
 
-export function RefListsView({ user, onAuthError, section = "lists", onSectionChange }: RefListsViewProps) {
+export function RefListsView({ user, onAuthError, section = "lists", onSectionChange, onOpenDocTemplates }: RefListsViewProps) {
   const { toast } = useToast();
   // النمط الموحد عبر الشاشات: خطأ 401 ⇒ خروج للدخول، وغيره ⇒ توست بالرسالة العربية
   const onFail = React.useCallback(
@@ -126,7 +129,7 @@ export function RefListsView({ user, onAuthError, section = "lists", onSectionCh
 
         {/* الشاشة الموحدة — قرار المالك: أنواع العقود ومراحل العمل والدفعات كلها في صفحة واحدة */}
         <TabsContent value="types-stages-payments" className="space-y-4">
-          <TypesStagesPaymentsView user={user} onAuthError={onAuthError} onFailToast={onFail} />
+          <TypesStagesPaymentsView user={user} onAuthError={onAuthError} onFailToast={onFail} onOpenDocTemplates={onOpenDocTemplates} />
         </TabsContent>
 
         {/* الشاشة الموحدة الثانية — تغيير المالك: الوظائف والإدارة والقسم والوظيفة في أربعة أعمدة مترابطة */}
@@ -143,6 +146,12 @@ export function RefListsView({ user, onAuthError, section = "lists", onSectionCh
             وثائق مستقلة تُبنى قبل العقد (docs/boq-doc-design.md) — المكوّن نفسه حرفيًا بلا تكرار */}
         <TabsContent value="boq-docs" className="space-y-4">
           <BoqDocsTab />
+        </TabsContent>
+
+        {/* مصمم القوالب — «تصميم العقد وعرض السعر» — محرر وورد-مثل داخل النظام
+            (docs/contract-template-design.md D1-D11) — قوالب مرجعية تُبنى قبل العقد */}
+        <TabsContent value="doc-templates" className="space-y-4">
+          <DocTemplatesTab user={user} onAuthError={onAuthError} onFailToast={onFail} />
         </TabsContent>
 
         <TabsContent value="lists" className="space-y-4">

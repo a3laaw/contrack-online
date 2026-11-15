@@ -24,6 +24,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BadgeDollarSign,
   ClipboardList,
+  FileSignature,
   FileStack,
   Layers,
   Link2,
@@ -117,12 +118,14 @@ const kindBadgeCls: Record<PaymentTemplateDTO["kind"], string> = {
 
 interface TypesStagesPaymentsViewProps {
   user: User;
+  /** فتح مصمم القوالب على النوع المختار — زر «تصميم قالب المستند» (التصميم §6) */
+  onOpenDocTemplates?: () => void;
   onAuthError: () => void;
   /** مُمرَّر من RefListsView لتوحيد التوست */
   onFailToast?: (e: unknown, title: string) => void;
 }
 
-export function TypesStagesPaymentsView({ user, onAuthError, onFailToast }: TypesStagesPaymentsViewProps) {
+export function TypesStagesPaymentsView({ user, onAuthError, onFailToast, onOpenDocTemplates }: TypesStagesPaymentsViewProps) {
   const { toast } = useToast();
   const manager = user.role === "admin" || user.role === "developer";
 
@@ -583,6 +586,24 @@ export function TypesStagesPaymentsView({ user, onAuthError, onFailToast }: Type
         <span className="hidden xl:inline text-xs text-muted-foreground">
           اختر نوع العقد ← ستظهر مراحله ← اختر مرحلة فتظهر الدفعة المرتبطة بها
         </span>
+        {/* مصمم القوالب — تصميم مستند النوع (بنود ودفعات وBOQ) — التصميم §6 */}
+        {manager && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="ms-auto h-8 gap-1 text-xs"
+            onClick={() => {
+              if (selectedType) {
+                sessionStorage.setItem("ctrk_doc_tpl_type_id", String(selectedType.id));
+              }
+              onOpenDocTemplates?.();
+            }}
+            aria-label="تصميم قالب المستند لنوع العقد"
+          >
+            <FileSignature className="size-3.5" aria-hidden />
+            تصميم قالب المستند
+          </Button>
+        )}
       </div>
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,250px)_minmax(0,1fr)_minmax(0,1.1fr)]">

@@ -9,7 +9,7 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftRight, ChevronDown, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, FileText, Pencil, Plus, Printer, RefreshCw, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,7 +55,16 @@ import {
 } from "@/lib/quotes-core";
 import { quoteConvertible } from "@/lib/sales-core";
 import { QUOTE_CONVERT_MARKER } from "@/lib/sales-constants";
+import { printDoc } from "../doc-templates/print-doc";
+import type { DocTemplateMeta, DocTemplateRenderResponse } from "@/lib/doc-template-core";
 import type { CustomersResponse } from "../contrack-types";
+import dynamic from "next/dynamic";
+
+// عرض القراءة (TipTap) — تحميل عند الطلب حتى لا يدخل باندل الـ/ الرئيسي
+const DocReadView = dynamic(
+  () => import("../doc-templates/doc-template-read").then((m) => m.DocReadView),
+  { ssr: false }
+);
 
 interface QuotesSectionProps {
   user: User;
@@ -222,6 +231,30 @@ export function QuotesSection({ user, onAuthError, onOpenPos }: QuotesSectionPro
       setConvertTarget(null);
       handleError(e, "تعذر تحويل العرض");
     },
+  });
+
+  // توليد المستند من قالب المصمم — docs/contract-template-design.md (ر7/ج)
+  const [docTarget, setDocTarget] = React.useState<QuotationRow | null>(null);
+  const [docTplId, setDocTplId] = React.useState("");
+  const [docData, setDocData] = React.useState<DocTemplateRenderResponse | null>(null);
+  const docTemplatesQuery = useQuery<{ templates: DocTemplateMeta[] }>({
+    queryKey: ["doc-templates", "quotation"],
+    queryFn: () => apiGet<{ templates: DocTemplateMeta[] }>("/api/doc-templates?kind=quotation"),
+    enabled: docTarget !== null,
+  });
+  const docTemplates = docTemplatesQuery.data?.templates ?? [];
+  React.useEffect(() => {
+    if (docTarget !== null && docTemplates.length > 0 && !docTemplates.some((t) => String(t.id) === docTplId)) {
+      setDocTplId(String(docTemplates[0].id));
+    }
+  }, [docTarget, docTemplates, docTplId]);
+  const generateDocMutation = useMutation({
+    mutationFn: (payload: { templateId: number; quotationId: number }) =>
+      apiPost<DocTemplateRenderResponse>(`/api/doc-templates/${payload.templateId}/render`, {
+        quotationId: payload.quotationId,
+      }),
+    onSuccess: (d) => setDocData(d),
+    onError: (e) => handleError(e, "تعذر توليد المستند"),
   });
 
   const rows = [...(listQuery.data?.quotations ?? [])].sort((a, b) => b.id - a.id);
@@ -392,6 +425,20 @@ export function QuotesSection({ user, onAuthError, onOpenPos }: QuotesSectionPro
                           مُحوَّل
                         </Badge>
                       )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8"
+                        onClick={() => {
+                          setDocTarget(row);
+                          setDocData(null);
+                          setDocTplId("");
+                        }}
+                        aria-label={`توليد مستند ${row.quotationNumber}`}
+                        title="توليد مستند من قالب المصمم"
+                      >
+                        <FileText className="size-4" />
+                      </Button>
                       <Button variant="ghost" size="icon" className="size-8" onClick={() => openEdit(row)} aria-label="تعديل">
                         <Pencil className="size-4" />
                       </Button>
@@ -635,6 +682,94 @@ export function QuotesSection({ user, onAuthError, onOpenPos }: QuotesSectionPro
             >
               {deleteMutation.isPending ? "جارٍ الحذف…" : "حذف"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* توليد المستند من قالب المصمم — docs/contract-template-design.md (ر7/ج) */}
+      <Dialog
+        open={docTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDocTarget(null);
+            setDocData(null);
+            setDocTplId("");
+          }
+        }}
+      >
+        <DialogContent className="max-h-[94vh] max-w-4xl overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>
+              {docData
+                ? `المستند المولّد — ${docTarget?.quotationNumber ?? ""}`
+                : `توليد مستند العرض ${docTarget?.quotationNumber ?? ""}`}
+            </DialogTitle>
+            <DialogDescription>
+              {docData
+                ? "المستند مُولّد من القالب ببيانات العرض الفعلية — اطبعه أو احفظه PDF من المتصفح."
+                : "اختر قالب عرض سعر من مصمم القوالب — بنوده وجدوله الدفعي وحقول الربط تُملأ ببيانات هذا العرض."}
+            </DialogDescription>
+          </DialogHeader>
+          {docData ? (
+            <div className="doc-print-area">
+              <DocReadView content={docData.doc} />
+            </div>
+          ) : docTemplates.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              لا قوالب عرض سعر بعد — أنشئ قالبًا من «القوائم المرجعية ← مصمم القوالب» ثم عد لتوليد المستند.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              <Label>قالب المستند</Label>
+              <Select value={docTplId} onValueChange={setDocTplId}>
+                <SelectTrigger aria-label="قالب المستند">
+                  <SelectValue placeholder="اختر القالب…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {docTemplates.map((t) => (
+                    <SelectItem key={t.id} value={String(t.id)}>
+                      {t.name}
+                      {t.status === "معتمد" ? " — معتمد" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            {docData ? (
+              <>
+                <Button variant="outline" className="h-9" onClick={() => setDocData(null)}>
+                  تغيير القالب
+                </Button>
+                <Button className="h-9 gap-1" onClick={printDoc}>
+                  <Printer className="size-4" aria-hidden />
+                  طباعة / PDF
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  className="h-9"
+                  onClick={() => {
+                    setDocTarget(null);
+                    setDocTplId("");
+                  }}
+                >
+                  إلغاء
+                </Button>
+                <Button
+                  className="h-9 gap-1"
+                  disabled={!docTplId || generateDocMutation.isPending}
+                  onClick={() =>
+                    docTarget && generateDocMutation.mutate({ templateId: Number(docTplId), quotationId: docTarget.id })
+                  }
+                >
+                  {generateDocMutation.isPending ? "جارٍ التوليد…" : "توليد المستند"}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
