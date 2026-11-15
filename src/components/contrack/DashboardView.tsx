@@ -219,7 +219,7 @@ export function DashboardView({
 
   if (dashQuery.isLoading || !data) {
     return (
-      <div className="space-y-4">
+      <div className="card-page space-y-4">
         <Skeleton className="h-8 w-40" />
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -247,7 +247,7 @@ export function DashboardView({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="card-page space-y-4">
       {/* ===== رأس الصفحة ===== */}
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-bold">الرئيسية</h1>

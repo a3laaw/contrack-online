@@ -258,8 +258,8 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
                 aria-label="التطبيقات — كل الوحدات"
                 title="التطبيقات"
                 className={cn(
-                  "flex w-11 shrink-0 items-center justify-center transition-colors",
-                  appsOpen ? "bg-primary-soft text-foreground" : "text-muted-foreground hover:bg-hover hover:text-foreground"
+                  "flex w-11 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-hover hover:text-foreground",
+                  appsOpen && "text-foreground"
                 )}
               >
                 <Grip className="size-5" aria-hidden />
@@ -297,8 +297,8 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
               </div>
             )}
 
-            {/* الأدوات — أقصى اليسار: البحث والإشعارات والحساب */}
-            <div className="ms-auto flex shrink-0 items-center gap-0.5">
+            {/* الأدوات — أقصى اليسار: البحث والإشعارات والحساب — pe-4 يمنع قص الاسم والبادج عند الحافة */}
+            <div className="ms-auto flex shrink-0 items-center gap-0.5 pe-4">
               {user.role === "developer" && onOpenDevConsole && !inDevConsole && (
                 <Button
                   variant="ghost"
@@ -377,28 +377,28 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
 }
 
 /**
- * طبقة التطبيقات (طراز Odoo): أيقونات الوحدات 72px بأسمائها — كل مجموعة بلون من الباليت
+ * طبقة التطبيقات (طراز Odoo): أيقونات الوحدات 80px بأسمائها — كل مجموعة بلون من الباليت
  * (المالية ذهبي/برتقالي · التشغيل أزرق · الموارد البشرية والاستشارات أصفر · التقارير والإعدادات رمادي)؛
  * الوحدة الحالية بحد برتقالي وخلفية برتقالية فاتحة، النقر يدخل أول بند مرئي ويغلق الطبقة،
- * Esc يغلق، الأسهم تنقل وEnter يختار، الشبكة موزطة وسط الصفحة بعرض أقصى 900px،
- * عمودان على الموبايل وأهداف لمس ≥44px.
+ * Esc يغلق، الأسهم تنقل وEnter يختار، الشبكة 5 أعمدة بعرض أقصى 860px تبدأ 56px تحت الشريط،
+ * أعمدة أقل على الموبايل وأهداف لمس ≥44px.
  */
 /**
- * تلوين مجموعات الوحدات في طبقة التطبيقات (الهوية البصرية — المرحلة 3):
+ * تلوين مجموعات الوحدات في طبقة التطبيقات (الهوية البصرية — المرحلة 3 + تعديل المالك):
  * المالية والتجارة (العقود/المبيعات/المحاسبة) = ذهبي/برتقالي · التشغيل (المشاريع/الباطن/المخازن/الصيانة) = أزرق ·
  * الموارد البشرية والاستشارات = أصفر · التقارير والمرجعية والإعدادات = رمادي غامق.
- * اللون على الأيقونة والخلفية بدرجة فاتحة 12% (docs/color-audit.md).
+ * الخلفية بدرجة 18% من لون المجموعة والأيقونة بدرجتها الغامقة (docs/color-audit.md).
  */
 const MODULE_TONE: Record<string, { tile: string; icon: string }> = {
-  clients: { tile: "bg-brand-gold-soft", icon: "text-brand-orange" },
-  sales: { tile: "bg-brand-gold-soft", icon: "text-brand-orange" },
-  accounting: { tile: "bg-brand-gold-soft", icon: "text-brand-orange" },
-  projects: { tile: "bg-info-soft", icon: "text-info-blue-text" },
-  subs: { tile: "bg-info-soft", icon: "text-info-blue-text" },
-  warehouses: { tile: "bg-info-soft", icon: "text-info-blue-text" },
-  maintenance: { tile: "bg-info-soft", icon: "text-info-blue-text" },
-  hr: { tile: "bg-warn-soft", icon: "text-warn-ink" },
-  consulting: { tile: "bg-warn-soft", icon: "text-warn-ink" },
+  clients: { tile: "bg-brand-gold-tile", icon: "text-brand-orange" },
+  sales: { tile: "bg-brand-gold-tile", icon: "text-brand-orange" },
+  accounting: { tile: "bg-brand-gold-tile", icon: "text-brand-orange" },
+  projects: { tile: "bg-info-tile", icon: "text-info-blue-text" },
+  subs: { tile: "bg-info-tile", icon: "text-info-blue-text" },
+  warehouses: { tile: "bg-info-tile", icon: "text-info-blue-text" },
+  maintenance: { tile: "bg-info-tile", icon: "text-info-blue-text" },
+  hr: { tile: "bg-brand-yellow-tile", icon: "text-warn-ink" },
+  consulting: { tile: "bg-brand-yellow-tile", icon: "text-warn-ink" },
   reports: { tile: "bg-hover", icon: "text-muted-foreground" },
   refs: { tile: "bg-hover", icon: "text-muted-foreground" },
   settings: { tile: "bg-hover", icon: "text-muted-foreground" },
@@ -464,11 +464,11 @@ function AppsLayer({
       aria-label="التطبيقات — كل الوحدات"
       onKeyDown={onKeyDown}
     >
-      {/* الشبكة موزعة في وسط الصفحة بعرض أقصى ~900px (الهوية — المرحلة 3) */}
-      <div className="flex min-h-full items-center justify-center px-4 py-8">
+      {/* الشبكة تبدأ 56px تحت الشريط (pt-14) — بلا توسيط رأسي، موزطة أفقيًا بعرض أقصى 860px (تعديل المالك) */}
+      <div className="flex min-h-full justify-center px-4 pb-8 pt-14">
         <div
           ref={gridRef}
-          className="grid w-full max-w-[900px] grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-6"
+          className="grid w-full max-w-[860px] grid-cols-3 gap-2 min-[480px]:grid-cols-4 sm:gap-3 md:grid-cols-5"
         >
           {modules.map(({ module, children }) => {
             const Icon = module.icon;
@@ -489,13 +489,13 @@ function AppsLayer({
               >
                 <span
                   className={cn(
-                    "flex size-[72px] items-center justify-center rounded-2xl border transition-colors",
+                    "flex size-20 items-center justify-center rounded-2xl border transition-colors",
                     isActive
                       ? "border-brand-orange bg-primary-soft text-brand-orange"
                       : cn("border-transparent", tone.tile, tone.icon, "group-hover:border-primary-soft-border")
                   )}
                 >
-                  <Icon className="size-10" aria-hidden />
+                  <Icon className="size-[34px]" aria-hidden />
                 </span>
                 {module.label}
               </button>

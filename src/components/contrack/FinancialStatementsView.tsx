@@ -137,7 +137,7 @@ export function FinancialStatementsView({ onAuthError }: { onAuthError: () => vo
   };
 
   return (
-    <main className="space-y-6">
+    <main className="card-page space-y-6">
       {/* ==================== الترويسة والتحكم ==================== */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>

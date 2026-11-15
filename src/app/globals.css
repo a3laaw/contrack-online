@@ -117,6 +117,9 @@
   --color-danger-soft: var(--danger-soft);
   --color-coral-soft: var(--coral-soft);
   --color-coral-ink: var(--coral-ink);
+  --color-brand-gold-tile: var(--brand-gold-tile);
+  --color-brand-yellow-tile: var(--brand-yellow-tile);
+  --color-info-tile: var(--info-tile);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -160,6 +163,11 @@
   --danger-soft: #F9E8E4;
   --coral-soft: #FFEEE8;
   --coral-ink: #993B1C;         /* نص على المرجان الناعم — تباين 6.5:1 */
+
+  /* بلاط شاشة التطبيقات — خلفية 18% من لون المجموعة وأيقونة بدرجتها الغامقة (تعديل المالك) */
+  --brand-gold-tile: #FFEED4;   /* 18% ذهبي */
+  --brand-yellow-tile: #FFF5D8; /* 18% أصفر */
+  --info-tile: #D3EDFA;         /* 18% أزرق */
 
   /* ===== الخريطة الدلالية لشادcn — قيمها الآن من الـ tokens أعلاه حصرًا ===== */
   --background: var(--bg-page);
@@ -537,6 +545,14 @@ input[type='number'] {
 .doc-preview-table th {
   background: #f1f5f9;
   font-weight: 700;
+}
+
+/* حاوية صفحات شبكات الكروت (مركز التقارير · القوائم · لوحات النظرة العامة) —
+   عرض أقصى 1200px موزطة مع padding جانبي 24px؛ صفحات الجداول تبقى بعرض كامل (تعديل المالك) */
+.card-page {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding-inline: 24px;
 }
 
 /* الطباعة — منطقة المستند حصرًا (D7) */

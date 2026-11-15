@@ -81,7 +81,7 @@ export function ReportsHomeView({ user, perms, onOpenReport, onOpenView }: Repor
   const shownTotal = filtered.reduce((n, s) => n + s.reports.length + s.links.length, 0);
 
   return (
-    <div className="space-y-5">
+    <div className="card-page space-y-5">
       {/* الترويسة */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -140,8 +140,9 @@ export function ReportsHomeView({ user, perms, onOpenReport, onOpenView }: Repor
                 <span className="hidden truncate text-xs text-muted-foreground sm:block">— {cat.desc}</span>
               </div>
 
-              {/* شبكة الكروت: 3 أعمدة كبيرة · 2 متوسطة · 1 موبايل — منتظمة بلا فراغات صفوف */}
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {/* شبكة الكروت: auto-fill 280px — 4 أعمدة على العريض (فجوة 10px تجعل 4×280+30 ≤ عرض الحاوية 1152px)
+                  و3·2·1 تلقائيًا، الصفوف تُملأ بالترتيب بلا كروت معلقة */}
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-2.5 [grid-auto-flow:row]">
                 {reports.map((r) => {
                   const Icon = r.icon;
                   return (
@@ -150,23 +151,23 @@ export function ReportsHomeView({ user, perms, onOpenReport, onOpenView }: Repor
                       type="button"
                       onClick={() => onOpenReport(r.key)}
                       className={cn(
-                        "group flex flex-col gap-2 rounded-xl border border-border bg-card p-3.5 text-start transition-all",
+                        "group flex items-start gap-3 rounded-xl border border-border bg-card p-3.5 text-start transition-all",
                         "hover:border-brand-orange hover:shadow-xs hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       )}
                     >
-                      <span className="flex items-center gap-2.5">
-                        <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", tone.tile, tone.icon)}>
-                          <Icon className="size-[18px]" />
-                        </span>
-                        <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                          <span className="truncate text-sm font-bold">{r.label}</span>
-                          {/* السهم جنب العنوان بدل أقصى الطرف (الهوية — المرحلة 4) */}
-                          <ChevronLeft className="size-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-brand-orange" />
+                      {/* مربع الأيقونة 44px بداية الكارت */}
+                      <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-lg", tone.tile, tone.icon)}>
+                        <Icon className="size-5" />
+                      </span>
+                      {/* عمود العنوان والوصف */}
+                      <span className="flex min-w-0 flex-1 flex-col gap-1">
+                        <span className="truncate text-sm font-bold">{r.label}</span>
+                        <span className="line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
+                          {r.desc}
                         </span>
                       </span>
-                      <span className="line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
-                        {r.desc}
-                      </span>
+                      {/* السهم في نهاية الكارت */}
+                      <ChevronLeft className="size-4 shrink-0 self-center text-muted-foreground/50 transition-colors group-hover:text-brand-orange" />
                     </button>
                   );
                 })}
@@ -178,26 +179,26 @@ export function ReportsHomeView({ user, perms, onOpenReport, onOpenView }: Repor
                       type="button"
                       onClick={() => onOpenView(l.view)}
                       className={cn(
-                        "group flex flex-col gap-2 rounded-xl border border-border bg-card p-3.5 text-start transition-all",
+                        "group flex items-start gap-3 rounded-xl border border-border bg-card p-3.5 text-start transition-all",
                         "hover:border-brand-orange hover:shadow-xs hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       )}
                     >
-                      <span className="flex items-center gap-2.5">
-                        <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", tone.tile, tone.icon)}>
-                          <Icon className="size-[18px]" />
-                        </span>
-                        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                      <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-lg", tone.tile, tone.icon)}>
+                        <Icon className="size-5" />
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col gap-1">
+                        <span className="flex min-w-0 items-center gap-1.5">
                           <span className="truncate text-sm font-bold">{l.label}</span>
                           {/* بادج «شاشة» بنمط موحد من مكوّن Badge */}
                           <Badge variant="secondary" className="h-4.5 shrink-0 px-1.5 text-[10px] font-medium">
                             شاشة
                           </Badge>
-                          <ChevronLeft className="size-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-brand-orange" />
+                        </span>
+                        <span className="line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
+                          {l.desc}
                         </span>
                       </span>
-                      <span className="line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
-                        {l.desc}
-                      </span>
+                      <ChevronLeft className="size-4 shrink-0 self-center text-muted-foreground/50 transition-colors group-hover:text-brand-orange" />
                     </button>
                   );
                 })}
