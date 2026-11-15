@@ -34,13 +34,14 @@
 }
 
 /*
- * 🎨 لوحة NOVA المعتمدة من المالك (2026-11-10) — docs/PROJECT-LOG.md §2:
- * الأساسي #FFB000 (برتقالي زاهٍ) · الشعلة #FF5722 (ظل الأزرار والتدرجات) · الشمس #FFD600 (تمييز/ذكاء اصطناعي)
- * المعلومات #2563EB (أزرق ملكي — روابط وقيد التنفيذ) · الخلفية الورقية الدافئة #FDF8F3
- * العناوين Slate-800 #1E293B · النصوص Slate-600 #475569
- * قواعد إلزامية: البرتقالي/الأصفر الزاهي أسطحٌ وشاراتٍ لا نصوصًا — النص بالعائلة البرتقالية
- * يستخدم --primary-ink #B45309 أو --brand-flame-ink #BF360C (تباين WCAG).
- * لا وضع ليلي ولا أسطح داكنة إطلاقًا. لا ألوان خارج اللوحة.
+ * 🎨 الهوية البصرية الجديدة المعتمدة من المالك (2026-11-16) — docs/color-audit.md:
+ * الذهبي #FFA311 (الزر الرئيسي حصرًا) · البرتقالي #F5800E (hover/نشط/أيقونات تمييز)
+ * الأصفر #FFC929 (بادجات وتمييز وشريط تقدم) · الأزرق المعلوماتي #089BE5 (روابط وfocus وحوالمعوماتية)
+ * المرجان #FF8866 (تنبيهات خفيفة) · الخطر #C93B1E (حرجة فقط) · النجاح #14804A (متوفر/مكتمل)
+ * الأسطح: صفحات #F4F6F8 باردة · كروت #FFFFFF بحد #E5E7EB · نص أساسي #1F2937 وثانوي #4B5563
+ * قواعد إلزامية: النص فوق الذهبي/البرتقالي/الأصفر غامق #1F2937 دائمًا (لا أبيض إطلاقًا).
+ * لا خلفية كريمية ولا صفراء باهتة. لا ألوان خارج الـ tokens — كل الألوان من هنا حصرًا.
+ * مشتقات البادجات الناعمة (خلفية 12% + نص غامق) موثقة في docs/color-audit.md §6 بفحص تباين AA.
  */
 
 @theme inline {
@@ -92,6 +93,29 @@
   --color-status-warn-bg: var(--status-warn-bg);
   --color-status-danger: var(--status-danger);
   --color-status-danger-bg: var(--status-danger-bg);
+  /* ===== tokens الهوية الجديدة — الأسماء الرسمية الوحيدة لأي لون في الكود ===== */
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-orange: var(--brand-orange);
+  --color-brand-yellow: var(--brand-yellow);
+  --color-info-blue: var(--info-blue);
+  --color-info-blue-text: var(--info-blue-text);
+  --color-soft-coral: var(--soft-coral);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-bg-page: var(--bg-page);
+  --color-bg-card: var(--bg-card);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-on-brand: var(--text-on-brand);
+  --color-hover: var(--hover);
+  --color-success-soft: var(--success-soft);
+  --color-success-ink: var(--success-ink);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-ink: var(--warn-ink);
+  --color-info-soft: var(--info-soft);
+  --color-danger-soft: var(--danger-soft);
+  --color-coral-soft: var(--coral-soft);
+  --color-coral-ink: var(--coral-ink);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -102,66 +126,97 @@
   --radius: 0.625rem;
   /* عائلة الخط المعتمدة Cairo (محلي) + الخط الاحتياطي بقياسات مطابقة */
   --font-cairo: "Cairo", "Cairo Fallback";
-  /* الورق الدافئ — الصفحات #FDF8F3 والبطاقات أدفأ بدرجة #FFFDF9 (قرار D-002) */
-  --background: #FDF8F3;
-  --foreground: #1E293B;
-  --card: #FFFDF9;
-  --card-foreground: #1E293B;
-  --popover: #FFFDF9;
-  --popover-foreground: #1E293B;
-  /* الأساسي: برتقالي NOVA — أزرار وتنقل نشط وتحديد. النص فوقه Slate-900 (9.7:1) */
-  --primary: #FFB000;
-  --primary-foreground: #0F172A;
-  /* نص/أيقونة العائلة الرئيسية على الخلفيات الفاتحة — #B45309 لا #FFB000 (قاعدة §2-1) */
+
+  /* ===== tokens الهوية البصرية (المصدر الوحيد لكل لون في النظام) ===== */
+  /* العلامة */
+  --brand-gold: #FFA311;      /* الزر الرئيسي الواحد حصرًا */
+  --brand-orange: #F5800E;    /* hover · العنصر النشط · أيقونات التمييز */
+  --brand-yellow: #FFC929;    /* بادجات · تمييز · شريط التقدم */
+  /* المعلوماتي والتنبيهات */
+  --info-blue: #089BE5;       /* روابط · focus ring · حدود معلوماتية · أيقونات */
+  --info-blue-text: #0678B4;  /* الأزرق كنص (للتباين) */
+  --soft-coral: #FF8866;      /* تنبيهات خفيفة (أسطح وحدود) */
+  /* الحالات — الأحمر وحده للحالات الحرجة */
+  --danger: #C93B1E;          /* نافد · متأخر · خطأ */
+  --success: #14804A;         /* متوفر · مكتمل */
+  /* الأسطح والنصوص */
+  --bg-page: #F4F6F8;         /* خلفية الصفحات — رمادي بارد */
+  --bg-card: #FFFFFF;
+  --border: #E5E7EB;
+  --text-primary: #1F2937;
+  --text-secondary: #4B5563;  /* أوصاف ونصوص ثانوية — لا أفتح منه */
+  --text-on-brand: #1F2937;   /* النص فوق الذهبي/البرتقالي/الأصفر دائمًا غامق */
+  --hover: #EEF1F4;           /* hover القوائم المنسدلة والبنود */
+
+  /* مشتقات البادجات الناعمة — خلفية 12% من اللون ونص بدرجته الغامقة (AA موثق) */
+  --brand-orange-soft: #FEF0E2; /* 12% برتقالي */
+  --success-soft: #E3F0E9;
+  --success-ink: #11673C;       /* أخضر أغمق للنص — تباين 6:1 على الناعم */
+  --warn-soft: #FFF9E5;
+  --warn-ink: #B45309;          /* كهرماني غامق للنص — تباين 4.7:1 على الناعم */
+  --info-soft: #E1F3FC;
+  --danger-soft: #F9E8E4;
+  --coral-soft: #FFEEE8;
+  --coral-ink: #993B1C;         /* نص على المرجان الناعم — تباين 6.5:1 */
+
+  /* ===== الخريطة الدلالية لشادcn — قيمها الآن من الـ tokens أعلاه حصرًا ===== */
+  --background: var(--bg-page);
+  --foreground: var(--text-primary);
+  --card: var(--bg-card);
+  --card-foreground: var(--text-primary);
+  --popover: var(--bg-card);
+  --popover-foreground: var(--text-primary);
+  /* الأساسي: الذهبي — الزر الرئيسي والنشط. النص فوقه غامق دائمًا (8.2:1) */
+  --primary: var(--brand-gold);
+  --primary-foreground: var(--text-on-brand);
+  /* نص/أيقونة العائلة الذهبية على الخلفيات الفاتحة — الذهبي الزاهي لا يصلح نصًا */
   --primary-ink: #B45309;
-  /* خلفية الأساسي الفاتحة (تحديد وتنقل نشط) بنص كهرماني غامق */
-  --primary-soft: #FFF8E1;
-  --primary-soft-foreground: #92400E;
-  --primary-soft-border: #FDE68A;
-  /* الشعلة — ظل الأزرار والتدرجات والأزرار الثانوية */
-  --brand-flame: #FF5722;
-  --brand-flame-ink: #BF360C;
-  /* الشمس — تمييز النصوص الهامة وأيقونات الذكاء الاصطناعي (أسطح وشارات فقط) */
-  --brand-sun: #FFD600;
-  /* الثانوي والميوت — رؤوس جداول وأسطح رمادية دافئة على الورق */
-  --secondary: #F5EFE3;
-  --secondary-foreground: #1E293B;
-  --muted: #F5EFE3;
-  --muted-foreground: #475569;
-  --accent: #FFF8E1;
-  --accent-foreground: #92400E;
-  /* الخطر — فاتح لا داكن (#B91C1C على #FEE2E2 بـ 5.3:1) */
-  --destructive: #B91C1C;
-  --destructive-soft: #FEE2E2;
-  /* حدود ورقية دافئة */
-  --border: #EDE4D3;
-  --input: #E0D5C0;
-  /* حلقة التركيز بالعائلة الرئيسية المقروءة (الزاهي لا يبلغ 3:1) — قرار D-004 */
-  --ring: #B45309;
-  /* ألوان الحالات — داخل الشارات فقط، بلا أخضر — المعلومات أزرق ملكي معتمد #2563EB */
-  --status-done: #334155;
-  --status-done-bg: #E2E8F0;
-  --status-info: #2563EB;
-  --status-info-bg: #DBEAFE;
-  --status-warn: #92400E;
-  --status-warn-bg: #FEF3C7;
-  --status-danger: #B91C1C;
-  --status-danger-bg: #FEE2E2;
+  /* العنصر النشط: خلفية برتقالية فاتحة 12% بنص غامق وحد برتقالي ناعم */
+  --primary-soft: var(--brand-orange-soft);
+  --primary-soft-foreground: var(--warn-ink);
+  --primary-soft-border: #FBD2AB;
+  /* أسماء النظام القديمة تُشير للباليت الجديدة — حذف تدريجي من المكونات */
+  --brand-flame: var(--brand-orange);
+  --brand-flame-ink: var(--warn-ink);
+  --brand-sun: var(--brand-yellow);
+  /* الثانوي والميوت والأكسنت — رمادي بارد موحد (hover القوائم #EEF1F4) */
+  --secondary: var(--hover);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--hover);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--hover);
+  --accent-foreground: var(--text-primary);
+  /* الخطر — الأحمر وحده للحالات الحرجة · أبيض فوقه 5.1:1 للأزرار الصلبة */
+  --destructive: var(--danger);
+  --destructive-soft: var(--danger-soft);
+  /* حدود رفيعة رمادية ومُدخل أغمق درجة */
+  --input: #D1D5DB;
+  /* حلقة التركيز 2px بالأزرق المعلوماتي */
+  --ring: var(--info-blue);
+  /* ألوان الحالات داخل الشارات — ناعمة 12% بنص غامق: مكتمل=أخضر · معلومة=أزرق · تحذير=أصفر · خطر=أحمر */
+  --status-done: var(--success);
+  --status-done-bg: var(--success-soft);
+  --status-info: var(--info-blue-text);
+  --status-info-bg: var(--info-soft);
+  --status-warn: var(--warn-ink);
+  --status-warn-bg: var(--warn-soft);
+  --status-danger: var(--danger);
+  --status-danger-bg: var(--danger-soft);
   /* الرسوم البيانية — من اللوحة حصرًا */
-  --chart-1: #FFB000;
-  --chart-2: #2563EB;
-  --chart-3: #FF5722;
-  --chart-4: #334155;
-  --chart-5: #BF360C;
-  /* القائمة الجانبية — سطح ورقي دافئ */
-  --sidebar: #FFFDF9;
-  --sidebar-foreground: #1E293B;
-  --sidebar-primary: #FFB000;
-  --sidebar-primary-foreground: #0F172A;
-  --sidebar-accent: #FFF8E1;
-  --sidebar-accent-foreground: #92400E;
-  --sidebar-border: #EDE4D3;
-  --sidebar-ring: #B45309;
+  --chart-1: var(--brand-gold);
+  --chart-2: var(--info-blue);
+  --chart-3: var(--brand-orange);
+  --chart-4: var(--text-secondary);
+  --chart-5: var(--danger);
+  /* القائمة الجانبية — سطح أبيض بارد */
+  --sidebar: var(--bg-card);
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary: var(--brand-gold);
+  --sidebar-primary-foreground: var(--text-on-brand);
+  --sidebar-accent: var(--hover);
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--info-blue);
 }
 
 @layer base {
@@ -173,10 +228,10 @@
   }
 }
 
-/* أشرطة تمرير دافئة محايدة — عناصر اللوحة التفاعلية فقط للبرتقالي */
+/* أشرطة تمرير رمادية باردة محايدة */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #D8CCB8 transparent;
+  scrollbar-color: #D1D5DB transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
@@ -186,11 +241,11 @@
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background: #D8CCB8;
+  background: #D1D5DB;
   border-radius: 8px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #C4B49C;
+  background: #9CA3AF;
 }
 
 /* أسهم الأرقام (البكرة) مُلغاة — الأرقام والمبالغ كتابة حرة بالكيبورد فقط (Task 93) */
@@ -227,9 +282,9 @@ input[type='number'] {
   flex-wrap: wrap;
   align-items: center;
   gap: 2px;
-  border: 1px solid hsl(var(--border));
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
-  background: hsl(var(--muted) / 0.4);
+  background: rgb(238 241 244 / 0.4);
   padding: 4px;
 }
 .doc-tb-btn {
@@ -239,25 +294,25 @@ input[type='number'] {
   border-radius: 0.375rem;
   padding: 4px 6px;
   font-size: 11px;
-  color: hsl(var(--foreground));
+  color: var(--text-primary);
   min-width: 28px;
   justify-content: center;
 }
 .doc-tb-btn:hover:not(:disabled) {
-  background: hsl(var(--accent));
+  background: var(--hover);
 }
 .doc-tb-btn:disabled {
   opacity: 0.4;
 }
 .doc-tb-btn-active {
-  background: hsl(var(--primary) / 0.12);
-  color: hsl(var(--primary));
+  background: var(--brand-orange-soft);
+  color: var(--warn-ink);
   font-weight: 700;
 }
 .doc-tb-sep {
   width: 1px;
   height: 20px;
-  background: hsl(var(--border));
+  background: var(--border);
   margin-inline: 4px;
 }
 
@@ -266,7 +321,7 @@ input[type='number'] {
   max-height: 65vh;
   overflow-y: auto;
   border-radius: 0.5rem;
-  background: hsl(var(--muted) / 0.5);
+  background: rgb(238 241 244 / 0.5);
   padding: 1rem;
 }
 .doc-sheet {
@@ -315,7 +370,7 @@ input[type='number'] {
   margin: 0.4em 0;
 }
 .doc-sheet .doc-prose blockquote {
-  border-inline-start: 3px solid hsl(var(--border));
+  border-inline-start: 3px solid var(--border);
   padding-inline-start: 0.8em;
   color: #444;
 }
@@ -343,7 +398,7 @@ input[type='number'] {
   content: "";
   position: absolute;
   inset: 0;
-  background: rgb(245 158 11 / 0.12);
+  background: rgb(245 128 14 / 0.12);
   pointer-events: none;
 }
 .doc-sheet .doc-prose .column-resize-handle {
@@ -352,7 +407,7 @@ input[type='number'] {
   top: 0;
   bottom: 0;
   width: 4px;
-  background: #f59e0b;
+  background: var(--brand-orange);
   cursor: col-resize;
 }
 .doc-sheet .doc-prose.resize-cursor {
@@ -457,7 +512,7 @@ input[type='number'] {
   cursor: grab;
 }
 .ProseMirror-selectednode > .doc-block-card {
-  outline: 2px solid #f59e0b;
+  outline: 2px solid var(--brand-orange);
   outline-offset: 2px;
 }
 .doc-clause-list {
