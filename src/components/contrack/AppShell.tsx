@@ -377,10 +377,33 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
 }
 
 /**
- * طبقة التطبيقات (طراز Odoo): أيقونات الوحدات 72px بأسمائها — الوحدة الحالية مميزة،
- * النقر يدخل أول بند مرئي ويغلق الطبقة، Esc يغلق، الأسهم تنقل وEnter يختار،
+ * طبقة التطبيقات (طراز Odoo): أيقونات الوحدات 72px بأسمائها — كل مجموعة بلون من الباليت
+ * (المالية ذهبي/برتقالي · التشغيل أزرق · الموارد البشرية والاستشارات أصفر · التقارير والإعدادات رمادي)؛
+ * الوحدة الحالية بحد برتقالي وخلفية برتقالية فاتحة، النقر يدخل أول بند مرئي ويغلق الطبقة،
+ * Esc يغلق، الأسهم تنقل وEnter يختار، الشبكة موزطة وسط الصفحة بعرض أقصى 900px،
  * عمودان على الموبايل وأهداف لمس ≥44px.
  */
+/**
+ * تلوين مجموعات الوحدات في طبقة التطبيقات (الهوية البصرية — المرحلة 3):
+ * المالية والتجارة (العقود/المبيعات/المحاسبة) = ذهبي/برتقالي · التشغيل (المشاريع/الباطن/المخازن/الصيانة) = أزرق ·
+ * الموارد البشرية والاستشارات = أصفر · التقارير والمرجعية والإعدادات = رمادي غامق.
+ * اللون على الأيقونة والخلفية بدرجة فاتحة 12% (docs/color-audit.md).
+ */
+const MODULE_TONE: Record<string, { tile: string; icon: string }> = {
+  clients: { tile: "bg-brand-gold-soft", icon: "text-brand-orange" },
+  sales: { tile: "bg-brand-gold-soft", icon: "text-brand-orange" },
+  accounting: { tile: "bg-brand-gold-soft", icon: "text-brand-orange" },
+  projects: { tile: "bg-info-soft", icon: "text-info-blue-text" },
+  subs: { tile: "bg-info-soft", icon: "text-info-blue-text" },
+  warehouses: { tile: "bg-info-soft", icon: "text-info-blue-text" },
+  maintenance: { tile: "bg-info-soft", icon: "text-info-blue-text" },
+  hr: { tile: "bg-warn-soft", icon: "text-warn-ink" },
+  consulting: { tile: "bg-warn-soft", icon: "text-warn-ink" },
+  reports: { tile: "bg-hover", icon: "text-muted-foreground" },
+  refs: { tile: "bg-hover", icon: "text-muted-foreground" },
+  settings: { tile: "bg-hover", icon: "text-muted-foreground" },
+};
+
 function AppsLayer({
   modules,
   activeModuleId,
@@ -434,49 +457,51 @@ function AppsLayer({
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-30 bg-background"
+      className="fixed inset-x-0 bottom-0 z-30 overflow-y-auto bg-background"
       style={{ top: topOffset }}
       role="dialog"
       aria-modal="true"
       aria-label="التطبيقات — كل الوحدات"
       onKeyDown={onKeyDown}
     >
-      <div
-        ref={gridRef}
-        className="mx-auto grid max-w-3xl grid-cols-2 gap-2 p-4 sm:grid-cols-3 sm:gap-3 sm:p-6 md:grid-cols-4 lg:grid-cols-6"
-      >
-        {modules.map(({ module, children }) => {
-          const Icon = module.icon;
-          const isActive = module.id === activeModuleId;
-          return (
-            <button
-              key={module.id}
-              type="button"
-              data-app-tile
-              data-apps-active={isActive || undefined}
-              aria-current={isActive ? "page" : undefined}
-              onClick={() => children[0] && onPickChild(children[0])}
-              className={cn(
-                "group flex min-h-11 flex-col items-center gap-2 rounded-xl p-2.5 text-sm font-medium transition-colors focus-visible:outline-none sm:p-3",
-                isActive
-                  ? "bg-primary-soft text-primary-soft-foreground ring-1 ring-primary-soft-border"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:bg-secondary focus-visible:text-foreground"
-              )}
-            >
-              <span
+      {/* الشبكة موزعة في وسط الصفحة بعرض أقصى ~900px (الهوية — المرحلة 3) */}
+      <div className="flex min-h-full items-center justify-center px-4 py-8">
+        <div
+          ref={gridRef}
+          className="grid w-full max-w-[900px] grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-6"
+        >
+          {modules.map(({ module, children }) => {
+            const Icon = module.icon;
+            const isActive = module.id === activeModuleId;
+            const tone = MODULE_TONE[module.id] ?? { tile: "bg-hover", icon: "text-muted-foreground" };
+            return (
+              <button
+                key={module.id}
+                type="button"
+                data-app-tile
+                data-apps-active={isActive || undefined}
+                aria-current={isActive ? "page" : undefined}
+                onClick={() => children[0] && onPickChild(children[0])}
                 className={cn(
-                  "flex size-[72px] items-center justify-center rounded-2xl border transition-colors",
-                  isActive
-                    ? "border-primary-soft-border bg-card text-primary-ink"
-                    : "border-border bg-card text-muted-foreground group-hover:text-foreground"
+                  "group flex min-h-11 flex-col items-center gap-2 rounded-xl p-2.5 text-sm font-medium transition-colors focus-visible:outline-none sm:p-3",
+                  isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground focus-visible:text-foreground"
                 )}
               >
-                <Icon className="size-9" aria-hidden />
-              </span>
-              {module.label}
-            </button>
-          );
-        })}
+                <span
+                  className={cn(
+                    "flex size-[72px] items-center justify-center rounded-2xl border transition-colors",
+                    isActive
+                      ? "border-brand-orange bg-primary-soft text-brand-orange"
+                      : cn("border-transparent", tone.tile, tone.icon, "group-hover:border-primary-soft-border")
+                  )}
+                >
+                  <Icon className="size-10" aria-hidden />
+                </span>
+                {module.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

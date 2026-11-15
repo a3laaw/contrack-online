@@ -108,6 +108,7 @@
   --color-text-secondary: var(--text-secondary);
   --color-text-on-brand: var(--text-on-brand);
   --color-hover: var(--hover);
+  --color-brand-gold-soft: var(--brand-gold-soft);
   --color-success-soft: var(--success-soft);
   --color-success-ink: var(--success-ink);
   --color-warn-soft: var(--warn-soft);
@@ -149,6 +150,7 @@
   --hover: #EEF1F4;           /* hover القوائم المنسدلة والبنود */
 
   /* مشتقات البادجات الناعمة — خلفية 12% من اللون ونص بدرجته الغامقة (AA موثق) */
+  --brand-gold-soft: #FFF4E2;   /* 12% ذهبي — بطاقات مجموعة المالية */
   --brand-orange-soft: #FEF0E2; /* 12% برتقالي */
   --success-soft: #E3F0E9;
   --success-ink: #11673C;       /* أخضر أغمق للنص — تباين 6:1 على الناعم */
