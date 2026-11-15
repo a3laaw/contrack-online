@@ -223,7 +223,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
   );
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-background">
+    <div className="flex min-h-dvh flex-col overflow-x-clip bg-background">
       <div className="sticky top-0 z-40">
         {/* شريط تمييز المطور — فوق الشريط العلوي، أرقّ وأثبت (الجلسة 15) */}
         {insideForeignCompany && (
@@ -361,13 +361,16 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
         />
       )}
 
-      {/* المحتوى — بكامل العرض (لا قائمة جانبية تقتط منه) — حاوية التمرير الوحيدة */}
-      <main className="min-w-0 flex-1 overflow-y-auto">
-        <div className="w-full space-y-3 px-3 py-3 sm:px-4 lg:px-6">{children}</div>
+      {/* المحتوى — بكامل العرض (لا قائمة جانبية تقتط منه).
+          قرار المالك: السكرول على مستوى الصفحة نفسها (document scroll) — بلا overflow داخلي
+          على حاوية المحتوى فلا شريط تمرير رفيع على الحافة. الحشوة السفلية ≈ ارتفاع التذييل (48px)
+          تمنع تغطية آخر صف حين يظل التذييل مثبتًا أسفل الشاشة أثناء التمرير. */}
+      <main className="min-w-0 flex-1">
+        <div className="w-full space-y-3 px-3 pt-3 pb-[calc(3rem+env(safe-area-inset-bottom))] sm:px-4 lg:px-6">{children}</div>
       </main>
 
-      {/* التذييل — يثبت أسفل حاوية التمرير دائمًا */}
-      <footer className="border-t bg-muted/40">
+      {/* التذييل — مثبت أسفل الشاشة أثناء تمرير الصفحة (قرار المالك)، ويرتاح في نهاية المحتوى */}
+      <footer className="sticky bottom-0 z-20 border-t bg-muted/40">
         <div className="px-4 py-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] text-center text-xs text-muted-foreground">
           ConTrack V9.15 — إدارة العقود والمحاسبة
         </div>
@@ -457,7 +460,7 @@ function AppsLayer({
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-30 overflow-y-auto bg-background"
+      className="fixed inset-x-0 bottom-0 z-40 overflow-y-auto bg-background"
       style={{ top: topOffset }}
       role="dialog"
       aria-modal="true"

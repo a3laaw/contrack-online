@@ -159,9 +159,9 @@ export function ReportsHomeView({ user, perms, onOpenReport, onOpenView }: Repor
                       <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-lg", tone.tile, tone.icon)}>
                         <Icon className="size-5" />
                       </span>
-                      {/* عمود العنوان والوصف */}
+                      {/* عمود العنوان والوصف — العنوان يسمح بسطرين بدل القص بـ«…» (قرار المالك) */}
                       <span className="flex min-w-0 flex-1 flex-col gap-1">
-                        <span className="truncate text-sm font-bold">{r.label}</span>
+                        <span className="line-clamp-2 text-sm font-bold">{r.label}</span>
                         <span className="line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
                           {r.desc}
                         </span>
@@ -187,8 +187,8 @@ export function ReportsHomeView({ user, perms, onOpenReport, onOpenView }: Repor
                         <Icon className="size-5" />
                       </span>
                       <span className="flex min-w-0 flex-1 flex-col gap-1">
-                        <span className="flex min-w-0 items-center gap-1.5">
-                          <span className="truncate text-sm font-bold">{l.label}</span>
+                        <span className="flex min-w-0 items-start gap-1.5">
+                          <span className="line-clamp-2 text-sm font-bold">{l.label}</span>
                           {/* بادج «شاشة» بنمط موحد من مكوّن Badge */}
                           <Badge variant="secondary" className="h-4.5 shrink-0 px-1.5 text-[10px] font-medium">
                             شاشة

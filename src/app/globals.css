@@ -93,6 +93,8 @@
   --color-status-warn-bg: var(--status-warn-bg);
   --color-status-danger: var(--status-danger);
   --color-status-danger-bg: var(--status-danger-bg);
+  --color-status-active-bg: var(--status-active-bg);
+  --color-status-active-ink: var(--status-active-ink);
   /* ===== tokens الهوية الجديدة — الأسماء الرسمية الوحيدة لأي لون في الكود ===== */
   --color-brand-gold: var(--brand-gold);
   --color-brand-orange: var(--brand-orange);
@@ -212,6 +214,9 @@
   --status-warn-bg: var(--warn-soft);
   --status-danger: var(--danger);
   --status-danger-bg: var(--danger-soft);
+  /* بادج «نشط» — أخضر فاتح هادئ بنص أخضر غامق (طلب المالك — لوحة المشاريع 2026-11) */
+  --status-active-bg: #DCF5E6;
+  --status-active-ink: #14653A;
   /* الرسوم البيانية — من اللوحة حصرًا */
   --chart-1: var(--brand-gold);
   --chart-2: var(--info-blue);

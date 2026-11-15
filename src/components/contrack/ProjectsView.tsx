@@ -111,12 +111,13 @@ export function ProjectsView({ user, onAuthError, section, onSectionChange, onOp
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6 print:hidden">
-        {/* الترويسة — الجلسة 15: بلا مبدّل أقسام داخل الصفحة؛ الشريط العلوي هو ملاحّ الأقسام الوحيد */}
+        {/* الترويسة — الجلسة 15: بلا مبدّل أقسام داخل الصفحة؛ الشريط العلوي هو ملاحّ الأقسام الوحيد
+            قرار المالك: العنوان #1F2937 (بلا بني) 26px، والوصف تحته #4B5563 بحجم 14px */}
         <header className="mb-4 flex flex-col gap-3 sm:mb-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-xl font-extrabold tracking-tight text-primary-ink sm:text-2xl">المشاريع</h1>
-              <p className="text-xs text-muted-foreground sm:text-sm">
+              <h1 className="text-[26px] font-extrabold leading-tight tracking-tight text-text-primary">المشاريع</h1>
+              <p className="mt-0.5 text-sm text-text-secondary">
                 مركز عمليات الموقع — اللوحة والتقرير اليومي وتنفيذ البنود في مكان واحد
               </p>
             </div>
@@ -124,7 +125,7 @@ export function ProjectsView({ user, onAuthError, section, onSectionChange, onOp
         </header>
 
         {hubQuery.isLoading ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(100%,360px),1fr))]">
             {[0, 1, 2].map((i) => (
               <Skeleton key={i} className="h-56 rounded-xl" />
             ))}
@@ -186,13 +187,14 @@ function HubSection({
 }) {
   return (
     <div className="space-y-4">
-      {/* شريط المؤشرات العليا */}
+      {/* شريط المؤشرات العليا — شريط جانبي رفيع بلون معنى كل مؤشر (طلب المالك):
+          المحصّل أخضر · المفوتر أزرق · المنفذ ميدانيًا برتقالي · القيمة الحالية رمادي غامق */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <KpiCard label="المشاريع" value={String(totals.contracts)} sub={`${totals.active} نشط`} />
-        <KpiCard label="القيمة الحالية" value={formatKWD(totals.amount)} unit="KWD" />
-        <KpiCard label="المنفذ ميدانيًا" value={formatKWD(totals.executed)} unit="KWD" sub={`النسبة ${totals.progressPct}%`} />
-        <KpiCard label="المفوتر" value={formatKWD(totals.invoiced)} unit="KWD" />
-        <KpiCard label="المحصّل" value={formatKWD(totals.collected)} unit="KWD" />
+        <KpiCard tone="bg-input" label="المشاريع" value={String(totals.contracts)} sub={`${totals.active} نشط`} />
+        <KpiCard tone="bg-text-secondary" label="القيمة الحالية" value={formatKWD(totals.amount)} unit="KWD" />
+        <KpiCard tone="bg-brand-orange" label="المنفذ ميدانيًا" value={formatKWD(totals.executed)} unit="KWD" sub={`النسبة ${totals.progressPct}%`} />
+        <KpiCard tone="bg-info-blue" label="المفوتر" value={formatKWD(totals.invoiced)} unit="KWD" />
+        <KpiCard tone="bg-success" label="المحصّل" value={formatKWD(totals.collected)} unit="KWD" />
       </div>
 
       {rows.length === 0 ? (
@@ -202,7 +204,7 @@ function HubSection({
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(100%,360px),1fr))]">
           {rows.map((r) => (
             <ProjectCard key={r.id} row={r} onOpenDaily={onOpenDaily} onOpenTakeoff={onOpenTakeoff} onOpenContract={onOpenContract} />
           ))}
@@ -212,15 +214,35 @@ function HubSection({
   );
 }
 
-function KpiCard({ label, value, unit, sub }: { label: string; value: string; unit?: string; sub?: string }) {
+/**
+ * كارت مؤشر — قرار المالك: ارتفاعه حسب المحتوى بلا فراغ سفلي (padding 16px)،
+ * الاسم 13px بالرمادي #4B5563 فوق الرقم 26px بوزن 700 بلون #1F2937،
+ * والسطر الإضافي (مثل «1 نشط») في خانة ثابتة الارتفاع بكل الكروت.
+ */
+function KpiCard({
+  label,
+  value,
+  unit,
+  sub,
+  tone = "bg-input",
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  sub?: string;
+  tone?: string;
+}) {
   return (
-    <Card className="border-border/60">
+    <Card className="relative overflow-hidden border-border/60 py-0">
+      {/* شريط جانبي رفيع 3px بلون معنى المؤشر */}
+      <span aria-hidden className={`absolute inset-y-0 start-0 w-[3px] ${tone}`} />
       <CardContent className="p-4">
-        <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
-        <p className="mt-1 text-lg font-extrabold tabular-nums text-primary-ink" dir="ltr">
-          {value} {unit && <span className="text-[11px] font-semibold text-muted-foreground">{unit}</span>}
+        <p className="text-[13px] font-medium text-text-secondary">{label}</p>
+        <p className="mt-0.5 text-[clamp(20px,4.5vw,26px)] font-bold leading-8 tabular-nums text-text-primary" dir="ltr">
+          {value} {unit && <span className="text-[11px] font-semibold text-text-secondary">{unit}</span>}
         </p>
-        {sub && <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>}
+        {/* السطر الإضافي — خانة ثابتة الارتفاع في كل الكروت (فارغة عند غيابه) */}
+        <p className="mt-0.5 h-5 truncate text-[13px] leading-5 text-text-secondary">{sub ?? ""}</p>
       </CardContent>
     </Card>
   );
@@ -237,35 +259,52 @@ function ProjectCard({
   onOpenTakeoff: (id: number) => void;
   onOpenContract: (id: number) => void;
 }) {
+  // قرار المالك: الكود مرة واحدة في العنوان حصرًا — والسطر تحته للاسم/العميل بلا تكرار
+  const below = Array.from(
+    new Set([row.contractName.trim(), row.customerName.trim()].filter((v): v is string => v.length > 0))
+  ).filter((v) => v !== row.contractNumber.trim());
   return (
     <Card className="flex flex-col border-border/60 transition-shadow hover:shadow-md">
       <CardContent className="flex flex-1 flex-col gap-3 p-4">
-        {/* العنوان والحالة */}
+        {/* العنوان: كود العقد مرة واحدة، والسطر تحته الاسم/العميل */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h3 className="truncate text-sm font-bold text-primary-ink">{row.contractName || row.contractNumber}</h3>
-            <p className="truncate text-xs text-muted-foreground">
-              {row.contractNumber} · {row.customerName}
-            </p>
+            <h3 className="truncate text-sm font-bold text-text-primary" title={row.contractNumber}>
+              {row.contractNumber}
+            </h3>
+            {below.length > 0 && (
+              <p className="truncate text-[13px] text-text-secondary" title={below.join(" · ")}>
+                {below.join(" · ")}
+              </p>
+            )}
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
-            <Badge className={statusBadgeClass(row.status)}>{row.status}</Badge>
+            {/* «نشط» بأخضر فاتح هادئ (#DCF5E6 بنص #14653A — طلب المالك)، وبقية الحالات بجدول الحالات المعتمد */}
+            <Badge
+              className={row.status === "نشط" ? "bg-status-active-bg text-status-active-ink" : statusBadgeClass(row.status)}
+            >
+              {row.status}
+            </Badge>
             {row.isSupervision && <Badge variant="outline" className="text-[10px]">إشراف</Badge>}
           </div>
         </div>
 
-        {/* شريط التقدم */}
+        {/* شريط التقدم 8px — مسار رمادي #E5E7EB وتعبئة برتقالية #F5800E والنسبة بجانبه 13px (طلب المالك) */}
         <div>
-          <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
-            <span>نسبة التنفيذ الميداني</span>
-            <span className="font-bold tabular-nums text-primary-ink" dir="ltr">
+          <p className="mb-1 text-[13px] text-text-secondary">نسبة التنفيذ الميداني</p>
+          <div className="flex items-center gap-2">
+            <Progress
+              value={Math.max(0, Math.min(100, row.progressPct))}
+              className="h-2 flex-1 bg-border [&>div]:bg-brand-orange"
+              aria-label={`نسبة التنفيذ الميداني لعقد ${row.contractNumber}`}
+            />
+            <span className="shrink-0 text-[13px] font-bold tabular-nums text-text-primary" dir="ltr">
               {row.progressPct}%
             </span>
           </div>
-          <Progress value={Math.max(0, Math.min(100, row.progressPct))} className="h-2" />
         </div>
 
-        {/* المؤشرات الأربع */}
+        {/* صف الأرقام — القيم 14px والعناوين 12px (طلب المالك) */}
         <div className="grid grid-cols-4 gap-2 rounded-lg bg-muted/50 p-2 text-center">
           <MiniStat label="القيمة" value={formatKWD(row.current)} />
           <MiniStat label="منفذ" value={formatKWD(row.executedAmount)} />
@@ -273,8 +312,8 @@ function ProjectCard({
           <MiniStat label="محصّل" value={formatKWD(row.collectedAmount)} />
         </div>
 
-        {/* النشاط */}
-        <p className="text-[11px] text-muted-foreground">
+        {/* النشاط — الحد الأدنى 13px بلون #4B5563 */}
+        <p className="text-[13px] text-text-secondary">
           {row.lastExecutionDate ? (
             <>
               آخر تنفيذ: <span className="font-semibold tabular-nums" dir="ltr">{row.lastExecutionDate}</span>
@@ -286,17 +325,17 @@ function ProjectCard({
           {row.boqItemCount > 0 && <> · {row.boqItemCount} بند BOQ</>}
         </p>
 
-        {/* الإجراءات */}
+        {/* الإجراءات — «فتح العقد» أساسي ذهبي بنص غامق، و«البنود» و«تقرير اليوم» ثانوية بيضاء بحد (طلب المالك) */}
         <div className="mt-auto grid grid-cols-3 gap-2 pt-1">
-          <Button size="sm" variant="secondary" className="h-11 gap-1 text-xs sm:h-9" onClick={() => onOpenDaily(row.id)}>
+          <Button size="sm" variant="secondary" className="h-11 gap-1 text-[13px] sm:h-9" onClick={() => onOpenDaily(row.id)}>
             <NotebookPen className="size-3.5" />
             تقرير اليوم
           </Button>
-          <Button size="sm" variant="outline" className="h-11 gap-1 text-xs sm:h-9" onClick={() => onOpenTakeoff(row.id)}>
+          <Button size="sm" variant="outline" className="h-11 gap-1 text-[13px] sm:h-9" onClick={() => onOpenTakeoff(row.id)}>
             <Activity className="size-3.5" />
             البنود
           </Button>
-          <Button size="sm" variant="ghost" className="h-11 gap-1 text-xs sm:h-9" onClick={() => onOpenContract(row.id)}>
+          <Button size="sm" className="h-11 gap-1 text-[13px] sm:h-9" onClick={() => onOpenContract(row.id)}>
             <ArrowLeft className="size-3.5" />
             فتح العقد
           </Button>
@@ -306,11 +345,12 @@ function ProjectCard({
   );
 }
 
+/** صف الأرقام داخل كارت العقد — القيمة 14px والعنوان 12px فوقها */
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="text-[10px] text-muted-foreground">{label}</p>
-      <p className="truncate text-xs font-bold tabular-nums text-primary-ink" dir="ltr" title={value}>
+      <p className="text-xs text-text-secondary">{label}</p>
+      <p className="truncate text-sm font-bold tabular-nums text-text-primary" dir="ltr" title={value}>
         {value}
       </p>
     </div>
