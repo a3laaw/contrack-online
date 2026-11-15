@@ -526,7 +526,7 @@ export function ContractNewPage({
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-lg font-bold whitespace-nowrap">عقد جديد</h1>
         {modeBadge}
-        {supCandidate && <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">👁 إشراف</Badge>}
+        {supCandidate && <Badge className="bg-info-soft text-info-blue-text">👁 إشراف</Badge>}
       </div>
 
       {/* ===== ① بيانات العقد — صفّان مدمجان ===== */}
@@ -685,9 +685,9 @@ export function ContractNewPage({
 
       {/* ===== ②-أ صندوق الإشراف (طابع فوق أي حالة ما عدا الشامل) ===== */}
       {supCandidate && (
-        <Card className="border-purple-200 dark:border-purple-900">
+        <Card className="border-info-blue/40">
           <CardContent className="space-y-3 p-4">
-            <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">
+            <p className="text-xs font-semibold text-info-blue-text">
               👁 عقد إشراف هندسي — القيمة تُحسب: الأشهر × قيمة الشهر − الخصم (المكتبي contracts.py:2395)
             </p>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -1111,7 +1111,7 @@ export function ContractNewPage({
       <Card>
         <CardContent className="space-y-2 p-4">
           {supActive ? (
-            <p className="rounded-md border border-purple-200 bg-purple-50 p-2.5 text-xs font-medium text-purple-700 dark:border-purple-900 dark:bg-purple-950 dark:text-purple-300">
+            <p className="rounded-md border border-info-blue/40 bg-info-soft p-2.5 text-xs font-medium text-info-blue-text">
               👁 عقود الإشراف بلا دفعات يدوية — التحصيل يتم عبر أشهر الإشراف وسندات القبض مباشرة (المكتبي: الجدول مفرغ للإشراف).
             </p>
           ) : mode === "auto" && flagOn("template_plan_mode") ? (

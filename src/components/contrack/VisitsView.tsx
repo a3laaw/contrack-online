@@ -733,7 +733,7 @@ export function VisitsView({ onAuthError }: VisitsViewProps) {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="size-6 text-status-info hover:text-sky-900"
+                                className="size-6 text-status-info hover:text-info-blue-text"
                                 title={cell.taskId ? "مُرحّلة إلى مهمة مسبقًا" : "تحويل إلى مهمة"}
                                 disabled={!!cell.taskId || toTaskMutation.isPending}
                                 onClick={() => toTaskMutation.mutate({ hourSlot: h, staffId: s.id })}

@@ -53,35 +53,35 @@ export function ContractPrintDialog({ contract, open, onOpenChange }: ContractPr
         <div className="px-5 max-h-[55vh] overflow-y-auto">
           <div ref={sheetRef} className="print-area print-sheet rounded-lg border print-border p-5 space-y-4" dir="rtl">
             {/* الترويسة */}
-            <header className="text-center space-y-1 border-b-2 border-gray-800 pb-3 print-border">
+            <header className="text-center space-y-1 border-b-2 border-foreground pb-3 print-border">
               <h1 className="text-lg font-extrabold">{settings?.companyName || 'شركة المقاولات'}</h1>
-              {settings?.companyAddress && <p className="text-xs text-gray-600">{settings.companyAddress}</p>}
-              <p className="text-xs text-gray-600">
+              {settings?.companyAddress && <p className="text-xs text-muted-foreground">{settings.companyAddress}</p>}
+              <p className="text-xs text-muted-foreground">
                 {settings?.companyPhone && <span className="numeric">هاتف: {settings.companyPhone}</span>}
               </p>
             </header>
 
-            <h2 className="text-center text-base font-extrabold border-2 border-gray-800 rounded-md px-4 py-1 print-border w-fit mx-auto">
+            <h2 className="text-center text-base font-extrabold border-2 border-foreground rounded-md px-4 py-1 print-border w-fit mx-auto">
               ملخص عقد رقم {contract.contractNumber}
             </h2>
 
             {/* بيانات العقد */}
             <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
-              <p><span className="font-semibold text-gray-600">اسم العقد: </span><span className="font-bold">{contract.contractName || '—'}</span></p>
-              <p><span className="font-semibold text-gray-600">النوع: </span><span className="font-bold">{contract.contractType || '—'}</span></p>
-              <p><span className="font-semibold text-gray-600">العميل: </span><span className="font-bold">{contract.customer.name}</span></p>
-              <p><span className="font-semibold text-gray-600">هاتف العميل: </span><span className="font-bold numeric">{contract.customer.phone || '—'}</span></p>
-              <p><span className="font-semibold text-gray-600">تاريخ العقد: </span><span className="font-bold numeric">{formatDate(contract.contractDate)}</span></p>
-              <p><span className="font-semibold text-gray-600">الحالة: </span><span className="font-bold">{contract.status}</span></p>
-              {contract.startDate && <p><span className="font-semibold text-gray-600">البدء: </span><span className="font-bold numeric">{formatDate(contract.startDate)}</span></p>}
-              {contract.endDate && <p><span className="font-semibold text-gray-600">الانتهاء: </span><span className="font-bold numeric">{formatDate(contract.endDate)}</span></p>}
+              <p><span className="font-semibold text-muted-foreground">اسم العقد: </span><span className="font-bold">{contract.contractName || '—'}</span></p>
+              <p><span className="font-semibold text-muted-foreground">النوع: </span><span className="font-bold">{contract.contractType || '—'}</span></p>
+              <p><span className="font-semibold text-muted-foreground">العميل: </span><span className="font-bold">{contract.customer.name}</span></p>
+              <p><span className="font-semibold text-muted-foreground">هاتف العميل: </span><span className="font-bold numeric">{contract.customer.phone || '—'}</span></p>
+              <p><span className="font-semibold text-muted-foreground">تاريخ العقد: </span><span className="font-bold numeric">{formatDate(contract.contractDate)}</span></p>
+              <p><span className="font-semibold text-muted-foreground">الحالة: </span><span className="font-bold">{contract.status}</span></p>
+              {contract.startDate && <p><span className="font-semibold text-muted-foreground">البدء: </span><span className="font-bold numeric">{formatDate(contract.startDate)}</span></p>}
+              {contract.endDate && <p><span className="font-semibold text-muted-foreground">الانتهاء: </span><span className="font-bold numeric">{formatDate(contract.endDate)}</span></p>}
             </div>
             {contract.description && (
-              <p className="text-sm border rounded-md print-border p-2.5 bg-gray-50"><span className="font-semibold">وصف الأعمال: </span>{contract.description}</p>
+              <p className="text-sm border rounded-md print-border p-2.5 bg-muted"><span className="font-semibold">وصف الأعمال: </span>{contract.description}</p>
             )}
 
             {/* قيمة العقد + التفقيط */}
-            <div className="border-2 border-gray-800 rounded-md print-border p-3 text-center space-y-1">
+            <div className="border-2 border-foreground rounded-md print-border p-3 text-center space-y-1">
               <p className="text-sm"><span className="font-semibold">إجمالي قيمة العقد: </span><span className="font-extrabold text-base numeric">{formatKWD(contract.amount)}</span></p>
               <p className="text-sm font-bold">{tafqeetKWD(contract.amount)}</p>
             </div>
@@ -180,15 +180,15 @@ export function ContractPrintDialog({ contract, open, onOpenChange }: ContractPr
             {/* التوقيعات */}
             <div className="grid grid-cols-2 gap-8 pt-8 text-center text-xs">
               <div>
-                <div className="border-t border-gray-500 pt-1 print-border">توقيع العميل</div>
+                <div className="border-t border-muted-foreground pt-1 print-border">توقيع العميل</div>
               </div>
               <div>
-                <div className="border-t border-gray-500 pt-1 print-border">توقيع المقاول</div>
+                <div className="border-t border-muted-foreground pt-1 print-border">توقيع المقاول</div>
               </div>
             </div>
 
             <Separator className="print-border" />
-            <footer className="text-center text-[10px] text-gray-500">
+            <footer className="text-center text-[10px] text-muted-foreground">
               {settings?.headerTitle || 'نظام إدارة العقود والمحاسبة'} — عقد {contract.contractNumber} — طُبع بتاريخ {formatDate(todayStr())}
             </footer>
           </div>

@@ -155,7 +155,7 @@ function ReceiptVoucherForm({ lockedContract, onOpenChange, onCreated }: {
     <>
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
-          <Receipt className="size-4 text-emerald-600" aria-hidden />
+          <Receipt className="size-4 text-success-ink" aria-hidden />
           سند قبض جديد
         </DialogTitle>
         <DialogDescription>اختر العميل والعقد ثم خصّص المبلغ على الدفعات المستحقة</DialogDescription>

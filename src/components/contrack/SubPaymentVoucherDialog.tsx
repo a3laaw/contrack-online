@@ -103,7 +103,7 @@ function SubPaymentVoucherForm({
     <>
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
-          <Banknote className="size-4 text-amber-600" aria-hidden />
+          <Banknote className="size-4 text-warn-ink" aria-hidden />
           سند صرف — دفعة باطن
         </DialogTitle>
         <DialogDescription>
@@ -122,7 +122,7 @@ function SubPaymentVoucherForm({
         </div>
         <div className="flex items-center justify-between border-t pt-1">
           <span className="text-muted-foreground">المتبقي</span>
-          <span className="font-bold numeric text-amber-700 dark:text-amber-400">{formatKWD(remaining)}</span>
+          <span className="font-bold numeric text-warn-ink">{formatKWD(remaining)}</span>
         </div>
       </div>
 

@@ -124,7 +124,7 @@ export function ScheduleImportDialog({
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <CalendarRange className="size-5 text-amber-700 dark:text-amber-400" aria-hidden />
+                <CalendarRange className="size-5 text-warn-ink" aria-hidden />
                 استيراد البرنامج الزمني (CPM)
               </DialogTitle>
               <DialogDescription>
@@ -140,7 +140,7 @@ export function ScheduleImportDialog({
                   type="button"
                   onClick={() => fileRef.current?.click()}
                   disabled={busy}
-                  className="w-full rounded-xl border-2 border-dashed border-muted-foreground/30 hover:border-amber-500/60 hover:bg-amber-50/50 dark:hover:bg-amber-950/20 transition-colors p-8 text-center disabled:opacity-60"
+                  className="w-full rounded-xl border-2 border-dashed border-muted-foreground/30 hover:border-brand-yellow/60 hover:bg-warn-soft/50 transition-colors p-8 text-center disabled:opacity-60"
                   aria-label="اختيار ملف البرنامج الزمني"
                 >
                   {busy ? (
@@ -199,7 +199,7 @@ export function ScheduleImportDialog({
                 </div>
 
                 {preview.latest && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40 px-3 py-2 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
+                  <div className="rounded-lg border border-brand-yellow/50 bg-warn-soft/40 px-3 py-2 text-xs text-warn-ink flex items-start gap-2">
                     <AlertTriangle className="size-4 shrink-0 mt-0.5" aria-hidden />
                     <span>
                       يوجد استيراد سابق «{preview.latest.fileName}» {preview.latest.revision && `(${preview.latest.revision})`} —
@@ -209,9 +209,9 @@ export function ScheduleImportDialog({
                 )}
 
                 {preview.warnings.length > 0 && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40 px-3 py-2 space-y-1">
+                  <div className="rounded-lg border border-brand-yellow/50 bg-warn-soft/40 px-3 py-2 space-y-1">
                     {preview.warnings.slice(0, 6).map((w, i) => (
-                      <p key={i} className="text-xs text-amber-800 dark:text-amber-300 flex items-start gap-1.5">
+                      <p key={i} className="text-xs text-warn-ink flex items-start gap-1.5">
                         <AlertTriangle className="size-3.5 shrink-0 mt-0.5" aria-hidden />
                         <span>{w.message}</span>
                       </p>

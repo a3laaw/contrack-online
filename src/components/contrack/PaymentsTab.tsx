@@ -27,10 +27,10 @@ interface PaymentsTabProps {
 
 function StatusBadge({ status }: { status: PaymentDTO['status'] }) {
   const cls: Record<PaymentDTO['status'], string> = {
-    'مسدد': 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900',
-    'متأخر': 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-900',
-    'مُحفز': 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-900',
-    'مستحق': 'bg-stone-100 text-stone-600 border-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:border-stone-700',
+    'مسدد': 'bg-success-soft text-success-ink border-success/40',
+    'متأخر': 'bg-danger-soft text-danger border-danger/40',
+    'مُحفز': 'bg-warn-soft text-warn-ink border-brand-yellow/50',
+    'مستحق': 'bg-muted text-muted-foreground border-border',
   }
   return <Badge className={`${cls[status]} border`}>{status}</Badge>
 }
@@ -117,8 +117,8 @@ export function PaymentsTab({ contractId, payments, isLoading }: PaymentsTabProp
                 <TableCell className="text-xs text-muted-foreground">{p.stageName ?? '—'}</TableCell>
                 <TableCell className="numeric">{formatDate(p.dueDate)}</TableCell>
                 <TableCell className="font-semibold numeric">{formatKWD(p.amount)}</TableCell>
-                <TableCell className="numeric text-emerald-700 dark:text-emerald-400">{formatKWD(p.paidAmount)}</TableCell>
-                <TableCell className={`numeric ${p.remaining > 0.0005 ? 'text-amber-700 dark:text-amber-400' : ''}`}>{formatKWD(p.remaining)}</TableCell>
+                <TableCell className="numeric text-success-ink">{formatKWD(p.paidAmount)}</TableCell>
+                <TableCell className={`numeric ${p.remaining > 0.0005 ? 'text-warn-ink' : ''}`}>{formatKWD(p.remaining)}</TableCell>
                 <TableCell><StatusBadge status={p.status} /></TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5">
@@ -157,7 +157,7 @@ export function PaymentsTab({ contractId, payments, isLoading }: PaymentsTabProp
               <span className="text-muted-foreground">الاستحقاق: <span className="numeric" dir="ltr">{formatDate(p.dueDate)}</span></span>
               <span className="text-muted-foreground">المرحلة: {p.stageName ?? '—'}</span>
               <span>المبلغ: <span className="font-semibold numeric">{formatKWD(p.amount)}</span></span>
-              <span>المسدد: <span className="font-semibold numeric text-emerald-700 dark:text-emerald-400">{formatKWD(p.paidAmount)}</span></span>
+              <span>المسدد: <span className="font-semibold numeric text-success-ink">{formatKWD(p.paidAmount)}</span></span>
             </div>
             <div className="flex gap-2 pt-1">
               {p.triggeredAt == null && p.status !== 'مسدد' && (

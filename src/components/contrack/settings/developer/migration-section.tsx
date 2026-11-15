@@ -167,7 +167,7 @@ export function MigrationSection({ importOldEnabled, onAuthError }: { importOldE
                   استعادة «{restoreTarget}»؟ ستُستبدل قاعدة البيانات الحالية بالكامل بمحتوى النسخة مع الحفاظ
                   على المعرّفات الأصلية وإعادة ضبط التسلسلات.
                 </p>
-                <p className="rounded-md bg-amber-500/10 p-2 text-xs text-status-warn">
+                <p className="rounded-md bg-brand-yellow/10 p-2 text-xs text-status-warn">
                   تُؤخذ نسخة أمان تلقائية من الوضع الحالي قبل الاستعادة (safety-…) ويمكن استعادتها لاحقًا —
                   وكل الخطوات داخل معاملة واحدة، إن فشل أي جزء تُرجع القاعدة كما كانت.
                 </p>

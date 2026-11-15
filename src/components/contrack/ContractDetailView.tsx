@@ -822,7 +822,7 @@ export function ContractDetailView({
                   🔧 مسار يدوي
                 </Badge>
               ) : isSupervision ? (
-                <Badge className="px-2 py-0.5 text-[11px] bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                <Badge className="px-2 py-0.5 text-[11px] bg-info-soft text-info-blue-text">
                   👁 إشراف — مسار إجباري
                 </Badge>
               ) : (
@@ -1873,7 +1873,7 @@ interface StageMoveRow {
 
 const STAGE_MOVE_ACTION: Record<string, { label: string; cls: string }> = {
   move: { label: "نقل", cls: "bg-status-info-bg text-status-info" },
-  finish: { label: "إنهاء", cls: "bg-slate-200 text-slate-700" },
+  finish: { label: "إنهاء", cls: "bg-muted text-muted-foreground" },
   revert: { label: "تراجع", cls: "bg-status-warn-bg text-status-warn" },
   skip: { label: "تخطٍ", cls: "bg-status-danger-bg text-status-danger" },
   reopen: { label: "إعادة فتح", cls: "bg-status-info-bg text-status-info" },

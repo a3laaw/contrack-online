@@ -817,7 +817,7 @@ export function VoucherDialog({ open, onOpenChange, user, onAuthError, preset, o
                 </Select>
               </div>
               {fromAccount && toAccount && fromAccount === toAccount && (
-                <p className="text-xs text-red-600 sm:col-span-2">يجب اختيار حسابين مختلفين (صندوق ≠ بنك).</p>
+                <p className="text-xs text-danger sm:col-span-2">يجب اختيار حسابين مختلفين (صندوق ≠ بنك).</p>
               )}
             </div>
           )}

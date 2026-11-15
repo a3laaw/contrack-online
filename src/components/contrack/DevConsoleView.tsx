@@ -175,8 +175,8 @@ interface SaasData {
 
 function StatusBadge({ status }: { status: SaasEffectiveStatus }) {
   const cls: Record<SaasEffectiveStatus, string> = {
-    active: "bg-emerald-600 text-white border-transparent",
-    trial: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/40",
+    active: "bg-success text-white border-transparent",
+    trial: "bg-brand-yellow/15 text-warn-ink border-brand-yellow/50",
     frozen: "bg-muted text-muted-foreground border-border",
     expired: "bg-destructive text-destructive-foreground border-transparent",
     cancelled: "bg-muted text-muted-foreground border-border line-through",
@@ -639,7 +639,7 @@ export function DevConsoleView({
                     >
                       {Icon && <Icon className="size-3.5" />}
                       {m.name}
-                      {on && <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" />}
+                      {on && <CheckCircle2 className="size-3.5 text-success-ink" />}
                     </button>
                   );
                 })}
@@ -883,7 +883,7 @@ function RequestsTab({
       onClick={() => setFilter(key)}
     >
       {label}
-      <span className="rounded-full bg-black/10 dark:bg-white/10 px-1.5 text-[10px] tabular-nums">{n}</span>
+      <span className="rounded-full bg-muted px-1.5 text-[10px] tabular-nums">{n}</span>
     </Button>
   );
 
@@ -921,7 +921,7 @@ function RequestsTab({
                             : "cancelled"
                       }
                     />
-                    {r.status === "pending" && <span className="text-[11px] text-amber-700 dark:text-amber-400">قيد المراجعة</span>}
+                    {r.status === "pending" && <span className="text-[11px] text-warn-ink">قيد المراجعة</span>}
                     {r.status === "rejected" && (
                       <span className="text-[11px] text-muted-foreground">السبب: {r.rejectionReason}</span>
                     )}
@@ -1076,7 +1076,7 @@ function ApproveDialog({
                     <Icon className="size-3.5" />
                     {m.name}
                     {!m.available && <span className="text-[9px]">قريبًا</span>}
-                    {on && <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" />}
+                    {on && <CheckCircle2 className="size-3.5 text-success-ink" />}
                   </button>
                 );
               })}

@@ -249,7 +249,7 @@ export function CleanupSection({ onAuthError }: { onAuthError: () => void }) {
       </Card>
 
       {/* إعادة الضبط الكاملة — نفس مسار /api/data-mgmt/full-reset بتأكيد مزدوج */}
-      <Card className="border-red-300">
+      <Card className="border-danger/40">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base text-status-danger">
             <AlertTriangle className="size-4" />
@@ -263,7 +263,7 @@ export function CleanupSection({ onAuthError }: { onAuthError: () => void }) {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 gap-2 text-xs md:grid-cols-2">
-            <p className="rounded-md bg-red-500/10 p-2 text-status-danger">
+            <p className="rounded-md bg-danger/10 p-2 text-status-danger">
               <strong>يُحذف:</strong> كل جداول بيانات الأعمال والمحتوى المرتبط بها.
             </p>
             <p className="rounded-md bg-status-done-bg p-2 text-status-done">
@@ -418,7 +418,7 @@ export function CleanupSection({ onAuthError }: { onAuthError: () => void }) {
                   سيُمحى {preview ? `${PURGE_KIND_LABEL[preview.kind]} «${preview.label}» (#${preview.id})` : ""} نهائيًا
                   مع كل تبعياته المعروضة أعلاه، وتُحفظ لقطة كاملة في سجل المحو بسبب: «{purgeReason.trim()}».
                 </p>
-                <p className="rounded-md bg-red-500/10 p-2 text-xs text-status-danger">
+                <p className="rounded-md bg-danger/10 p-2 text-xs text-status-danger">
                   الحذف لا يُستعاد تلقائيًا من داخل البرنامج — تأكد أنك أخذت نسخة احتياطية.
                 </p>
               </div>
@@ -455,7 +455,7 @@ export function CleanupSection({ onAuthError }: { onAuthError: () => void }) {
                   سيُحذف كل بيانات الأعمال بمعاملة واحدة بسبب: «{resetReason.trim()}» — والمستخدمون والإعدادات
                   ومزايا النظام وأرقام التسلسل وسجلا التدقيق والمحو تبقى كما هي.
                 </p>
-                <p className="rounded-md bg-red-500/10 p-2 text-xs text-status-danger">
+                <p className="rounded-md bg-danger/10 p-2 text-xs text-status-danger">
                   لا تراجع بعد التنفيذ — تأكد أنك أخذت نسخة احتياطية.
                 </p>
               </div>

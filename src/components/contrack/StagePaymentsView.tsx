@@ -478,7 +478,7 @@ function PaymentsForStage({
                   <span className="numeric font-semibold text-foreground" dir="ltr">{formatKWD(p.amount)}</span>
                   <span>استحقاق: <span className="numeric" dir="ltr">{fmtDate(p.dueDate)}</span></span>
                   {p.paid > 0 && (
-                    <span className="text-emerald-700 dark:text-emerald-400">
+                    <span className="text-success-ink">
                       مسدد: <span className="numeric" dir="ltr">{formatKWD(p.paid)}</span>
                     </span>
                   )}

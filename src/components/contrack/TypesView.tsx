@@ -131,7 +131,7 @@ function TypeCard({ t }: { t: ContractTypeLite }) {
             <ol className="space-y-1.5">
               {payments.map((p, i) => (
                 <li key={`${p.payNo}-${i}`} className="flex flex-wrap items-center gap-2 text-sm border rounded-lg px-3 py-2">
-                  <span className="size-5 rounded-full bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center justify-center numeric shrink-0">
+                  <span className="size-5 rounded-full bg-muted text-muted-foreground text-[11px] font-bold flex items-center justify-center numeric shrink-0">
                     {p.payNo}
                   </span>
                   <span className="font-medium">{p.title}</span>
@@ -252,8 +252,8 @@ export function TypesView() {
 // ============================================================
 const kindBadge: Record<PaymentTemplateDTO['kind'], { label: string; cls: string }> = {
   pct: { label: 'نسبة', cls: 'bg-status-info-bg text-status-info border border-status-info/30' },
-  fixed: { label: 'مبلغ ثابت', cls: 'bg-slate-200 text-slate-700 border border-slate-300' },
-  flex: { label: 'مرن (0)', cls: 'bg-slate-100 text-slate-600 border border-slate-200' },
+  fixed: { label: 'مبلغ ثابت', cls: 'bg-muted text-muted-foreground border border-border' },
+  flex: { label: 'مرن (0)', cls: 'bg-muted text-muted-foreground border border-border' },
 }
 
 function valueLabel(p: PaymentTemplateDTO): string {
@@ -426,7 +426,7 @@ function PaymentTemplatesPanel({ contractTypeName }: { contractTypeName: string 
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="size-5 text-amber-600" aria-hidden />
+              <AlertTriangle className="size-5 text-warn-ink" aria-hidden />
               حذف الدفعة «{deleting?.title}»؟
             </AlertDialogTitle>
             <AlertDialogDescription>
@@ -586,7 +586,7 @@ function PaymentTplDialog({
       <DialogContent className="sm:max-w-lg max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <BadgeDollarSign className="size-4 text-emerald-600" aria-hidden />
+            <BadgeDollarSign className="size-4 text-success-ink" aria-hidden />
             {isEdit ? `تعديل الدفعة #${editing?.payNo}` : 'دفعة جديدة'}
           </DialogTitle>
           <DialogDescription>

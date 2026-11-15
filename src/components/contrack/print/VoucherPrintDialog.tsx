@@ -27,7 +27,7 @@ interface VoucherPrintDialogProps {
 function PrintRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start gap-2 py-1.5">
-      <span className="w-28 shrink-0 text-sm font-semibold text-gray-600">{label}</span>
+      <span className="w-28 shrink-0 text-sm font-semibold text-muted-foreground">{label}</span>
       <span className="text-sm font-bold flex-1 border-b border-dashed print-border pb-0.5">{value || '—'}</span>
     </div>
   )
@@ -59,17 +59,17 @@ export function VoucherPrintDialog({ voucher, open, onOpenChange }: VoucherPrint
           {/* ورقة السند */}
           <div ref={sheetRef} className="print-area print-sheet rounded-lg border print-border p-5 space-y-4" dir="rtl">
             {/* الترويسة */}
-            <header className="text-center space-y-1 border-b-2 border-gray-800 pb-3 print-border">
+            <header className="text-center space-y-1 border-b-2 border-foreground pb-3 print-border">
               <h1 className="text-lg font-extrabold">{settings?.companyName || 'شركة المقاولات'}</h1>
-              {settings?.companyAddress && <p className="text-xs text-gray-600">{settings.companyAddress}</p>}
-              <p className="text-xs text-gray-600">
+              {settings?.companyAddress && <p className="text-xs text-muted-foreground">{settings.companyAddress}</p>}
+              <p className="text-xs text-muted-foreground">
                 {settings?.companyPhone && <span className="numeric">هاتف: {settings.companyPhone}</span>}
                 {settings?.companyEmail && <span> · {settings.companyEmail}</span>}
               </p>
             </header>
 
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-extrabold border-2 border-gray-800 rounded-md px-4 py-1 print-border">
+              <h2 className="text-base font-extrabold border-2 border-foreground rounded-md px-4 py-1 print-border">
                 {isReceipt ? 'سند قبض' : 'سند صرف'}
               </h2>
               <div className="text-sm space-y-0.5 text-start">
@@ -84,7 +84,7 @@ export function VoucherPrintDialog({ voucher, open, onOpenChange }: VoucherPrint
               <PrintRow label={isReceipt ? 'استلمنا من' : 'صرفنا إلى'} value={voucher.party} />
               <PrintRow label="مبلغًا قدره" value={formatKWD(voucher.amount)} />
               <div className="flex items-start gap-2 py-1.5">
-                <span className="w-28 shrink-0 text-sm font-semibold text-gray-600">وذلك عن</span>
+                <span className="w-28 shrink-0 text-sm font-semibold text-muted-foreground">وذلك عن</span>
                 <span className="text-sm font-bold flex-1">{tafqeetKWD(voucher.amount)}</span>
               </div>
               <PrintRow label="طريقة الدفع" value={voucher.method || 'نقدًا'} />
@@ -96,17 +96,17 @@ export function VoucherPrintDialog({ voucher, open, onOpenChange }: VoucherPrint
             {/* التوقيعات */}
             <div className="grid grid-cols-3 gap-4 pt-8 text-center text-xs">
               <div>
-                <div className="border-t border-gray-500 pt-1 print-border">المستلم</div>
+                <div className="border-t border-muted-foreground pt-1 print-border">المستلم</div>
               </div>
               <div>
-                <div className="border-t border-gray-500 pt-1 print-border">أمين الصندوق</div>
+                <div className="border-t border-muted-foreground pt-1 print-border">أمين الصندوق</div>
               </div>
               <div>
-                <div className="border-t border-gray-500 pt-1 print-border">المدير المالي</div>
+                <div className="border-t border-muted-foreground pt-1 print-border">المدير المالي</div>
               </div>
             </div>
 
-            <footer className="text-center text-[10px] text-gray-500 border-t print-border pt-2">
+            <footer className="text-center text-[10px] text-muted-foreground border-t print-border pt-2">
               {settings?.headerTitle || 'نظام إدارة العقود والمحاسبة'} — {voucherTypeLabel(voucher.vtype)} {voucher.voucherNumber}
             </footer>
           </div>

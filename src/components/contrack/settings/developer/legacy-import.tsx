@@ -472,7 +472,7 @@ export function LegacyImport({ onAuthError }: { onAuthError: () => void }) {
         )}
 
         {companyMismatch && targetId !== "new" && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md bg-amber-500/10 p-2 text-xs text-status-warn">
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md bg-brand-yellow/10 p-2 text-xs text-status-warn">
             <AlertTriangle className="size-4" />
             <span>
               الجلسة الحالية في «{sessionCompany?.name}» — للتنفيذ في «{targetCompany?.name}» بدّل أولًا
@@ -646,7 +646,7 @@ export function LegacyImport({ onAuthError }: { onAuthError: () => void }) {
             "error" in textCheck ? (
               <p className="text-xs text-destructive">🛑 {textCheck.error}</p>
             ) : (
-              <p className="text-xs text-teal-700">
+              <p className="text-xs text-info-blue-text">
                 <CheckCircle2 className="mb-0.5 inline size-3.5" /> فاصل: {textCheck.info.delimiter} ·
                 أعمدة مطوبة: {textCheck.info.matched}
                 {textCheck.info.positional ? " (بالموقع)" : ""} · صفوف: {textCheck.info.rows}
@@ -686,7 +686,7 @@ export function LegacyImport({ onAuthError }: { onAuthError: () => void }) {
         )}
 
         {parsed && parsed.errors.length === 0 && parsed.warnings.length === 0 && (
-          <p className="flex items-center gap-1.5 text-sm text-teal-700">
+          <p className="flex items-center gap-1.5 text-sm text-info-blue-text">
             <CheckCircle2 className="size-4" /> ✅ المصدر سليم تمامًا · جاهز للاستيراد
           </p>
         )}
@@ -816,7 +816,7 @@ export function LegacyImport({ onAuthError }: { onAuthError: () => void }) {
 
       {/* ===== تقرير النتائج ===== */}
       {report && (
-        <div className="space-y-2 rounded-lg border border-teal-600/40 bg-teal-600/5 p-3" data-testid="legacy-report">
+        <div className="space-y-2 rounded-lg border border-info-blue/40 bg-info-blue/5 p-3" data-testid="legacy-report">
           <p className="text-sm font-bold">تم الاستيراد بنجاح! 🎉</p>
           {(report.sync.typesCreated.length > 0 ||
             report.sync.accountsCreated.length > 0 ||

@@ -52,7 +52,7 @@ export function StagesTab({ contractId, stages, isLoading }: StagesTabProps) {
   }
 
   return (
-    <ol className="relative space-y-2.5 border-e-2 border-emerald-200 dark:border-emerald-900 me-2.5 pe-4">
+    <ol className="relative space-y-2.5 border-e-2 border-success/40 me-2.5 pe-4">
       {stages.map((s) => {
         const done = s.endDate != null
         const started = s.startDate != null
@@ -61,7 +61,7 @@ export function StagesTab({ contractId, stages, isLoading }: StagesTabProps) {
           <li key={s.id} className="relative">
             <span
               className={`absolute -end-[25px] top-4 size-3.5 rounded-full ring-4 ring-background ${
-                done ? 'bg-emerald-500' : skipped ? 'bg-stone-300 dark:bg-stone-700' : started ? 'bg-teal-500 animate-pulse' : 'bg-stone-300 dark:bg-stone-700'
+                done ? 'bg-success' : skipped ? 'bg-muted' : started ? 'bg-info-blue animate-pulse' : 'bg-muted'
               }`}
               aria-hidden
             />
@@ -71,12 +71,12 @@ export function StagesTab({ contractId, stages, isLoading }: StagesTabProps) {
                   <span className="font-bold text-sm">{s.name}</span>
                   {s.level > 1 && <Badge variant="secondary" className="text-[10px]">فرعية</Badge>}
                   {done && (
-                    <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900">
+                    <Badge className="bg-success-soft text-success-ink border border-success/40">
                       <CheckCircle2 className="size-3" aria-hidden /> منجزة
                     </Badge>
                   )}
                   {!done && started && !skipped && (
-                    <Badge className="bg-teal-100 text-teal-800 border border-teal-200 dark:bg-teal-950 dark:text-teal-300 dark:border-teal-900">
+                    <Badge className="bg-info-soft text-info-blue-text border border-info-blue/40">
                       <Loader2 className="size-3" aria-hidden /> قيد التنفيذ
                     </Badge>
                   )}
@@ -118,7 +118,7 @@ export function StagesTab({ contractId, stages, isLoading }: StagesTabProps) {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-9 gap-1.5 text-emerald-700 hover:text-emerald-800 dark:text-emerald-400"
+                    className="h-9 gap-1.5 text-success-ink hover:text-success-ink"
                     disabled={mutation.isPending || !started || done || skipped}
                     onClick={() => mutation.mutate({ stageId: s.id, patch: { endDate: new Date().toISOString().slice(0, 10) } })}
                   >

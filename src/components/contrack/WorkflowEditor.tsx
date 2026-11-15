@@ -185,7 +185,7 @@ export function WorkflowEditor({ contractTypeName }: WorkflowEditorProps) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="size-5 text-amber-600" aria-hidden />
+              <AlertTriangle className="size-5 text-warn-ink" aria-hidden />
               حذف المرحلة «{deleting?.stage.stageName}»؟
             </AlertDialogTitle>
             <AlertDialogDescription>
@@ -412,7 +412,7 @@ function StageDialog({
               disabled={!payKind}
             />
             {payKind && !(Number(payPct) > 0) && (
-              <p className="text-[11px] text-amber-600">تحديد نوع الدفع يستلزم نسبة أكبر من صفر</p>
+              <p className="text-[11px] text-warn-ink">تحديد نوع الدفع يستلزم نسبة أكبر من صفر</p>
             )}
           </div>
         </div>

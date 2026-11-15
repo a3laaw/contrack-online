@@ -156,14 +156,14 @@ function NewContractForm({ initialCustomerId, onOpenChange, onCreated }: {
               onClick={() => setTypeName(t.name)}
               className={`text-start rounded-xl border p-3.5 transition-all min-h-11 ${
                 typeName === t.name
-                  ? 'border-primary bg-emerald-50/70 dark:bg-emerald-950/30 ring-2 ring-primary/30'
-                  : 'hover:border-emerald-300 hover:bg-muted/50'
+                  ? 'border-primary bg-success-soft/30 ring-2 ring-primary/30'
+                  : 'hover:border-success/40 hover:bg-muted/50'
               }`}
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-bold text-sm">{t.name}</span>
-                {t.isSupervision && <span className="text-[10px] rounded bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300 px-1.5 py-0.5">إشراف</span>}
-                {t.manualTrack && <span className="text-[10px] rounded bg-stone-200 text-stone-700 dark:bg-stone-800 dark:text-stone-300 px-1.5 py-0.5">بلا قالب</span>}
+                {t.isSupervision && <span className="text-[10px] rounded bg-info-soft text-info-blue-text px-1.5 py-0.5">إشراف</span>}
+                {t.manualTrack && <span className="text-[10px] rounded bg-muted text-muted-foreground px-1.5 py-0.5">بلا قالب</span>}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {t.manualTrack
@@ -275,7 +275,7 @@ function NewContractForm({ initialCustomerId, onOpenChange, onCreated }: {
           </div>
           {!selectedType.manualTrack && (
             <div className="text-xs text-muted-foreground flex items-start gap-1.5">
-              <CheckCircle2 className="size-3.5 mt-0.5 text-emerald-600 shrink-0" aria-hidden />
+              <CheckCircle2 className="size-3.5 mt-0.5 text-success-ink shrink-0" aria-hidden />
               سيتم نسخ {selectedType.stages.length} مرحلة وإنشاء {selectedType.payments.length} دفعة من قالب النوع تلقائيًا.
             </div>
           )}

@@ -89,7 +89,7 @@ export function BoqDocImportDialog({ docId, docName, open, onOpenChange, onImpor
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <FileSpreadsheet className="size-5 text-emerald-700 dark:text-emerald-400" aria-hidden />
+                <FileSpreadsheet className="size-5 text-success-ink" aria-hidden />
                 استيراد جدول كميات (BOQ) من ملف
               </DialogTitle>
               <DialogDescription>
@@ -105,7 +105,7 @@ export function BoqDocImportDialog({ docId, docName, open, onOpenChange, onImpor
                   type="button"
                   onClick={() => fileRef.current?.click()}
                   disabled={busy}
-                  className="w-full rounded-xl border-2 border-dashed border-muted-foreground/30 hover:border-emerald-500/60 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition-colors p-8 text-center disabled:opacity-60"
+                  className="w-full rounded-xl border-2 border-dashed border-muted-foreground/30 hover:border-success/60 hover:bg-success-soft/50 transition-colors p-8 text-center disabled:opacity-60"
                   aria-label="اختيار ملف BOQ"
                 >
                   {busy ? (
@@ -152,7 +152,7 @@ export function BoqDocImportDialog({ docId, docName, open, onOpenChange, onImpor
                 </div>
 
                 {preview.existingCount > 0 && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40 px-3 py-2 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
+                  <div className="rounded-lg border border-brand-yellow/50 bg-warn-soft/40 px-3 py-2 text-xs text-warn-ink flex items-start gap-2">
                     <AlertTriangle className="size-4 shrink-0 mt-0.5" aria-hidden />
                     <span>
                       الوثيقة تحتوي {preview.existingCount} بنداً قائماً — الاستيراد <b>يضيف إليها</b> ولا يستبدلها.
@@ -161,15 +161,15 @@ export function BoqDocImportDialog({ docId, docName, open, onOpenChange, onImpor
                 )}
 
                 {preview.warnings.length > 0 && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40 px-3 py-2 space-y-1">
+                  <div className="rounded-lg border border-brand-yellow/50 bg-warn-soft/40 px-3 py-2 space-y-1">
                     {preview.warnings.slice(0, 6).map((w, i) => (
-                      <p key={i} className="text-xs text-amber-800 dark:text-amber-300 flex items-start gap-1.5">
+                      <p key={i} className="text-xs text-warn-ink flex items-start gap-1.5">
                         <AlertTriangle className="size-3.5 shrink-0 mt-0.5" aria-hidden />
                         <span>{w.message}</span>
                       </p>
                     ))}
                     {preview.warnings.length > 6 && (
-                      <p className="text-xs text-amber-700 dark:text-amber-400">
+                      <p className="text-xs text-warn-ink">
                         و{preview.warnings.length - 6} تنبيهاً آخر…
                       </p>
                     )}

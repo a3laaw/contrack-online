@@ -107,9 +107,9 @@ function DocsList({ onOpen }: { onOpen: (id: number) => void }) {
 
   const statusBadge = (s: BoqDocDTO['status']) =>
     s === 'ready' ? (
-      <Badge className="bg-emerald-700 text-white whitespace-nowrap">جاهزة للربط</Badge>
+      <Badge className="bg-success text-white whitespace-nowrap">جاهزة للربط</Badge>
     ) : (
-      <Badge variant="outline" className="text-amber-700 border-amber-300 dark:text-amber-400 dark:border-amber-800 whitespace-nowrap">مسودة</Badge>
+      <Badge variant="outline" className="text-warn-ink border-brand-yellow/50 whitespace-nowrap">مسودة</Badge>
     )
 
   return (
@@ -311,7 +311,7 @@ function DocMetaForm({
     <>
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
-          <FileSpreadsheet className="size-5 text-emerald-700 dark:text-emerald-400" aria-hidden />
+          <FileSpreadsheet className="size-5 text-success-ink" aria-hidden />
           {doc ? 'تعديل بيانات الوثيقة' : 'وثيقة BOQ جديدة'}
         </DialogTitle>
         <DialogDescription>
@@ -477,9 +477,9 @@ function DocDetail({ docId, onBack }: { docId: number; onBack: () => void }) {
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-base font-bold leading-snug">{data.name}</h2>
                 {isReady ? (
-                  <Badge className="bg-emerald-700 text-white">جاهزة للربط</Badge>
+                  <Badge className="bg-success text-white">جاهزة للربط</Badge>
                 ) : (
-                  <Badge variant="outline" className="text-amber-700 border-amber-300 dark:text-amber-400 dark:border-amber-800">مسودة</Badge>
+                  <Badge variant="outline" className="text-warn-ink border-brand-yellow/50">مسودة</Badge>
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5 text-xs text-muted-foreground">
@@ -491,7 +491,7 @@ function DocDetail({ docId, onBack }: { docId: number; onBack: () => void }) {
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant={isReady ? 'outline' : 'default'}
-                className={isReady ? 'h-10' : 'h-10 bg-emerald-700 hover:bg-emerald-800 text-white'}
+                className={isReady ? 'h-10' : 'h-10 bg-success hover:bg-success text-white'}
                 disabled={statusMutation.isPending}
                 onClick={() => statusMutation.mutate(isReady ? 'draft' : 'ready')}
               >

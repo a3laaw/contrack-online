@@ -93,7 +93,7 @@ function PaymentVoucherForm({ onOpenChange, onCreated }: {
     <>
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
-          <Banknote className="size-4 text-amber-600" aria-hidden />
+          <Banknote className="size-4 text-warn-ink" aria-hidden />
           سند صرف جديد
         </DialogTitle>
         <DialogDescription>تسجيل صرف نقدي أو بنكي مع ربطه بحساب مصروف</DialogDescription>

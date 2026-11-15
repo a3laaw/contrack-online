@@ -33,7 +33,7 @@ const isAdmin = (role: string) => role === 'admin' || role === 'developer'
 
 function AdminOnlyNote() {
   return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 px-4 py-3 text-sm flex items-start gap-2">
+    <div className="rounded-lg border border-brand-yellow/50 bg-warn-soft/40 text-warn-ink px-4 py-3 text-sm flex items-start gap-2">
       <ShieldAlert className="size-4 mt-0.5 shrink-0" aria-hidden />
       <span>العرض متاح للجميع — أزرار الاسترجاع والأرشفة للمدير فقط.</span>
     </div>
@@ -197,7 +197,7 @@ export function ArchiveView({ user }: ArchiveViewProps) {
 
         {/* ---------- السندات الملغاة (قسم قراءة) ---------- */}
         <TabsContent value="vouchers" className="space-y-3">
-          <div className="rounded-lg border border-stone-200 bg-stone-50 dark:border-stone-800 dark:bg-stone-900/40 px-4 py-3 text-xs text-muted-foreground">
+          <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
             السندات لا تُؤرشف — السند الملغى يخرج من القوائم النشطة بحكم إلغائه ويُعرض هنا للقراءة فقط
             (إلغاء السند يبقى من شاشة السندات بصلاحياته المالية).
           </div>

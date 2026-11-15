@@ -116,7 +116,7 @@ export function FollowupView({ user: _user, onAuthError, onOpenContract }: Follo
       icon: HandCoins,
       count: data?.dueNow?.length ?? 0,
       badgeClass: "bg-status-danger-bg text-status-danger",
-      cardClass: "bg-red-500/10 text-status-danger",
+      cardClass: "bg-danger/10 text-status-danger",
       empty: "لا مستحقات سارية اليوم — أحسنت",
       content: (data?.dueNow ?? []).map((r, i) => (
         <Row
@@ -150,7 +150,7 @@ export function FollowupView({ user: _user, onAuthError, onOpenContract }: Follo
       icon: AlertTriangle,
       count: data?.overdueCollections?.length ?? 0,
       badgeClass: "bg-status-warn-bg text-status-warn",
-      cardClass: "bg-orange-500/10 text-status-warn",
+      cardClass: "bg-brand-orange/10 text-status-warn",
       empty: "لا تعثر في التحصيل",
       content: (data?.overdueCollections ?? []).map((r, i) => (
         <Row
@@ -187,7 +187,7 @@ export function FollowupView({ user: _user, onAuthError, onOpenContract }: Follo
       icon: CalendarClock,
       count: data?.expiring?.length ?? 0,
       badgeClass: "bg-status-warn-bg text-status-warn",
-      cardClass: "bg-amber-500/10 text-status-warn",
+      cardClass: "bg-brand-yellow/10 text-status-warn",
       empty: "لا عقود على وشك الانتهاء",
       content: (data?.expiring ?? []).map((r, i) => (
         <Row
@@ -281,7 +281,7 @@ export function FollowupView({ user: _user, onAuthError, onOpenContract }: Follo
       icon: HardHat,
       count: data?.execution?.length ?? 0,
       badgeClass: "bg-status-danger-bg text-status-danger",
-      cardClass: "bg-orange-500/10 text-status-danger",
+      cardClass: "bg-brand-orange/10 text-status-danger",
       empty: "لا تنبيهات على مراحل التنفيذ",
       content: (data?.execution ?? []).map((r, i) => (
         <Row

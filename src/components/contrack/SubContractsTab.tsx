@@ -52,9 +52,9 @@ function paymentStatus(p: SubContractPaymentDTO): PayStatus {
 
 function PayStatusBadge({ status }: { status: PayStatus }) {
   const cls: Record<PayStatus, string> = {
-    'مسدد': 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900',
-    'متأخر': 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-900',
-    'مستحق': 'bg-stone-100 text-stone-600 border-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:border-stone-700',
+    'مسدد': 'bg-success-soft text-success-ink border-success/40',
+    'متأخر': 'bg-danger-soft text-danger border-danger/40',
+    'مستحق': 'bg-muted text-muted-foreground border-border',
   }
   return <Badge className={`${cls[status]} border`}>{status}</Badge>
 }
@@ -87,7 +87,7 @@ export function SubContractsTab({ contract, user }: SubContractsTabProps) {
             إجمالي القيم: <span className="font-semibold numeric text-foreground">{formatKWD(totalAmount)}</span>
           </span>
           <span className="text-muted-foreground">
-            المسدد: <span className="font-semibold numeric text-emerald-700 dark:text-emerald-400">{formatKWD(totalPaid)}</span>
+            المسدد: <span className="font-semibold numeric text-success-ink">{formatKWD(totalPaid)}</span>
           </span>
         </div>
         <Button className="h-11 gap-2 font-semibold" onClick={() => setAddDialogOpen(true)}>
@@ -199,11 +199,11 @@ function SubContractCard({ item, contract, user, expanded, onToggle, onVoucher }
           </div>
           <div>
             <p className="text-xs text-muted-foreground">المسدد</p>
-            <p className="font-semibold numeric text-emerald-700 dark:text-emerald-400">{formatKWD(item.paidAmount)}</p>
+            <p className="font-semibold numeric text-success-ink">{formatKWD(item.paidAmount)}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">المتبقي</p>
-            <p className="font-semibold numeric text-amber-700 dark:text-amber-400">{formatKWD(round3(Math.max(0, item.amount - item.paidAmount)))}</p>
+            <p className="font-semibold numeric text-warn-ink">{formatKWD(round3(Math.max(0, item.amount - item.paidAmount)))}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">المدة</p>
@@ -326,7 +326,7 @@ function SubPaymentsSection({
                       <TableCell className="font-semibold">{p.title}</TableCell>
                       <TableCell className="numeric">{formatDate(p.dueDate)}</TableCell>
                       <TableCell className="font-semibold numeric">{formatKWD(p.amount)}</TableCell>
-                      <TableCell className="numeric text-emerald-700 dark:text-emerald-400">{formatKWD(p.paidAmount)}</TableCell>
+                      <TableCell className="numeric text-success-ink">{formatKWD(p.paidAmount)}</TableCell>
                       <TableCell><PayStatusBadge status={st} /></TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5">
@@ -376,8 +376,8 @@ function SubPaymentsSection({
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                     <span className="text-muted-foreground">الاستحقاق: <span className="numeric" dir="ltr">{formatDate(p.dueDate)}</span></span>
                     <span>المبلغ: <span className="font-semibold numeric">{formatKWD(p.amount)}</span></span>
-                    <span>المسدد: <span className="font-semibold numeric text-emerald-700 dark:text-emerald-400">{formatKWD(p.paidAmount)}</span></span>
-                    <span>المتبقي: <span className="font-semibold numeric text-amber-700 dark:text-amber-400">{formatKWD(remaining)}</span></span>
+                    <span>المسدد: <span className="font-semibold numeric text-success-ink">{formatKWD(p.paidAmount)}</span></span>
+                    <span>المتبقي: <span className="font-semibold numeric text-warn-ink">{formatKWD(remaining)}</span></span>
                   </div>
                   <div className="flex gap-2 pt-1">
                     {remaining > EPS && (

@@ -341,10 +341,10 @@ export function BankReconView({
               <p className="mt-0.5 text-[11px] text-muted-foreground">مُفسَّر: {formatKWD(t.explained)}</p>
             </CardContent>
           </Card>
-          <Card className={t.unexplained === 0 ? "border-emerald-300" : "border-red-300"}>
+          <Card className={t.unexplained === 0 ? "border-success/40" : "border-danger/40"}>
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground">الفرق غير المفسَّر</p>
-              <p className={`mt-1 flex items-center gap-1.5 text-lg font-bold md:text-xl ${t.unexplained === 0 ? "text-emerald-600" : "text-red-600"}`}>
+              <p className={`mt-1 flex items-center gap-1.5 text-lg font-bold md:text-xl ${t.unexplained === 0 ? "text-success-ink" : "text-danger"}`}>
                 {t.unexplained === 0 ? <CheckCircle2 className="h-5 w-5" aria-hidden /> : <TriangleAlert className="h-5 w-5" aria-hidden />}
                 {formatKWD(t.unexplained)}
               </p>
@@ -449,7 +449,7 @@ export function BankReconView({
                     <TableCell>
                       <Badge variant={l.amount > 0 ? "default" : "destructive"}>{l.amount > 0 ? "إيداع" : "سحب"}</Badge>
                     </TableCell>
-                    <TableCell className={`text-left font-mono tabular-nums ${l.amount < 0 ? "text-red-600" : ""}`}>{formatKWD(l.amount)}</TableCell>
+                    <TableCell className={`text-left font-mono tabular-nums ${l.amount < 0 ? "text-danger" : ""}`}>{formatKWD(l.amount)}</TableCell>
                     <TableCell>
                       <Button size="sm" variant="secondary" onClick={() => onQuickPost(l.id)} disabled={postingId !== null}>
                         {postingId === l.id ? <Loader2 className="ml-1 h-4 w-4 animate-spin" aria-hidden /> : <Zap className="ml-1 h-4 w-4" aria-hidden />}
@@ -489,7 +489,7 @@ export function BankReconView({
                     <TableCell className="font-mono">#{l.entryNo}</TableCell>
                     <TableCell className="whitespace-nowrap">{l.entryDate}</TableCell>
                     <TableCell className="max-w-80 truncate">{l.description || "—"}</TableCell>
-                    <TableCell className={`text-left font-mono tabular-nums ${l.amount < 0 ? "text-red-600" : ""}`}>{formatKWD(l.amount)}</TableCell>
+                    <TableCell className={`text-left font-mono tabular-nums ${l.amount < 0 ? "text-danger" : ""}`}>{formatKWD(l.amount)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -755,7 +755,7 @@ function ImportStatementDialog({
             <textarea
               id="br-import-text"
               className="h-40 w-full rounded-md border bg-background p-2 font-mono text-xs"
-              placeholder={"2026-03-01,1000.500,إيداع عميل\n2026-03-02,-45.250,رسوم بنكية\n05/03/2026,(90),عمولة تحويل"}
+              placeholder={"2026-03-01,1000.500,إيداع عميل\n2026-03-02,-45.250,رسوم بنكية\n05/2026,(90),عمولة تحويل"}
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
@@ -764,7 +764,7 @@ function ImportStatementDialog({
             </p>
           </div>
           {text.trim() && (
-            <div className={`rounded-lg border p-3 text-sm ${parsed.lines.length ? "bg-muted/40" : "border-red-300 bg-red-50"}`}>
+            <div className={`rounded-lg border p-3 text-sm ${parsed.lines.length ? "bg-muted/40" : "border-danger/40 bg-danger-soft"}`}>
               {parsed.lines.length ? (
                 <>
                   <p className="font-semibold">معاينة: {parsed.lines.length} بندًا مفهومًا{parsed.skipped ? ` — تُتخطى ${parsed.skipped}` : ""}</p>
@@ -776,7 +776,7 @@ function ImportStatementDialog({
                   </div>
                 </>
               ) : (
-                <p className="text-red-600">لا سطور مفهومة — تأكد من وجود عمود تاريخ وعمود مبلغ في كل سطر.</p>
+                <p className="text-danger">لا سطور مفهومة — تأكد من وجود عمود تاريخ وعمود مبلغ في كل سطر.</p>
               )}
             </div>
           )}

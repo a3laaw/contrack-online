@@ -318,7 +318,7 @@ export function ImportWizard({ onAuthError }: { onAuthError: () => void }) {
         {parsed && (
           <>
             {parsed.errors.length === 0 && parsed.warnings.length === 0 && (
-              <p className="flex items-center gap-1.5 text-sm text-teal-700">
+              <p className="flex items-center gap-1.5 text-sm text-info-blue-text">
                 <CheckCircle2 className="size-4" /> ✅ الملف سليم تمامًا · جاهز للاستيراد
               </p>
             )}
@@ -452,7 +452,7 @@ export function ImportWizard({ onAuthError }: { onAuthError: () => void }) {
 
       {/* تقرير النتائج */}
       {report && (
-        <div className="space-y-2 rounded-lg border border-teal-600/40 bg-teal-600/5 p-3" data-testid="import-report">
+        <div className="space-y-2 rounded-lg border border-info-blue/40 bg-info-blue/5 p-3" data-testid="import-report">
           <p className="text-sm font-bold">تم الاستيراد بنجاح! 🎉</p>
           <ul className="space-y-1 text-sm leading-6">
             <li>

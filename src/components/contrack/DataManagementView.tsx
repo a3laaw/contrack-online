@@ -582,7 +582,7 @@ function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
                   ) : null}
                   مع الحفاظ على المعرّفات الأصلية وإعادة ضبط التسلسلات.
                 </p>
-                <p className="rounded-md bg-amber-500/10 p-2 text-xs text-status-warn">
+                <p className="rounded-md bg-brand-yellow/10 p-2 text-xs text-status-warn">
                   سيُنشأ أولًا <strong>نسخة أمان</strong> (safety-…) من الوضع الحالي ويمكن استعادتها لاحقًا. كل خطوات
                   الحذف والإنشاء داخل معاملة واحدة — إن فشل أي جزء تُرجع القاعدة كما كانت.
                 </p>
@@ -621,7 +621,7 @@ function BackupsTab({ onAuthError }: { onAuthError: () => void }) {
                   <span className="mx-1 font-mono text-xs" dir="ltr">{restoreTarget}</span>
                   مع الحفاظ على المعرّفات الأصلية وإعادة ضبط التسلسلات.
                 </p>
-                <p className="rounded-md bg-amber-500/10 p-2 text-xs text-status-warn">
+                <p className="rounded-md bg-brand-yellow/10 p-2 text-xs text-status-warn">
                   سيُنشأ أولًا <strong>نسخة أمان</strong> (safety-…) من الوضع الحالي ويمكن استعادتها لاحقًا. كل خطوات
                   الحذف والإنشاء داخل معاملة واحدة — إن فشل أي جزء تُرجع القاعدة كما كانت.
                 </p>
@@ -850,7 +850,7 @@ function DataTab({ onAuthError }: { onAuthError: () => void }) {
       </Card>
 
       {/* إعادة الضبط الكاملة — كتلة حمراء عالية التحذير */}
-      <Card className="border-red-300">
+      <Card className="border-danger/40">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base text-status-danger">
             <AlertTriangle className="size-4" />
@@ -864,7 +864,7 @@ function DataTab({ onAuthError }: { onAuthError: () => void }) {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 gap-2 text-xs md:grid-cols-2">
-            <p className="rounded-md bg-red-500/10 p-2 text-status-danger">
+            <p className="rounded-md bg-danger/10 p-2 text-status-danger">
               <strong>يُحذف:</strong> كل جداول بيانات الأعمال والمحتوى المرتبط بها.
             </p>
             <p className="rounded-md bg-status-done-bg p-2 text-status-done">

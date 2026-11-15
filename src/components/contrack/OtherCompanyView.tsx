@@ -399,7 +399,7 @@ export function OtherCompanyView({ user, onAuthError }: OtherCompanyViewProps) {
       </div>
 
       {/* رسالة توضيحية ثابتة */}
-      <div className="flex items-start gap-2 rounded-lg border border-status-info/40/70 bg-status-info-bg p-2.5 text-xs font-medium text-status-info">
+      <div className="flex items-start gap-2 rounded-lg border border-status-info/70 bg-status-info-bg p-2.5 text-xs font-medium text-status-info">
         <Info className="mt-0.5 size-3.5 shrink-0" />
         تسديد الشركة الأخرى لا ينشئ سندات — توزيع على العمليات فقط (عبر transfer_op_allocs على الصافي).
       </div>

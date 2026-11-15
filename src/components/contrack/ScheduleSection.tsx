@@ -53,7 +53,7 @@ export function ScheduleSection({ contractId, manager, refreshKey, onImportClick
       <CardHeader className="p-0 pb-2">
         <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
           <span className="flex items-center gap-1.5">
-            <CalendarRange className="size-4 text-amber-700 dark:text-amber-400" aria-hidden />
+            <CalendarRange className="size-4 text-warn-ink" aria-hidden />
             البرنامج الزمني · {latest ? `المراجعة ${latest.revision || "—"}` : "لا يوجد استيراد"}
           </span>
           {manager && (
@@ -101,7 +101,7 @@ export function ScheduleSection({ contractId, manager, refreshKey, onImportClick
             </div>
 
             {latest.warnings.length > 0 && (
-              <p className="text-xs text-amber-700 dark:text-amber-400">
+              <p className="text-xs text-warn-ink">
                 تحذيرات الاستيراد: {latest.warnings[0]}
                 {latest.warnings.length > 1 && ` (+${latest.warnings.length - 1})`}
               </p>

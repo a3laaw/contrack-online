@@ -51,13 +51,13 @@ export function InvoicePrintDialog({ invoice, open, onOpenChange }: InvoicePrint
         <div className="px-5 max-h-[55vh] overflow-y-auto">
           <div ref={sheetRef} className="print-area print-sheet rounded-lg border print-border p-5 space-y-4" dir="rtl">
             {/* الترويسة */}
-            <header className="text-center space-y-1 border-b-2 border-gray-800 pb-3 print-border">
+            <header className="text-center space-y-1 border-b-2 border-foreground pb-3 print-border">
               <h1 className="text-lg font-extrabold">{settings?.companyName || 'شركة المقاولات'}</h1>
-              {settings?.companyAddress && <p className="text-xs text-gray-600">{settings.companyAddress}</p>}
-              <p className="text-xs text-gray-600">
+              {settings?.companyAddress && <p className="text-xs text-muted-foreground">{settings.companyAddress}</p>}
+              <p className="text-xs text-muted-foreground">
                 {settings?.companyPhone && <span className="numeric">هاتف: {settings.companyPhone}</span>}
               </p>
-              <h2 className="text-base font-extrabold border-2 border-gray-800 rounded-md px-6 py-1 print-border w-fit mx-auto mt-2">
+              <h2 className="text-base font-extrabold border-2 border-foreground rounded-md px-6 py-1 print-border w-fit mx-auto mt-2">
                 فاتورة
               </h2>
             </header>
@@ -65,19 +65,19 @@ export function InvoicePrintDialog({ invoice, open, onOpenChange }: InvoicePrint
             {/* شريط المعلومات: رقم | تاريخ | عميل | عقد */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
               <div className="border rounded-md print-border px-2.5 py-1.5">
-                <p className="text-[10px] text-gray-500">رقم الفاتورة</p>
+                <p className="text-[10px] text-muted-foreground">رقم الفاتورة</p>
                 <p className="font-extrabold numeric">{invoice.invoiceNumber}</p>
               </div>
               <div className="border rounded-md print-border px-2.5 py-1.5">
-                <p className="text-[10px] text-gray-500">التاريخ</p>
+                <p className="text-[10px] text-muted-foreground">التاريخ</p>
                 <p className="font-bold numeric">{formatDate(invoice.invoiceDate)}</p>
               </div>
               <div className="border rounded-md print-border px-2.5 py-1.5">
-                <p className="text-[10px] text-gray-500">العميل</p>
+                <p className="text-[10px] text-muted-foreground">العميل</p>
                 <p className="font-bold truncate">{invoice.customerName || '—'}</p>
               </div>
               <div className="border rounded-md print-border px-2.5 py-1.5">
-                <p className="text-[10px] text-gray-500">رقم العقد</p>
+                <p className="text-[10px] text-muted-foreground">رقم العقد</p>
                 <p className="font-bold numeric">{invoice.contractNumber || '—'}</p>
               </div>
             </div>
@@ -103,24 +103,24 @@ export function InvoicePrintDialog({ invoice, open, onOpenChange }: InvoicePrint
             </Table>
 
             {/* التفقيط */}
-            <div className="border-2 border-gray-800 rounded-md print-border p-3 text-center">
+            <div className="border-2 border-foreground rounded-md print-border p-3 text-center">
               <p className="text-sm font-bold">{tafqeetKWD(invoice.amount)}</p>
             </div>
 
             {/* ملخص العقد */}
             <div className="border rounded-md print-border p-3 space-y-1 text-sm">
-              <h3 className="text-xs font-extrabold text-gray-500 mb-1.5">ملخص العقد {invoice.contractNumber}</h3>
+              <h3 className="text-xs font-extrabold text-muted-foreground mb-1.5">ملخص العقد {invoice.contractNumber}</h3>
               <div className="flex items-center justify-between">
-                <span className="text-gray-600">قيمة العقد</span>
+                <span className="text-muted-foreground">قيمة العقد</span>
                 <span className="font-bold numeric">{formatKWD(invoice.contractAmount)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-600">إجمالي الفواتير</span>
+                <span className="text-muted-foreground">إجمالي الفواتير</span>
                 <span className="font-bold numeric">{formatKWD(invoice.contractInvoicesTotal)}</span>
               </div>
               <div className="flex items-center justify-between border-t print-border pt-1">
-                <span className="text-gray-600">المبلغ المتبقي</span>
-                <span className={`font-extrabold numeric ${invoice.contractRemaining >= 0 ? 'text-teal-700' : 'text-red-700'}`}>
+                <span className="text-muted-foreground">المبلغ المتبقي</span>
+                <span className={`font-extrabold numeric ${invoice.contractRemaining >= 0 ? 'text-info-blue-text' : 'text-danger'}`}>
                   {formatKWD(invoice.contractRemaining)}
                 </span>
               </div>
@@ -128,21 +128,21 @@ export function InvoicePrintDialog({ invoice, open, onOpenChange }: InvoicePrint
 
             {/* ملاحظات */}
             {invoice.notes?.trim() && (
-              <p className="text-xs border rounded-md print-border p-2.5 bg-gray-50 whitespace-pre-line">{invoice.notes}</p>
+              <p className="text-xs border rounded-md print-border p-2.5 bg-muted whitespace-pre-line">{invoice.notes}</p>
             )}
 
             {/* التوقيعان */}
             <div className="grid grid-cols-2 gap-8 pt-8 text-center text-xs">
               <div>
-                <div className="border-t border-gray-500 pt-1 print-border">توقيع المستلم</div>
+                <div className="border-t border-muted-foreground pt-1 print-border">توقيع المستلم</div>
               </div>
               <div>
-                <div className="border-t border-gray-500 pt-1 print-border">التوقيع</div>
+                <div className="border-t border-muted-foreground pt-1 print-border">التوقيع</div>
               </div>
             </div>
 
             <Separator className="print-border" />
-            <footer className="text-center text-[10px] text-gray-500">
+            <footer className="text-center text-[10px] text-muted-foreground">
               {settings?.headerTitle || 'نظام إدارة العقود والمحاسبة'} — فاتورة {invoice.invoiceNumber} (للعلم) — طُبع بتاريخ {formatDate(todayStr())}
             </footer>
           </div>

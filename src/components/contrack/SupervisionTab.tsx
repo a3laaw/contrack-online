@@ -84,7 +84,7 @@ export function SupervisionTab({ contract, user }: SupervisionTabProps) {
     body = (
       <>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900 border">
+          <Badge className="bg-success-soft text-success-ink border-success/40 border">
             الإشراف مُفعَّل — {data.supMonths} شهرًا
           </Badge>
           {isAdmin ? (
@@ -116,7 +116,7 @@ export function SupervisionTab({ contract, user }: SupervisionTabProps) {
         </div>
 
         {data.supWaivedMonths > 0 && data.supWaiveReason && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40 px-4 py-3 text-sm">
+          <div className="rounded-lg border border-brand-yellow/50 bg-warn-soft/40 px-4 py-3 text-sm">
             <span className="font-semibold">سبب إلغاء الشهور: </span>
             {data.supWaiveReason}
           </div>
@@ -156,7 +156,7 @@ export function SupervisionTab({ contract, user }: SupervisionTabProps) {
                       </TableCell>
                       <TableCell>
                         {r.waived ? (
-                          <Badge className="bg-red-100 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-900 border">
+                          <Badge className="bg-danger-soft text-danger border-danger/40 border">
                             ملغى
                           </Badge>
                         ) : (
@@ -167,7 +167,7 @@ export function SupervisionTab({ contract, user }: SupervisionTabProps) {
                   ))}
                   <TableRow className="bg-muted/50 hover:bg-muted/50">
                     <TableCell colSpan={4} className="font-bold">إجمالي المستحق</TableCell>
-                    <TableCell className="font-bold numeric text-emerald-700 dark:text-emerald-400">
+                    <TableCell className="font-bold numeric text-success-ink">
                       {formatKWD(data.totalContractValue)}
                     </TableCell>
                     <TableCell />
@@ -187,7 +187,7 @@ export function SupervisionTab({ contract, user }: SupervisionTabProps) {
                       <span className="numeric text-muted-foreground text-xs">{r.seq}.</span>
                       {r.monthLabel}
                       {r.waived && (
-                        <Badge className="bg-red-100 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-900 border text-[10px] px-1.5">
+                        <Badge className="bg-danger-soft text-danger border-danger/40 border text-[10px] px-1.5">
                           ملغى
                         </Badge>
                       )}
@@ -196,14 +196,14 @@ export function SupervisionTab({ contract, user }: SupervisionTabProps) {
                       {r.expectedDate ? formatDate(r.expectedDate) : '—'}
                     </p>
                   </div>
-                  <span className={`text-sm font-bold numeric shrink-0 ${r.waived ? 'line-through text-muted-foreground' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                  <span className={`text-sm font-bold numeric shrink-0 ${r.waived ? 'line-through text-muted-foreground' : 'text-success-ink'}`}>
                     {formatKWD(r.amount)}
                   </span>
                 </div>
               ))}
               <div className="flex items-center justify-between px-3 py-2.5 bg-muted/50">
                 <span className="font-bold text-sm">إجمالي المستحق</span>
-                <span className="font-bold numeric text-emerald-700 dark:text-emerald-400">
+                <span className="font-bold numeric text-success-ink">
                   {formatKWD(data.totalContractValue)}
                 </span>
               </div>
@@ -244,9 +244,9 @@ function StatCard({
 }) {
   const valCls =
     tone === 'emerald'
-      ? 'text-emerald-700 dark:text-emerald-400'
+      ? 'text-success-ink'
       : tone === 'amber'
-        ? 'text-amber-700 dark:text-amber-400'
+        ? 'text-warn-ink'
         : 'text-foreground'
   return (
     <div className="rounded-xl border p-3">
@@ -321,7 +321,7 @@ function SupervisionSettingsDialog({
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <ShieldCheck className="size-4 text-emerald-700 dark:text-emerald-400" aria-hidden />
+                <ShieldCheck className="size-4 text-success-ink" aria-hidden />
                 {isEnable ? 'تفعيل الإشراف الهندسي' : 'تعديل إعدادات الإشراف'}
               </DialogTitle>
               <DialogDescription>

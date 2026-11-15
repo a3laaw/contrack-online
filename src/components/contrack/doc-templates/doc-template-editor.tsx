@@ -275,7 +275,7 @@ export function DocTemplateEditor({ templateId, onAuthError, onBack }: EditorPro
             <SelectItem value="معتمد">معتمد</SelectItem>
           </SelectContent>
         </Select>
-        {dirty && <span className="text-[10px] text-amber-600">تغييرات غير محفوظة</span>}
+        {dirty && <span className="text-[10px] text-warn-ink">تغييرات غير محفوظة</span>}
         <div className="ms-auto flex items-center gap-1">
           <Button variant="outline" size="sm" className="h-8 gap-1 text-xs" onClick={openPreview} disabled={!editor}>
             <Printer className="size-3.5" aria-hidden />
@@ -314,7 +314,7 @@ export function DocTemplateEditor({ templateId, onAuthError, onBack }: EditorPro
         {blockBtn("يسار", <AlignLeft className="size-4" />, () => editor?.chain().focus().setTextAlign("left").run(), editor?.isActive({ textAlign: "left" }))}
         {blockBtn("ضبط", <AlignJustify className="size-4" />, () => editor?.chain().focus().setTextAlign("justify").run(), editor?.isActive({ textAlign: "justify" }))}
         <span className="doc-tb-sep" />
-        {blockBtn("أحمر", <Palette className="size-4 text-red-600" />, () => editor?.chain().focus().setColor("#dc2626").run(), false, "لون العنوان الأحمر (ستايل العقود المرجعية)")}
+        {blockBtn("أحمر", <Palette className="size-4 text-danger" />, () => editor?.chain().focus().setColor("#dc2626").run(), false, "لون العنوان الأحمر (ستايل العقود المرجعية)")}
         {blockBtn("أسود", <Palette className="size-4" />, () => editor?.chain().focus().unsetColor().run(), false, "إعادة اللون الأسود")}
       </div>
 

@@ -75,12 +75,12 @@ export function GroupsView({ user }: GroupsViewProps) {
       {/* بطاقات الإجماليات */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <TotalsCard label="المجموعات" value={`${totals.groups}`} hint={`${totals.contracts} عقد داخلها`} />
-        <TotalsCard label="إجمالي المحصّل" value={formatKWD(totals.collected)} tone="text-emerald-600 dark:text-emerald-300" />
-        <TotalsCard label="إجمالي التكلفة" value={formatKWD(totals.cost)} tone="text-amber-600 dark:text-amber-300" />
+        <TotalsCard label="إجمالي المحصّل" value={formatKWD(totals.collected)} tone="text-success-ink" />
+        <TotalsCard label="إجمالي التكلفة" value={formatKWD(totals.cost)} tone="text-warn-ink" />
         <TotalsCard
           label="إجمالي الربح"
           value={formatKWD(totals.profit)}
-          tone={totals.profit >= 0 ? 'text-teal-600 dark:text-teal-300' : 'text-red-600 dark:text-red-300'}
+          tone={totals.profit >= 0 ? 'text-info-blue-text' : 'text-danger'}
         />
       </div>
 
@@ -120,8 +120,8 @@ export function GroupsView({ user }: GroupsViewProps) {
                   </div>
                   <Badge
                     className={g.profit >= 0
-                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900'
-                      : 'bg-red-100 text-red-800 border border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-900'}
+                      ? 'bg-success-soft text-success-ink border border-success/40'
+                      : 'bg-danger-soft text-danger border border-danger/40'}
                   >
                     ربح {formatKWD(g.profit)}
                   </Badge>
@@ -131,9 +131,9 @@ export function GroupsView({ user }: GroupsViewProps) {
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                   <MiniStat label="القيمة" value={formatKWD(g.currentTotal)} />
-                  <MiniStat label="المحصّل" value={formatKWD(g.collected)} cls="text-emerald-700 dark:text-emerald-300" />
-                  <MiniStat label="المدفوع" value={formatKWD(g.paid)} cls="text-amber-700 dark:text-amber-300" />
-                  <MiniStat label="التكلفة" value={formatKWD(g.cost)} cls="text-orange-700 dark:text-orange-300" />
+                  <MiniStat label="المحصّل" value={formatKWD(g.collected)} cls="text-success-ink" />
+                  <MiniStat label="المدفوع" value={formatKWD(g.paid)} cls="text-warn-ink" />
+                  <MiniStat label="التكلفة" value={formatKWD(g.cost)} cls="text-warn-ink" />
                 </div>
 
                 {/* شريط العقود */}
@@ -292,7 +292,7 @@ function ContractPicker({
                     {k.contractName || '—'} · {k.customer.name}
                   </span>
                 </span>
-                {picked && <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900 shrink-0">مختار</Badge>}
+                {picked && <Badge className="bg-success-soft text-success-ink border border-success/40 shrink-0">مختار</Badge>}
               </button>
             )
           })}
@@ -350,7 +350,7 @@ function GroupCreateDialog({ open, onOpenChange, onSaved }: {
       <DialogContent className="sm:max-w-lg max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FolderPlus className="size-4 text-teal-600" aria-hidden /> مجموعة عقود جديدة
+            <FolderPlus className="size-4 text-info-blue-text" aria-hidden /> مجموعة عقود جديدة
           </DialogTitle>
           <DialogDescription>
             يُرقَّمها النظام GRP-0001… — اشتراط عقدين على الأقل، ولا يُقبل عقد ملغى
@@ -440,7 +440,7 @@ function GroupManageDialog({ group, onClose, onSaved, canRename, onRename }: {
       <DialogContent className="sm:max-w-xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Settings2 className="size-4 text-teal-600" aria-hidden />
+            <Settings2 className="size-4 text-info-blue-text" aria-hidden />
             إدارة المجموعة — {group?.name}
           </DialogTitle>
           <DialogDescription className="numeric">

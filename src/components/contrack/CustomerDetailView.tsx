@@ -75,9 +75,9 @@ function eventIcon(eventType: string): string {
 
 /** لون المتبقي: أخضر ≤ 0.001 — أحمر لو متأخر — كهرماني غير ذلك (archive.py س356-381) */
 function remainingClass(summary: CustomerFileDTO['summary']): string {
-  if (summary.remaining <= 0.001) return 'text-emerald-600 dark:text-emerald-300'
-  if (summary.overdue.has) return 'text-red-600 dark:text-red-300'
-  return 'text-amber-600 dark:text-amber-300'
+  if (summary.remaining <= 0.001) return 'text-success-ink'
+  if (summary.overdue.has) return 'text-danger'
+  return 'text-warn-ink'
 }
 
 export function CustomerDetailView({ customerId, user, onBack, onNavigate }: CustomerDetailViewProps) {
@@ -131,7 +131,7 @@ export function CustomerDetailView({ customerId, user, onBack, onNavigate }: Cus
                 <h2 className="text-lg sm:text-xl font-extrabold truncate">{customer.name}</h2>
                 <Badge variant="secondary" className="numeric">{customer.customerCode}</Badge>
                 {customer.archived && (
-                  <Badge className="bg-stone-200 text-stone-700 border border-stone-300 dark:bg-stone-800 dark:text-stone-300 dark:border-stone-700">
+                  <Badge className="bg-muted text-muted-foreground border border-border">
                     مؤرشف
                   </Badge>
                 )}
@@ -139,7 +139,7 @@ export function CustomerDetailView({ customerId, user, onBack, onNavigate }: Cus
                   <TooltipProvider delayDuration={0}>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Badge className="bg-red-100 text-red-800 border border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-900 cursor-help">
+                        <Badge className="bg-danger-soft text-danger border border-danger/40 cursor-help">
                           🔴 متأخرات
                         </Badge>
                       </TooltipTrigger>
@@ -184,12 +184,12 @@ export function CustomerDetailView({ customerId, user, onBack, onNavigate }: Cus
           label="القيمة الحالية"
           value={formatKWD(summary.currentTotal)}
           hint={`الخام: ${formatKWD(summary.totalRaw)}`}
-          tone="text-teal-600 dark:text-teal-300"
+          tone="text-info-blue-text"
         />
         <SummaryCard
           label="المحصّل"
           value={formatKWD(summary.collected)}
-          tone="text-emerald-600 dark:text-emerald-300"
+          tone="text-success-ink"
         />
         <SummaryCard
           label="المتبقي"
@@ -268,7 +268,7 @@ function ContractsTab({ file, onNavigate }: {
               </TableHeader>
               <TableBody>
                 {contracts.map((k) => (
-                  <TableRow key={k.id} className={k.hasOverdue ? 'bg-red-50/60 dark:bg-red-950/20' : ''}>
+                  <TableRow key={k.id} className={k.hasOverdue ? 'bg-danger-soft/20' : ''}>
                     <TableCell>
                       <p className="font-semibold numeric" dir="ltr">{k.contractNumber}</p>
                       <p className="text-xs text-muted-foreground truncate max-w-52">
@@ -280,15 +280,15 @@ function ContractsTab({ file, onNavigate }: {
                       {k.hasOverdue && <span className="ms-1" title="عليه دفعة متأخرة">🔴</span>}
                     </TableCell>
                     <TableCell className="numeric font-semibold">{formatKWD(k.currentValue)}</TableCell>
-                    <TableCell className="numeric text-emerald-700 dark:text-emerald-300">{formatKWD(k.collected)}</TableCell>
-                    <TableCell className={`numeric font-bold ${k.remaining > 0.001 ? 'text-red-600 dark:text-red-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                    <TableCell className="numeric text-success-ink">{formatKWD(k.collected)}</TableCell>
+                    <TableCell className={`numeric font-bold ${k.remaining > 0.001 ? 'text-danger' : 'text-success-ink'}`}>
                       {formatKWD(k.remaining)}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="h-2.5 flex-1 rounded-full bg-stone-200 dark:bg-stone-800 overflow-hidden" role="progressbar" aria-valuenow={k.progressPct} aria-valuemin={0} aria-valuemax={100}>
+                        <div className="h-2.5 flex-1 rounded-full bg-muted overflow-hidden" role="progressbar" aria-valuenow={k.progressPct} aria-valuemin={0} aria-valuemax={100}>
                           <div
-                            className="h-full rounded-full bg-emerald-500"
+                            className="h-full rounded-full bg-success"
                             style={{ width: `${k.progressPct}%` }}
                           />
                         </div>
@@ -313,7 +313,7 @@ function ContractsTab({ file, onNavigate }: {
       {/* الجوال */}
       <div className="md:hidden space-y-3">
         {contracts.map((k) => (
-          <Card key={k.id} className={k.hasOverdue ? 'border-red-300 dark:border-red-900' : ''}>
+          <Card key={k.id} className={k.hasOverdue ? 'border-danger/40' : ''}>
             <CardContent className="p-4 space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-bold numeric" dir="ltr">{k.contractNumber}</span>
@@ -322,11 +322,11 @@ function ContractsTab({ file, onNavigate }: {
               <p className="text-xs text-muted-foreground">{k.contractName || '—'} · {k.contractDate}</p>
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <div><span className="text-muted-foreground block">القيمة</span><span className="numeric font-semibold">{formatKWD(k.currentValue)}</span></div>
-                <div><span className="text-muted-foreground block">المحصّل</span><span className="numeric text-emerald-700 dark:text-emerald-300">{formatKWD(k.collected)}</span></div>
-                <div><span className="text-muted-foreground block">المتبقي</span><span className={`numeric font-bold ${k.remaining > 0.001 ? 'text-red-600 dark:text-red-300' : ''}`}>{formatKWD(k.remaining)}</span></div>
+                <div><span className="text-muted-foreground block">المحصّل</span><span className="numeric text-success-ink">{formatKWD(k.collected)}</span></div>
+                <div><span className="text-muted-foreground block">المتبقي</span><span className={`numeric font-bold ${k.remaining > 0.001 ? 'text-danger' : ''}`}>{formatKWD(k.remaining)}</span></div>
               </div>
-              <div className="h-2.5 rounded-full bg-stone-200 dark:bg-stone-800 overflow-hidden" role="progressbar" aria-valuenow={k.progressPct} aria-valuemin={0} aria-valuemax={100}>
-                <div className="h-full rounded-full bg-emerald-500" style={{ width: `${k.progressPct}%` }} />
+              <div className="h-2.5 rounded-full bg-muted overflow-hidden" role="progressbar" aria-valuenow={k.progressPct} aria-valuemin={0} aria-valuemax={100}>
+                <div className="h-full rounded-full bg-success" style={{ width: `${k.progressPct}%` }} />
               </div>
               {onNavigate && (
                 <Button size="sm" variant="outline" className="h-10 w-full gap-1.5" onClick={() => onNavigate({ name: 'contract', contractId: k.id })}>
@@ -370,7 +370,7 @@ function VouchersTab({ file }: { file: CustomerFileDTO }) {
                   <TableCell>
                     <Badge className={voucherTypeBadgeClass(v.vtype)}>{voucherTypeLabel(v.vtype)}</Badge>
                     {v.cancelled && (
-                      <Badge className="ms-1 bg-red-100 text-red-800 border border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-900">ملغى</Badge>
+                      <Badge className="ms-1 bg-danger-soft text-danger border border-danger/40">ملغى</Badge>
                     )}
                   </TableCell>
                   <TableCell className="numeric" dir="ltr">{formatDate(v.vdate)}</TableCell>
@@ -478,7 +478,7 @@ function CommentsTab({ file, user }: { file: CustomerFileDTO; user: SessionUser 
       ) : (
         <div className="space-y-3 max-h-96 overflow-y-auto cmd-scroll pe-1">
           {file.comments.map((c) => (
-            <Card key={c.id} className={c.pinned ? 'border-amber-300 dark:border-amber-900' : ''}>
+            <Card key={c.id} className={c.pinned ? 'border-brand-yellow/50' : ''}>
               <CardContent className="p-4 space-y-2">
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className="font-bold">{c.author}</span>
@@ -486,18 +486,18 @@ function CommentsTab({ file, user }: { file: CustomerFileDTO; user: SessionUser 
                     <Clock className="inline size-3" aria-hidden /> {formatDate(c.createdAt)} {c.createdAt.slice(11, 16)}
                   </span>
                   {c.kind === 'تنبيه' && (
-                    <Badge className="bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-900">تنبيه</Badge>
+                    <Badge className="bg-warn-soft text-warn-ink border border-brand-yellow/50">تنبيه</Badge>
                   )}
                   {c.kind === 'تلقائي' && <Badge variant="secondary">تلقائي</Badge>}
                   {c.priority !== 'عادي' && (
                     <Badge className={c.priority === 'عاجل'
-                      ? 'bg-red-100 text-red-800 border border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-900'
-                      : 'bg-orange-100 text-orange-800 border border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-900'}>
+                      ? 'bg-danger-soft text-danger border border-danger/40'
+                      : 'bg-brand-orange-soft text-warn-ink border border-brand-orange/40'}>
                       {c.priority}
                     </Badge>
                   )}
                   {c.pinned && (
-                    <Badge className="bg-stone-200 text-stone-700 border border-stone-300 dark:bg-stone-800 dark:text-stone-300 dark:border-stone-700">
+                    <Badge className="bg-muted text-muted-foreground border border-border">
                       <Pin className="size-3 me-1" aria-hidden /> مثبّت
                     </Badge>
                   )}
@@ -821,10 +821,10 @@ function TasksTab({ file }: { file: CustomerFileDTO }) {
   return (
     <div className="space-y-2 max-h-96 overflow-y-auto cmd-scroll">
       {tasks.map((t) => (
-        <Card key={t.id} className={t.overdue ? 'border-red-300 dark:border-red-900' : ''}>
+        <Card key={t.id} className={t.overdue ? 'border-danger/40' : ''}>
           <CardContent className="p-3 sm:p-4 flex flex-wrap items-center gap-3">
             <div className="min-w-0 flex-1">
-              <p className={`text-sm font-bold truncate ${t.overdue ? 'text-red-700 dark:text-red-300' : ''}`}>{t.title}</p>
+              <p className={`text-sm font-bold truncate ${t.overdue ? 'text-danger' : ''}`}>{t.title}</p>
               <p className="text-xs text-muted-foreground">
                 {t.dueAt ? `${formatDate(t.dueAt)} ${t.dueAt.slice(11, 16)}` : 'بدون موعد'}
                 {t.contractNumber ? ` · ${t.contractNumber}` : ''}
@@ -834,11 +834,11 @@ function TasksTab({ file }: { file: CustomerFileDTO }) {
             {t.status === 'مفتوحة' ? (
               <Badge variant="secondary">مفتوحة</Badge>
             ) : (
-              <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900">منجزة</Badge>
+              <Badge className="bg-success-soft text-success-ink border border-success/40">منجزة</Badge>
             )}
             {t.status === 'مفتوحة' ? (
               <Button size="sm" variant="outline" className="h-9 gap-1" onClick={() => completeMut.mutate(t.id)}>
-                <CheckCircle2 className="size-3.5 text-emerald-600" aria-hidden /> إنجاز
+                <CheckCircle2 className="size-3.5 text-success-ink" aria-hidden /> إنجاز
               </Button>
             ) : (
               <Button size="sm" variant="outline" className="h-9 gap-1" onClick={() => reopenMut.mutate(t.id)}>

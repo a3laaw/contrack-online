@@ -278,7 +278,7 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
             {joinDone != null ? (
               /* ===== شاشة النجاح ===== */
               <div className="mx-auto max-w-md space-y-4 py-10 text-center">
-                <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-success/10 text-success-ink">
                   <CheckCircle2 className="size-9" />
                 </div>
                 <h1 className="text-2xl font-extrabold">وصل طلبكم بنجاح</h1>
@@ -495,7 +495,7 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
                         </p>
                         <p className="truncate text-xs text-muted-foreground">{core.desc}</p>
                       </div>
-                      <ShieldCheck className="size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <ShieldCheck className="size-5 shrink-0 text-success-ink" />
                     </div>
                   </section>
 
@@ -608,7 +608,7 @@ export function LoginView({ onLoggedIn }: LoginViewProps) {
                       <ul className="space-y-1">
                         {selected.map((c) => (
                           <li key={c} className="flex items-center gap-1.5 text-xs font-medium">
-                            <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <CheckCircle2 className="size-3.5 text-success-ink" />
                             {moduleByCode(c)?.name}
                           </li>
                         ))}

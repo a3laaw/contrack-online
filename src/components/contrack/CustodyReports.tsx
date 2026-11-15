@@ -456,7 +456,7 @@ function ReportTable({
                 <NumCell v={r.spent} />
                 <NumCell
                   v={r.balance}
-                  className={r.balance < -0.005 ? "font-bold text-red-800" : Math.abs(r.balance) <= 0.005 ? "text-slate-500" : ""}
+                  className={r.balance < -0.005 ? "font-bold text-danger" : Math.abs(r.balance) <= 0.005 ? "text-muted-foreground" : ""}
                 />
                 <TableCell className="text-center">{r.handedCount || ""}</TableCell>
                 <TableCell className="text-center">{r.spentCount || ""}</TableCell>
