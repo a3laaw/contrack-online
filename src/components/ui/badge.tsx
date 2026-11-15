@@ -9,14 +9,24 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
+        /* الرئيسي: ذهبي بنص غامق دائمًا (لا أبيض فوق الذهبي — قاعدة الهوية) */
         default:
-          "border-transparent bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
+          "border-transparent bg-primary text-primary-foreground [a&]:hover:bg-brand-orange",
         secondary:
-          "border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
+          "border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-hover",
         destructive:
-          "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20",
+          "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/30",
         outline:
-          "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+          "text-foreground [a&]:hover:bg-hover [a&]:hover:text-foreground",
+        /* بادجات الحالة الناعمة — خلفية 12% من اللون ونص بدرجته الغامقة (AA) */
+        success:
+          "border-transparent bg-success-soft text-success-ink",
+        warn:
+          "border-transparent bg-warn-soft text-warn-ink",
+        info:
+          "border-transparent bg-info-soft text-info-blue-text",
+        danger:
+          "border-transparent bg-danger-soft text-danger",
       },
     },
     defaultVariants: {

@@ -178,7 +178,9 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
               aria-current={isActive ? "page" : undefined}
               className={cn(
                 "flex items-center whitespace-nowrap px-2.5 text-[13px] font-medium transition-colors",
-                isActive ? "font-semibold text-foreground" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                isActive
+                  ? "font-semibold text-foreground shadow-[inset_0_-2px_0_0_var(--brand-orange)] bg-primary-soft"
+                  : "text-muted-foreground hover:bg-hover hover:text-foreground"
               )}
             >
               {s.section.label ?? child.label}
@@ -205,10 +207,10 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
             triggerClassName={cn(
               "flex items-center whitespace-nowrap rounded-none px-2.5 text-[13px] font-medium transition-colors",
               isOpen
-                ? "h-12 bg-[#E9ECEF] text-foreground"
+                ? "h-12 bg-hover text-foreground"
                 : isActive
-                  ? "font-semibold text-foreground"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  ? "font-semibold text-foreground bg-primary-soft shadow-[inset_0_-2px_0_0_var(--brand-orange)]"
+                  : "text-muted-foreground hover:bg-hover hover:text-foreground"
             )}
             groups={topSectionItemGroups(s.children).map((kids, gi) => ({
               key: `${s.section.id}-${gi}`,
@@ -257,7 +259,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
                 title="التطبيقات"
                 className={cn(
                   "flex w-11 shrink-0 items-center justify-center transition-colors",
-                  appsOpen ? "bg-[#E9ECEF] text-foreground" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  appsOpen ? "bg-primary-soft text-foreground" : "text-muted-foreground hover:bg-hover hover:text-foreground"
                 )}
               >
                 <Grip className="size-5" aria-hidden />
@@ -288,7 +290,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
                       <span className="font-bold">{current.module.label}</span>
                     </>
                   }
-                  triggerClassName="flex h-12 items-center gap-1.5 whitespace-nowrap px-2 text-sm text-foreground transition-colors hover:bg-secondary"
+                  triggerClassName="flex h-12 items-center gap-1.5 whitespace-nowrap px-2 text-sm text-foreground transition-colors hover:bg-hover"
                   groups={mobileGroups}
                   itemClassName="min-h-11"
                 />
@@ -337,7 +339,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
                     <UserRound className="size-4 sm:hidden" aria-hidden />
                   </>
                 }
-                triggerClassName="flex h-12 items-center gap-2 px-2 transition-colors hover:bg-secondary"
+                triggerClassName="flex h-12 items-center gap-2 px-2 transition-colors hover:bg-hover"
                 items={[{ key: "logout", label: "تسجيل الخروج", icon: LogOut, onSelect: onLogout }]}
               />
             </div>

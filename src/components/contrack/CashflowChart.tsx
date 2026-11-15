@@ -2,16 +2,16 @@
 
 /**
  * الرسم الشهري للتقرير المالي — مرآة CashflowChart المكتبي (ui/cashflow_chart.py):
- * أعمدة شهرية RTL (أول شهر يمين) · أخضر #16A34A = وارد · أحمر #DC2626 = منصرف ·
+ * أعمدة شهرية RTL (أول شهر يمين) · أخضر النجاح = وارد · أحمر الخطر = منصرف ·
  * شبكة أفقية (4+1) · قيم فوق الأعمدة بآلاف k · وسيلة إيضاح أعلى اليسار · بلا مكتبات خارجية.
  */
 
 import { chartValueLabel, type ChartDatum } from "@/lib/cashflow-modes-core";
 
-const GREEN = "#16A34A"; // style.OK_GREEN المكتبي
-const RED = "#DC2626"; // style.DANGER المكتبي
-const TEXT = "#334155";
-const MUTED = "#64748B";
+const GREEN = "#14804A"; // --success (الهوية الجديدة)
+const RED = "#C93B1E";   // --danger
+const TEXT = "#1F2937";  // --text-primary
+const MUTED = "#4B5563"; // --text-secondary
 
 const W = 640;
 const H = 220;

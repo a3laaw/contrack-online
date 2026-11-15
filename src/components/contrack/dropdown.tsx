@@ -13,8 +13,8 @@ import { cn } from "@/lib/utils";
  *
  * الشكل: التصاق أسفل الزر (top:100%) بلا فجوة · محاذاة مبدأ الزر (يمين RTL) مع انقلاب عند الحافة ·
  * القائمة بيضاء بحد 1px رمادي فاتح وradius 3px وظل 0 4px 10px 13% · عرض أدنى 190px وسطور بلا لف ·
- * بند 7px 16px بخط 13px مبدئي المحاذاة · hover/focus حصرًا #E9ECEF · فواصل المجموعات 1px بهامش 6px ·
- * بلا ترويسات مجموعات · ✓ للبند النشط جهة المقابل من النص (يسار RTL) مع تخين ·
+ * بند 7px 16px بخط 13px مبدئي المحاذاة · hover/focus حصرًا --hover (#EEF1F4) · فواصل المجموعات 1px بهامش 6px ·
+ * بلا ترويسات مجموعات · ✓ للبند النشط جهة المقابل من النص (يسار RTL) بلون --brand-orange مع تخين ·
  * قوائم فرعية ◂ جانبية بنفس الشكل تنقلب عند ضيق المكان · ظهور fade ≤100ms.
  *
  * السلوك: نقر يفتح/يغلق · التحويم على زر آخر وهو مفتوح يبدّل (onTriggerHover — الشريط العلوي) ·
@@ -71,7 +71,7 @@ export interface DropdownProps {
 }
 
 const ITEM_CLS =
-  "flex w-full cursor-pointer items-center gap-2 bg-transparent px-4 py-[7px] text-[13px] leading-5 text-start text-foreground whitespace-nowrap hover:bg-[#E9ECEF] focus:bg-[#E9ECEF] focus:outline-none disabled:pointer-events-none disabled:opacity-50";
+  "flex w-full cursor-pointer items-center gap-2 bg-transparent px-4 py-[7px] text-[13px] leading-5 text-start text-foreground whitespace-nowrap hover:bg-hover focus:bg-hover focus:outline-none disabled:pointer-events-none disabled:opacity-50";
 
 const PANEL_CLS =
   "z-50 rounded-[3px] border border-border bg-card py-1 shadow-[0_4px_10px_rgba(0,0,0,0.13)] animate-[ud-fade_80ms_ease-out] outline-none";
@@ -103,8 +103,8 @@ function ItemRow({ item, activeKey, itemClassName, onPick }: { item: DropdownIte
         {Icon && <Icon className="size-3.5 shrink-0 opacity-70" aria-hidden />}
         <span className="truncate">{item.label}</span>
       </span>
-      {/* ✓ جهة المقابل من النص — يسار في RTL */}
-      {showCheck && <Check className="size-3.5 shrink-0" aria-hidden />}
+      {/* ✓ جهة المقابل من النص — يسار في RTL — بلون البرتقالي (الهوية) */}
+      {showCheck && <Check className="size-3.5 shrink-0 text-brand-orange" aria-hidden />}
     </button>
   );
 }

@@ -5,24 +5,24 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
   {
     variants: {
       variant: {
-        /* هوية NOVA: ظل الشعلة أسفل الزر الرئيسي يختفي عند الضغط (توقيع لمسي — PROJECT-LOG §2-2) */
+        /* الهوية: الزر الرئيسي ذهبي بنص غامق دائمًا — hover برتقالي، وتركيز حلقة زرقاء 2px */
         default:
-          "bg-primary text-primary-foreground shadow-[0_3px_0_0_var(--brand-flame)] hover:bg-primary/90 active:translate-y-[2px] active:shadow-none",
+          "bg-primary text-primary-foreground shadow-xs hover:bg-brand-orange active:bg-brand-orange/95",
         destructive:
-          "bg-destructive text-white shadow-[0_3px_0_0_#7F1D1D] hover:bg-destructive/90 active:translate-y-[2px] active:shadow-none focus-visible:ring-destructive/20",
+          "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/30",
+        /* الزر الثانوي: خلفية بيضاء وحد رمادي (قاعدة الهوية) */
         outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
-        /* الزر الثانوي: سطح ورقي دافئ + نص الشعلة المقروء + ظل شعلة أخف (قرار D-003) */
+          "border border-border bg-card shadow-xs hover:bg-hover hover:text-foreground",
         secondary:
-          "bg-secondary text-brand-flame-ink shadow-[0_2px_0_0_var(--brand-flame)] hover:bg-secondary/80 active:translate-y-[2px] active:shadow-none",
+          "border border-border bg-card text-foreground shadow-xs hover:bg-hover",
         ghost:
-          "hover:bg-accent hover:text-accent-foreground",
-        /* الروابط أزرق ملكي معتمد (#2563EB) — لا روابط برتقالية (قاعدة §2-3) */
-        link: "text-status-info underline-offset-4 hover:text-status-info/80 hover:underline",
+          "hover:bg-hover hover:text-foreground",
+        /* الروابط أزرق معلوماتي مقروء (#0678B4) — لا روابط ذهبية/برتقالية */
+        link: "text-info-blue-text underline-offset-4 hover:text-info-blue-text/80 hover:underline",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

@@ -33,26 +33,31 @@ export function restoredAlertsMessage(n: number): string {
   return n ? `تمت إعادة إظهار ${n} تنبيهًا.` : "لا توجد تنبيهات مخفية.";
 }
 
-// ===== ألوان التنبيهات (style.py:102-119) =====
+// ===== ألوان التنبيهات — من الهوية الجديدة حصرًا (docs/color-audit.md) =====
 export type AlertColor = "danger" | "warn" | "info" | "purple" | "amber";
 
+/**
+ * hex للتنبيهات (استخدام برمجي: تركيبات نص + خلفية 12%).
+ * purple/amber هما مفتوحا مكتبيان محافظان عليهما في نوع البيانات —
+ * قيمتهما الآن من العائلة البرتقالية/الكهرمانية للهوية.
+ */
 export const ALERT_HEX: Record<AlertColor, string> = {
-  danger: "#DC2626", // DANGER
-  warn: "#D97706", // WARN
-  info: "#4F46E5", // INFO / BRAND_600
-  purple: "#7C3AED", // PURPLE
-  amber: "#B45309", // AMBER_DEEP
+  danger: "#C93B1E", // --danger
+  warn: "#B45309",   // --warn-ink (نص تحذير مقروء)
+  info: "#0678B4",   // --info-blue-text
+  purple: "#F5800E", // تمييز العلامة --brand-orange (بديل البنفسجي الخارج)
+  amber: "#B45309",  // --warn-ink
 };
 
-/** ألوان صفوف النشاط (main_window.py:496): وارد أخضر · منصرف أحمر · غير ذلك BRAND_600 */
+/** ألوان صفوف النشاط: وارد أخضر النجاح · منصرف أحمر الخطر · غير ذلك أزرق معلوماتي */
 export const ACTIVITY_HEX = {
-  in: "#15803D", // MONEY_IN
-  out: "#B91C1C", // MONEY_OUT
-  neutral: "#4F46E5", // BRAND_600
+  in: "#14804A",  // --success
+  out: "#C93B1E", // --danger
+  neutral: "#0678B4", // --info-blue-text
 };
 
 export const EMPTY_FEED_CLASS =
-  "text-[#0F7A38] bg-[rgba(22,163,74,0.10)]"; // GREEN_DEEP على tint(GREEN, 0.10)
+  "text-success-ink bg-success-soft"; // بادج النجاح الناعم (12% + نص غامق)
 
 export interface DashboardAlert {
   /** بصمة sha1 لنص التنبيه — تُملأ خادميًا للإخفاء (alert_key المكتبي) */
