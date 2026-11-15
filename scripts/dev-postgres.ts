@@ -7,6 +7,7 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { SQL } from "bun";
 
 const ROOT = path.join(import.meta.dir, "..");
 const PG = path.join(ROOT, "node_modules", "@embedded-postgres", "linux-x64", "native");

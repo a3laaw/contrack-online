@@ -77,6 +77,10 @@ export interface TemplatePlanRow {
   dueDate: string; // yyyy-MM-dd
   /** مرحلة ربط القالب (workflow_stage) — تُطابق بالاسم مع نسخة العقد */
   triggerStageId?: number | null;
+  /** اسم مرحلة الربط من القالب — للتوليد المسبق في الواجهة (ر0):
+   *  الخادم يربط عبر triggerStageId + takeStage، والواجهة (template_plan_mode)
+   *  ترسل stageName فتُترجم stageIndex مقابل نسخة العقد بالاسم نفسه */
+  triggerStageName?: string;
 }
 
 /** إضافة أيام تقويمية لنص تاريخ yyyy-MM-dd (أجزاء UTC) */
@@ -93,6 +97,8 @@ export interface TemplatePaymentLike {
   amountFixed: number;
   daysOffset: number;
   triggerStageId?: number | null;
+  /** اسم المرحلة المحفزة من القالب (V4.48) — يُحمل في الصف لمطابقة نسخة العقد بالاسم (ر0) */
+  triggerStageName?: string;
 }
 
 /**
@@ -121,6 +127,7 @@ export function templatePlanRows(
       amount: payAmount,
       dueDate: addDays(startDay, Number(t.daysOffset || 0)),
       triggerStageId: t.triggerStageId ?? null,
+      triggerStageName: (t.triggerStageName || "").trim() || undefined,
     });
   }
   return rows;

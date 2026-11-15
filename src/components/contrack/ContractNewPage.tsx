@@ -249,11 +249,21 @@ export function ContractNewPage({
         amountFixed: t.amountFixed,
         daysOffset: t.daysOffset,
         triggerStageId: null,
+        // ر0 — اسم المرحلة المحفزة من القالب: يُترجم stageIndex عند الحفظ
+        // فترتبط الدفعة بمرحلتها لحظة الإنشاء (كما يفعل takeStage الخادمي)
+        triggerStageName: t.triggerStageName,
       })),
       amount,
       fDate
     );
-    setPayments(rows.map((r) => ({ title: r.title, amount: String(r.amount), dueDate: r.dueDate })));
+    setPayments(
+      rows.map((r) => ({
+        title: r.title,
+        amount: String(r.amount),
+        dueDate: r.dueDate,
+        stageName: r.triggerStageName,
+      }))
+    );
   }, [mode, fAmount, fDate, fTypeId, paymentsDirty, flagOn]);
 
   // عند تغيير النوع: تصفير الحالات + تهيئة صندوق الإشراف ومكوّنات الشامل من افتراضيات النوع
@@ -325,10 +335,22 @@ export function ContractNewPage({
         body.supDiscount = supDiscount;
       } else {
         body.stages = stagesOut;
-        const stageIndexOf = (nm?: string) => {
-          if (!nm) return undefined;
-          const idx = stagesOut.findIndex((s) => s.name === nm);
-          return idx >= 0 ? idx : undefined;
+        // ر0 — ربط الدفعات بمراحل العقد بالاسم: تجميع الأسماء المكررة واستهلاكها
+        // بالترتيب — مرآة takeStage الخادمية لحلقة 3 من سلسلة المالك
+        const stageNamePool = new Map<string, number[]>();
+        stagesOut.forEach((s, i) => {
+          const nm = (s.name || "").trim();
+          if (!nm) return;
+          const arr = stageNamePool.get(nm) ?? [];
+          arr.push(i);
+          stageNamePool.set(nm, arr);
+        });
+        const takeStageIndex = (nm?: string): number | undefined => {
+          const key = (nm || "").trim();
+          if (!key) return undefined;
+          const arr = stageNamePool.get(key);
+          if (!arr || !arr.length) return undefined;
+          return arr.shift()!;
         };
         body.plan = payments
           .filter((p) => p.title.trim() && Number(p.amount) > 0)
@@ -337,7 +359,7 @@ export function ContractNewPage({
             amount: Number(p.amount),
             dueDate: p.dueDate,
             sortOrder: i,
-            stageIndex: stageIndexOf(p.stageName),
+            stageIndex: takeStageIndex(p.stageName),
           }));
       }
       if (amountPolicy) body.amountPolicy = amountPolicy;
