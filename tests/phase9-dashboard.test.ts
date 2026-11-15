@@ -296,10 +296,10 @@ describe("صفوف النشاط (main_window.py:521-556)", () => {
     expect(activityBody({ ...row, contractLabel: "", customerName: "" })).toBe("— · دفعة تحت الحساب");
     expect(activityBody({ ...row, text: "" })).toBe("عقد إشراف هندسي");
   });
-  test("الألوان: وارد أخضر · منصرف أحمر · حدث BRAND", () => {
-    expect(activityColor(row)).toBe("#15803D");
-    expect(activityColor({ ...row, sign: -1 })).toBe("#B91C1C");
-    expect(activityColor({ ...row, sign: 0 })).toBe("#4F46E5");
+  test("الألوان: وارد أخضر النجاح · منصرف أحمر الخطر · حدث أزرق معلوماتي (الهوية الجديدة)", () => {
+    expect(activityColor(row)).toBe("#14804A");
+    expect(activityColor({ ...row, sign: -1 })).toBe("#C93B1E");
+    expect(activityColor({ ...row, sign: 0 })).toBe("#0678B4");
   });
   test("المبلغ الموقع {:+.3f}", () => {
     expect(fSigned(7500)).toBe("+7,500.000");
