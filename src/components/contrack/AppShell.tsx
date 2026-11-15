@@ -467,11 +467,13 @@ function AppsLayer({
       aria-label="التطبيقات — كل الوحدات"
       onKeyDown={onKeyDown}
     >
-      {/* الشبكة تبدأ 56px تحت الشريط (pt-14) — بلا توسيط رأسي، موزطة أفقيًا بعرض أقصى 860px (تعديل المالك) */}
+      {/* الشبكة تبدأ 56px تحت الشريط (pt-14) — بلا توسيط رأسي، موزطة أفقيًا (تعديل المالك).
+          قرار المالك: المسافات بين البلاطات قريبة — content-start يمنع تمدد الصفوف على كامل ارتفاع
+          الشاشة، وعرض أقصى 660px يجعل الأعمدة محكمة حول مربع 80px بلا فجوات واسعة. */}
       <div className="flex min-h-full justify-center px-4 pb-8 pt-14">
         <div
           ref={gridRef}
-          className="grid w-full max-w-[860px] grid-cols-3 gap-2 min-[480px]:grid-cols-4 sm:gap-3 md:grid-cols-5"
+          className="grid w-full max-w-[660px] grid-cols-3 content-start gap-x-2 gap-y-8 min-[480px]:grid-cols-4 md:grid-cols-5"
         >
           {modules.map(({ module, children }) => {
             const Icon = module.icon;
