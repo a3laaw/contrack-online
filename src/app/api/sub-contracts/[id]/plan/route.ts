@@ -55,6 +55,16 @@ export async function POST(req: NextRequest, { params }: P) {
     if (found.length !== sourceIds.length) return jsonError("إحدى دفعات العميل المصدرية غير موجودة في هذا العقد");
   }
 
+  // سيناريو المالك 2026-11 — «عقد مقاول الباطن هيربط بمراحل العمل بتاعت عقد العميل»:
+  // المرحلة المحفزة اختيارية من مراحل عقد العميل الأب — تستحق آليًا عند إنهائها
+  let stageId: number | null = null;
+  if (body.stageId !== undefined && body.stageId !== null && body.stageId !== "") {
+    const sid = Number(body.stageId);
+    const st = await db.contractStage.findUnique({ where: { id: sid } });
+    if (!st || st.contractId !== sc.contractId) return jsonError("المرحلة غير موجودة في عقد العميل الأب");
+    stageId = sid;
+  }
+
   // سقف الخطة
   const agg = await db.subPaymentPlanItem.aggregate({ where: { subContractId }, _sum: { amount: true } });
   const planSum = r3(Number(agg._sum.amount || 0));
@@ -73,6 +83,7 @@ export async function POST(req: NextRequest, { params }: P) {
         amount,
         sortOrder: (max._max.sortOrder ?? -1) + 1,
         notes: String(body.notes || ""),
+        stageId,
       },
     });
     if (sourceIds.length > 0) {
@@ -84,7 +95,7 @@ export async function POST(req: NextRequest, { params }: P) {
       data: {
         contractId: sc.contractId,
         eventType: "إضافة دفعة باطن",
-        description: `أُضيفت دفعة «${title}» بمبلغ ${amount} لعقد الباطن مع ${sourceIds.length} مصدر من دفعات العميل`,
+        description: `أُضيفت دفعة «${title}» بمبلغ ${amount} لعقد الباطن مع ${sourceIds.length} مصدر من دفعات العميل${stageId ? " — مربوطة بمرحلة من عقد العميل" : ""}`,
         username: guard.user.username,
       },
     });
@@ -98,5 +109,5 @@ export async function POST(req: NextRequest, { params }: P) {
     return created;
   });
 
-  return ok({ line: { id: line.id, title: line.title, dueDate: line.dueDate, amount: Number(line.amount), sortOrder: line.sortOrder, sources: sourceIds } }, 201);
+  return ok({ line: { id: line.id, title: line.title, dueDate: line.dueDate, amount: Number(line.amount), sortOrder: line.sortOrder, stageId: line.stageId, sources: sourceIds } }, 201);
 }

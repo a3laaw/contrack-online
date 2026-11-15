@@ -22,7 +22,7 @@ export async function PATCH(req: NextRequest, { params }: P) {
   if (line.triggeredAt) return jsonError("لا يمكن تعديل دفعة مفعّلة مرحليًا");
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-  const data: { title?: string; amount?: number; dueDate?: string; notes?: string } = {};
+  const data: { title?: string; amount?: number; dueDate?: string; notes?: string; stageId?: number | null } = {};
   if (body.title !== undefined) {
     const title = String(body.title || "").trim();
     if (!title) return jsonError("عنوان الدفعة مطلوب");
@@ -39,6 +39,18 @@ export async function PATCH(req: NextRequest, { params }: P) {
     data.dueDate = dueDate;
   }
   if (body.notes !== undefined) data.notes = String(body.notes || "");
+
+  // سيناريو المالك 2026-11 — تغيير المرحلة المحفزة من مراحل عقد العميل الأب (فك الربط بقيمة null)
+  if (body.stageId !== undefined) {
+    if (body.stageId === null || body.stageId === "") {
+      data.stageId = null;
+    } else {
+      const sid = Number(body.stageId);
+      const st = await db.contractStage.findUnique({ where: { id: sid } });
+      if (!st || st.contractId !== sc.contractId) return jsonError("المرحلة غير موجودة في عقد العميل الأب");
+      data.stageId = sid;
+    }
+  }
 
   // سقف الخطة بعد التعديل (باستثناء السطر نفسه)
   if (data.amount !== undefined) {

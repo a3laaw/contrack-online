@@ -11,6 +11,10 @@ import { authGuard, normalizeArabic, ok, todayStr } from "@/lib/api-utils";
  * مسار المراحل في لوحة العقد (overview.stagePath) مطبقًا على كل العقود دفعة واحدة،
  * مع تمييز «لم تبدأ بعد» عن «مكتمل» ليصبح التعامل اليومي من اللوحة مباشرة:
  *   بدء المرحلة {startDate: today} / إنهاء {endDate: today} عبر PATCH المرحلة القائم.
+ *
+ * التقرير اليومي الإلزامي (قرار المالك 2026-11): كل عقد حي بدأ تنفيذه يحمل
+ * dailyReportRequired/Done — مشتق من سجلات التنفيذ الميداني لليوم (نفس مصدر
+ * التقرير اليومي المجمع) لتظهر شارة «لم يتم تقرير اليوم» على البطاقة مباشرة.
  */
 
 const EXCLUDED_DEFAULT = ["مسودة", "ملغى", "مغلق"];
@@ -64,6 +68,17 @@ export async function GET(req: NextRequest) {
   const dayOf = (d: string) => Math.floor(new Date(`${d}T00:00:00`).getTime() / 86400000);
   const nq = normalizeArabic(q);
 
+  // التقرير اليومي الإلزامي — مواقع سُجلت اليوم (مشتق من التنفيذ الميداني G9)
+  const reportedToday = new Set(
+    (
+      await db.fieldExecution.findMany({
+        where: { executionDate: today },
+        select: { contractId: true },
+        distinct: ["contractId"],
+      })
+    ).map((r) => r.contractId)
+  );
+
   interface StageRow {
     id: number;
     name: string;
@@ -86,6 +101,9 @@ export async function GET(req: NextRequest) {
     manualPath: boolean;
     timelinePct: number;
     timeStatus: string;
+    /** التقرير اليومي الإلزامي — يُطالَب به العقد الحي الذي بدأ تنفيذه ولم ينته */
+    dailyReportRequired: boolean;
+    dailyReportDone: boolean;
     stages: StageRow[];
     current: { id: number; name: string; daysIn: number; expectedDays: number; state: "ok" | "near" | "over" } | null;
     /** أول مرحلة لم تبدأ — هدف زر «بدء المرحلة التالية» */
@@ -159,6 +177,14 @@ export async function GET(req: NextRequest) {
     const doneCount = stages.filter((s) => s.state === "done" || s.state === "skip").length;
     const totalCount = stages.length;
     const pct = totalCount ? Math.round((doneCount * 100) / totalCount) : 0;
+    // التقرير اليومي الإلزامي: بدأ التنفيذ ولم ينته (المتوقف/المنتهي/ما قبل البدء لا يُطالَب)
+    const reportRequired =
+      c.startDate !== "" &&
+      c.startDate <= today &&
+      (c.endDate === "" || c.endDate >= today) &&
+      !EXCLUDED_DEFAULT.includes(c.status) &&
+      c.status !== "متوقف";
+    const reportDone = reportedToday.has(c.id);
     // بين المراحل: انتهت الجارية ولم تبدأ التالية — «بانتظار بدء المرحلة التالية»
     const boardState: BoardState = current
       ? currentState
@@ -185,6 +211,8 @@ export async function GET(req: NextRequest) {
       manualPath: c.manualPath,
       timelinePct,
       timeStatus,
+      dailyReportRequired: reportRequired,
+      dailyReportDone: reportDone,
       stages,
       current,
       next,

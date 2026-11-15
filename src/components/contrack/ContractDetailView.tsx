@@ -36,6 +36,7 @@ import {
   Link2,
   Lock,
   Upload,
+  Layers,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost, getStoredToken } from "./api";
 import { fetchBlobDownload } from "@/lib/download-blob";
 import type {
+  BoqItemDTO,
   BoqResponse,
   ContractDetailResponse,
   ContractOverviewResponse,
@@ -633,10 +635,16 @@ export function ContractDetailView({
     );
   }
   if (flowPage === "boq") {
+    // سيناريو المالك 2026-11 — مراحل العقد تُمرر لصفحة إضافة البند لربط البند بمرحلة أو أكثر
+    const boqStageOptions = [...(detailData.stages ?? [])]
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      .filter((s) => (s.level ?? 1) === 1)
+      .map((s) => ({ id: s.id, name: s.name, isSkipped: Boolean(s.isSkipped) }));
     return (
       <ContractBoqPage
         contractId={contractId}
         contractNumber={detail.contractNumber}
+        stages={boqStageOptions}
         onAuthError={onAuthError}
         onSaved={() => setFlowPage(null)}
         onCancel={() => setFlowPage(null)}
@@ -1084,6 +1092,7 @@ export function ContractDetailView({
           boq={boqQuery.data?.items ?? []}
           boqLoading={boqQuery.isLoading}
           contractAmount={Number(detail?.amount ?? 0)}
+          stageOptions={l1Stages.map((s) => ({ id: s.id, name: s.name, isSkipped: Boolean(s.isSkipped) }))}
           onAddBoq={() => setFlowPage("boq")}
           onImportBoq={() => setBoqImportOpen(true)}
           onImportSchedule={() => setScheduleImportOpen(true)}
@@ -2921,6 +2930,7 @@ function BoqPage({
   boq,
   boqLoading,
   contractAmount,
+  stageOptions,
   onAddBoq,
   onImportBoq,
   onImportSchedule,
@@ -2935,6 +2945,8 @@ function BoqPage({
   boq: BoqResponse["items"];
   boqLoading: boolean;
   contractAmount: number;
+  /** سيناريو المالك 2026-11 — مراحل العقد لربط البند بمرحلة أو أكثر */
+  stageOptions: { id: number; name: string; isSkipped?: boolean }[];
   onAddBoq: () => void;
   onImportBoq: () => void;
   /** ب1 — فتح حوار استيراد البرنامج الزمني + مفتاح إبطال حالة القسم */
@@ -2942,8 +2954,30 @@ function BoqPage({
   scheduleRefreshKey: number;
   onDeleteBoq: (id: number) => void;
 }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
   const boqTotal = boq.reduce((s, it) => s + Number(it.amount), 0);
   const coverage = contractAmount > 0 ? Math.round((boqTotal / contractAmount) * 100) : 0;
+
+  // سيناريو المالك 2026-11 — محرر ربط البند بالمراحل (واحدة أو أكثر) عبر PATCH stageIds
+  const [stageEditItem, setStageEditItem] = React.useState<BoqItemDTO | null>(null);
+  const [stageEditIds, setStageEditIds] = React.useState<number[]>([]);
+  const saveStagesMutation = useMutation({
+    mutationFn: () =>
+      apiPatch(`/api/contracts/${contractId}/boq?itemId=${stageEditItem?.id ?? 0}`, { stageIds: stageEditIds }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contract", contractId, "boq"] });
+      toast({
+        title: "تم التحديث",
+        description:
+          stageEditIds.length > 0
+            ? `وُربط البند بـ${stageEditIds.length} مرحلة — «${stageOptions.find((s) => s.id === stageEditIds[0])?.name ?? ""}» أساسية`
+            : "فُكّ ربط البند بكل المراحل",
+      });
+      setStageEditItem(null);
+    },
+    onError: (e) => onActionError(e, "تعذر تحديث مراحل البند"),
+  });
   return (
     <div className="space-y-3">
       {/* ① الشريط التوضيحي — BOQ قلب النظام: منه المستخلصات والتنفيذ والتنبؤ */}
@@ -3023,7 +3057,38 @@ function BoqPage({
                         <TableCell className="tabular-nums text-muted-foreground" dir="ltr">{it.itemNo || "—"}</TableCell>
                         <TableCell>
                           <div className="font-medium">{it.description}</div>
-                          {it.stageName && <div className="text-xs text-muted-foreground">المرحلة: {it.stageName}</div>}
+                          {/* سيناريو المالك 2026-11 — شارات مراحل البند (الأساسية أولًا) + محرر الربط */}
+                          {(it.stageLinks?.length ?? 0) > 0 ? (
+                            <div className="mt-1 flex flex-wrap items-center gap-1">
+                              {it.stageLinks!.map((st, i) => (
+                                <Badge
+                                  key={st.id}
+                                  variant="outline"
+                                  className={`text-[10px] ${i === 0 ? "border-primary/40 bg-primary/10 text-primary-ink" : "text-muted-foreground"}`}
+                                  title={i === 0 ? "المرحلة الأساسية للبند" : "مرحلة إضافية مرتبطة بالبند"}
+                                >
+                                  <Layers className="me-0.5 size-2.5" aria-hidden />
+                                  {st.name}
+                                  {i === 0 && it.stageLinks!.length > 1 ? " ★" : ""}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            it.stageName && <div className="text-xs text-muted-foreground">المرحلة: {it.stageName}</div>
+                          )}
+                          {manager && stageOptions.length > 0 && (
+                            <Button
+                              variant="link"
+                              size="sm"
+                              className="h-5 px-0 text-[11px]"
+                              onClick={() => {
+                                setStageEditItem(it);
+                                setStageEditIds((it.stageLinks ?? []).map((s) => s.id));
+                              }}
+                            >
+                              ربط المراحل
+                            </Button>
+                          )}
                         </TableCell>
                         <TableCell>
                           {it.divisionName ? (
@@ -3083,6 +3148,46 @@ function BoqPage({
 
       {/* ④ التنفيذ الميداني — مقايسة مشتقة لحظيًا + سجل تنفيذ (بند NOVA 5 — docs/field-execution-design.md) */}
       <FieldExecutionSection contractId={contractId} manager={manager} cur={cur} onActionError={onActionError} />
+
+      {/* سيناريو المالك 2026-11 — نافذة ربط البند بمرحلة أو أكثر (الأولى أساسية) */}
+      <Dialog open={stageEditItem !== null} onOpenChange={(o) => !o && setStageEditItem(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>ربط البند بمراحل العمل</DialogTitle>
+            <DialogDescription>
+              اختر مرحلة أو أكثر — الأولى بالترتيب تصبح المرحلة الأساسية، وترتبط الدفعات والاستحقاقات بها.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-64 space-y-1.5 overflow-y-auto rounded-md border p-2">
+            {stageOptions.filter((s) => !s.isSkipped).map((s, i) => {
+              const picked = stageEditIds.includes(s.id);
+              return (
+                <label key={s.id} className="flex items-center gap-2 rounded-md p-1.5 text-sm hover:bg-muted/60">
+                  <Checkbox
+                    checked={picked}
+                    onCheckedChange={(c) =>
+                      setStageEditIds((prev) => (c ? [...prev, s.id] : prev.filter((x) => x !== s.id)))
+                    }
+                  />
+                  <span className="tabular-nums text-xs text-muted-foreground" dir="ltr">{i + 1}</span>
+                  <span className="min-w-0 flex-1 truncate">{s.name}</span>
+                  {picked && stageEditIds.indexOf(s.id) === 0 && (
+                    <Badge className="bg-primary/15 text-[10px] text-primary-ink">أساسية</Badge>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" className="h-9" onClick={() => setStageEditItem(null)} disabled={saveStagesMutation.isPending}>
+              إلغاء
+            </Button>
+            <Button className="h-9" onClick={() => saveStagesMutation.mutate()} disabled={saveStagesMutation.isPending}>
+              {saveStagesMutation.isPending ? "جارٍ الحفظ…" : "حفظ الربط"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

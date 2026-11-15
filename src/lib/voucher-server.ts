@@ -294,6 +294,8 @@ export async function computePlanLines(
 export interface ComputedSubLine extends ComputedPlanLine {
   gated: boolean;
   sourceIds: number[];
+  /** سيناريو المالك 2026-11 — اسم المرحلة المحفزة من عقد العميل الأب (للعرض المباشر) */
+  stageName?: string | null;
 }
 
 export interface SubPlanComputed {
@@ -335,7 +337,7 @@ export async function computeSubPlan(
       where: { subContractId },
       orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
       include: {
-        stage: { select: { isSkipped: true, endDate: true } },
+        stage: { select: { name: true, isSkipped: true, endDate: true } },
         sources: { select: { custLineId: true } },
       },
     }),
@@ -427,6 +429,7 @@ export async function computeSubPlan(
       triggeredAt: p.triggeredAt,
       notes: p.notes,
       stage: p.stage ? { isSkipped: p.stage.isSkipped, endDate: p.stage.endDate } : null,
+      stageName: p.stage?.name || null,
       covered,
       explicit,
       remaining,

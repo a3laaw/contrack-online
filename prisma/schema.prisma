@@ -290,9 +290,29 @@ model ContractStage {
   payments          PaymentPlanItem[]
   boqItems          BoqItem[]
   subPlanLines      SubPaymentPlanItem[]
+  // سيناريو المالك 2026-11 — «هربط البند مع مرحلة عمل او اكثر»: مراحل البند عبر جدول الربط
+  boqItemLinks      BoqItemStage[]
 
   @@index([contractId])
   @@map("contract_stages")
+}
+
+// سيناريو المالك 2026-11 — ربط بند الكميات بمرحلة عمل أو أكثر (كثير-لكثير):
+// BoqItem.stageId يبقى «المرحلة الأساسية» (الأولى بالاختيار — مرجع اشتقاق المقايسة
+// stageQuantum والواجهات القائمة)، والمراحل الإضافية هنا. الكتابة تستبدل الصفوف
+// كاملة والأساسية تُكرَّر أول صف (مصدر حقيقة واحد = جدول الربط).
+model BoqItemStage {
+  companyId Int           @default(1) @map("company_id")
+  id        Int           @id @default(autoincrement())
+  boqItemId Int           @map("boq_item_id")
+  boqItem   BoqItem       @relation(fields: [boqItemId], references: [id], onDelete: Cascade)
+  stageId   Int           @map("stage_id")
+  stage     ContractStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  sortOrder Int           @default(0) @map("sort_order")
+
+  @@unique([boqItemId, stageId])
+  @@index([stageId])
+  @@map("boq_item_stages")
 }
 
 model BoqItem {
@@ -326,6 +346,7 @@ model BoqItem {
   stockDocLines     StockDocLine[] // المخازن — أسطر صرف مرتبطة بهذا البند (تقرير الانحراف — G1)
   fieldExecutions   FieldExecution[]
   invoiceItems      InvoiceItem[] // فواتير العميل — أسطر مستخلصات مرتبطة بهذا البند (ز1)
+  stageLinks        BoqItemStage[] // سيناريو المالك 2026-11 — مراحل البند (واحدة أو أكثر)
 
   @@index([contractId])
   @@map("boq_items")

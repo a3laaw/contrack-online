@@ -12,6 +12,8 @@ import { participantsOf } from "./participants-server";
 
 export const NOTIF_STAGE = "stage_change";
 export const NOTIF_MESSAGE = "new_message";
+// التقرير اليومي الإلزامي للميدان (قرار المالك 2026-11) — «يوجد تقرير من الموقع الفلاني لم يتم اليوم»
+export const NOTIF_DAILY_REPORT = "daily_report";
 
 /** عميل Prisma (مثبت أو داخل معاملة) — قبول الاثنين في كل الدوال */
 export type NotifClient = PrismaClient | Prisma.TransactionClient;

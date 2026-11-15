@@ -33,6 +33,8 @@ interface NotificationsResponse {
 const TYPE_BADGE: Record<string, { label: string; cls: string }> = {
   stage_change: { label: "مرحلة", cls: "bg-status-info-bg text-status-info" },
   new_message: { label: "رسالة", cls: "bg-status-warn-bg text-status-warn" },
+  // التقرير اليومي الإلزامي للميدان (قرار المالك 2026-11) — «لم يتم اليوم»
+  daily_report: { label: "تقرير يومي", cls: "bg-status-danger-bg text-status-danger" },
 };
 
 function fmtWhen(iso: string): string {

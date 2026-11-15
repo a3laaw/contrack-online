@@ -6,6 +6,31 @@ import { invoicedQtyByBoqItem } from "@/lib/invoice-server";
 
 type P = { params: Promise<{ id: string }> };
 
+/**
+ * التحقق من مراحل البند: كلها مراحل حية في هذا العقد — يعيد نص الخطأ أو null.
+ * سيناريو المالك 2026-11: «هربط البند مع مرحلة عمل او اكثر».
+ */
+async function validateStageIds(contractId: number, ids: number[]): Promise<string | null> {
+  if (ids.length === 0) return null;
+  const found = await db.contractStage.findMany({
+    where: { id: { in: ids }, contractId },
+    select: { id: true },
+  });
+  if (found.length !== new Set(ids).size) return "إحدى المراحل غير موجودة في هذا العقد";
+  return null;
+}
+
+/** تطبيع قائمة المراحل القادمة: أعداد صحيحة موجودة بترتيب دون تكرار */
+function parseStageIds(raw: unknown): number[] {
+  if (!Array.isArray(raw)) return [];
+  const out: number[] = [];
+  for (const x of raw) {
+    const n = Number(x);
+    if (Number.isFinite(n) && n > 0 && !out.includes(Math.trunc(n))) out.push(Math.trunc(n));
+  }
+  return out;
+}
+
 /** بنود الكميات للعقد (غير المحذوفة ناعمًا) + المفوتر بالبند (ز1 — وقود منتقي الفواتير) */
 export async function GET(req: NextRequest, { params }: P) {
   const guard = await authGuard(req, "screen_contracts");
@@ -20,18 +45,34 @@ export async function GET(req: NextRequest, { params }: P) {
   const [items, invoicedBefore] = await Promise.all([
     db.boqItem.findMany({
       where: { contractId, deleted: false },
-      include: { stage: { select: { id: true, name: true } } },
+      include: {
+        stage: { select: { id: true, name: true } },
+        // سيناريو المالك 2026-11 — كل مراحل البند بالترتيب (الأساسية أولًا)
+        stageLinks: {
+          orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+          select: { stage: { select: { id: true, name: true } } },
+        },
+      },
       orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
     }),
     // ز1 — المفوتر السابق لكل بند (من فواتير العميل غير الملغاة) — المتاح = qty − invoicedQty
     invoicedQtyByBoqItem(db, contractId),
   ]);
   return ok({
-    items: items.map((it) => ({
+    items: items.map((it) => {
+      // جدول الربط هو المصدر؛ والبنود القديمة (ما قبل الربط) تُشتق من stageId مباشرة
+      const linked = it.stageLinks.length > 0
+        ? it.stageLinks.map((l) => ({ id: l.stage.id, name: l.stage.name }))
+        : it.stageId && it.stage
+          ? [{ id: it.stage.id, name: it.stage.name }]
+          : [];
+      return {
       id: it.id,
       contractId: it.contractId,
       stageId: it.stageId,
       stageName: it.stage?.name || "",
+      // سيناريو المالك 2026-11 — المراحل المرتبطة بالبند (الأساسية أولًا)
+      stageLinks: linked,
       itemNo: it.itemNo,
       divisionCode: it.divisionCode,
       divisionName: it.divisionName,
@@ -48,7 +89,8 @@ export async function GET(req: NextRequest, { params }: P) {
       invoicedQty: r3(invoicedBefore.get(it.id) || 0),
       availableQty: Math.max(0, r3(Number(it.qty) - (invoicedBefore.get(it.id) || 0))),
       sortOrder: it.sortOrder,
-    })),
+      };
+    }),
   });
 }
 
@@ -73,30 +115,40 @@ export async function POST(req: NextRequest, { params }: P) {
   // الكمية المخططة للتنفيذ (عداد «مخطط» — بند NOVA 5) — اختيارية بأرضية صفر
   const plannedQty = Math.max(0, r3(Number(body.plannedQty) || 0));
 
-  let stageId: number | null = null;
-  if (body.stageId !== undefined && body.stageId !== null && body.stageId !== "") {
+  // سيناريو المالك 2026-11 — مرحلة واحدة أو أكثر: stageIds[] (الأولى أساسية) مع مرآة stageId
+  const stageIds = parseStageIds(body.stageIds);
+  if (body.stageIds === undefined && body.stageId !== undefined && body.stageId !== null && body.stageId !== "") {
     const sid = Number(body.stageId);
-    const st = await db.contractStage.findUnique({ where: { id: sid } });
-    if (!st || st.contractId !== contractId) return jsonError("المرحلة غير موجودة في هذا العقد");
-    stageId = sid;
+    if (Number.isFinite(sid) && sid > 0) stageIds.push(Math.trunc(sid));
   }
+  const stageErr = await validateStageIds(contractId, stageIds);
+  if (stageErr) return jsonError(stageErr);
+  const stageId = stageIds.length > 0 ? stageIds[0] : null;
 
   const max = await db.boqItem.aggregate({ where: { contractId }, _max: { sortOrder: true } });
-  const item = await db.boqItem.create({
-    data: {
-      contractId,
-      stageId,
-      itemNo: String(body.itemNo || "").trim(),
-      divisionCode: String(body.divisionCode || "").trim(),
-      divisionName: String(body.divisionName || "").trim(),
-      description,
-      qty,
-      unit: String(body.unit || ""),
-      unitPrice,
-      plannedQty,
-      amount,
-      sortOrder: body.sortOrder !== undefined ? Math.trunc(Number(body.sortOrder)) : (max._max.sortOrder ?? -1) + 1,
-    },
+  const item = await db.$transaction(async (tx) => {
+    const created = await tx.boqItem.create({
+      data: {
+        contractId,
+        stageId,
+        itemNo: String(body.itemNo || "").trim(),
+        divisionCode: String(body.divisionCode || "").trim(),
+        divisionName: String(body.divisionName || "").trim(),
+        description,
+        qty,
+        unit: String(body.unit || ""),
+        unitPrice,
+        plannedQty,
+        amount,
+        sortOrder: body.sortOrder !== undefined ? Math.trunc(Number(body.sortOrder)) : (max._max.sortOrder ?? -1) + 1,
+      },
+    });
+    if (stageIds.length > 0) {
+      await tx.boqItemStage.createMany({
+        data: stageIds.map((sid, i) => ({ boqItemId: created.id, stageId: sid, sortOrder: i })),
+      });
+    }
+    return created;
   });
   return ok({ item: { ...item, qty: Number(item.qty), unitPrice: Number(item.unitPrice), plannedQty: Number(item.plannedQty), amount: Number(item.amount) } }, 201);
 }
@@ -133,6 +185,23 @@ export async function PATCH(req: NextRequest, { params }: P) {
     data.amount = body.amount !== undefined && Number(body.amount) ? Number(body.amount) : qty * unitPrice;
   }
   if (body.sortOrder !== undefined) data.sortOrder = Math.trunc(Number(body.sortOrder) || 0);
+  // سيناريو المالك 2026-11 — استبدال مراحل البند كاملة: stageIds[] (فارغة = فك كل الربط)
+  if (body.stageIds !== undefined) {
+    const stageIds = parseStageIds(body.stageIds);
+    const stageErr = await validateStageIds(contractId, stageIds);
+    if (stageErr) return jsonError(stageErr);
+    data.stageId = stageIds.length > 0 ? stageIds[0] : null;
+    await db.$transaction(async (tx) => {
+      await tx.boqItem.update({ where: { id: itemId }, data });
+      await tx.boqItemStage.deleteMany({ where: { boqItemId: itemId } });
+      if (stageIds.length > 0) {
+        await tx.boqItemStage.createMany({
+          data: stageIds.map((sid, i) => ({ boqItemId: itemId, stageId: sid, sortOrder: i })),
+        });
+      }
+    });
+    return ok({ message: "تم تحديث مراحل البند" });
+  }
   if (body.stageId !== undefined) {
     if (body.stageId === null || body.stageId === "") {
       data.stageId = null;

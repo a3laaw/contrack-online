@@ -19,6 +19,14 @@ export async function GET(req: NextRequest, { params }: P) {
   if (!core) return jsonError("العقد غير موجود", 404);
   const c = core.contract;
 
+  // سيناريو المالك 2026-11 — مراحل العقد للمستوى الأول: تغذي محدد «المرحلة المحفزة»
+  // في خطوط خطة الباطن ومنشئ الدفعات المرحلية (مرحلة ↔ دفعة تلقائيًا)
+  const stages = await db.contractStage.findMany({
+    where: { contractId, level: 1 },
+    orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    select: { id: true, name: true, isSkipped: true },
+  });
+
   return ok({
     contract: {
       id: c.id,
@@ -28,6 +36,7 @@ export async function GET(req: NextRequest, { params }: P) {
       customerId: c.customerId,
       customerName: c.customer.name,
     },
+    stages,
     current: core.current,
     collected: core.computed.collected,
     totalCollected: core.collected,

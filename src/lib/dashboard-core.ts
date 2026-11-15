@@ -347,9 +347,29 @@ export function overdueTaskAlert(t: { title: string; dueAt: string }, today: str
   };
 }
 
+// ===== 12) التقرير اليومي الإلزامي للميدان (قرار المالك 2026-11) =====
+// «شروط الزياره اليوميه للميدان او التقرير اليومي اجباري اذا لم يتم عمله في يوم
+// لازم يظهر اجباري … يوجد تقرير من الموقع الفلاني لم يتم اليوم» — أعلى القائمة.
+
+export interface MissingDailyReportLike {
+  contractNumber: string;
+  customerName: string;
+  label: string;
+}
+
+export function dailyReportAlert(m: MissingDailyReportLike): DashboardAlert {
+  return {
+    color: "danger",
+    text: `📍 يوجد تقرير من الموقع «${m.label}» · ${m.customerName} (العقد ${m.contractNumber}) لم يتم اليوم`,
+    age: 0,
+  };
+}
+
 // ===== بناء القائمة بالترتيب المكتبي والفلترة =====
 
 export interface DashboardAlertsInput {
+  /** التقرير اليومي الإلزامي — المواقع التي لم تُسجل تقرير اليوم (قرار المالك 2026-11) — افتراضي بلا */
+  missingDailyReports?: MissingDailyReportLike[];
   expiring: ExpiringLike[];
   planItems: PlanItemLike[];
   stalePinned: StalePinnedLike[];
@@ -365,6 +385,8 @@ export interface DashboardAlertsInput {
 
 export function buildDashboardAlerts(input: DashboardAlertsInput, today: string): DashboardAlert[] {
   const alerts: DashboardAlert[] = [];
+  // الإلزامي أولًا — التقرير اليومي للميدان (قرار المالك: «اجباري»)
+  for (const m of (input.missingDailyReports ?? []).slice(0, 25)) alerts.push(dailyReportAlert(m));
   for (const e of input.expiring.slice(0, 25)) alerts.push(expiringAlert(e));
   for (const p of input.planItems.slice(0, 25)) alerts.push(planItemAlert(p));
   for (const c of input.stalePinned.slice(0, 10)) alerts.push(stalePinnedAlert(c));

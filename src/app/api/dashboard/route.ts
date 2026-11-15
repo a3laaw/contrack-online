@@ -23,6 +23,7 @@ import {
   nearBaseEndRows,
   overdueCollectionsRows,
 } from "@/lib/followup-sections";
+import { enforceDailyReportNotifications, missingDailyReports } from "@/lib/daily-report-server";
 
 /**
  * الرئيسية الكاملة (بند 7 من المرحلة 9) — GET /api/dashboard
@@ -209,6 +210,13 @@ export async function GET(req: NextRequest) {
     ? (await executionRows()).slice(0, 25)
     : [];
 
+  // ===== 6-ب) التقرير اليومي الإلزامي للميدان (قرار المالك 2026-11) =====
+  // المواقع الحية التي لم تُسجل تقرير اليوم + دفع إشعار الجرس مرة/يوم للمشاركين والمديرين
+  const missingReports = await missingDailyReports(today);
+  if (missingReports.length > 0) {
+    await enforceDailyReportNotifications(guard.user.id, missingReports).catch(() => 0);
+  }
+
   // ===== 7) المهام — لوحة الرئيسية المضمّنة (task_service.list_tasks) =====
   const taskRows = await db.task.findMany({
     include: {
@@ -314,6 +322,11 @@ export async function GET(req: NextRequest) {
   // ===== 9) بناء التنبيهات بالترتيب المكتبي + فلترة العمر والمخفاة =====
   const built: DashboardAlert[] = buildDashboardAlerts(
     {
+      missingDailyReports: missingReports.map((m) => ({
+        contractNumber: m.contractNumber,
+        customerName: m.customerName,
+        label: m.label,
+      })),
       expiring,
       planItems,
       stalePinned,

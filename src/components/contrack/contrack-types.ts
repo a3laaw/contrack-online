@@ -276,19 +276,33 @@ export interface SubPlanLine {
   stateLabel?: string;
   gated?: boolean;
   eligible?: boolean;
+  /** سيناريو المالك 2026-11 — المرحلة المحفزة من عقد العميل الأب */
+  stageId?: number | null;
+  stageName?: string | null;
   sources?: { planLineId: number; title: string; dueDate: string }[];
+}
+
+export interface SubPlanPayload {
+  lines: SubPlanLine[];
+  paid: number;
+  planTotal: number;
+  capRemaining?: number;
+  gateEnabled?: boolean;
 }
 
 export interface SubContractDetailItem extends SubContractListItem {
   description?: string;
   startDate?: string;
   endDate?: string;
-  plan: SubPlanLine[];
+  /** الشكل الفعلي للخطة في استجابة التفاصيل على المستوى الأعلى (detailQuery.data.plan) */
+  plan?: SubPlanLine[];
   capRemaining?: number;
 }
 
 export interface SubContractDetailResponse {
   item: SubContractDetailItem;
+  /** خطة الباطن على المستوى الأعلى من الاستجابة — مرجع الخطوط الحقيقي (إصلاح item.plan) */
+  plan?: SubPlanPayload;
 }
 
 export interface SubContractItemsResponse {
@@ -852,6 +866,8 @@ export interface PlanLine {
 /** استجابة GET /api/contracts/[id]/plan */
 export interface PlanResponse {
   contract: { id: number; contractNumber: string; contractName: string; customerId: number; customerName: string };
+  /** مراحل العقد (المستوى الأول) — تغذي محدد «المرحلة المحفزة» في خطة الباطن (سيناريو المالك 2026-11) */
+  stages?: { id: number; name: string; isSkipped: boolean }[];
   current: number;
   collected: number;
   totalCollected: number;
@@ -867,6 +883,8 @@ export interface BoqItemDTO {
   contractId: number;
   stageId?: number | null;
   stageName?: string;
+  /** سيناريو المالك 2026-11 — كل مراحل البند (واحدة أو أكثر) بالترتيب: الأساسية أولًا */
+  stageLinks?: { id: number; name: string }[];
   description: string;
   qty: number;
   unit: string;

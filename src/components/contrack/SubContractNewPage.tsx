@@ -101,7 +101,9 @@ export function SubContractNewPage({ contractId, contractNumber, user, onAuthErr
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       toast({ title: "تم إنشاء عقد الباطن", description: "أُنشئ عقد الباطن — أضف البنود والخطة من الأقسام أدناه" });
       setForm({ subcontractorId: "", amount: "", startDate: todayStr(), endDate: "", description: "" });
-      const newId = (res as unknown as { item?: { id?: number } }).item?.id;
+      // POST /api/sub-contracts يعيد { subContract: { id } } — والاحتياط item?.id لأي شكل قديم
+      const resAny = res as unknown as { subContract?: { id?: number }; item?: { id?: number } };
+      const newId = resAny.subContract?.id ?? resAny.item?.id;
       if (newId) setCreatedId(newId);
     },
     onError: (e) => {
@@ -353,7 +355,7 @@ export function SubContractNewPage({ contractId, contractNumber, user, onAuthErr
                       size="sm"
                       className="h-9 gap-1.5"
                       onClick={() => {
-                        s.setPlanForm({ title: "", amount: "", dueDate: todayStr() });
+                        s.setPlanForm({ title: "", amount: "", dueDate: todayStr(), stageId: "" });
                         s.setSourceIds([]);
                         s.setAddPlanOpen(!s.addPlanOpen);
                       }}
@@ -378,6 +380,7 @@ export function SubContractNewPage({ contractId, contractNumber, user, onAuthErr
                       clientDueLines={s.clientDueLines}
                       sourceIds={s.sourceIds}
                       setSourceIds={s.setSourceIds}
+                      parentStages={s.clientPlanQuery.data?.stages}
                     />
                     <div className="flex justify-end gap-2">
                       <Button variant="outline" className="h-9" onClick={() => s.setAddPlanOpen(false)} disabled={s.addPlanMutation.isPending}>

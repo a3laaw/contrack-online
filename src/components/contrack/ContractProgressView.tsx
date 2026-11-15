@@ -67,6 +67,9 @@ interface ProgressRow {
   manualPath: boolean;
   timelinePct: number;
   timeStatus: string;
+  /** التقرير اليومي الإلزامي (قرار المالك 2026-11) — يُطالَب به العقد الحي الذي بدأ تنفيذه */
+  dailyReportRequired?: boolean;
+  dailyReportDone?: boolean;
   stages: StageRow[];
   current: { id: number; name: string; daysIn: number; expectedDays: number; state: "ok" | "near" | "over" } | null;
   next: { id: number; name: string } | null;
@@ -268,6 +271,12 @@ function ContractCard({
           </button>
           <div className="flex shrink-0 flex-col items-end gap-1">
             <Badge className={`border-0 text-[11px] ${chip.cls}`}>{chip.label}</Badge>
+            {/* التقرير اليومي الإلزامي — «يوجد تقرير من الموقع الفلاني لم يتم اليوم» */}
+            {row.dailyReportRequired && !row.dailyReportDone && (
+              <Badge className="border-0 text-[10px] bg-status-danger-bg text-status-danger" title="التقرير اليومي للميدان إلزامي — لم يُسجل تقرير اليوم من التنفيذ الميداني">
+                📍 لم يتم تقرير اليوم
+              </Badge>
+            )}
             <Badge variant="outline" className={`text-[10px] ${statusBadgeClass(row.status)}`}>
               {row.status}
             </Badge>

@@ -14,6 +14,7 @@ import {
   Ban,
   Loader2,
   Lock,
+  Milestone,
   Plus,
   Trash2,
   Wallet,
@@ -201,7 +202,8 @@ export function useSubContractDetail(subContractId: number | null, user: User, o
 
   // ===== إضافة خط خطة =====
   const [addPlanOpen, setAddPlanOpen] = React.useState(false);
-  const [planForm, setPlanForm] = React.useState({ title: "", amount: "", dueDate: todayStr() });
+  // سيناريو المالك 2026-11 — المرحلة المحفزة من مراحل عقد العميل الأب (stageId فارغ = بدون)
+  const [planForm, setPlanForm] = React.useState({ title: "", amount: "", dueDate: todayStr(), stageId: "" });
   const [sourceIds, setSourceIds] = React.useState<number[]>([]);
 
   const clientDueLines = (clientPlanQuery.data?.lines ?? []).filter(
@@ -215,11 +217,13 @@ export function useSubContractDetail(subContractId: number | null, user: User, o
         amount: Number(planForm.amount || 0),
         dueDate: planForm.dueDate,
         sources: sourceIds.map((planLineId) => ({ planLineId })),
+        // سيناريو المالك 2026-11 — المرحلة المحفزة تُستحق آليًا عند إنهائها
+        ...(planForm.stageId ? { stageId: Number(planForm.stageId) } : {}),
       }),
     onSuccess: () => {
       invalidate();
       setAddPlanOpen(false);
-      setPlanForm({ title: "", amount: "", dueDate: todayStr() });
+      setPlanForm({ title: "", amount: "", dueDate: todayStr(), stageId: "" });
       setSourceIds([]);
       toast({ title: "تمت الإضافة", description: "أُضيف خط الدفعة لخطة الباطن" });
     },
@@ -290,7 +294,9 @@ export function useSubContractDetail(subContractId: number | null, user: User, o
     },
   });
 
-  const planLines: SubPlanLine[] = item?.plan ?? [];
+  // إصلاح: الخطة في استجابة التفاصيل على المستوى الأعلى (data.plan) لا item.plan —
+  // كانت جداول الخطة تظهر «لا خطوط» رغم وجود خطوط في القاعدة
+  const planLines: SubPlanLine[] = detailQuery.data?.plan?.lines ?? [];
 
   return {
     manager,
@@ -576,6 +582,13 @@ export function SubPlanLinesTable({
               <TableRow key={l.id}>
                 <TableCell className="max-w-40">
                   <span className="block truncate font-medium">{l.title}</span>
+                  {/* سيناريو المالك 2026-11 — المرحلة المحفزة من عقد العميل الأب */}
+                  {l.stageName && (
+                    <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-status-info-bg px-2 py-0.5 text-[10px] text-status-info">
+                      <Milestone className="size-2.5" aria-hidden />
+                      {l.stageName}
+                    </span>
+                  )}
                   {(l.sources?.length ?? 0) > 0 && (
                     <span className="block truncate text-[11px] text-muted-foreground">
                       مصادره: {l.sources!.map((s) => s.title).join("، ")}
@@ -717,13 +730,17 @@ export function AddPlanFields({
   clientDueLines,
   sourceIds,
   setSourceIds,
+  parentStages,
 }: {
-  planForm: { title: string; amount: string; dueDate: string };
-  setPlanForm: React.Dispatch<React.SetStateAction<{ title: string; amount: string; dueDate: string }>>;
+  planForm: { title: string; amount: string; dueDate: string; stageId: string };
+  setPlanForm: React.Dispatch<React.SetStateAction<{ title: string; amount: string; dueDate: string; stageId: string }>>;
   clientDueLines: PlanResponse["lines"];
   sourceIds: number[];
   setSourceIds: React.Dispatch<React.SetStateAction<number[]>>;
+  /** سيناريو المالك 2026-11 — مراحل عقد العميل الأب للمرحلة المحفزة */
+  parentStages?: { id: number; name: string; isSkipped: boolean }[];
 }) {
+  const stageOptions = (parentStages ?? []).filter((s) => !s.isSkipped);
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -738,6 +755,27 @@ export function AddPlanFields({
         <div className="space-y-1.5 sm:col-span-2">
           <Label htmlFor="sp-due">الاستحقاق التقديري</Label>
           <Input id="sp-due" className="h-9" dir="ltr" type="date" value={planForm.dueDate} onChange={(e) => setPlanForm((f) => ({ ...f, dueDate: e.target.value }))} />
+        </div>
+        {/* سيناريو المالك 2026-11 — «عقد مقاول الباطن هيربط بمراحل العمل بتاعت عقد العميل»:
+            المرحلة المحفزة تُستحق آليًا عند إنهائها (awaiting_stage كدفعات العميل) */}
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="sp-stage">المرحلة المحفزة من عقد العميل (اختياري)</Label>
+          <SearchableSelect
+            value={planForm.stageId}
+            onValueChange={(v) => setPlanForm((f) => ({ ...f, stageId: v }))}
+            options={[
+              { value: "", label: "بدون مرحلة — تستحق بالتاريخ والمصادر فقط" },
+              ...stageOptions.map((s, i) => ({ value: String(s.id), label: `${i + 1} · ${s.name}` })),
+            ]}
+            placeholder={stageOptions.length === 0 ? "لا مراحل على عقد العميل" : "اختر المرحلة"}
+            searchPlaceholder="ابحث باسم المرحلة…"
+            emptyText="لا نتائج مطابقة"
+          />
+          {planForm.stageId && (
+            <p className="text-xs text-muted-foreground">
+              الدفعة المرتبطة بمرحلة تُستحق تلقائيًا عند إنهائها — وتُوقف حتى ذلك بحالة «بانتظار إنجاز المرحلة».
+            </p>
+          )}
         </div>
       </div>
       <div className="space-y-1.5">
@@ -924,7 +962,7 @@ export function SubContractDialog({ subContractId, onOpenChange, user, onAuthErr
                       <Wand2 className="size-4" />
                       توزيع تلقائي
                     </Button>
-                    <Button size="sm" className="h-9 gap-1.5" onClick={() => { s.setPlanForm({ title: "", amount: "", dueDate: todayStr() }); s.setSourceIds([]); s.setAddPlanOpen(true); }}>
+                    <Button size="sm" className="h-9 gap-1.5" onClick={() => { s.setPlanForm({ title: "", amount: "", dueDate: todayStr(), stageId: "" }); s.setSourceIds([]); s.setAddPlanOpen(true); }}>
                       <Plus className="size-4" />
                       إضافة دفعة
                     </Button>
@@ -979,6 +1017,7 @@ export function SubContractDialog({ subContractId, onOpenChange, user, onAuthErr
             clientDueLines={s.clientDueLines}
             sourceIds={s.sourceIds}
             setSourceIds={s.setSourceIds}
+            parentStages={s.clientPlanQuery.data?.stages}
           />
           <DialogFooter className="gap-2">
             <Button variant="outline" className="h-9" onClick={() => s.setAddPlanOpen(false)} disabled={s.addPlanMutation.isPending}>
