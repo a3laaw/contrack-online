@@ -66,6 +66,7 @@ export async function GET(req: NextRequest, { params }: P) {
       stageId: p.stageId,
       triggeredAt: p.triggeredAt,
       notes: p.notes,
+      isDownPayment: p.isDownPayment,
     })),
     current: core.current,
     collected: core.collected,
@@ -218,6 +219,24 @@ export async function PATCH(req: NextRequest, { params }: P) {
     const contract = await tx.contract.update({ where: { id }, data });
     if (statusChanged) {
       const newStatus = String(data.status);
+      // سيناريو المالك 2026-11 — تفعيل العقد إلى «نشط» يستحق سطور الدفعة الأولى
+      // غير المستحقة (is_down_payment وtriggered_at فارغ) — غير مربوطة بمرحلة أصلًا
+      if (newStatus === "نشط") {
+        const untriggered = await tx.paymentPlanItem.findMany({
+          where: { contractId: id, isDownPayment: true, triggeredAt: "" },
+          select: { id: true },
+        });
+        for (const l of untriggered) {
+          await tx.paymentPlanItem.update({
+            where: { id: l.id },
+            data: {
+              dueDate: todayStr(),
+              triggeredAt: todayStr(),
+              notes: `مستحقة عند تفعيل العقد بتاريخ ${todayStr()}`,
+            },
+          });
+        }
+      }
       await tx.contractEvent.create({
         data: {
           contractId: id,

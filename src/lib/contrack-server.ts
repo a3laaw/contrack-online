@@ -146,6 +146,7 @@ export async function loadContractCore(
     stageId: p.stageId,
     triggeredAt: p.triggeredAt,
     notes: p.notes,
+    isDownPayment: p.isDownPayment,
     stage: p.stage ? { isSkipped: p.stage.isSkipped, endDate: p.stage.endDate } : null,
     refItems: (p.refLinks ?? []).map((l) => ({
       id: l.itemId,

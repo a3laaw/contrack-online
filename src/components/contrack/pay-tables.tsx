@@ -305,7 +305,7 @@ export function PlanTable({
   onAdd,
   onEditRefs,
 }: {
-  lines: { id: number; title: string; dueDate: string; amountN: number; covered: number; remaining: number; state: string; stateLabel?: string; notes?: string; stageName?: string; refItems?: RefTagLite[] }[];
+  lines: { id: number; title: string; dueDate: string; amountN: number; covered: number; remaining: number; state: string; stateLabel?: string; notes?: string; stageName?: string; isDownPayment?: boolean; refItems?: RefTagLite[] }[];
   manager: boolean;
   onDelete: (id: number) => void;
   readOnly?: boolean;
@@ -335,6 +335,11 @@ export function PlanTable({
                 <TableCell>
                   <div className="font-medium">
                     {ln.title}
+                    {ln.isDownPayment && (
+                      <Badge className="ms-2 border-0 bg-brand-gold-tile px-1.5 py-0 text-[10px] font-normal text-brand-orange" title="الدفعة الأولى عند التعاقد — غير مربوطة بمرحلة، مستحقة عند تفعيل العقد">
+                        الدفعة الأولى
+                      </Badge>
+                    )}
                     {ln.stageName && (
                       <Badge variant="secondary" className="ms-2 px-1.5 py-0 text-[10px] font-normal" title="مرتبطة بمرحلة — تُستحق تلقائيًا عند إنهائها">
                         ⚙ {ln.stageName}
@@ -402,6 +407,11 @@ export function PlanTable({
             <div className="flex items-start justify-between gap-2">
               <span className="font-medium">
                 {ln.title}
+                {ln.isDownPayment && (
+                  <Badge className="ms-1 border-0 bg-brand-gold-tile px-1.5 py-0 text-[10px] font-normal text-brand-orange">
+                    الدفعة الأولى
+                  </Badge>
+                )}
                 {ln.stageName && (
                   <Badge variant="secondary" className="ms-1 px-1.5 py-0 text-[10px] font-normal">
                     ⚙ {ln.stageName}

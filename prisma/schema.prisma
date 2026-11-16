@@ -409,6 +409,8 @@ model PaymentPlanItem {
   stage             ContractStage?     @relation(fields: [stageId], references: [id])
   notes             String             @default("")
   triggeredAt       String             @default("") @map("triggered_at") // غير فارغ = استحقاق فعلي
+  // سيناريو المالك 2026-11 — الدفعة الأولى عند التعاقد: غير مربوطة بمرحلة، تُستحق آليًا عند تفعيل العقد
+  isDownPayment     Boolean            @default(false) @map("is_down_payment")
   manualAmount      Boolean            @default(false) @map("manual_amount")
   deletedAddendumId Int                @default(0) @map("deleted_addendum_id")
   subSources        SubPaymentSource[]
@@ -757,6 +759,8 @@ model SubPaymentPlanItem {
   stage         ContractStage?     @relation(fields: [stageId], references: [id])
   notes         String             @default("")
   triggeredAt   String             @default("") @map("triggered_at")
+  // سيناريو المالك 2026-11 — الدفعة الأولى لعقد الباطن عند التعاقد (الولادة «نشط» ⇒ مستحقة فورًا)
+  isDownPayment Boolean            @default(false) @map("is_down_payment")
   sources       SubPaymentSource[]
   claims        Claim[]
   createdAt     DateTime           @default(now())

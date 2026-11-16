@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { audit, authGuard, featureOn, jsonError, normalizeArabic, ok, parseDay } from "@/lib/api-utils";
+import { audit, authGuard, featureOn, jsonError, normalizeArabic, ok, parseDay, todayStr } from "@/lib/api-utils";
 import { EPS, r3, contractCurrentValue, supervisionExtension } from "@/lib/contrack-core";
 import { actualSupervisionEnd, intOr, nextNumberByKey, numOr } from "@/lib/contrack-server";
 import { ensureContractSubsidiaries } from "@/lib/subsidiary-server";
@@ -136,11 +136,21 @@ export async function POST(req: NextRequest) {
   const stagesIn = Array.isArray(body.stages) ? (body.stages as Record<string, unknown>[]) : [];
   let planIn = Array.isArray(body.plan) ? (body.plan as Record<string, unknown>[]) : [];
 
+  // ===== سيناريو المالك 2026-11 — الدفعة الأولى عند التعاقد =====
+  // دفعة أولى عند التعاقد غير مربوطة بمرحلة (stageId=null)، تُعتبر مستحقة عند تفعيل العقد.
+  // العقود تُولد بحالة «نشط» ⇒ الاستحقاق لحظة الإنشاء؛ وإن عاد العقد لاحقًا إلى «نشط» عبر
+  // PATCH (من مسودة/متوقف) فسطر الدفعة الأولى غير المستحق يُستحق آليًا عند التفعيل (route [id]).
+  const dpIn = body.downPayment && typeof body.downPayment === "object" ? (body.downPayment as Record<string, unknown>) : null;
+  const dpAmount = dpIn ? numOr(dpIn.amount, 0) : 0;
+  if (dpIn && !(dpAmount > 0)) return jsonError("مبلغ الدفعة الأولى عند التعاقد يجب أن يكون أكبر من صفر");
+  const dpDueDate = dpIn ? parseDay(dpIn.dueDate) || contractDate : "";
+  const dpAmountR = dpIn ? r3(dpAmount) : 0;
+
   // ===== حارس المبلغ amount_guard (المرحلة 3/ج — مطابقة المكتبي) =====
   // الفرق بين قيمة العقد ومجموع الدفعات (اتجاهين، عتبة 0.001):
   //  الميزة معطّلة ⇒ منع صارم برسالة الأصل الحرفية · مفعّلة ⇒ سياسة إلزامية من الخيارات الثلاثة
-  const planSumCheck = r3(planIn.reduce((s, p) => s + numOr(p.amount, 0), 0));
-  const agProblems = planIn.length ? amountGuardProblems(amount, planSumCheck) : [];
+  const planSumCheck = r3(planIn.reduce((s, p) => s + numOr(p.amount, 0), 0) + dpAmountR);
+  const agProblems = (planIn.length || dpAmountR > 0) ? amountGuardProblems(amount, planSumCheck) : [];
   if (agProblems.length) {
     if (!(await featureOn("amount_guard"))) {
       return jsonError(amountGuardStrictMessage(amount, agProblems), 400);
@@ -163,8 +173,8 @@ export async function POST(req: NextRequest) {
     }
     // keep_diff ⇒ يُحفظ بالفرق (يُسجل في التقرير — كالأصل)
   }
-  if (planIn.reduce((s, p) => s + numOr(p.amount, 0), 0) > r3(finalAmount + EPS)) {
-    return jsonError("مجموع الدفعات يتجاوز قيمة العقد");
+  if (planIn.reduce((s, p) => s + numOr(p.amount, 0), 0) + dpAmountR > r3(finalAmount + EPS)) {
+    return jsonError(dpIn ? "مجموع الدفعات مع الدفعة الأولى يتجاوز قيمة العقد" : "مجموع الدفعات يتجاوز قيمة العقد");
   }
 
   const contractName = String(body.contractName || "");
@@ -195,7 +205,7 @@ export async function POST(req: NextRequest) {
   }
   const componentsIn = Array.isArray(body.components) ? (body.components as Record<string, unknown>[]) : [];
   // الإشراف: جدول الدفعات مفرغ كالمكتبي — التحصيل عبر أشهر الإشراف وسندات القبض مباشرة
-  if (supActive && planIn.length > 0) {
+  if (supActive && (planIn.length > 0 || dpIn)) {
     return jsonError("عقد الإشراف لا يقبل دفعات يدوية — التحصيل يتم عبر أشهر الإشراف وسندات القبض");
   }
 
@@ -362,6 +372,23 @@ export async function POST(req: NextRequest) {
               amount: p.amount,
               sortOrder: p.sortOrder,
               stageId: p.stageId,
+            },
+          });
+        }
+        // سيناريو المالك — الدفعة الأولى عند التعاقد: سطر مستقل أول الخطة، بلا مرحلة،
+        // مستحق فورًا (العقد يُولد «نشط» = مفعّل لحظة الإنشاء) — سدوده ضمن حارس المبلغ أعلاه
+        if (dpIn) {
+          await tx.paymentPlanItem.create({
+            data: {
+              contractId: contract.id,
+              title: "الدفعة الأولى عند التعاقد",
+              dueDate: dpDueDate,
+              amount: dpAmountR,
+              sortOrder: -1,
+              stageId: null,
+              isDownPayment: true,
+              triggeredAt: todayStr(),
+              notes: "مستحقة عند تفعيل العقد — الدفعة الأولى غير مربوطة بمرحلة",
             },
           });
         }

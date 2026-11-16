@@ -178,6 +178,10 @@ export function ContractNewPage({
   const [stageSearch, setStageSearch] = React.useState("");
   const [payments, setPayments] = React.useState<PaymentDraft[]>([]);
   const [paymentsDirty, setPaymentsDirty] = React.useState(false);
+  // سيناريو المالك 2026-11 — الدفعة الأولى عند التعاقد: غير مربوطة بمرحلة، مستحقة عند التفعيل
+  const [dpOn, setDpOn] = React.useState(false);
+  const [dpAmount, setDpAmount] = React.useState("");
+  const [dpDueDate, setDpDueDate] = React.useState("");
   const [supForm, setSupForm] = React.useState({ start: "", months: "", monthly: "", discount: "0" });
   const [bundleOn, setBundleOn] = React.useState<Record<string, BundleRowState>>({});
 
@@ -362,6 +366,10 @@ export function ContractNewPage({
             stageIndex: takeStageIndex(p.stageName),
           }));
       }
+      // سيناريو المالك — الدفعة الأولى عند التعاقد: غير مربوطة بمرحلة، مستحقة عند التفعيل
+      if (!supActive && dpOn && Number(dpAmount) > 0) {
+        body.downPayment = { amount: Number(dpAmount), dueDate: dpDueDate || fDate };
+      }
       if (amountPolicy) body.amountPolicy = amountPolicy;
       return apiPost<{ contract: { id: number; contractNumber: string } }>("/api/contracts", body);
     },
@@ -425,8 +433,10 @@ export function ContractNewPage({
     }
     const planList = payments.filter((p) => p.title.trim() && Number(p.amount) > 0);
     const amount = Number(fAmount || 0);
-    const planTotal = planList.reduce((s, p) => s + Number(p.amount || 0), 0);
-    const problems = amountGuardProblems(amount, planList.length ? planTotal : null);
+    // الدفعة الأولى تُحتسب ضمن المجموع في حارس المبلغ (تُسدّد ضمن قيمة العقد)
+    const dpVal = dpOn && Number(dpAmount) > 0 ? Number(dpAmount) : 0;
+    const planTotal = planList.reduce((s, p) => s + Number(p.amount || 0), 0) + dpVal;
+    const problems = amountGuardProblems(amount, planList.length || dpVal > 0 ? planTotal : null);
     if (problems.length) {
       if (!flagOn("amount_guard")) {
         // المنع الصارم — رسالة الأصل الحرفية
@@ -1122,6 +1132,64 @@ export function ContractNewPage({
             <p className="text-xs text-muted-foreground">
               أضف دفعات يدوية بقيم واستحقاقات محددة. إن تُركت فارغة فسيولّد النظام الخطة من نسب المراحل أو قالب النوع.
             </p>
+          )}
+          {/* سيناريو المالك — الدفعة الأولى عند التعاقد: غير مربوطة بمرحلة، مستحقة عند تفعيل العقد */}
+          {!supActive && (
+            <div className="rounded-md border border-brand-gold/40 bg-brand-gold-tile/60 p-2.5">
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="dp-on"
+                  className="mt-0.5"
+                  checked={dpOn}
+                  onCheckedChange={(v) => setDpOn(v === true)}
+                  aria-label="تفعيل الدفعة الأولى عند التعاقد"
+                />
+                <div className="min-w-0 flex-1">
+                  <Label htmlFor="dp-on" className="cursor-pointer text-xs font-semibold">
+                    الدفعة الأولى عند التعاقد
+                  </Label>
+                  <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
+                    غير مربوطة بمرحلة — تُعتبر مستحقة آليًا عند إنشاء العقد وتفعيله.
+                  </p>
+                  {dpOn && (
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label htmlFor="dp-amount" className="text-[11px] text-muted-foreground">
+                          المبلغ {Number(fAmount) > 0 && Number(dpAmount) > 0 && (
+                            <span className="text-muted-foreground">
+                              (≈ {Math.round((Number(dpAmount) / Number(fAmount)) * 100)}% من قيمة العقد)
+                            </span>
+                          )}
+                        </Label>
+                        <Input
+                          id="dp-amount"
+                          className="h-8 text-xs"
+                          dir="ltr"
+                          type="number"
+                          min="0"
+                          step="0.001"
+                          value={dpAmount}
+                          onChange={(e) => setDpAmount(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="dp-due" className="text-[11px] text-muted-foreground">
+                          تاريخ الاستحقاق (الافتراضي: تاريخ العقد)
+                        </Label>
+                        <Input
+                          id="dp-due"
+                          className="h-8 text-xs"
+                          dir="ltr"
+                          type="date"
+                          value={dpDueDate}
+                          onChange={(e) => setDpDueDate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
           {payments.length === 0 && !supActive && (
             <p className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">لا دفعات مضافة</p>

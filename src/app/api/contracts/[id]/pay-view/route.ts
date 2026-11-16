@@ -53,6 +53,7 @@ export async function GET(req: NextRequest, { params }: P) {
     notes: l.notes,
     sortOrder: l.sortOrder,
     stageId: l.stageId,
+    isDownPayment: l.isDownPayment ?? false,
     // ربط القوائم المرجعية — بنود القوائم المرتبطة بسطر الدفعة
     refItems: l.refItems ?? [],
   }));

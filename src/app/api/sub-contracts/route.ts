@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { audit, authGuard, jsonError, normalizeArabic, ok, parseDay } from "@/lib/api-utils";
+import { audit, authGuard, jsonError, normalizeArabic, ok, parseDay, todayStr } from "@/lib/api-utils";
 import { EPS, r3 } from "@/lib/contrack-core";
 
 /** قائمة عقود الباطن: فلاتر subcontractorId / contractId / q — مع paid وremaining */
@@ -93,6 +93,14 @@ export async function POST(req: NextRequest) {
   const description = String(body.description || "");
   const itemsIn = Array.isArray(body.items) ? (body.items as Record<string, unknown>[]) : [];
 
+  // سيناريو المالك 2026-11 — الدفعة الأولى عند التعاقد لعقد الباطن: غير مربوطة بمرحلة،
+  // تُعتبر مستحقة فورًا (عقد الباطن يُولد بحالة «نشط» = مفعّل لحظة التعاقد)
+  const dpIn = body.downPayment && typeof body.downPayment === "object" ? (body.downPayment as Record<string, unknown>) : null;
+  const dpAmount = dpIn ? Number(dpIn.amount) : 0;
+  if (dpIn && (!Number.isFinite(dpAmount) || !(dpAmount > 0))) return jsonError("مبلغ الدفعة الأولى يجب أن يكون أكبر من صفر");
+  if (dpIn && r3(dpAmount) > r3(amount)) return jsonError("الدفعة الأولى تتجاوز قيمة عقد الباطن");
+  const dpDueDate = dpIn ? parseDay(dpIn.dueDate) || startDate || todayStr() : "";
+
   // التحقق من البنود قبل المعاملة
   const preparedItems: { boqItemId: number | null; qty: number; unitPrice: number; amount: number; sourceKind: string; sourceId: number }[] = [];
   for (const it of itemsIn) {
@@ -138,6 +146,23 @@ export async function POST(req: NextRequest) {
             amount: it.amount,
             sourceKind: it.sourceKind,
             sourceId: it.sourceId,
+          },
+        });
+      }
+      // سيناريو المالك — الدفعة الأولى عند التعاقد: سطر أول خطة الباطن بلا مرحلة،
+      // مستحق فورًا لأن عقد الباطن يُولد بحالة «نشط» (مفعّل لحظة التعاقد)
+      if (dpIn) {
+        await tx.subPaymentPlanItem.create({
+          data: {
+            subContractId: sc.id,
+            title: "الدفعة الأولى عند التعاقد",
+            dueDate: dpDueDate,
+            amount: r3(dpAmount),
+            sortOrder: -1,
+            stageId: null,
+            isDownPayment: true,
+            triggeredAt: todayStr(),
+            notes: "مستحقة عند التعاقد — الدفعة الأولى غير مربوطة بمرحلة",
           },
         });
       }

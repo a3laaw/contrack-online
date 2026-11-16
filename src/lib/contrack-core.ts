@@ -51,6 +51,8 @@ export interface PlanLine {
   triggeredAt: string;
   notes: string;
   stage?: { isSkipped: boolean; endDate: string } | null;
+  /** سيناريو المالك — الدفعة الأولى عند التعاقد: غير مربوطة بمرحلة، مستحقة عند التفعيل */
+  isDownPayment?: boolean;
   /** القوائم المرجعية — بنود مربوطة بسطر الدفعة (RefItemPayment) — تعبر مع السطر في الحساب (spread) */
   refItems?: { id: number; name: string; listName: string }[];
 }

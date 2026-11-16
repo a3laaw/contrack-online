@@ -15,6 +15,7 @@ import { Ban, Banknote, Plus, Trash2, Wand2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -79,6 +80,9 @@ export function SubContractNewPage({ contractId, contractNumber, user, onAuthErr
     endDate: "",
     description: "",
   });
+  // سيناريو المالك 2026-11 — الدفعة الأولى عند التعاقد: غير مربوطة بمرحلة، مستحقة فورًا
+  const [dpOn, setDpOn] = React.useState(false);
+  const [dpAmount, setDpAmount] = React.useState("");
 
   const contractorsQuery = useQuery<SubContractorsResponse>({
     queryKey: ["subcontractors", ""],
@@ -94,6 +98,9 @@ export function SubContractNewPage({ contractId, contractNumber, user, onAuthErr
         startDate: form.startDate,
         endDate: form.endDate,
         description: form.description.trim(),
+        ...(dpOn && Number(dpAmount) > 0
+          ? { downPayment: { amount: Number(dpAmount), dueDate: form.startDate || todayStr() } }
+          : {}),
       }),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["sub-contracts"] });
@@ -223,6 +230,45 @@ export function SubContractNewPage({ contractId, contractNumber, user, onAuthErr
                   value={form.description}
                   onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 />
+              </div>
+            </div>
+            {/* سيناريو المالك — الدفعة الأولى عند التعاقد: غير مربوطة بمرحلة، مستحقة عند التعاقد */}
+            <div className="mt-3 rounded-md border border-brand-gold/40 bg-brand-gold-tile/60 p-3">
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="ns-dp-on"
+                  className="mt-0.5"
+                  checked={dpOn}
+                  onCheckedChange={(v) => setDpOn(v === true)}
+                  aria-label="تفعيل الدفعة الأولى عند التعاقد"
+                />
+                <div className="min-w-0 flex-1">
+                  <Label htmlFor="ns-dp-on" className="cursor-pointer text-xs font-semibold">
+                    الدفعة الأولى عند التعاقد
+                  </Label>
+                  <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
+                    غير مربوطة بمرحلة — تُعتبر مستحقة فورًا لأن العقد يُنشأ بحالة «نشط».
+                  </p>
+                  {dpOn && (
+                    <div className="mt-2 max-w-xs space-y-1">
+                      <Label htmlFor="ns-dp-amount" className="text-[11px] text-muted-foreground">
+                        المبلغ {Number(form.amount) > 0 && Number(dpAmount) > 0 && (
+                          <span>(≈ {Math.round((Number(dpAmount) / Number(form.amount)) * 100)}% من القيمة)</span>
+                        )}
+                      </Label>
+                      <Input
+                        id="ns-dp-amount"
+                        className="h-8 text-xs"
+                        dir="ltr"
+                        type="number"
+                        min="0"
+                        step="0.001"
+                        value={dpAmount}
+                        onChange={(e) => setDpAmount(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </CardContent>
