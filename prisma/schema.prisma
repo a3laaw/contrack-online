@@ -411,6 +411,10 @@ model PaymentPlanItem {
   triggeredAt       String             @default("") @map("triggered_at") // غير فارغ = استحقاق فعلي
   // سيناريو المالك 2026-11 — الدفعة الأولى عند التعاقد: غير مربوطة بمرحلة، تُستحق آليًا عند تفعيل العقد
   isDownPayment     Boolean            @default(false) @map("is_down_payment")
+  // شرط استحقاق الدفعة — طلب المالك: «الدفعة لها كذا شرط — عند البدا، عند الانتهاء وهكذا»
+  // "" = قديم (مرحلة ⇒ عند الإنجاز، بلا مرحلة ⇒ بالتاريخ) · date=بتاريخ الاستحقاق
+  // stage_start=عند بدء المرحلة · stage_end=عند إنجاز المرحلة
+  triggerKind       String             @default("") @map("trigger_kind")
   manualAmount      Boolean            @default(false) @map("manual_amount")
   deletedAddendumId Int                @default(0) @map("deleted_addendum_id")
   subSources        SubPaymentSource[]

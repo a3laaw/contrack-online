@@ -13,10 +13,10 @@ import { pbkdf2Sync, randomBytes } from "node:crypto";
 
 const db = new PrismaClient();
 
-/** نفس خوارزمية src/lib/auth.ts: PBKDF2-SHA256 بـ200,000 دورة */
+/** نفس خوارزمية src/lib/auth.ts: PBKDF2-SHA256 بـ200,000 دورة — والملح hex Buffer (مطابق للتحقق) */
 function hashPassword(password: string, salt?: string) {
   const s = salt ?? randomBytes(16).toString("hex");
-  const hash = pbkdf2Sync(password, s, 200000, 32, "sha256").toString("hex");
+  const hash = pbkdf2Sync(password, Buffer.from(s, "hex"), 200000, 32, "sha256").toString("hex");
   return { salt: s, hash };
 }
 

@@ -55,6 +55,7 @@ export async function GET(req: NextRequest) {
         stageId: true,
         triggeredAt: true,
         notes: true,
+        triggerKind: true,
       },
       orderBy: [{ dueDate: "asc" }, { sortOrder: "asc" }],
     }),
@@ -96,6 +97,7 @@ export async function GET(req: NextRequest) {
       stageId: p.stageId,
       triggeredAt: p.triggeredAt,
       notes: p.notes,
+      triggerKind: p.triggerKind,
       paid: r3(paidByLine.get(p.id) ?? 0),
     });
     paymentsByContract.set(p.contractId, arr);

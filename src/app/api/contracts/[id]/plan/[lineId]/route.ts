@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { authGuard, jsonError, ok, parseDay } from "@/lib/api-utils";
-import { EPS, r3 } from "@/lib/contrack-core";
-import { loadContractCore } from "@/lib/contrack-server";
+import { EPS, PLAN_TRIGGER_KINDS, r3 } from "@/lib/contrack-core";
+import { loadContractCore, triggerStageStartPayments } from "@/lib/contrack-server";
 import { resolveRefItemIds } from "@/lib/ref-lists-shared";
 
 type P = { params: Promise<{ id: string; lineId: string }> };
@@ -42,14 +42,43 @@ export async function PATCH(req: NextRequest, { params }: P) {
     data.dueDate = d;
   }
   if (body.notes !== undefined) data.notes = String(body.notes || "");
+  // المرحلة الفعّالة بعد التعديل (الجديدة إن وُجدت وإلا الحالية)
+  let effectiveStageId = line.stageId;
+  let stageRow: { id: number; startDate: string; name: string } | null = null;
   if (body.stageId !== undefined) {
     if (body.stageId === null || body.stageId === "") {
       data.stageId = null;
+      effectiveStageId = null;
+      stageRow = null;
     } else {
       const sid = Number(body.stageId);
-      const st = await db.contractStage.findUnique({ where: { id: sid } });
+      const st = await db.contractStage.findUnique({ where: { id: sid }, select: { id: true, contractId: true, startDate: true, name: true } });
       if (!st || st.contractId !== contractId) return jsonError("المرحلة غير موجودة في هذا العقد");
       data.stageId = sid;
+      effectiveStageId = sid;
+      stageRow = st;
+    }
+  } else if (line.stageId != null) {
+    stageRow = await db.contractStage.findUnique({ where: { id: line.stageId }, select: { id: true, startDate: true, name: true } });
+  }
+
+  // شرط الاستحقاق — طلب المالك: «عند البدا، عند الانتهاء وهكذا» (زر ربط الدفعة بالمرحلة)
+  // بلا مرحلة ⇒ بتاريخ · مع مرحلة بلا شرط ⇒ عند الإنجاز (توافق القديم "")
+  if (body.triggerKind !== undefined) {
+    const kind = String(body.triggerKind ?? "");
+    if (!["", ...PLAN_TRIGGER_KINDS].includes(kind)) return jsonError("شرط استحقاق غير معروف");
+    if (!effectiveStageId) {
+      if (kind === "stage_start" || kind === "stage_end") {
+        return jsonError("شرط «عند البداية / عند الإنجاز» يتطلب ربط الدفعة بمرحلة أولًا");
+      }
+      data.triggerKind = kind || "date";
+    } else {
+      data.triggerKind = kind || "stage_end";
+    }
+  } else if (body.stageId !== undefined) {
+    // ربط جديد بمرحلة دون تحديد شرط ⇒ نفس سلوك السطر القديم: "" يبقى "" (عند الإنجاز)
+    if (!data.triggerKind && effectiveStageId && (line.triggerKind === "date")) {
+      data.triggerKind = "stage_end";
     }
   }
 
@@ -73,6 +102,16 @@ export async function PATCH(req: NextRequest, { params }: P) {
 
   await db.$transaction(async (tx) => {
     await tx.paymentPlanItem.update({ where: { id: lineId }, data });
+    // شرط «عند البداية» على مرحلة بدأت أصلًا وبعدّاد استحقاق فارغ ⇒ استحقاق فوري
+    const finalKind = (data.triggerKind as string | undefined) ?? line.triggerKind;
+    if (
+      finalKind === "stage_start" &&
+      effectiveStageId != null &&
+      stageRow?.startDate &&
+      (body.triggerKind !== undefined ? line.triggeredAt === "" : true)
+    ) {
+      await triggerStageStartPayments(contractId, stageRow.id, stageRow.startDate, tx);
+    }
     if (refItemIds !== null) {
       await tx.refItemPayment.deleteMany({ where: { paymentId: lineId } });
       if (refItemIds.length > 0) {
@@ -81,12 +120,21 @@ export async function PATCH(req: NextRequest, { params }: P) {
         });
       }
     }
+    const kindLabel =
+      (data.triggerKind ?? line.triggerKind) === "stage_start"
+        ? "عند البداية"
+        : (data.triggerKind ?? line.triggerKind) === "date"
+          ? "بتاريخ الاستحقاق"
+          : "عند الإنجاز";
     await tx.contractEvent.create({
       data: {
         contractId,
         eventType: "تعديل دفعة",
         description:
           `تعديل دفعة «${data.title ?? line.title}» إلى ${newAmount}` +
+          (body.stageId !== undefined || body.triggerKind !== undefined
+            ? ` — الربط: ${effectiveStageId != null ? `مرحلة «${stageRow?.name ?? ""}» بشرط ${kindLabel}` : "بلا مرحلة (بتاريخ)"}`
+            : "") +
           (refItemIds !== null ? ` — الربط المرجعي: ${refItemIds.length} بند` : ""),
         username: guard.user.username,
       },

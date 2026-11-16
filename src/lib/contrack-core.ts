@@ -50,11 +50,28 @@ export interface PlanLine {
   stageId: number | null;
   triggeredAt: string;
   notes: string;
-  stage?: { isSkipped: boolean; endDate: string } | null;
+  /** شرط استحقاق الدفعة (طلب المالك 2026-11): ""=قديم | date=بتاريخ | stage_start=عند البداية | stage_end=عند الإنجاز */
+  triggerKind?: string;
+  stage?: { isSkipped: boolean; endDate: string; startDate?: string } | null;
   /** سيناريو المالك — الدفعة الأولى عند التعاقد: غير مربوطة بمرحلة، مستحقة عند التفعيل */
   isDownPayment?: boolean;
   /** القوائم المرجعية — بنود مربوطة بسطر الدفعة (RefItemPayment) — تعبر مع السطر في الحساب (spread) */
   refItems?: { id: number; name: string; listName: string }[];
+}
+
+/** شروط استحقاق الدفعة — «عند البدا، عند الانتهاء وهكذا» (قرار المالك 2026-11) */
+export const PLAN_TRIGGER_KINDS = ["date", "stage_start", "stage_end"] as const;
+export type PlanTriggerKind = (typeof PLAN_TRIGGER_KINDS)[number];
+/** التسمية العربية لشرط الاستحقاق — "" القديم = عند الإنجاز للمرحلة / بالتاريخ لبلا مرحلة */
+export function planTriggerLabel(kind: string | null | undefined, hasStage: boolean): string {
+  if (kind === "stage_start") return "عند البداية";
+  if (kind === "stage_end") return "عند الإنجاز";
+  if (kind === "date") return "بتاريخ الاستحقاق";
+  return hasStage ? "عند الإنجاز" : "بتاريخ الاستحقاق";
+}
+/** هل السطر ينتظر حدث المرحلة أم يسير بالتاريخ؟ القديم ("") = ينتظر إنجاز المرحلة */
+export function waitsForStage(kind: string | null | undefined): boolean {
+  return kind === "" || kind === "stage_end" || kind === "stage_start";
 }
 
 export interface ReceiptLike {
@@ -228,9 +245,11 @@ export function computeContractPaymentPlan(
     let state: ComputedPlanLine["state"];
     let daysDiff = l.dueDate ? daysBetween(today, l.dueDate) : 999999;
     const hasStage = l.stageId != null;
+    // شروط المالك 2026-11 — «بتاريخ» لا تنتظر المرحلة أبدًا، و«عند البداية» تنتظر بدءها لا إنجازها
+    const waitingStageKind = hasStage && waitsForStage(l.triggerKind) && !(l.triggerKind === "stage_start" && Boolean(l.stage?.startDate));
     if (hasStage && l.stage?.isSkipped) {
       state = "skipped";
-    } else if (hasStage && !l.triggeredAt && l.remaining > EPS) {
+    } else if (waitingStageKind && !l.triggeredAt && l.remaining > EPS) {
       state = "awaiting_stage";
       daysDiff = 999999;
     } else if (l.remaining <= EPS) {
@@ -246,9 +265,11 @@ export function computeContractPaymentPlan(
     } else {
       state = "upcoming";
     }
+    const awaitingLabel =
+      l.triggerKind === "stage_start" ? "بانتظار بدء المرحلة" : "بانتظار إنجاز المرحلة";
     const stateLabel: Record<string, string> = {
       skipped: "مرحلة متخطاة",
-      awaiting_stage: "بانتظار إنجاز المرحلة",
+      awaiting_stage: awaitingLabel,
       paid: "مدفوع",
       partial: daysDiff >= 0 ? "جزئي" : "متأخر",
       overdue: "متأخر",

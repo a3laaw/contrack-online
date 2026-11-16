@@ -699,6 +699,8 @@ export interface PayViewLine {
   notes?: string;
   sortOrder?: number;
   stageId?: number | null;
+  /** شرط استحقاق الدفعة (شروط المالك 2026-11): ""|date|stage_start|stage_end */
+  triggerKind?: string;
   /** بنود القوائم المرجعية المربوطة بهذا السطر */
   refItems?: RefTagLite[];
 }

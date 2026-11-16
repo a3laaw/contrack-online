@@ -26,9 +26,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { planTriggerLabel } from "@/lib/contrack-core";
 import { ApiError, apiGet, apiPatch, apiPost } from "./api";
 import { errMessage, type User } from "./contrack-types";
 import { SearchableSelect } from "./SearchableSelect";
@@ -52,6 +56,7 @@ interface SpPayment {
   stageId: number | null;
   triggeredAt: string;
   notes: string;
+  triggerKind: string;
   paid: number;
 }
 interface SpContract {
@@ -371,6 +376,9 @@ function PaymentsForStage({
   const [addTitle, setAddTitle] = React.useState("");
   const [addAmount, setAddAmount] = React.useState("");
   const [addDue, setAddDue] = React.useState(todayStr());
+  // شرط الاستحقاق للدفعة الجديدة/المربوطة — شروط المالك 2026-11 (عند البداية/عند الإنجاز)
+  const [addTriggerKind, setAddTriggerKind] = React.useState("stage_end");
+  const [linkTriggerKind, setLinkTriggerKind] = React.useState("stage_end");
 
   const invalidate = React.useCallback(() => {
     qc.invalidateQueries({ queryKey: ["stage-payments"] });
@@ -389,10 +397,13 @@ function PaymentsForStage({
     onError: (e: unknown) => onFail(e, "تعذر فك الربط"),
   });
 
-  // ربط دفعة موجودة بالمرحلة المختارة
+  // ربط دفعة موجودة بالمرحلة المختارة (مع شرط الاستحقاق المختار في الحوار)
   const linkMutation = useMutation({
     mutationFn: ({ lineId, stageId }: { lineId: number; stageId: string }) =>
-      apiPatch(`/api/contracts/${contract.id}/plan/${lineId}`, { stageId: Number(stageId) }),
+      apiPatch(`/api/contracts/${contract.id}/plan/${lineId}`, {
+        stageId: Number(stageId),
+        triggerKind: linkTriggerKind,
+      }),
     onSuccess: () => {
       invalidate();
       setLinkOpen(false);
@@ -401,7 +412,7 @@ function PaymentsForStage({
     onError: (e: unknown) => onFail(e, "تعذر ربط الدفعة"),
   });
 
-  // إضافة دفعة جديدة مربوطة بالمرحلة مباشرة (سقف مجموع الخطة محروس بالخادم)
+  // إضافة دفعة جديدة مربوطة بالمرحلة مباشرة بشرط استحقاق (سقف مجموع الخطة محروس بالخادم)
   const addMutation = useMutation({
     mutationFn: () => {
       const amount = Number(addAmount);
@@ -413,6 +424,7 @@ function PaymentsForStage({
         amount,
         dueDate: addDue,
         stageId: Number(stageId),
+        triggerKind: addTriggerKind,
       });
     },
     onSuccess: () => {
@@ -482,6 +494,10 @@ function PaymentsForStage({
                       مسدد: <span className="numeric" dir="ltr">{formatKWD(p.paid)}</span>
                     </span>
                   )}
+                  {/* شارة شرط الاستحقاق — شروط المالك 2026-11 */}
+                  <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal" title={`شرط الاستحقاق: ${planTriggerLabel(p.triggerKind, true)}`}>
+                    ⏱ {planTriggerLabel(p.triggerKind, true)}
+                  </Badge>
                   <Badge
                     className={`border-0 text-[10px] px-1.5 ${
                       paidUp
@@ -510,7 +526,10 @@ function PaymentsForStage({
               size="sm"
               variant="outline"
               className="h-8 gap-1.5 text-xs"
-              onClick={() => setLinkOpen(true)}
+              onClick={() => {
+                setLinkTriggerKind("stage_end");
+                setLinkOpen(true);
+              }}
               disabled={linkable.length === 0}
               title={linkable.length === 0 ? "كل دفعات العقد مربوطة بهذه المرحلة" : undefined}
             >
@@ -523,6 +542,7 @@ function PaymentsForStage({
               className="h-8 gap-1.5 text-xs"
               onClick={() => {
                 setAddDue(todayStr());
+                setAddTriggerKind("stage_end");
                 setAddOpen(true);
               }}
             >
@@ -543,6 +563,20 @@ function PaymentsForStage({
               {linkable.length === 0 ? " (لا يوجد ما يمكن ربطه)" : ""}
             </DialogDescription>
           </DialogHeader>
+          {/* شرط الاستحقاق المطبق عند الربط — شروط المالك 2026-11 */}
+          <div className="space-y-1.5">
+            <Label>شرط الاستحقاق بعد الربط</Label>
+            <Select value={linkTriggerKind} onValueChange={setLinkTriggerKind}>
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="stage_end">عند الإنجاز — تستحق تلقائيًا عند إنهاء المرحلة</SelectItem>
+                <SelectItem value="stage_start">عند البداية — تستحق تلقائيًا عند بدء المرحلة</SelectItem>
+                <SelectItem value="date">بتاريخ الاستحقاق — بغض النظر عن المرحلة</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="max-h-72 overflow-y-auto space-y-1.5 pe-1">
             {linkable.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
@@ -633,6 +667,25 @@ function PaymentsForStage({
                 value={addDue}
                 onChange={(e) => setAddDue(e.target.value)}
               />
+            </div>
+            {/* شرط الاستحقاق — شروط المالك 2026-11: «عند البدا، عند الانتهاء وهكذا» */}
+            <div className="space-y-1.5">
+              <Label>شرط الاستحقاق</Label>
+              <Select value={addTriggerKind} onValueChange={setAddTriggerKind}>
+                <SelectTrigger className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="stage_end">عند الإنجاز — تستحق تلقائيًا عند إنهاء المرحلة</SelectItem>
+                  <SelectItem value="stage_start">عند البداية — تستحق تلقائيًا عند بدء المرحلة</SelectItem>
+                  <SelectItem value="date">بتاريخ الاستحقاق — بغض النظر عن المرحلة</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {addTriggerKind === "stage_start" && stage?.endDate === "" && "المرحلة بدأت أصلًا ⇒ تُستحق فورًا عند الإضافة."}
+                {addTriggerKind === "stage_start" && stage?.endDate !== "" && "مرحلة منتهية ⇒ تُستحق فورًا عند الإضافة."}
+                {addTriggerKind !== "stage_start" && "الافتراضي «عند الإنجاز» — سلوك الدفعات المرحلية."}
+              </p>
             </div>
           </div>
           <DialogFooter className="gap-2">

@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { authGuard, jsonError, ok, parseDay } from "@/lib/api-utils";
-import { EPS, r3 } from "@/lib/contrack-core";
-import { loadContractCore } from "@/lib/contrack-server";
+import { EPS, PLAN_TRIGGER_KINDS, r3 } from "@/lib/contrack-core";
+import { loadContractCore, triggerStageStartPayments } from "@/lib/contrack-server";
 import { resolveRefItemIds } from "@/lib/ref-lists-shared";
 
 type P = { params: Promise<{ id: string }> };
@@ -66,11 +66,26 @@ export async function POST(req: NextRequest, { params }: P) {
   if (!dueDate) return jsonError("تاريخ استحقاق الدفعة مطلوب بصيغة YYYY-MM-DD");
 
   let stageId: number | null = null;
+  let stageRow: { id: number; startDate: string } | null = null;
   if (body.stageId !== undefined && body.stageId !== null && body.stageId !== "") {
     const sid = Number(body.stageId);
-    const st = await db.contractStage.findUnique({ where: { id: sid } });
+    const st = await db.contractStage.findUnique({ where: { id: sid }, select: { id: true, contractId: true, startDate: true } });
     if (!st || st.contractId !== contractId) return jsonError("المرحلة غير موجودة في هذا العقد");
     stageId = sid;
+    stageRow = st;
+  }
+
+  // شرط استحقاق الدفعة — طلب المالك: «عند البدا، عند الانتهاء وهكذا»
+  // بلا مرحلة ⇒ بتاريخ الاستحقاق فقط · مع مرحلة وبلا شرط ⇒ عند الإنجاز (توافق القديم)
+  let triggerKind = String(body.triggerKind ?? "");
+  if (!["", ...PLAN_TRIGGER_KINDS].includes(triggerKind)) return jsonError("شرط استحقاق غير معروف");
+  if (!stageId) {
+    if (triggerKind === "stage_start" || triggerKind === "stage_end") {
+      return jsonError("شرط «عند البداية / عند الإنجاز» يتطلب ربط الدفعة بمرحلة أولًا");
+    }
+    triggerKind = triggerKind || "date";
+  } else {
+    triggerKind = triggerKind || "stage_end";
   }
 
   const agg = await db.paymentPlanItem.aggregate({
@@ -104,8 +119,13 @@ export async function POST(req: NextRequest, { params }: P) {
         amount,
         sortOrder: (max._max.sortOrder ?? -1) + 1,
         stageId,
+        triggerKind,
       },
     });
+    // شرط «عند البداية» على مرحلة بدأت أصلًا ⇒ استحقاق فوري بتاريخ بدايتها
+    if (triggerKind === "stage_start" && stageRow?.startDate) {
+      await triggerStageStartPayments(contractId, stageRow.id, stageRow.startDate, tx);
+    }
     if (refItemIds.length > 0) {
       await tx.refItemPayment.createMany({
         data: refItemIds.map((itemId) => ({ itemId, paymentId: created.id })),
@@ -115,11 +135,14 @@ export async function POST(req: NextRequest, { params }: P) {
       data: {
         contractId,
         eventType: "إضافة دفعة للخطة",
-        description: `أُضيفت دفعة «${title}» بمبلغ ${amount} بتاريخ استحقاق ${dueDate}${refItemIds.length > 0 ? ` — مربوطة بـ${refItemIds.length} بند مرجعي` : ""}`,
+        description:
+          `أُضيفت دفعة «${title}» بمبلغ ${amount} بتاريخ استحقاق ${dueDate}` +
+          (stageId ? ` — مربوطة بمرحلة وشرطها ${triggerKind === "stage_start" ? "عند البداية" : "عند الإنجاز"}` : "") +
+          (refItemIds.length > 0 ? ` — مربوطة بـ${refItemIds.length} بند مرجعي` : ""),
         username: guard.user.username,
       },
     });
     return created;
   });
-  return ok({ line: { id: line.id, title: line.title, dueDate: line.dueDate, amount: Number(line.amount), sortOrder: line.sortOrder, stageId: line.stageId, refItemIds } }, 201);
+  return ok({ line: { id: line.id, title: line.title, dueDate: line.dueDate, amount: Number(line.amount), sortOrder: line.sortOrder, stageId: line.stageId, triggerKind: line.triggerKind, refItemIds } }, 201);
 }

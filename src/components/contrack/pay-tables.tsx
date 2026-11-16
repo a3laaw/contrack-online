@@ -11,11 +11,12 @@
  */
 
 import * as React from "react";
-import { Link2, Lock, Plus, Trash2 } from "lucide-react";
+import { Link2, Lock, Milestone, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { planTriggerLabel } from "@/lib/contrack-core";
 import { PAYMENT_STATUS_LABEL, fmtDate, formatKWD } from "@/lib/format";
 import { StatusBadge } from "./StatusBadge";
 import type { PayViewLine, PayViewSubLine, RefTagLite } from "./contrack-types";
@@ -304,15 +305,31 @@ export function PlanTable({
   readOnly,
   onAdd,
   onEditRefs,
+  onEditStage,
 }: {
-  lines: { id: number; title: string; dueDate: string; amountN: number; covered: number; remaining: number; state: string; stateLabel?: string; notes?: string; stageName?: string; isDownPayment?: boolean; refItems?: RefTagLite[] }[];
+  lines: { id: number; title: string; dueDate: string; amountN: number; covered: number; remaining: number; state: string; stateLabel?: string; notes?: string; stageName?: string; stageId?: number | null; triggerKind?: string; isDownPayment?: boolean; refItems?: RefTagLite[] }[];
   manager: boolean;
   onDelete: (id: number) => void;
   readOnly?: boolean;
   onAdd?: () => void;
   /** ربط القوائم المرجعية — عند توفيرها يظهر زر 🔗 لكل سطر يفتح نافذة تعديل الربط */
   onEditRefs?: (line: { id: number; title: string; refItems?: RefTagLite[] }) => void;
+  /** زر ربط الدفعة بمرحلة + شرط الاستحقاق — طلب المالك: «لا يوجد زر لربط الدفعات بالمراحل» */
+  onEditStage?: (line: { id: number; title: string; stageId: number | null; triggerKind: string; stageName?: string; isDownPayment?: boolean; triggeredAt?: string }) => void;
 }) {
+  // شارة شرط الاستحقاق — «عند البداية · عند الإنجاز · بتاريخ» (شروط المالك 2026-11)
+  const triggerChip = (ln: { triggerKind?: string; stageName?: string; isDownPayment?: boolean }) => {
+    const label = ln.isDownPayment ? "عند التفعيل" : planTriggerLabel(ln.triggerKind ?? "", Boolean(ln.stageName));
+    return (
+      <Badge
+        variant="outline"
+        className="ms-1.5 px-1.5 py-0 text-[10px] font-normal text-muted-foreground"
+        title={`شرط الاستحقاق: ${label}`}
+      >
+        ⏱ {label}
+      </Badge>
+    );
+  };
   return (
     <>
       {/* جدول — الحاسوب */}
@@ -341,10 +358,11 @@ export function PlanTable({
                       </Badge>
                     )}
                     {ln.stageName && (
-                      <Badge variant="secondary" className="ms-2 px-1.5 py-0 text-[10px] font-normal" title="مرتبطة بمرحلة — تُستحق تلقائيًا عند إنهائها">
+                      <Badge variant="secondary" className="ms-2 px-1.5 py-0 text-[10px] font-normal" title="مرتبطة بمرحلة">
                         ⚙ {ln.stageName}
                       </Badge>
                     )}
+                    {triggerChip(ln)}
                   </div>
                   <RefTags tags={ln.refItems} />
                   {ln.notes ? <div className="text-xs text-muted-foreground">{ln.notes}</div> : null}
@@ -363,6 +381,28 @@ export function PlanTable({
                 {manager && !readOnly && (
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-0.5">
+                      {onEditStage && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          onClick={() =>
+                            onEditStage({
+                              id: ln.id,
+                              title: ln.title,
+                              stageId: ln.stageId ?? null,
+                              triggerKind: ln.triggerKind ?? "",
+                              stageName: ln.stageName,
+                              isDownPayment: ln.isDownPayment,
+                              triggeredAt: ln.triggeredAt,
+                            })
+                          }
+                          aria-label={`ربط الدفعة ${ln.title} بمرحلة وشرط استحقاق`}
+                          title="ربط الدفعة بمرحلة وشرط الاستحقاق (عند البداية / عند الإنجاز / بالتاريخ)"
+                        >
+                          <Milestone className="size-4" />
+                        </Button>
+                      )}
                       {onEditRefs && (
                         <Button
                           variant="ghost"
@@ -417,6 +457,7 @@ export function PlanTable({
                     ⚙ {ln.stageName}
                   </Badge>
                 )}
+                {triggerChip(ln)}
               </span>
               <StatusBadge
                 status={ln.state}
@@ -434,6 +475,28 @@ export function PlanTable({
             {ln.notes && <p className="text-xs text-muted-foreground">{ln.notes}</p>}
             {manager && !readOnly && (
               <div className="flex justify-end gap-1">
+                {onEditStage && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 gap-1"
+                    onClick={() =>
+                      onEditStage({
+                        id: ln.id,
+                        title: ln.title,
+                        stageId: ln.stageId ?? null,
+                        triggerKind: ln.triggerKind ?? "",
+                        stageName: ln.stageName,
+                        isDownPayment: ln.isDownPayment,
+                        triggeredAt: ln.triggeredAt,
+                      })
+                    }
+                    aria-label={`ربط الدفعة ${ln.title} بمرحلة وشرط استحقاق`}
+                  >
+                    <Milestone className="size-3.5" />
+                    ربط مرحلة
+                  </Button>
+                )}
                 {onEditRefs && (
                   <Button
                     variant="ghost"

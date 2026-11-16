@@ -107,7 +107,7 @@ export async function loadContractCore(
       where: { contractId },
       orderBy: [{ dueDate: "asc" }, { sortOrder: "asc" }],
       include: {
-        stage: { select: { isSkipped: true, endDate: true } },
+        stage: { select: { isSkipped: true, endDate: true, startDate: true } },
         // القوائم المرجعية — بنود مربوطة بسطر الدفعة (RefItemPayment) مع اسم قائمتها
         refLinks: {
           orderBy: { id: "asc" },
@@ -146,8 +146,9 @@ export async function loadContractCore(
     stageId: p.stageId,
     triggeredAt: p.triggeredAt,
     notes: p.notes,
+    triggerKind: p.triggerKind,
     isDownPayment: p.isDownPayment,
-    stage: p.stage ? { isSkipped: p.stage.isSkipped, endDate: p.stage.endDate } : null,
+    stage: p.stage ? { isSkipped: p.stage.isSkipped, endDate: p.stage.endDate, startDate: p.stage.startDate } : null,
     refItems: (p.refLinks ?? []).map((l) => ({
       id: l.itemId,
       name: l.item.name,
@@ -202,6 +203,10 @@ export async function loadContractCore(
  * سطور الخطة stage_id=? AND triggered_at='' مع remaining>0.001 (بعد حساب FIFO)
  * ⇒ dueDate=finishDate, triggeredAt=finishDate, notes='مستحقة لانتهاء مرحلة «X» بتاريخ Y'.
  *
+ * شروط المالك 2026-11 — «الدفعة لها كذا شرط»: المحرك يعمل بالشروط —
+ * · إنهاء مرحلة ⇒ يشعل triggerKind في ("", "stage_end") — القديم ("") سلوكه «عند الإنجاز».
+ * · بدء مرحلة ⇒ triggerStageStartPayments يشعل triggerKind="stage_start" فقط.
+ *
  * إصلاح موثق (Task 11-a): بعد التفعيل تُنشأ مطالبة out تلقائية لكل سطر مُثير
  * (السطر المُغطى بالكامل state=paid لا مطالبة — والتفعيل أصلًا لا يلمس المغطى)
  * بلا تكرار: يُفحص وجود مطالبة سارية بنفس custLineId (ليست cancelled/refused/archived)
@@ -210,10 +215,12 @@ export async function loadContractCore(
  */
 const AUTO_CLAIM_SKIP_STATUSES = ["cancelled", "refused", "archived"];
 
-export async function triggerDuePayments(
+async function triggerPlanPaymentsByKind(
   contractId: number,
   stageId: number,
-  finishDate: string,
+  eventDate: string,
+  kinds: string[],
+  note: (stageName: string, date: string) => string,
   tx?: Tx
 ): Promise<number> {
   const client = tx || db;
@@ -227,7 +234,7 @@ export async function triggerDuePayments(
     }),
     client.paymentPlanItem.findMany({
       where: { contractId },
-      include: { stage: { select: { isSkipped: true, endDate: true } } },
+      include: { stage: { select: { isSkipped: true, endDate: true, startDate: true } } },
     }),
     client.voucherPaymentLink.findMany({
       where: { kind: "receipt", voucher: { contractId, vtype: "receipt", cancelled: false } },
@@ -244,7 +251,8 @@ export async function triggerDuePayments(
       stageId: p.stageId,
       triggeredAt: p.triggeredAt,
       notes: p.notes,
-      stage: p.stage ? { isSkipped: p.stage.isSkipped, endDate: p.stage.endDate } : null,
+      triggerKind: p.triggerKind,
+      stage: p.stage ? { isSkipped: p.stage.isSkipped, endDate: p.stage.endDate, startDate: p.stage.startDate } : null,
     })),
     receiptRows.map((v) => ({
       id: v.id,
@@ -259,19 +267,19 @@ export async function triggerDuePayments(
   );
   const byId = new Map(computed.lines.map((l) => [l.id, l]));
   const targets = await client.paymentPlanItem.findMany({
-    where: { contractId, stageId, triggeredAt: "" },
+    where: { contractId, stageId, triggeredAt: "", triggerKind: { in: kinds } },
     select: { id: true },
   });
   let count = 0;
   for (const t of targets) {
     const line = byId.get(t.id);
     if (line && line.remaining > EPS) {
-      const lineNotes = `مستحقة لانتهاء مرحلة «${stage.name}» بتاريخ ${finishDate}`;
+      const lineNotes = note(stage.name, eventDate);
       await client.paymentPlanItem.update({
         where: { id: t.id },
         data: {
-          dueDate: finishDate,
-          triggeredAt: finishDate,
+          dueDate: eventDate,
+          triggeredAt: eventDate,
           notes: lineNotes,
         },
       });
@@ -292,9 +300,9 @@ export async function triggerDuePayments(
               custLineId: line.id,
               title: `مطالبة تلقائية: ${line.title || "دفعة"}`,
               amount: line.amountN,
-              dueDate: finishDate,
+              dueDate: eventDate,
               status: "registered",
-              notes: `تلقائية من استحقاق دفعة بتاريخ ${finishDate}`,
+              notes: `تلقائية من استحقاق دفعة بتاريخ ${eventDate}`,
             },
           });
           await client.paymentPlanItem.update({
@@ -306,6 +314,40 @@ export async function triggerDuePayments(
     }
   }
   return count;
+}
+
+/** إنهاء مرحلة ⇒ شعل دفعات «عند الإنجاز» (والقديم "" سلوكه نفسه) */
+export async function triggerDuePayments(
+  contractId: number,
+  stageId: number,
+  finishDate: string,
+  tx?: Tx
+): Promise<number> {
+  return triggerPlanPaymentsByKind(
+    contractId,
+    stageId,
+    finishDate,
+    ["", "stage_end"],
+    (stageName, date) => `مستحقة لانتهاء مرحلة «${stageName}» بتاريخ ${date}`,
+    tx
+  );
+}
+
+/** بدء مرحلة ⇒ شعل دفعات «عند البداية» فقط (شرط المالك 2026-11 — stage_start) */
+export async function triggerStageStartPayments(
+  contractId: number,
+  stageId: number,
+  startDate: string,
+  tx?: Tx
+): Promise<number> {
+  return triggerPlanPaymentsByKind(
+    contractId,
+    stageId,
+    startDate,
+    ["stage_start"],
+    (stageName, date) => `مستحقة لبدء مرحلة «${stageName}» بتاريخ ${date}`,
+    tx
+  );
 }
 
 // ==================== بنود عقد الباطن بوصف محسوم (Task 63 — كشف المقاول الموحّد) ====================

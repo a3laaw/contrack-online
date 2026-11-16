@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { adminGuard, audit, authGuard, jsonError, ok, parseDay, todayStr } from "@/lib/api-utils";
 import { r3 } from "@/lib/contrack-core";
-import { triggerDuePayments } from "@/lib/contrack-server";
+import { triggerDuePayments, triggerStageStartPayments } from "@/lib/contrack-server";
 import { NOTIF_STAGE, notifyTransaction } from "@/lib/notification-server";
 import { autoAddParticipant, TX_CONTRACT } from "@/lib/participants-server";
 import { recordStageMove } from "@/lib/stage-move-server";
@@ -66,8 +66,10 @@ export async function PATCH(req: NextRequest, { params }: P) {
         where: { id: target.id },
         data: { endDate: "", closedBy: "" },
       });
+      // شروط المالك 2026-11 — التصفير يشمل «عند الإنجاز» (والقديم "") فقط؛
+      // «عند البداية» استُحقت ببدء المرحلة والبداية باقية فلا تُصفَّر هنا
       await tx.paymentPlanItem.updateMany({
-        where: { contractId, stageId: target.id, triggeredAt: { not: "" } },
+        where: { contractId, stageId: target.id, triggeredAt: { not: "" }, triggerKind: { in: ["", "stage_end"] } },
         data: { triggeredAt: "", notes: "" },
       });
       // المرحلة الحالية المعطاة: مسح بدايتها/نهايتها إن وُجدت
@@ -79,6 +81,13 @@ export async function PATCH(req: NextRequest, { params }: P) {
       }
       if (Object.keys(xData).length > 0) {
         await tx.contractStage.update({ where: { id: stage.id }, data: xData });
+      }
+      // مسح بدايتها ⇒ تصفير استحقاقات «عند البداية» المُثارة ببدايتها (شروط المالك 2026-11)
+      if (xData.startDate === "") {
+        await tx.paymentPlanItem.updateMany({
+          where: { contractId, stageId: stage.id, triggerKind: "stage_start", triggeredAt: { not: "" } },
+          data: { triggeredAt: "", notes: "" },
+        });
       }
       await tx.contractEvent.create({
         data: {
@@ -239,6 +248,24 @@ export async function PATCH(req: NextRequest, { params }: P) {
   await db.$transaction(async (tx) => {
     await tx.contractStage.update({ where: { id: stageId }, data });
 
+    // إعادة تسمية مرحلة رئيسية ⇒ تحديث parentName لفرعياتها (الربط بالاسم — نموذج القديم)
+    if (
+      data.name !== undefined &&
+      data.name !== stage.name &&
+      (stage.level ?? 1) === 1
+    ) {
+      await tx.contractStage.updateMany({
+        where: { contractId, parentName: stage.name },
+        data: { parentName: String(data.name) },
+      });
+    }
+
+    // بدء مرحلة لأول مرة ⇒ شعل دفعات «عند البداية» (شروط المالك 2026-11 — stage_start)
+    const firstStart = typeof data.startDate === "string" && data.startDate && !stage.startDate;
+    if (firstStart) {
+      await triggerStageStartPayments(contractId, stageId, data.startDate as string, tx);
+    }
+
     if (skipping) {
       await tx.paymentPlanItem.updateMany({
         where: { contractId, stageId, triggeredAt: "" },
@@ -281,8 +308,9 @@ export async function PATCH(req: NextRequest, { params }: P) {
       await recordStageMove(tx, { transactionType: "contract", transactionId: contractId, stageId, movedById: guard.user.id, action: "finish", startDate: stage.startDate, note: `أنهيت بتاريخ ${finishDate}` });
     }
     if (reopened) {
+      // إعادة فتح ⇒ تصفير استحقاقات «عند الإنجاز» (والقديم "") — «عند البداية» باقية لأن البداية باقية
       await tx.paymentPlanItem.updateMany({
-        where: { contractId, stageId, triggeredAt: { not: "" } },
+        where: { contractId, stageId, triggeredAt: { not: "" }, triggerKind: { in: ["", "stage_end"] } },
         data: { triggeredAt: "", notes: "" },
       });
       await tx.contractEvent.create({
