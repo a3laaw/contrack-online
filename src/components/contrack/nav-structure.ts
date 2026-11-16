@@ -177,8 +177,8 @@ export const NAV_MODULES: NavModule[] = [
       { id: "contracts", label: "العقود", icon: FileText, view: "contracts", perm: "screen_customers" },
       // لوحة «أين وصلنا» — ربط العقود بمراحل العمل وموقع التقدم (قرار المالك 2026-11)
       { id: "contract-progress", label: "أين وصلنا", icon: Milestone, view: "contract-progress", perm: "screen_customers" },
-      // الشاشة الموحدة «المراحل والدفعات» — قرار المالك: أنواع العقود ومراحل العمل والدفعات في صفحة واحدة
-      { id: "stage-payments", label: "المراحل والدفعات", icon: ListTree, view: "stage-payments", perm: "screen_customers" },
+      // قرار المالك 2026-11: «ربط المراحل والدفعات داخل القوائم المرجعية وليس في العقد» —
+      // شاشة الربط انتقلت إلى مجموعة القوائم المرجعية (بند stage-payments هناك)
       { id: "contract-groups", label: "مجموعات العقود", icon: Layers, view: "contract-groups", perm: "screen_customers" },
       // بند 56: موضع المكتبي بند شل مشروط بمفتاح المزايا «forms_center» وصلاحية
       // screen_forms معًا (main_window.py:812-814) — والبند تحت وحدة العقود كشاشة العمل
@@ -191,7 +191,7 @@ export const NAV_MODULES: NavModule[] = [
     // الجلسة 15 — أقسام الشريط العلوي (10 بنود ← 5 أقسام): «المهام المستحقة» أول بند في قائمة المهام
     top: [
       { id: "t-clients-home", children: ["dashboard"] },
-      { id: "t-clients-customers", label: "العملاء والعقود", children: ["customers", "contracts", "contract-progress", "stage-payments", "contract-groups"] },
+      { id: "t-clients-customers", label: "العملاء والعقود", children: ["customers", "contracts", "contract-progress", "contract-groups"] },
       { id: "t-clients-forms", children: ["forms"] },
       { id: "t-clients-tasks", label: "المهام والزيارات", children: ["due", "tasks", "visits"] },
       { id: "t-clients-followup", label: "المتابعة والتعليقات", children: ["comments", "followup"] },
@@ -386,6 +386,9 @@ export const NAV_MODULES: NavModule[] = [
     children: [
       // الشاشة الموحدة — قرار المالك: «أنواع العقود ومراحل العمل والدفعات كلها في صفحة واحدة»
       { id: "ref-tsp", label: "الأنواع والمراحل والدفعات", icon: Layers, view: "ref-lists", section: "types-stages-payments", adminOnly: true },
+      // شاشة الربط الفعلي «المراحل والدفعات» — قرار المالك 2026-11: «ربط المراحل والدفعات
+      // يكون داخل القوائم المرجعية وليس في العقد» — انتقلت من وحدة العقود إلى المرجعية
+      { id: "stage-payments", label: "المراحل والدفعات", icon: ListTree, view: "stage-payments", adminOnly: true },
       // الشاشة الموحدة الثانية — تغيير المالك: «هتكون الوظائف وتاني عمود الادارة وتلت عمود
       // القسم ورابع عمود الوظيفه» — أربعة أعمدة: مكتبة الوظائف ← الإدارة ← القسم ← الوظيفة
       { id: "ref-org", label: "الوظائف والإدارات والأقسام", icon: Network, view: "ref-lists", section: "org-structure", adminOnly: true },

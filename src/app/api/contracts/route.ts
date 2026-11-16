@@ -213,7 +213,8 @@ export async function POST(req: NextRequest) {
   // مطابقة workflow_service._generate_type_payments_from_template: بلا خطة يدوية
   // + قالب النوع فيه صفوف ⇒ تُولَّد الدفعات (النسبة من القيمة · اليدوي كما هو · المرنة تُتخطى)
   // والاستحقاق = تاريخ العقد + أيام القالب، وربط المرحلة بالاسم (V4.48) بترتيب القالب.
-  let tplRows: { title: string; amount: number; dueDate: string; triggerStageId: number | null }[] = [];
+  // قرار المالك 2026-11: شرط الاستحقاق من قالب القوائم المرجعية يتوارث مع كل عقد يُنشأ من النوع.
+  let tplRows: { title: string; amount: number; dueDate: string; triggerStageId: number | null; triggerKind: string }[] = [];
   if (planIn.length === 0) {
     const type = await db.contractType.findFirst({
       where: { name: contractType },
@@ -227,6 +228,7 @@ export async function POST(req: NextRequest) {
           amountFixed: Number(t.amountFixed),
           daysOffset: t.daysOffset,
           triggerStageId: t.triggerStageId,
+          triggerKind: t.triggerKind,
         })),
         finalAmount,
         contractDate
@@ -236,6 +238,7 @@ export async function POST(req: NextRequest) {
         amount: r.amount,
         dueDate: r.dueDate,
         triggerStageId: r.triggerStageId ?? null,
+        triggerKind: r.triggerKind ?? "",
       }));
     }
   }
@@ -355,6 +358,8 @@ export async function POST(req: NextRequest) {
                   : p.stageId
                   ? intOr(p.stageId, 0) || null
                   : null) as number | null,
+              // شرط الاستحقاق المرسل من الواجهة (توليد القالب) — "" ⇒ تطبيع القديم تحت
+              triggerKind: String(p.triggerKind || ""),
             }))
           : tplRows.map((r, i) => ({
               title: r.title,
@@ -362,8 +367,14 @@ export async function POST(req: NextRequest) {
               amount: r.amount,
               sortOrder: i,
               stageId: takeStage(r.triggerStageId),
+              triggerKind: r.triggerKind,
             }));
         for (const p of insertPlan) {
+          // تطبيع شرط الاستحقاق — مطابقة مسار plan POST: بلا مرحلة ⇒ بتاريخ،
+          // مع مرحلة وبلا شرط صريح ⇒ عند الإنجاز (السلوك المعتمد)
+          let triggerKind = ["", "date", "stage_start", "stage_end"].includes(p.triggerKind) ? p.triggerKind : "";
+          if (!p.stageId) triggerKind = triggerKind === "stage_start" || triggerKind === "stage_end" ? "date" : triggerKind || "date";
+          else if (!triggerKind) triggerKind = "stage_end";
           await tx.paymentPlanItem.create({
             data: {
               contractId: contract.id,
@@ -372,6 +383,7 @@ export async function POST(req: NextRequest) {
               amount: p.amount,
               sortOrder: p.sortOrder,
               stageId: p.stageId,
+              triggerKind,
             },
           });
         }

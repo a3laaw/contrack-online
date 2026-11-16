@@ -81,6 +81,9 @@ export interface TemplatePlanRow {
    *  الخادم يربط عبر triggerStageId + takeStage، والواجهة (template_plan_mode)
    *  ترسل stageName فتُترجم stageIndex مقابل نسخة العقد بالاسم نفسه */
   triggerStageName?: string;
+  /** شرط الاستحقاق من القالب (date/stage_start/stage_end) — قرار المالك:
+   *  الربط وشروطه من القوائم المرجعية فتتوارثها عقود النوع تلقائيًا */
+  triggerKind?: string;
 }
 
 /** إضافة أيام تقويمية لنص تاريخ yyyy-MM-dd (أجزاء UTC) */
@@ -99,6 +102,8 @@ export interface TemplatePaymentLike {
   triggerStageId?: number | null;
   /** اسم المرحلة المحفزة من القالب (V4.48) — يُحمل في الصف لمطابقة نسخة العقد بالاسم (ر0) */
   triggerStageName?: string;
+  /** شرط الاستحقاق من القالب — يُحمل في الصف ليتوارثه العقد عند الإنشاء */
+  triggerKind?: string;
 }
 
 /**
@@ -128,6 +133,7 @@ export function templatePlanRows(
       dueDate: addDays(startDay, Number(t.daysOffset || 0)),
       triggerStageId: t.triggerStageId ?? null,
       triggerStageName: (t.triggerStageName || "").trim() || undefined,
+      triggerKind: (t.triggerKind || "").trim() || undefined,
     });
   }
   return rows;

@@ -11,7 +11,7 @@
  */
 
 import * as React from "react";
-import { Link2, Lock, Milestone, Plus, Trash2 } from "lucide-react";
+import { Link2, Lock, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -305,7 +305,6 @@ export function PlanTable({
   readOnly,
   onAdd,
   onEditRefs,
-  onEditStage,
 }: {
   lines: { id: number; title: string; dueDate: string; amountN: number; covered: number; remaining: number; state: string; stateLabel?: string; notes?: string; stageName?: string; stageId?: number | null; triggerKind?: string; isDownPayment?: boolean; refItems?: RefTagLite[] }[];
   manager: boolean;
@@ -314,8 +313,8 @@ export function PlanTable({
   onAdd?: () => void;
   /** ربط القوائم المرجعية — عند توفيرها يظهر زر 🔗 لكل سطر يفتح نافذة تعديل الربط */
   onEditRefs?: (line: { id: number; title: string; refItems?: RefTagLite[] }) => void;
-  /** زر ربط الدفعة بمرحلة + شرط الاستحقاق — طلب المالك: «لا يوجد زر لربط الدفعات بالمراحل» */
-  onEditStage?: (line: { id: number; title: string; stageId: number | null; triggerKind: string; stageName?: string; isDownPayment?: boolean; triggeredAt?: string }) => void;
+  // قرار المالك 2026-11: «ربط المراحل والدفعات داخل القوائم المرجعية وليس في العقد» —
+  // لا زر ربط داخل العقد؛ المرحلة والشرط يظهران للقراءة فقط (شارة ⚙ و⏱) من قالب النوع
 }) {
   // شارة شرط الاستحقاق — «عند البداية · عند الإنجاز · بتاريخ» (شروط المالك 2026-11)
   const triggerChip = (ln: { triggerKind?: string; stageName?: string; isDownPayment?: boolean }) => {
@@ -381,28 +380,6 @@ export function PlanTable({
                 {manager && !readOnly && (
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-0.5">
-                      {onEditStage && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8"
-                          onClick={() =>
-                            onEditStage({
-                              id: ln.id,
-                              title: ln.title,
-                              stageId: ln.stageId ?? null,
-                              triggerKind: ln.triggerKind ?? "",
-                              stageName: ln.stageName,
-                              isDownPayment: ln.isDownPayment,
-                              triggeredAt: ln.triggeredAt,
-                            })
-                          }
-                          aria-label={`ربط الدفعة ${ln.title} بمرحلة وشرط استحقاق`}
-                          title="ربط الدفعة بمرحلة وشرط الاستحقاق (عند البداية / عند الإنجاز / بالتاريخ)"
-                        >
-                          <Milestone className="size-4" />
-                        </Button>
-                      )}
                       {onEditRefs && (
                         <Button
                           variant="ghost"
@@ -475,28 +452,6 @@ export function PlanTable({
             {ln.notes && <p className="text-xs text-muted-foreground">{ln.notes}</p>}
             {manager && !readOnly && (
               <div className="flex justify-end gap-1">
-                {onEditStage && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 gap-1"
-                    onClick={() =>
-                      onEditStage({
-                        id: ln.id,
-                        title: ln.title,
-                        stageId: ln.stageId ?? null,
-                        triggerKind: ln.triggerKind ?? "",
-                        stageName: ln.stageName,
-                        isDownPayment: ln.isDownPayment,
-                        triggeredAt: ln.triggeredAt,
-                      })
-                    }
-                    aria-label={`ربط الدفعة ${ln.title} بمرحلة وشرط استحقاق`}
-                  >
-                    <Milestone className="size-3.5" />
-                    ربط مرحلة
-                  </Button>
-                )}
                 {onEditRefs && (
                   <Button
                     variant="ghost"

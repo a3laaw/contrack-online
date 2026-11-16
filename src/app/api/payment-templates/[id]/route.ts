@@ -52,6 +52,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       : tpl.stageLinks.map((l) => l.stageId)
     const effTrigger =
       'triggerStageId' in body ? body.triggerStageId : (tpl.triggerStageId ?? null)
+    const effTriggerKind =
+      typeof body.triggerKind === 'string' && body.triggerKind ? body.triggerKind : tpl.triggerKind
     const effDays =
       'daysOffset' in body && body.daysOffset != null && body.daysOffset !== ''
         ? Number(body.daysOffset)
@@ -66,6 +68,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       amountFixed: effFixed,
       stageIds: effStageIds,
       triggerStageId: effTrigger,
+      triggerKind: effTriggerKind,
       daysOffset: effDays,
       payNo: 'payNo' in body && body.payNo != null && body.payNo !== '' ? Number(body.payNo) : tpl.payNo,
       excludeTemplateId: id,
@@ -83,6 +86,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
           amountFixed: v.amountFixed,
           triggerStageId: v.triggerStageId,
           daysOffset: v.daysOffset,
+          triggerKind: v.triggerKind,
           payNo: v.payNo,
           stageLinks: {
             create: v.stageIds.map((stageId) => ({ stageId })),

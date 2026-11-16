@@ -113,7 +113,6 @@ import { formatStageHistoryLine, noteChip, pathPrefix, pctSuffix } from "@/lib/s
 import { VoucherPage } from "./VoucherPage";
 import { SubContractDialog } from "./SubContractDialog";
 import { StatusBadge } from "./StatusBadge";
-import { SearchableSelect } from "./SearchableSelect";
 import { PayBlockCard, PlanTable, UnifiedPayTable } from "./pay-tables";
 import { SubcontractorLedger } from "./SubcontractorLedger";
 import { PhaseAPayCard } from "./PhaseAPayCard";
@@ -433,44 +432,10 @@ export function ContractDetailView({
 
   // ===== الدفعات =====
   const [addPayOpen, setAddPayOpen] = React.useState(false);
-  // Task 82: stageId اختياري — الدفعة المرتبطة بمرحلة تُستحق تلقائيًا عند إنهائها
-  // شرط الاستحقاق (شروط المالك 2026-11): «عند البداية / عند الإنجاز / بتاريخ»
-  const [payForm, setPayForm] = React.useState({ title: "", amount: "", dueDate: todayStr(), stageId: "", triggerKind: "stage_end", refItemIds: [] as number[] });
-
-  // ===== نافذة «ربط الدفعة بمرحلة + شرط الاستحقاق» — طلب المالك: «لا يوجد زر لربط الدفعات بالمراحل» =====
-  const [editPayStage, setEditPayStage] = React.useState<{
-    id: number;
-    title: string;
-    stageId: string;
-    triggerKind: string;
-    isDownPayment: boolean;
-    triggeredAt?: string;
-  } | null>(null);
-
-  const editPayStageMutation = useMutation({
-    mutationFn: () => {
-      if (!editPayStage) throw new Error("لا توجد دفعة محددة");
-      return apiPatch(`/api/contracts/${contractId}/plan/${editPayStage.id}`, {
-        stageId: editPayStage.stageId === "" ? null : Number(editPayStage.stageId),
-        triggerKind: editPayStage.stageId === "" ? "date" : editPayStage.triggerKind,
-      });
-    },
-    onSuccess: () => {
-      invalidateAll();
-      qc.invalidateQueries({ queryKey: ["contract", contractId, "pay-view"] });
-      toast({
-        title: "تم حفظ ربط الدفعة",
-        description:
-          editPayStage?.stageId
-            ? editPayStage.triggerKind === "stage_start"
-              ? "أُربطت بالمرحلة وشرطها «عند البداية» — تُستحق تلقائيًا عند بدئها"
-              : "أُربطت بالمرحلة وشرطها «عند الإنجاز» — تُستحق تلقائيًا عند إنهائها"
-            : "فُكت ربطها عن المراحل — تستحق بتاريخ الاستحقاق",
-      });
-      setEditPayStage(null);
-    },
-    onError: (e) => fail(e, "تعذر حفظ ربط الدفعة"),
-  });
+  // قرار المالك 2026-11: «ربط المراحل والدفعات داخل القوائم المرجعية وليس في العقد» —
+  // الدفعة المضافة يدويًا داخل العقد تستحق بتاريخها؛ الربط بالمرحلة وشرطه يُدارا من
+  // قالب النوع (القوائم المرجعية ← الأنواع والمراحل والدفعات) وشاشة «المراحل والدفعات»
+  const [payForm, setPayForm] = React.useState({ title: "", amount: "", dueDate: todayStr(), refItemIds: [] as number[] });
 
   // ===== نافذة تعديل المرحلة — طلب المالك: «تعديل أيضًا بزر» + الأب بمنسدل =====
   const [editStageRow, setEditStageRow] = React.useState<{
@@ -539,9 +504,6 @@ export function ContractDetailView({
         title: payForm.title.trim(),
         amount: Number(payForm.amount || 0),
         dueDate: payForm.dueDate,
-        ...(payForm.stageId
-          ? { stageId: Number(payForm.stageId), triggerKind: payForm.triggerKind }
-          : {}),
         refItemIds: payForm.refItemIds,
       }),
     onSuccess: () => {
@@ -550,15 +512,11 @@ export function ContractDetailView({
       toast({
         title: "تمت الإضافة",
         description:
-          (payForm.stageId
-            ? payForm.triggerKind === "stage_start"
-              ? "أُضيفت الدفعة وارتبطت بالمرحلة بشرط «عند البداية» — تُستحق تلقائيًا عند بدئها"
-              : "أُضيفت الدفعة وارتبطت بالمرحلة بشرط «عند الإنجاز» — تُستحق تلقائيًا عند إنهائها"
-            : "أُضيفت الدفعة للخطة") +
+          "أُضيفت الدفعة للخطة — تستحق بتاريخ الاستحقاق" +
           (payForm.refItemIds.length > 0 ? ` · مربوطة بـ${payForm.refItemIds.length} بند مرجعي` : ""),
       });
       setAddPayOpen(false);
-      setPayForm({ title: "", amount: "", dueDate: todayStr(), stageId: "", triggerKind: "stage_end", refItemIds: [] });
+      setPayForm({ title: "", amount: "", dueDate: todayStr(), refItemIds: [] });
     },
     onError: (e) => fail(e, "رُفضت الإضافة"),
   });
@@ -1190,17 +1148,6 @@ export function ContractDetailView({
           onAddPay={() => setAddPayOpen(true)}
           onDeletePay={(id) => setDeletePayId(id)}
           onEditPayRefs={openEditPayRefs}
-          onEditPayStage={(line) =>
-            setEditPayStage({
-              id: line.id,
-              title: line.title,
-              stageId: line.stageId != null ? String(line.stageId) : "",
-              // تطبيع الشرط: "" القديم ⇒ عند الإنجاز للمرحلة / بالتاريخ لبلا مرحلة
-              triggerKind: line.triggerKind || (line.stageId != null ? "stage_end" : "date"),
-              isDownPayment: Boolean(line.isDownPayment),
-              triggeredAt: line.triggeredAt,
-            })
-          }
           onReceipt={() => setVoucherPage("receipt")}
           onPayment={() => setVoucherPage("payment")}
           onExport={onPayExport}
@@ -1433,54 +1380,12 @@ export function ContractDetailView({
                 <Input id="pay-due" className="h-9" dir="ltr" type="date" value={payForm.dueDate} onChange={(e) => setPayForm((f) => ({ ...f, dueDate: e.target.value }))} />
               </div>
             </div>
-            {(detailData.stages ?? []).length > 0 && (
-              <>
-                <div className="space-y-1.5">
-                  <Label>المرحلة (اختياري)</Label>
-                  <SearchableSelect
-                    value={payForm.stageId}
-                    onValueChange={(v) => setPayForm((f) => ({ ...f, stageId: v }))}
-                    options={[
-                      { value: "", label: "بدون مرحلة — تستحق بالتاريخ فقط" },
-                      ...[...(detailData.stages ?? [])]
-                        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-                        .map((s, i) => ({
-                          value: String(s.id),
-                          label: `${i + 1} · ${s.name}`,
-                        })),
-                    ]}
-                    placeholder="اختر المرحلة المرتبطة"
-                    searchPlaceholder="ابحث باسم المرحلة…"
-                    emptyText="لا نتائج مطابقة"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    الدفعة المرتبطة بمرحلة تُستحق حسب شرطها — وتولد مطالبة تلقائية إن لم تكن مغطاة.
-                  </p>
-                </div>
-                {/* شرط الاستحقاق — طلب المالك: «الدفعة لها كذا شرط — عند البدا، عند الانتهاء وهكذا» */}
-                {payForm.stageId && (
-                  <div className="space-y-1.5">
-                    <Label>شرط الاستحقاق</Label>
-                    <Select
-                      value={payForm.triggerKind}
-                      onValueChange={(v) => setPayForm((f) => ({ ...f, triggerKind: v }))}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="stage_end">عند الإنجاز — تستحق تلقائيًا عند إنهاء المرحلة</SelectItem>
-                        <SelectItem value="stage_start">عند البداية — تستحق تلقائيًا عند بدء المرحلة</SelectItem>
-                        <SelectItem value="date">بتاريخ الاستحقاق — بغض النظر عن المرحلة</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      الافتراضي «عند الإنجاز» — اختر «عند البداية» لتستحق بمجرد بدء المرحلة.
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
+            {/* قرار المالك 2026-11: الربط بالمرحلة وشرطه من القوائم المرجعية (قالب النوع
+                وشاشة «المراحل والدفعات») — الدفعة اليدوية هنا تستحق بتاريخ استحقاقها */}
+            <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              الدفعة تُستحق بتاريخ الاستحقاق — ولربطها بمرحلة وشرط استحقاق (عند البداية / عند الإنجاز) استخدم
+              القوائم المرجعية ← «المراحل والدفعات»، أو عرّفها في قالب النوع ليتوارثها العقد تلقائيًا.
+            </p>
             {/* ربط القوائم المرجعية — بنود تُوسم بها الدفعة (المنطقة · القسم · الوظيفة…) */}
             <div className="space-y-1.5">
               <Label>بنود القوائم المرجعية (اختياري)</Label>
@@ -1508,88 +1413,6 @@ export function ContractDetailView({
               onClick={() => addPayMutation.mutate()}
             >
               {addPayMutation.isPending ? "جارٍ الإضافة…" : "إضافة"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ===== ربط الدفعة بمرحلة + شرط الاستحقاق — طلب المالك: «لا يوجد زر لربط الدفعات بالمراحل» ===== */}
-      <Dialog open={editPayStage !== null} onOpenChange={(open) => !open && setEditPayStage(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>ربط الدفعة بمرحلة — {editPayStage?.title}</DialogTitle>
-            <DialogDescription>
-              اختر المرحلة وشرط الاستحقاق: عند البداية / عند الإنجاز / بتاريخ الاستحقاق.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label>المرحلة</Label>
-              <SearchableSelect
-                value={editPayStage?.stageId ?? ""}
-                onValueChange={(v) =>
-                  setEditPayStage((f) =>
-                    f
-                      ? {
-                          ...f,
-                          stageId: v,
-                          // بلا مرحلة ⇒ الشرط بتاريخ حصرًا — مع مرحلة ⇒ إنقاص الشرط القديم أو عند الإنجاز
-                          triggerKind: v === "" ? "date" : f.triggerKind === "date" || !f.triggerKind ? "stage_end" : f.triggerKind,
-                        }
-                      : f
-                  )
-                }
-                options={[
-                  { value: "", label: "بلا مرحلة — تستحق بتاريخ الاستحقاق" },
-                  ...[...(detailData.stages ?? [])]
-                    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-                    .map((s, i) => ({ value: String(s.id), label: `${i + 1} · ${s.name}` })),
-                ]}
-                placeholder="اختر المرحلة…"
-                searchPlaceholder="ابحث باسم المرحلة…"
-                emptyText="لا نتائج مطابقة"
-              />
-            </div>
-            {editPayStage?.stageId ? (
-              <div className="space-y-1.5">
-                <Label>شرط الاستحقاق</Label>
-                <Select
-                  value={editPayStage?.triggerKind || "stage_end"}
-                  onValueChange={(v) => setEditPayStage((f) => (f ? { ...f, triggerKind: v } : f))}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="stage_end">عند الإنجاز — تستحق تلقائيًا عند إنهاء المرحلة</SelectItem>
-                    <SelectItem value="stage_start">عند البداية — تستحق تلقائيًا عند بدء المرحلة</SelectItem>
-                    <SelectItem value="date">بتاريخ الاستحقاق — بغض النظر عن المرحلة</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {editPayStage?.triggerKind === "stage_start"
-                    ? "مرحلة بدأت أصلًا ⇒ تُستحق فورًا عند الحفظ."
-                    : "«عند الإنجاز» هو سلوك الدفعات المرحلية المعتمد."}
-                </p>
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                بلا مرحلة — تُستحق الدفعة بتاريخ الاستحقاق المسجل عليها.
-              </p>
-            )}
-            {editPayStage?.isDownPayment && (
-              <p className="text-xs text-warn-ink">
-                ملاحظة: هذه الدفعة الأولى عند التعاقد — ربطها بمرحلة يغيّر شرط استحقاقها من «عند التفعيل» إلى الشرط المختار.
-              </p>
-            )}
-          </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" className="h-9" onClick={() => setEditPayStage(null)} disabled={editPayStageMutation.isPending}>
-              إلغاء
-            </Button>
-            <Button className="h-9" disabled={editPayStageMutation.isPending} onClick={() => editPayStageMutation.mutate()}>
-              {editPayStageMutation.isPending && <Loader2 className="size-4 animate-spin" />}
-              حفظ الربط
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2976,7 +2799,6 @@ function PayPage({
   onAddPay,
   onDeletePay,
   onEditPayRefs,
-  onEditPayStage,
   onReceipt,
   onPayment,
   onExport,
@@ -3001,16 +2823,7 @@ function PayPage({
   onDeletePay: (id: number) => void;
   /** ربط القوائم المرجعية — فتح نافذة تعديل روابط بنود القوائم على سطر دفعة */
   onEditPayRefs: (line: { id: number; title: string; refItems?: RefTagLite[] }) => void;
-  /** زر ربط الدفعة بمرحلة + شرط الاستحقاق — طلب المالك (2026-11) */
-  onEditPayStage: (line: {
-    id: number;
-    title: string;
-    stageId: number | null;
-    triggerKind?: string;
-    stageName?: string;
-    isDownPayment?: boolean;
-    triggeredAt?: string;
-  }) => void;
+  // قرار المالك 2026-11: الربط بالمرحلة وشرطه من القوائم المرجعية — لا زر ربط داخل العقد
   onReceipt: () => void;
   onPayment: (subContractId?: number, subLabel?: string) => void;
   onExport: () => void;
@@ -3117,7 +2930,6 @@ function PayPage({
               onDelete={onDeletePay}
               onAdd={onAddPay}
               onEditRefs={onEditPayRefs}
-              onEditStage={onEditPayStage}
             />
             <p className="text-xs text-muted-foreground">
               {m.client.lines.length > 0

@@ -1135,6 +1135,8 @@ export interface TypePaymentTemplateDTO {
   amountFixed: number;
   daysOffset: number;
   triggerStageName: string;
+  /** شرط الاستحقاق من قالب القوائم المرجعية — يتوارث مع عقود النوع (قرار المالك 2026-11) */
+  triggerKind: string;
 }
 
 /** مكوّن الشامل من إعدادات النوع — الإشرافي يدخل بأشهر × قيمة شهر، وغيره كمية × سعر مرجعي */

@@ -37,6 +37,8 @@ async function listTemplates(contractTypeId: number): Promise<PaymentTemplateDTO
     kind: kindOf(Number(t.pct), Number(t.amountFixed)),
     triggerStageId: t.triggerStageId,
     triggerStageName: t.triggerStage?.stageName ?? null,
+    // شرط الاستحقاق من القالب — قرار المالك: الربط وشروطه من القوائم المرجعية
+    triggerKind: t.triggerKind || (t.stageLinks.length > 0 ? 'stage_end' : 'date'),
     stages: t.stageLinks.map((l) => ({ stageId: l.stage.id, stageName: l.stage.stageName })),
   }))
 }
@@ -79,6 +81,7 @@ export async function POST(req: NextRequest) {
       amountFixed: body.amountFixed,
       stageIds: body.stageIds,
       triggerStageId: body.triggerStageId,
+      triggerKind: body.triggerKind,
       daysOffset: body.daysOffset,
       payNo: body.payNo,
     })
@@ -92,6 +95,7 @@ export async function POST(req: NextRequest) {
         amountFixed: v.amountFixed,
         triggerStageId: v.triggerStageId,
         daysOffset: v.daysOffset,
+        triggerKind: v.triggerKind,
         stageLinks: {
           create: v.stageIds.map((stageId) => ({ stageId })),
         },

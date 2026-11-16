@@ -85,6 +85,8 @@ export interface PaymentTemplateDTO {
   kind: 'pct' | 'fixed' | 'flex'
   triggerStageId: number | null
   triggerStageName: string | null
+  /** شرط الاستحقاق من القالب — date | stage_start | stage_end ("" القديم يُطبَّع في العرض) */
+  triggerKind: string
   stages: PaymentTemplateStageRef[]
 }
 

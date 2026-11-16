@@ -91,6 +91,8 @@ interface PaymentDraft {
   dueDate: string;
   /** وضع التلقائي: اسم مرحلة الربط من القالب — يُترجم stageIndex عند الحفظ */
   stageName?: string;
+  /** وضع التلقائي: شرط الاستحقاق من قالب القوائم المرجعية — يتوارث مع العقد */
+  triggerKind?: string;
 }
 
 interface BundleRowState {
@@ -256,6 +258,8 @@ export function ContractNewPage({
         // ر0 — اسم المرحلة المحفزة من القالب: يُترجم stageIndex عند الحفظ
         // فترتبط الدفعة بمرحلتها لحظة الإنشاء (كما يفعل takeStage الخادمي)
         triggerStageName: t.triggerStageName,
+        // شرط الاستحقاق من قالب القوائم المرجعية (قرار المالك) — يُمرر مع الصف
+        triggerKind: t.triggerKind,
       })),
       amount,
       fDate
@@ -266,6 +270,7 @@ export function ContractNewPage({
         amount: String(r.amount),
         dueDate: r.dueDate,
         stageName: r.triggerStageName,
+        triggerKind: r.triggerKind,
       }))
     );
   }, [mode, fAmount, fDate, fTypeId, paymentsDirty, flagOn]);
@@ -364,6 +369,8 @@ export function ContractNewPage({
             dueDate: p.dueDate,
             sortOrder: i,
             stageIndex: takeStageIndex(p.stageName),
+            // شرط الاستحقاق من قالب القوائم المرجعية — يتوارث مع العقد (قرار المالك)
+            triggerKind: p.triggerKind || "",
           }));
       }
       // سيناريو المالك — الدفعة الأولى عند التعاقد: غير مربوطة بمرحلة، مستحقة عند التفعيل

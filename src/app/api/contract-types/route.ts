@@ -54,12 +54,14 @@ export async function GET(req: NextRequest) {
       templatesCount: t._count.paymentTemplates,
       contractsCount: countMap.get(t.name) ?? 0,
       // Task 89b — قوالب دفع النوع (لتوليد الدفعات في وضع التلقائي مع تعديل المبالغ)
+      // + شرط الاستحقاق من القالب (قرار المالك: الربط وشروطه من القوائم المرجعية)
       paymentTemplates: t.paymentTemplates.map((p) => ({
         title: p.title,
         pct: Number(p.pct),
         amountFixed: Number(p.amountFixed),
         daysOffset: p.daysOffset,
         triggerStageName: p.triggerStage?.stageName || "",
+        triggerKind: p.triggerKind || (p.triggerStageId ? "stage_end" : "date"),
       })),
       // Task 89b — مكوّنات الشامل (kind: months للإشرافية / qty لغيرها)
       bundleComponents: t.bundleParents.map((b) => ({

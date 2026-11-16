@@ -23,6 +23,8 @@ export interface TemplateValidated {
   daysOffset: number
   stageIds: number[]
   triggerStageId: number | null
+  /** شرط الاستحقاق — قرار المالك: الربط وشروطه من القوائم المرجعية (date/stage_start/stage_end) */
+  triggerKind: string
   payNo: number
 }
 
@@ -91,6 +93,7 @@ export async function validateTemplateInput(opts: {
   amountFixed?: unknown
   stageIds?: unknown
   triggerStageId?: unknown
+  triggerKind?: unknown
   daysOffset?: unknown
   payNo?: unknown
   excludeTemplateId?: number | null
@@ -139,6 +142,15 @@ export async function validateTemplateInput(opts: {
       ? null
       : Math.trunc(Number(opts.triggerStageId))
 
+  // شرط الاستحقاق — «عند البداية / عند الإنجاز / بتاريخ الاستحقاق» (شروط المالك 2026-11)
+  // "" = قديم (توافق) — يُطبَّع تحت حسب وجود المراحل
+  let triggerKind = typeof opts.triggerKind === 'string' ? opts.triggerKind : ''
+  if (!['', 'date', 'stage_start', 'stage_end'].includes(triggerKind)) {
+    throw new TemplateInputError(
+      'شرط الاستحقاق يجب أن يكون: عند البداية أو عند الإنجاز أو بتاريخ الاستحقاق',
+    )
+  }
+
   if (stageIds.length === 0) {
     // قاعدتا 5+6: بلا مراحل = دفعة بالأيام بلا مُحفِّز
     if (triggerStageId != null) {
@@ -146,6 +158,7 @@ export async function validateTemplateInput(opts: {
         'مُحفِّز بلا مراحل ممنوع — إما اربط مراحل أو اجعل الدفعة بالأيام',
       )
     }
+    triggerKind = 'date' // بلا مرحلة ⇒ الشرط بتاريخ الاستحقاق حصرًا
   } else {
     await validateStageLinks(contractType, stageIds, excludeTemplateId)
     if (triggerStageId != null && !stageIds.includes(triggerStageId)) {
@@ -200,5 +213,8 @@ export async function validateTemplateInput(opts: {
     if (dup) throw new TemplateInputError(`رقم الدفعة ${payNo} مستخدم في هذا النوع`)
   }
 
-  return { title, pct, amountFixed, daysOffset, stageIds, triggerStageId, payNo }
+  // مع مراحل: القديم ("") ⇒ عند الإنجاز (السلوك المعتمد للدفعات المرحلية)
+  if (stageIds.length > 0 && triggerKind === '') triggerKind = 'stage_end'
+
+  return { title, pct, amountFixed, daysOffset, stageIds, triggerStageId, triggerKind, payNo }
 }

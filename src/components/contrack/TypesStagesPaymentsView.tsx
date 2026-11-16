@@ -54,6 +54,7 @@ import { errMessage, type User } from "./contrack-types";
 import { adminApi } from "@/lib/admin-api";
 import type { PaymentTemplateDTO } from "@/lib/admin-types";
 import { formatKWD } from "@/lib/format";
+import { planTriggerLabel } from "@/lib/contrack-core";
 import {
   PRICING_MODES,
   deriveTypeCategories,
@@ -347,10 +348,14 @@ export function TypesStagesPaymentsView({ user, onAuthError, onFailToast, onOpen
       if (!selectedType) throw new Error("اختر نوع عقد أولًا");
       const days = stageDays === "" ? 0 : Math.max(0, Math.trunc(Number(stageDays)));
       if (!Number.isFinite(days)) throw new Error("الأيام المتوقعة غير صالحة");
+      // الأب بمنسدل (من الأبناء للأب) في الإضافة والتعديل — قرار المالك:
+      // «عمود ثالث للمراحل الرئيسية اللي هي الأب ويكون الأفضل دروب داون من الأبناء للأب»
+      const parentId = stageParent !== "none" ? Number(stageParent) : null;
       if (stageDialog?.mode === "edit" && stageDialog.stage) {
         return apiPatch(`/api/workflow-stages?id=${stageDialog.stage.id}`, {
           stageName: name,
           expectedDays: days,
+          parentId,
         });
       }
       const nextOrder = typeStages.length > 0 ? Math.max(...typeStages.map((s) => s.stageOrder)) + 1 : 1;
@@ -360,7 +365,7 @@ export function TypesStagesPaymentsView({ user, onAuthError, onFailToast, onOpen
         stageName: name,
         expectedDays: days,
         stageOrder: nextOrder,
-        parentId: stageParent !== "none" ? Number(stageParent) : null,
+        parentId,
       });
     },
     onSuccess: () => {
@@ -392,6 +397,9 @@ export function TypesStagesPaymentsView({ user, onAuthError, onFailToast, onOpen
   const [payPct, setPayPct] = React.useState("");
   const [payFixed, setPayFixed] = React.useState("");
   const [payDays, setPayDays] = React.useState("");
+  // شرط الاستحقاق — قرار المالك: «الدفعة لها كذا شرط — عند البدا، عند الانتهاء وهكذا»
+  // يُعرَّف في القوائم المرجعية ويتوارث مع كل عقد يُنشأ من النوع
+  const [payTrigger, setPayTrigger] = React.useState("stage_end");
   const [deletePayment, setDeletePayment] = React.useState<PaymentTemplateDTO | null>(null);
 
   const openPayDialog = (mode: "add" | "edit", payment?: PaymentTemplateDTO) => {
@@ -400,6 +408,11 @@ export function TypesStagesPaymentsView({ user, onAuthError, onFailToast, onOpen
     setPayPct(mode === "edit" && payment ? String(Number(payment.pct) || "") : "");
     setPayFixed(mode === "edit" && payment ? String(Number(payment.amountFixed) || "") : "");
     setPayDays(mode === "edit" && payment && payment.daysOffset > 0 ? String(payment.daysOffset) : "");
+    setPayTrigger(
+      mode === "edit" && payment
+        ? payment.triggerKind || (payment.stages.length > 0 ? "stage_end" : "date")
+        : "stage_end"
+    );
     setPayDialog({ mode, payment });
   };
 
@@ -419,6 +432,7 @@ export function TypesStagesPaymentsView({ user, onAuthError, onFailToast, onOpen
         valueMode,
         pct,
         amountFixed: fixed,
+        triggerKind: payTrigger,
         ...(payDays !== "" ? { daysOffset: Math.max(0, Math.trunc(Number(payDays))) } : {}),
       };
       if (mode === "edit" && payDialog?.payment) {
@@ -468,10 +482,10 @@ export function TypesStagesPaymentsView({ user, onAuthError, onFailToast, onOpen
     onError: (e: unknown) => onFail(e, "تعذر فك الربط"),
   });
 
-  /** ربط دفعة قائمة (بالأيام بلا مراحل) بالمرحلة المختارة */
+  /** ربط دفعة قائمة (بالأيام بلا مراحل) بالمرحلة المختارة — الشرط يصير «عند الإنجاز» */
   const linkDaysMutation = useMutation({
     mutationFn: ({ payment, stageId }: { payment: PaymentTemplateDTO; stageId: number }) =>
-      apiPatch(`/api/payment-templates/${payment.id}`, { stageIds: [stageId] }),
+      apiPatch(`/api/payment-templates/${payment.id}`, { stageIds: [stageId], triggerKind: "stage_end" }),
     onSuccess: () => {
       invalidateAll();
       toast({ title: "تم ربط الدفعة بالمرحلة — وهي المحفِّزة تلقائيًا" });
@@ -584,7 +598,8 @@ export function TypesStagesPaymentsView({ user, onAuthError, onFailToast, onOpen
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-lg font-bold whitespace-nowrap">الأنواع والمراحل والدفعات</h1>
         <span className="hidden xl:inline text-xs text-muted-foreground">
-          اختر نوع العقد ← ستظهر مراحله ← اختر مرحلة فتظهر الدفعة المرتبطة بها
+          اختر نوع العقد ← ستظهر مراحله ← اختر مرحلة فتظهر الدفعة المرتبطة بها وشرط استحقاقها —
+          الربط والشروط من هنا فيتوارثها كل عقد من هذا النوع
         </span>
         {/* مصمم القوالب — تصميم مستند النوع (بنود ودفعات وBOQ) — التصميم §6 */}
         {manager && (
@@ -830,6 +845,9 @@ export function TypesStagesPaymentsView({ user, onAuthError, onFailToast, onOpen
                       <span className="numeric text-[11px] text-muted-foreground shrink-0" dir="ltr">
                         {valueLabel(p)}
                       </span>
+                      <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground shrink-0" title="شرط الاستحقاق">
+                        ⏱ {planTriggerLabel(p.triggerKind, p.stages.length > 0)}
+                      </Badge>
                       <span className="hidden truncate text-[11px] text-muted-foreground sm:inline max-w-36">
                         {p.stages.map((s) => s.stageName).join("، ")}
                       </span>
@@ -1055,22 +1073,28 @@ export function TypesStagesPaymentsView({ user, onAuthError, onFailToast, onOpen
                 onChange={(e) => setStageName(e.target.value)}
               />
             </div>
-            {stageDialog?.mode === "add" && mains.length > 0 && (
+            {(stageDialog?.mode === "add" || stageDialog?.mode === "edit") && mains.length > 0 && (
               <div className="space-y-1.5">
-                <Label htmlFor="tsp-stage-parent">مرتبطة بمرحلة رئيسية (اختياري)</Label>
+                <Label htmlFor="tsp-stage-parent">المرحلة الأب (اختياري)</Label>
+                {/* من الأبناء للأب — قرار المالك: الفرعية تُربط برئيسية بمنسدل، في الإضافة والتعديل */}
                 <Select value={stageParent} onValueChange={setStageParent}>
                   <SelectTrigger id="tsp-stage-parent" className="h-10 w-full">
                     <SelectValue placeholder="رئيسية بلا أب" />
                   </SelectTrigger>
                   <SelectContent className="max-h-60">
                     <SelectItem value="none">رئيسية بلا أب</SelectItem>
-                    {mains.map((m) => (
-                      <SelectItem key={m.id} value={String(m.id)}>
-                        {m.stageName}
-                      </SelectItem>
-                    ))}
+                    {mains
+                      .filter((m) => m.id !== stageDialog?.stage?.id)
+                      .map((m) => (
+                        <SelectItem key={m.id} value={String(m.id)}>
+                          {m.stageName}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  اختر الرئيسية لتصبح هذه المرحلة فرعية (خطوة تنفيذ) تحتها — الفرعية هي القابلة للربط بدفعة.
+                </p>
               </div>
             )}
             <div className="space-y-1.5">
@@ -1200,6 +1224,28 @@ export function TypesStagesPaymentsView({ user, onAuthError, onFailToast, onOpen
                 الدفعة المرنة تُدرج بقيمة 0 ويُعبأ مبلغها عند إنشاء دفعات العقود.
               </p>
             )}
+            {/* شرط الاستحقاق — قرار المالك: «الدفعة لها كذا شرط — عند البدا، عند الانتهاء وهكذا»،
+                والربط وشروطه من القوائم المرجعية (وليس في العقد) — يتوارث مع عقود النوع */}
+            <div className="space-y-1.5">
+              <Label htmlFor="tsp-pay-trigger">شرط الاستحقاق</Label>
+              <Select value={payTrigger} onValueChange={setPayTrigger}>
+                <SelectTrigger id="tsp-pay-trigger" className="h-10 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  <SelectItem value="stage_end">عند الإنجاز — تُستحق تلقائيًا عند إنهاء المرحلة</SelectItem>
+                  <SelectItem value="stage_start">عند البداية — تُستحق تلقائيًا عند بدء المرحلة</SelectItem>
+                  <SelectItem value="date">بتاريخ الاستحقاق — بغض النظر عن المرحلة</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {payTrigger === "stage_start"
+                  ? "عند بدء المرحلة في أي عقد من هذا النوع تُستحق الدفعة آليًا (فورًا إن كانت بدأت)."
+                  : payTrigger === "date"
+                    ? "تُستحق بتاريخ الاستحقاق المحسوب حتى لو لم تبدأ المرحلة."
+                    : "«عند الإنجاز» هو سلوك الدفعات المرحلية المعتمد."}
+              </p>
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="tsp-pay-days">أيام بعد المرحلة (اختياري)</Label>
               <Input
@@ -1283,6 +1329,10 @@ function PaymentCard({
             <span className="font-bold text-sm">{payment.title}</span>
             <Badge className={`border-0 text-[10px] ${kindBadgeCls[payment.kind]}`}>
               {payment.kind === "pct" ? "نسبة" : payment.kind === "fixed" ? "ثابتة" : "مرنة"}
+            </Badge>
+            {/* شارة شرط الاستحقاق من القالب — يتوارث مع عقود النوع (قرار المالك 2026-11) */}
+            <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground" title="شرط الاستحقاق">
+              ⏱ {planTriggerLabel(payment.triggerKind, payment.stages.length > 0)}
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">

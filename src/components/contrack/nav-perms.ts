@@ -83,7 +83,8 @@ export const VIEW_PERMS: Partial<Record<ViewName, string>> = {
   // لوحة «أين وصلنا» — ربط العقود بمراحل العمل (قرار المالك 2026-11) — باب شاشة العقود نفسه
   "contract-progress": "screen_customers",
   "contract-groups": "screen_customers",
-  // الشاشة الموحدة «المراحل والدفعات» — باب فتح مباشر بمفتاح شاشة العقود نفسه
+  // الشاشة الموحدة «المراحل والدفعات» — قرار المالك 2026-11: انتقلت إلى القوائم المرجعية
+  // (adminOnly) — باب الفتح المباشر يبقى بمفتاح شاشة العقود لغير المدراء من مسارات جانبية
   "stage-payments": "screen_customers",
   forms: "screen_forms",
   contract: "screen_customers",
