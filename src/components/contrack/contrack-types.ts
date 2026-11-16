@@ -8,6 +8,8 @@ export type ViewName =
   | "due"
   | "customers"
   | "customer-file"
+  // وحدة «العقود وعروض الأسعار» المستقلة (قرار المالك) — قسم العروض مع التحويل إلى عقد
+  | "quotes-contracts"
   | "contracts"
   // لوحة «أين وصلنا» — ربط العقود بمراحل العمل وموقع التقدم (قرار المالك 2026-11)
   | "contract-progress"

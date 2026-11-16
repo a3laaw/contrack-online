@@ -394,6 +394,7 @@ export function AppShell({ user, activeNav, onSelectChild, onLogout, onOpenSearc
  */
 const MODULE_TONE: Record<string, { tile: string; icon: string }> = {
   clients: { tile: "bg-brand-gold-tile", icon: "text-brand-orange" },
+  qc: { tile: "bg-brand-gold-tile", icon: "text-brand-orange" },
   sales: { tile: "bg-brand-gold-tile", icon: "text-brand-orange" },
   accounting: { tile: "bg-brand-gold-tile", icon: "text-brand-orange" },
   projects: { tile: "bg-info-tile", icon: "text-info-blue-text" },

@@ -33,6 +33,7 @@ import { ContractNewPage } from "./ContractNewPage";
 import { apiGet } from "./api";
 import type { ContractsResponse, User } from "./contrack-types";
 import { CONTRACT_STATUSES, errMessage } from "./contrack-types";
+import type { QuotationContractPreset } from "@/lib/quotes-core";
 import { formatKWD, fmtDate, statusBadgeClass } from "@/lib/format";
 
 interface ContractsViewProps {
@@ -42,6 +43,10 @@ interface ContractsViewProps {
   /** عميل محدد مسبقًا عند القدوم من شاشة العملاء */
   presetCustomerId?: number | null;
   onConsumePreset?: () => void;
+  /** عرض سعر مقبول يتحول إلى عقد (وحدة «العقود وعروض الأسعار») —
+   *  يفتح المعالج معبأً بالعميل والاسم والمبلغ ويُوسم العرض آليًا بعد الإنشاء */
+  presetFromQuote?: QuotationContractPreset | null;
+  onConsumeQuotePreset?: () => void;
 }
 
 const STATUS_FILTERS = ["الكل", ...CONTRACT_STATUSES] as const;
@@ -52,6 +57,8 @@ export function ContractsView({
   onOpenContract,
   presetCustomerId,
   onConsumePreset,
+  presetFromQuote,
+  onConsumeQuotePreset,
 }: ContractsViewProps) {
   const { enabled: featureEnabled } = useFeatureFlags();
   const [gapsOpen, setGapsOpen] = React.useState(false);
@@ -76,7 +83,10 @@ export function ContractsView({
   });
 
   // ===== عقد جديد — صفحة كاملة بدل النافذة =====
-  const [createPage, setCreatePage] = React.useState<{ presetCustomerId?: number | null } | null>(null);
+  const [createPage, setCreatePage] = React.useState<{
+    presetCustomerId?: number | null;
+    quote?: QuotationContractPreset | null;
+  } | null>(null);
 
   // فتح الصفحة مع عميل محدد مسبقًا (كما كان فتح المعالج سابقًا)
   React.useEffect(() => {
@@ -86,6 +96,14 @@ export function ContractsView({
     }
   }, [presetCustomerId, onConsumePreset]);
 
+  // فتح الصفحة معبأة من عرض سعر مقبول (تحويل العرض إلى عقد — وحدة qc)
+  React.useEffect(() => {
+    if (presetFromQuote) {
+      setCreatePage({ presetCustomerId: presetFromQuote.customerId, quote: presetFromQuote });
+      onConsumeQuotePreset?.();
+    }
+  }, [presetFromQuote, onConsumeQuotePreset]);
+
   const items = listQuery.data?.contracts ?? [];
 
   // صفحة «عقد جديد» تُعرض مكان القائمة (بعد كل الـhooks — بلا مسار جديد)
@@ -94,6 +112,7 @@ export function ContractsView({
       <ContractNewPage
         onAuthError={onAuthError}
         presetCustomerId={createPage.presetCustomerId}
+        presetQuote={createPage.quote}
         onSaved={() => setCreatePage(null)}
         onCancel={() => setCreatePage(null)}
         onOpenContract={onOpenContract}

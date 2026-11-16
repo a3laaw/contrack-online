@@ -35,10 +35,11 @@ export const MODULE_CATALOG: ModuleDef[] = [
     code: "contracting",
     name: "المقاولات",
     icon: "hardhat",
-    desc: "العقود والعملاء والباطن والمتابعة والزيارات والتقارير التشغيلية",
+    desc: "العملاء والعقود وعروض الأسعار والباطن والمتابعة والزيارات والتقارير التشغيلية",
     available: true,
     core: false,
-    navModules: ["clients", "projects", "subs", "reports"],
+    // «qc» وحدة العقود وعروض الأسعار المستقلة (قرار المالك) — تُفتح تلقائيًا مع المقاولات
+    navModules: ["qc", "clients", "projects", "subs", "reports"],
   },
   {
     code: "consulting",
@@ -70,14 +71,15 @@ export const MODULE_CATALOG: ModuleDef[] = [
     navModules: ["warehouses"],
   },
   {
-    // المبيعات (docs/sales-design.md) — صفر جداول جديدة: عروض الأسعار ببيت مستقل + نقاط البيع بمعاملة واحدة
+    // المبيعات (docs/sales-design.md) — نقاط البيع بمعاملة واحدة؛
+    // قرار المالك: عروض الأسعار انتقلت إلى وحدة qc المستقلة فتسير مع المبيعات كي لا تفقدها شركة المبيعات وحدها
     code: "sales",
     name: "المبيعات",
     icon: "store",
-    desc: "عروض الأسعار وتحويلها لفاتورة، ونقاط البيع السريع بفاتورة وسند وإذن صرف آلي بمعاملة واحدة",
+    desc: "نقاط البيع السريع بفاتورة وسند وإذن صرف آلي بمعاملة واحدة — وعروض الأسعار في وحدة العقود وعروض الأسعار",
     available: true,
     core: false,
-    navModules: ["sales"],
+    navModules: ["qc", "sales"],
   },
   {
     // الصيانة والتشغيل (docs/maintenance-design.md) — عقود الصيانة بنوع موسوم وأوامر عمل MO وجدول وقائي مولِّد

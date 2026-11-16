@@ -9,7 +9,7 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftRight, ChevronDown, FileText, Pencil, Plus, Printer, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, FileSignature, FileText, Pencil, Plus, Printer, RefreshCw, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,7 +54,7 @@ import {
   type QuotationRow,
 } from "@/lib/quotes-core";
 import { quoteConvertible } from "@/lib/sales-core";
-import { QUOTE_CONVERT_MARKER } from "@/lib/sales-constants";
+import { QUOTE_CONVERT_MARKER, QUOTE_TO_CONTRACT_MARKER } from "@/lib/sales-constants";
 import { printDoc } from "../doc-templates/print-doc";
 import type { DocTemplateMeta, DocTemplateRenderResponse } from "@/lib/doc-template-core";
 import type { CustomersResponse } from "../contrack-types";
@@ -69,7 +69,12 @@ const DocReadView = dynamic(
 interface QuotesSectionProps {
   user: User;
   onAuthError: () => void;
-  onOpenPos: () => void;
+  /** اختياري — رابط نقاط البيع في الفراغ (سياق موديول المبيعات حصرًا)؛
+   *  وحدة «العقود وعروض الأسعار» لا تمرره فلا تلمح للنقطة */
+  onOpenPos?: () => void;
+  /** اختياري — تحويل عرض مقبول إلى عقد (وحدة «العقود وعروض الأسعار»)؛
+   *  غيابه يخفي زر التحويل — موديول المبيعات يحوّل لفاتورة حصرًا */
+  onConvertToContract?: (q: QuotationRow) => void;
 }
 
 interface ItemFormRow {
@@ -99,7 +104,7 @@ const EMPTY_FORM: QuoteFormState = {
   items: [{ ...EMPTY_ITEM }],
 };
 
-export function QuotesSection({ user, onAuthError, onOpenPos }: QuotesSectionProps) {
+export function QuotesSection({ user, onAuthError, onOpenPos, onConvertToContract }: QuotesSectionProps) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const manager = isManagerRole(user.role);
@@ -284,7 +289,12 @@ export function QuotesSection({ user, onAuthError, onOpenPos }: QuotesSectionPro
   };
 
   const alreadyConverted = (row: QuotationRow) => (row.notes || "").includes(QUOTE_CONVERT_MARKER);
-  const convertible = (row: QuotationRow) => quoteConvertible(row.status) && !alreadyConverted(row);
+  // وحدة «العقود وعروض الأسعار» — العرض المحوَّل لعقد أو لفاتورة مستهلك في الاتجاهين
+  const alreadyToContract = (row: QuotationRow) => (row.notes || "").includes(QUOTE_TO_CONTRACT_MARKER);
+  const convertible = (row: QuotationRow) => quoteConvertible(row.status) && !alreadyConverted(row) && !alreadyToContract(row);
+  // التحويل إلى عقد — المقبول حصرًا (قرار المالك: العرض يُقبل أولًا ثم يتعاقد)
+  const contractConvertible = (row: QuotationRow) =>
+    row.status === "مقبول" && !alreadyToContract(row) && !alreadyConverted(row);
 
   return (
     <div className="space-y-3">
@@ -355,13 +365,15 @@ export function QuotesSection({ user, onAuthError, onOpenPos }: QuotesSectionPro
                 <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
                   {q || statusFilter !== "الكل" ? (
                     "لا نتائج مطابقة للبحث"
-                  ) : (
+                  ) : onOpenPos ? (
                     <span>
                       لا توجد عروض أسعار بعد — أنشئ أول عرض، أو بيع فورًا من{" "}
                       <button type="button" className="font-medium text-primary-ink underline" onClick={onOpenPos}>
                         نقاط البيع
                       </button>
                     </span>
+                  ) : (
+                    <span>لا توجد عروض أسعار بعد — أنشئ أول عرض</span>
                   )}
                 </TableCell>
               </TableRow>
@@ -408,6 +420,19 @@ export function QuotesSection({ user, onAuthError, onOpenPos }: QuotesSectionPro
                   </TableCell>
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-1">
+                      {/* تحويل إلى عقد — وحدة «العقود وعروض الأسعار»: يفتح معالج العقد معبأً */}
+                      {onConvertToContract && contractConvertible(row) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1 text-xs"
+                          onClick={() => onConvertToContract(row)}
+                          aria-label={`تحويل ${row.quotationNumber} إلى عقد`}
+                        >
+                          <FileSignature className="size-3.5" />
+                          تحويل لعقد
+                        </Button>
+                      )}
                       {convertible(row) && (
                         <Button
                           variant="outline"
@@ -422,7 +447,12 @@ export function QuotesSection({ user, onAuthError, onOpenPos }: QuotesSectionPro
                       )}
                       {alreadyConverted(row) && (
                         <Badge variant="secondary" className="text-[10px]">
-                          مُحوَّل
+                          مُحوَّل لفاتورة
+                        </Badge>
+                      )}
+                      {alreadyToContract(row) && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          مُحوَّل لعقد
                         </Badge>
                       )}
                       <Button

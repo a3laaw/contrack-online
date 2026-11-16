@@ -61,11 +61,15 @@ import type {
 import { errMessage } from "./contrack-types";
 import { amountGuardProblems, templatePlanRows, type AmountGuardProblem } from "@/lib/contract-create";
 import { deriveTypeCategories } from "@/lib/contract-types-admin";
+import type { QuotationContractPreset } from "@/lib/quotes-core";
 
 interface ContractNewPageProps {
   onAuthError: () => void;
   /** عميل محدد مسبقًا عند القدوم من شاشة العملاء (نفس presetCustomerId السابق) */
   presetCustomerId?: number | null;
+  /** تحويل عرض سعر مقبول (وحدة «العقود وعروض الأسعار») — تعبئة العميل والاسم والمبلغ
+   *  + إرسال quotationId لوسم العرض آليًا «تحويل إلى عقد» بعد الإنشاء */
+  presetQuote?: QuotationContractPreset | null;
   /** بعد نجاح الإنشاء — تُغلق الصفحة من الشاشة المستدعية */
   onSaved?: () => void;
   /** العودة لقائمة العقود */
@@ -141,6 +145,7 @@ const toDraft = (s: WorkflowStageDTO): StageDraft => ({
 export function ContractNewPage({
   onAuthError,
   presetCustomerId,
+  presetQuote,
   onSaved,
   onCancel,
   onOpenContract,
@@ -164,13 +169,14 @@ export function ContractNewPage({
   });
 
   const [fCustomerId, setFCustomerId] = React.useState(
-    presetCustomerId ? String(presetCustomerId) : ""
+    presetQuote ? String(presetQuote.customerId) : presetCustomerId ? String(presetCustomerId) : ""
   );
-  const [fName, setFName] = React.useState("");
+  // تحويل عرض سعر — الاسم والمبلغ مقترحان من العرض (وصف العرض = اسم العقد، الإجمالي = القيمة)
+  const [fName, setFName] = React.useState(presetQuote?.name ?? "");
   const [fTypeId, setFTypeId] = React.useState("");
   /** Task 95 — التصفية بالتصنيف: القائمة مشتقة تلقائيًا من الأنواع نفسها (بلا كتابة حرة) */
   const [fCategory, setFCategory] = React.useState("all");
-  const [fAmount, setFAmount] = React.useState("");
+  const [fAmount, setFAmount] = React.useState(presetQuote?.amount ?? "");
   const [fDate, setFDate] = React.useState(() => todayStr());
   const [fDescription, setFDescription] = React.useState("");
 
@@ -377,6 +383,8 @@ export function ContractNewPage({
       if (!supActive && dpOn && Number(dpAmount) > 0) {
         body.downPayment = { amount: Number(dpAmount), dueDate: dpDueDate || fDate };
       }
+      // وحدة «العقود وعروض الأسعار» — تحويل عرض: يُوسم العرض آليًا بعد إنشاء العقد
+      if (presetQuote?.quotationId) body.quotationId = presetQuote.quotationId;
       if (amountPolicy) body.amountPolicy = amountPolicy;
       return apiPost<{ contract: { id: number; contractNumber: string } }>("/api/contracts", body);
     },
@@ -384,9 +392,13 @@ export function ContractNewPage({
       qc.invalidateQueries({ queryKey: ["contracts"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["customers"] });
+      // العرض المحوَّل — تُحدَّث قائمة العروض لترى وسم «تحويل إلى عقد» فورًا
+      qc.invalidateQueries({ queryKey: ["quotes"] });
       toast({
-        title: "تم إنشاء العقد",
-        description: `رقم العقد ${res.contract.contractNumber}`,
+        title: presetQuote ? "تم إنشاء العقد من عرض السعر ✅" : "تم إنشاء العقد",
+        description: presetQuote
+          ? `رقم العقد ${res.contract.contractNumber} — وُسم العرض ${presetQuote.quotationNumber} بالتحويل آليًا`
+          : `رقم العقد ${res.contract.contractNumber}`,
       });
       onSaved?.();
       onOpenContract(res.contract.id);
@@ -545,6 +557,15 @@ export function ContractNewPage({
         {modeBadge}
         {supCandidate && <Badge className="bg-info-soft text-info-blue-text">👁 إشراف</Badge>}
       </div>
+
+      {/* ===== تحويل عرض سعر — شريط توضيحي (وحدة «العقود وعروض الأسعار») ===== */}
+      {presetQuote && (
+        <div className="rounded-md border border-info-blue/30 bg-info-soft px-3 py-2 text-xs text-info-blue-text">
+          يُنشأ هذا العقد من عرض السعر <span className="font-bold" dir="ltr">{presetQuote.quotationNumber}</span> للعميل{" "}
+          <span className="font-bold">{presetQuote.customerName}</span> — العميل والاسم والقيمة معبأة من العرض،
+          وبعد الحفظ يُوسم العرض «تحويل إلى عقد» آليًا. أكمل نوع العقد والمراحل والدفعة الأولى عند التعاقد.
+        </div>
+      )}
 
       {/* ===== ① بيانات العقد — صفّان مدمجان ===== */}
       <Card>

@@ -23,6 +23,7 @@ import {
   CASH_CUSTOMER_NOTE,
   POS_INVOICE_DESCRIPTION,
   QUOTE_CONVERT_MARKER,
+  QUOTE_TO_CONTRACT_MARKER,
   SALES_ACCOUNTS,
   r3,
 } from "@/lib/sales-constants";
@@ -634,6 +635,10 @@ export async function convertQuotationToInvoice(
   }
   if (q.notes.includes(QUOTE_CONVERT_MARKER)) {
     throw new SalesError("تم تحويل هذا العرض إلى فاتورة سابقًا — راجع ملاحظات العرض", 409);
+  }
+  // وحدة «العقود وعروض الأسعار» — العرض المحوَّل إلى عقد مستهلك لا يُحوَّل لفاتورة
+  if (q.notes.includes(QUOTE_TO_CONTRACT_MARKER)) {
+    throw new SalesError("تم تحويل هذا العرض إلى عقد سابقًا — راجع ملاحظات العرض", 409);
   }
   const rows = mapQuotationToInvoiceItems(
     q.items.map((it) => ({ description: it.description, quantity: Number(it.quantity), unitPrice: Number(it.unitPrice) }))

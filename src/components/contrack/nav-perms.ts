@@ -79,6 +79,9 @@ export const VIEW_PERMS: Partial<Record<ViewName, string>> = {
   due: "screen_customers",
   customers: "screen_customers",
   "customer-file": "screen_customers",
+  // وحدة «العقود وعروض الأسعار» المستقلة (قرار المالك) — قسم العروض بنفس باب العقود
+  // (GET /api/quotes يحرس بشاشة العملاء — المرآة المكتبية نفسها)
+  "quotes-contracts": "screen_customers",
   contracts: "screen_customers",
   // لوحة «أين وصلنا» — ربط العقود بمراحل العمل (قرار المالك 2026-11) — باب شاشة العقود نفسه
   "contract-progress": "screen_customers",

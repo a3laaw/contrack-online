@@ -5,6 +5,7 @@ import { audit, authGuard, featureOn, jsonError, normalizeArabic, ok, parseDay, 
 import { EPS, r3, contractCurrentValue, supervisionExtension } from "@/lib/contrack-core";
 import { actualSupervisionEnd, intOr, nextNumberByKey, numOr } from "@/lib/contrack-server";
 import { ensureContractSubsidiaries } from "@/lib/subsidiary-server";
+import { QUOTE_CONVERT_MARKER, QUOTE_TO_CONTRACT_MARKER } from "@/lib/sales-constants";
 import {
   AMOUNT_POLICIES,
   amountGuardProblems,
@@ -181,6 +182,21 @@ export async function POST(req: NextRequest) {
   const contractType = String(body.contractType || "غير محدد");
   const description = String(body.description || "");
   const notes = String(body.notes || "");
+
+  // ===== وحدة «العقود وعروض الأسعار» — تحويل عرض سعر إلى عقد (قرار المالك) =====
+  // يُرسل quotationId من معالج العقد المعبأ من العرض المقبول؛ بعد الإنشاء تُوسم ملاحظات
+  // العرض آليًا «تحويل إلى عقد» داخل المعاملة نفسها (ذريًا مع إنشاء العقد) — والحرس
+  // يمنع العرض المحوَّل سابقًا (لعقد أو لفاتورة) من التحويل مرة أخرى.
+  const quotationId = Math.trunc(numOr(body.quotationId, 0));
+  let fromQuote: { id: number; quotationNumber: string; notes: string } | null = null;
+  if (quotationId > 0) {
+    const q = await db.quotation.findUnique({ where: { id: quotationId } });
+    if (!q) return jsonError("عرض السعر غير موجود", 404);
+    if (q.notes.includes(QUOTE_TO_CONTRACT_MARKER)) return jsonError("عرض السعر محوَّل إلى عقد مسبقًا");
+    if (q.notes.includes(QUOTE_CONVERT_MARKER)) return jsonError("عرض السعر محوَّل إلى فاتورة مسبقًا");
+    fromQuote = { id: q.id, quotationNumber: q.quotationNumber, notes: q.notes };
+  }
+
   const startDate = parseDay(body.startDate);
   const endDate = parseDay(body.endDate);
   const signDate = parseDay(body.signDate);
@@ -404,11 +420,20 @@ export async function POST(req: NextRequest) {
             },
           });
         }
+        // تحويل عرض سعر — الوسم ذري مع إنشاء العقد (وحدة «العقود وعروض الأسعار»)
+        if (fromQuote) {
+          await tx.quotation.update({
+            where: { id: fromQuote.id },
+            data: {
+              notes: `${fromQuote.notes ? `${fromQuote.notes}\n` : ""}${QUOTE_TO_CONTRACT_MARKER} ${contractNumber} بتاريخ ${todayStr()}`,
+            },
+          });
+        }
         await tx.contractEvent.create({
           data: {
             contractId: contract.id,
             eventType: "إنشاء عقد",
-            description: `تم إنشاء العقد ${contractNumber} للعميل ${customer.name} بقيمة ${finalAmount}`,
+            description: `تم إنشاء العقد ${contractNumber} للعميل ${customer.name} بقيمة ${finalAmount}${fromQuote ? ` — من تحويل عرض السعر ${fromQuote.quotationNumber}` : ""}`,
             username: guard.user.username,
           },
         });

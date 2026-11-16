@@ -90,6 +90,7 @@ export const REPORT_PERM: Record<string, string> = {
 /** معرّف الوحدات المعتمدة (توجيه المستخدم — تبويبات علوية) */
 export type ModuleId =
   | "clients"
+  | "qc"
   | "projects"
   | "subs"
   | "consulting"
@@ -151,50 +152,64 @@ export interface NavModule {
 
 /**
  * هيكل التنقل المعتمد (6 تبويبات — تبويب الاستشارات موديول مستقل يظهر لمن فعّله):
- *   1. العقود: اللوحة، المستحقات، العملاء، العقود، مجموعات العقود، مركز النماذج، المهام، الزيارات، التعليقات، المتابعة
- *   2. المشاريع: مركز عمليات الموقع بعقلية مهندس مدير الموقع — لوحة المشاريع، التقرير اليومي
+ *   1. العملاء: اللوحة، المستحقات، العملاء، مركز النماذج، المهام، الزيارات، التعليقات، المتابعة
+ *      (قرار المالك: العقود انتقلت إلى وحدة «العقود وعروض الأسعار» المستقلة)
+ *   2. العقود وعروض الأسعار (قرار المالك — موديول مستقل): عروض الأسعار (تحويل مباشر إلى عقد)،
+ *      العقود، أين وصلنا، مجموعات العقود
+ *   3. المشاريع: مركز عمليات الموقع بعقلية مهندس مدير الموقع — لوحة المشاريع، التقرير اليومي
  *      (تجميع اشتقاقي فوق سجلات التنفيذ الميداني — لا جدول جديد G9 — docs/daily-report-forecast-design.md)،
  *      تنفيذ البنود (مقايسة التنفيذ بالبنود: تعاقدي/منفذ/موثق/مفوتر)
- *   3. الباطن: مقاولو الباطن (ملف المقاول: العقود والدفعات والأوامر)
- *   4. الاستشارات: الفريق الهندسي، إسناد المشاريع، ساعات العمل، الإجازات (موديول consulting)
- *   5. المحاسبة: سندات القبض/الصرف، كشف الحساب، العُهد، السلف، البوابة، الشركة الأخرى، المطالبات، الفواتير
- *   6. التقارير: التقارير الـ11 بنودًا حقيقية في القائمة الجانبية الرسمية كالمحاسبة (توجيه المستخدم — الخيار 2)
- *   7. الإعدادات: الشركة، الطباعة، الأمان، المستخدمون، الزيارات، قواعد الترحيل، النسخ، أدوات المطور
+ *   4. الباطن: مقاولو الباطن (ملف المقاول: العقود والدفعات والأوامر)
+ *   5. الاستشارات: الفريق الهندسي، إسناد المشاريع، ساعات العمل، الإجازات (موديول consulting)
+ *   6. المحاسبة: سندات القبض/الصرف، كشف الحساب، العُهد، السلف، البوابة، الشركة الأخرى، المطالبات، الفواتير
+ *   7. التقارير: التقارير الـ11 بنودًا حقيقية في القائمة الجانبية الرسمية كالمحاسبة (توجيه المستخدم — الخيار 2)
+ *   8. الإعدادات: الشركة، الطباعة، الأمان، المستخدمون، الزيارات، قواعد الترحيل، النسخ، أدوات المطور
  *      (2026-11-15 — قرار المالك: «جدول الكميات» نُقل إلى وحدة القوائم المرجعية)
  *      (الجلسة 12 — قرار المالك: «أنواع العقود» و«مراحل العمل» انتقلتا حصرًا إلى وحدة القوائم المرجعية
  *       وحُذف تابيهما المكرر من الإعدادات)
- * خارج النطاق (لا يُضاف): عروض الأسعار، الأرشيف، الواتساب، الاستيراد من Excel.
+ *      (قرار المالك اللاحق: عروض الأسعار خرجت من «خارج النطاق» — وحدة مستقلة تجمعها مع العقود)
+ * خارج النطاق (لا يُضاف): الأرشيف، الواتساب، الاستيراد من Excel.
  */
 export const NAV_MODULES: NavModule[] = [
   {
+    // قرار المالك: الوحدة صارت مخصصة للعملاء — العقود انتقلت إلى وحدة qc المستقلة
     id: "clients",
-    label: "العقود",
-    icon: FileText,
+    label: "العملاء",
+    icon: UsersIcon,
     children: [
       { id: "dashboard", label: "اللوحة", icon: LayoutDashboard, view: "dashboard", perm: "screen_customers" },
       { id: "due", label: "المهام المستحقة", icon: CalendarClock, view: "due", perm: "screen_customers" },
       { id: "customers", label: "العملاء", icon: UsersIcon, view: "customers", perm: "screen_customers" },
-      { id: "contracts", label: "العقود", icon: FileText, view: "contracts", perm: "screen_customers" },
-      // لوحة «أين وصلنا» — ربط العقود بمراحل العمل وموقع التقدم (قرار المالك 2026-11)
-      { id: "contract-progress", label: "أين وصلنا", icon: Milestone, view: "contract-progress", perm: "screen_customers" },
-      // قرار المالك 2026-11: «ربط المراحل والدفعات داخل القوائم المرجعية وليس في العقد» —
-      // شاشة الربط انتقلت إلى مجموعة القوائم المرجعية (بند stage-payments هناك)
-      { id: "contract-groups", label: "مجموعات العقود", icon: Layers, view: "contract-groups", perm: "screen_customers" },
       // بند 56: موضع المكتبي بند شل مشروط بمفتاح المزايا «forms_center» وصلاحية
-      // screen_forms معًا (main_window.py:812-814) — والبند تحت وحدة العقود كشاشة العمل
+      // screen_forms معًا (main_window.py:812-814) — والبند تحت وحدة العملاء كشاشة العمل
       { id: "forms", label: "مركز النماذج", icon: LayoutTemplate, view: "forms", flag: "forms_center", perm: "screen_forms" },
       { id: "tasks", label: "المهام", icon: ListTodo, view: "tasks", flag: "tasks", perm: "screen_tasks" },
       { id: "visits", label: "جدول الزيارات", icon: CalendarDays, view: "visits", flag: "visits", perm: "screen_visits" },
       { id: "comments", label: "التعليقات", icon: MessageSquareText, view: "comments", flag: "comments", perm: "screen_customers" },
       { id: "followup", label: "المتابعة", icon: ClipboardList, view: "followup", flag: "followup", perm: "screen_followup" },
     ],
-    // الجلسة 15 — أقسام الشريط العلوي (10 بنود ← 5 أقسام): «المهام المستحقة» أول بند في قائمة المهام
+    // الجلسة 15 — أقسام الشريط العلوي: «المهام المستحقة» أول بند في قائمة المهام
     top: [
       { id: "t-clients-home", children: ["dashboard"] },
-      { id: "t-clients-customers", label: "العملاء والعقود", children: ["customers", "contracts", "contract-progress", "contract-groups"] },
+      { id: "t-clients-customers", label: "العملاء", children: ["customers"] },
       { id: "t-clients-forms", children: ["forms"] },
       { id: "t-clients-tasks", label: "المهام والزيارات", children: ["due", "tasks", "visits"] },
       { id: "t-clients-followup", label: "المتابعة والتعليقات", children: ["comments", "followup"] },
+    ],
+  },
+  {
+    // وحدة «العقود وعروض الأسعار» المستقلة (قرار المالك): عروض الأسعار ببيت واحد مع العقود —
+    // العرض المقبول يتحول إلى عقد من زر واحد (معالج العقد يُفتح معبأً ويُوسم العرض آليًا)،
+    // وانتقلت هنا بنود العقود من وحدة العملاء (القائمة، أين وصلنا، مجموعات العقود)
+    id: "qc" as ModuleId,
+    label: "العقود وعروض الأسعار",
+    icon: FileStack,
+    children: [
+      { id: "qc-quotes", label: "عروض الأسعار", icon: ScrollText, view: "quotes-contracts", perm: "screen_customers" },
+      { id: "contracts", label: "العقود", icon: FileText, view: "contracts", perm: "screen_customers" },
+      // لوحة «أين وصلنا» — ربط العقود بمراحل العمل وموقع التقدم (قرار المالك 2026-11)
+      { id: "contract-progress", label: "أين وصلنا", icon: Milestone, view: "contract-progress", perm: "screen_customers" },
+      { id: "contract-groups", label: "مجموعات العقود", icon: Layers, view: "contract-groups", perm: "screen_customers" },
     ],
   },
   {
@@ -282,12 +297,13 @@ export const NAV_MODULES: NavModule[] = [
     ],
   },
   {
-    // المبيعات (docs/sales-design.md §6): عروض الأسعار ببيت مستقل + نقاط البيع السريع — الفواتير تبقى بملكية المحاسبة
+    // المبيعات (docs/sales-design.md §6): نقاط البيع السريع — الفواتير تبقى بملكية المحاسبة.
+    // قرار المالك: عروض الأسعار انتقلت إلى وحدة «العقود وعروض الأسعار» المستقلة (qc)
+    // — وقائمة العروض تُفتح من هناك عبر onOpenQuotes في النقطة.
     id: "sales" as ModuleId,
     label: "المبيعات",
     icon: Store,
     children: [
-      { id: "sales-quotes", label: "عروض الأسعار", icon: FileText, view: "sales", section: "quotes", perm: "screen_sales" },
       { id: "sales-pos", label: "نقاط البيع", icon: Calculator, view: "sales", section: "pos", perm: "screen_sales" },
     ],
   },
@@ -402,6 +418,14 @@ export const NAV_MODULES: NavModule[] = [
       { id: "doc-templates", label: "مصمم القوالب", icon: FileSignature, view: "ref-lists", section: "doc-templates", adminOnly: true },
       // القوائم العامة — الأوزان والقوائم المخصصة فقط (بلا تكرار للشاشات أعلاه)
       { id: "ref-lists", label: "القوائم العامة", icon: BookMarked, view: "ref-lists", section: "lists", adminOnly: true, perm: "screen_ref_lists" },
+    ],
+    // سقف الأقسام الظاهرة (اختبار nav-top-structure): 7 بنود ← 4 أقسام —
+    // نقل stage-payments إلى المرجعية (قرار المالك 2026-11) جعلها 7 أقسام مباشرة فوق السقف
+    top: [
+      { id: "t-refs-stages", label: "الأنواع والمراحل", children: ["ref-tsp", "stage-payments"] },
+      { id: "t-refs-structures", label: "الهياكل والمناطق", children: ["ref-org", "ref-areas"] },
+      { id: "t-refs-docs", label: "المستندات والقوالب", children: ["boq-docs-config", "doc-templates"] },
+      { id: "t-refs-lists", label: "القوائم العامة", children: ["ref-lists"] },
     ],
   },
   {

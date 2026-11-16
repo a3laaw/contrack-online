@@ -41,7 +41,9 @@ import { SubcontractorsView } from "./SubcontractorsView";
 import { ConsultingView, type ConsultingSection } from "./ConsultingView";
 import { HRView, type HRSection } from "./HRView";
 import { WarehousesView, type WarehousesSection } from "./WarehousesView";
-import { SalesView, type SalesSection } from "./SalesView";
+import { SalesView } from "./SalesView";
+import { QuotationsContractsView } from "./QuotationsContractsView";
+import type { QuotationContractPreset, QuotationRow } from "@/lib/quotes-core";
 import { MaintenanceView, type MaintenanceSection } from "./MaintenanceView";
 import { ProjectsView } from "./ProjectsView";
 import { RefListsView, type RefListsSection } from "./RefListsView";
@@ -136,8 +138,9 @@ function AppRoot() {
   const [hrSection, setHrSection] = React.useState<HRSection>("team");
   // المخازن — قسم الشاشة الموحدة (مرآة أقسام HR/الاستشارات)
   const [warehousesSection, setWarehousesSection] = React.useState<WarehousesSection>("items");
-  // المبيعات — قسم الشاشة الموحدة (عروض الأسعار / نقاط البيع)
-  const [salesSection, setSalesSection] = React.useState<SalesSection>("quotes");
+  // المبيعات — نقاط البيع حصرًا بعد نقل العروض إلى وحدة qc (قرار المالك)
+  // وحدة «العقود وعروض الأسعار» — عرض مقبول يتحول إلى عقد: معالج العقد يُفتح معبأً في تبويب العقود
+  const [quoteContractPreset, setQuoteContractPreset] = React.useState<QuotationContractPreset | null>(null);
   // الصيانة والتشغيل — قسم الشاشة الموحدة (عقود/جدول/أوامر)
   const [maintenanceSection, setMaintenanceSection] = React.useState<MaintenanceSection>("contracts");
   // المشاريع — قسم مركز عمليات الموقع (لوحة/تقرير يومي/تنفيذ بنود)
@@ -166,8 +169,10 @@ function AppRoot() {
         ? (NAV_MODULES.flatMap((m) => m.children).find((c) => c.view === "warehouses" && c.section === warehousesSection)?.id ??
           "wh-items")
         : view === "sales"
-        ? (NAV_MODULES.flatMap((m) => m.children).find((c) => c.view === "sales" && c.section === salesSection)?.id ??
-          "sales-quotes")
+        ? "sales-pos"
+        // وحدة «العقود وعروض الأسعار» — قسم العروض (العقود/التقدم/المجموعات تُحلّ بمطابقة view نفسه)
+        : view === "quotes-contracts"
+        ? "qc-quotes"
         : view === "maintenance"
         ? (NAV_MODULES.flatMap((m) => m.children).find((c) => c.view === "maintenance" && c.section === maintenanceSection)?.id ??
           "mt-contracts")
@@ -204,7 +209,6 @@ function AppRoot() {
       if (child.view === "consulting" && child.section) setConsultingSection(child.section as ConsultingSection);
       if (child.view === "hr" && child.section) setHrSection(child.section as HRSection);
       if (child.view === "warehouses" && child.section) setWarehousesSection(child.section as WarehousesSection);
-      if (child.view === "sales" && child.section) setSalesSection(child.section as SalesSection);
       if (child.view === "maintenance" && child.section) setMaintenanceSection(child.section as MaintenanceSection);
       if (child.view === "projects" && child.section) setProjectsSection(child.section as ProjectsSection);
       if (child.view === "ref-lists" && child.section) setRefListsSection(child.section as RefListsSection);
@@ -340,6 +344,24 @@ function AppRoot() {
     [navigate]
   );
 
+  // وحدة «العقود وعروض الأسعار» — تحويل عرض مقبول إلى عقد (قرار المالك):
+  // يُبنى التعبئة المسبقة (العميل + الاسم من وصف العرض + القيمة من الإجمالي) ويُفتح
+  // تبويب العقود حيث يفتح ContractsView معالج العقد معبأً — ويُوسم العرض آليًا بعد الإنشاء
+  const convertQuoteToContract = React.useCallback(
+    (q: QuotationRow) => {
+      setQuoteContractPreset({
+        quotationId: q.id,
+        quotationNumber: q.quotationNumber,
+        customerId: q.customerId,
+        customerName: q.customerName,
+        name: q.description?.trim() ? q.description.trim() : `عقد من عرض السعر ${q.quotationNumber}`,
+        amount: String(q.totalAmount ?? ""),
+      });
+      navigate("contracts");
+    },
+    [navigate]
+  );
+
   // لوحة المطور (Task 97/100): «رجوع للوحة» من شريط التمييز أو زر الدرع —
   // المطور بلا شركة: إن كان داخل شركة يُعاد إصدار التوكن بسياق 0 (بلا شركة) ثم إعادة تحميل
   // بعلامة فتح اللوحة؛ وإن كان بلا شركة أصلًا فتح مباشر
@@ -408,7 +430,13 @@ function AppRoot() {
           onOpenContract={openContract}
           presetCustomerId={newContractCustomerId}
           onConsumePreset={() => setNewContractCustomerId(null)}
+          presetFromQuote={quoteContractPreset}
+          onConsumeQuotePreset={() => setQuoteContractPreset(null)}
         />
+      )}
+      {/* وحدة «العقود وعروض الأسعار» المستقلة (قرار المالك) — قسم العروض مع التحويل إلى عقد */}
+      {view === "quotes-contracts" && (
+        <QuotationsContractsView user={user} onAuthError={onAuthError} onConvertToContract={convertQuoteToContract} />
       )}
       {/* لوحة «أين وصلنا» — ربط العقود بمراحل العمل وموقع التقدم (قرار المالك 2026-11) */}
       {view === "contract-progress" && (
@@ -465,9 +493,7 @@ function AppRoot() {
       {view === "warehouses" && (
         <WarehousesView user={user} onAuthError={onAuthError} section={warehousesSection} />
       )}
-      {view === "sales" && (
-        <SalesView user={user} onAuthError={onAuthError} section={salesSection} onSectionChange={setSalesSection} />
-      )}
+      {view === "sales" && <SalesView onAuthError={onAuthError} onOpenQuotes={() => navigate("quotes-contracts")} />}
       {view === "maintenance" && (
         <MaintenanceView
           user={user}

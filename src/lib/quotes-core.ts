@@ -208,3 +208,23 @@ export interface QuotationRow {
 export function sortQuotationsDesc(rows: QuotationRow[]): QuotationRow[] {
   return [...rows].sort((a, b) => b.id - a.id);
 }
+
+/**
+ * تعبئة معالج العقد الجديد من عرض سعر — وحدة «العقود وعروض الأسعار» (قرار المالك):
+ * العرض المقبول يتحول إلى عقد فيُفتح المعالج معبأً بالعميل والاسم (وصف العرض) والمبلغ،
+ * ويُرسل quotationId مع طلب الإنشاء ليُوسم العرض آليًا «تحويل إلى عقد» (sales-constants).
+ */
+export interface QuotationContractPreset {
+  /** معرّف العرض المصدر — يُرسل لإنشاء العقد ليُوسم */
+  quotationId: number;
+  /** رقم العرض QUO-#### — يظهر في شريط المعالج التوضيحي */
+  quotationNumber: string;
+  /** العميل يُختار مسبقًا في المعالج */
+  customerId: number;
+  /** اسم العميل للعرض في الشريط */
+  customerName: string;
+  /** اسم العقد المقترح = وصف العرض أو «عقد من عرض السعر QUO-####» */
+  name: string;
+  /** قيمة العقد المقترحة = إجمالي العرض (نص للإدخال) */
+  amount: string;
+}
