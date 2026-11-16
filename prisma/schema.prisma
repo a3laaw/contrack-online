@@ -347,6 +347,10 @@ model BoqItem {
   fieldExecutions   FieldExecution[]
   invoiceItems      InvoiceItem[] // فواتير العميل — أسطر مستخلصات مرتبطة بهذا البند (ز1)
   stageLinks        BoqItemStage[] // سيناريو المالك 2026-11 — مراحل البند (واحدة أو أكثر)
+  // ر1/1 (docs/qc-completion-design.md) — تتبع أصل البند: بند مُرحَّل من عرض سعر
+  // يتحول إلى عقد يحمل بند العرض المصدر (نسخ لا مرجع — والمصدر للتقارير)
+  sourceQuotationItemId Int?            @map("source_quotation_item_id")
+  sourceQuotationItem   QuotationItem?  @relation("BoqItemSourceQuotation", fields: [sourceQuotationItemId], references: [id], onDelete: SetNull)
 
   @@index([contractId])
   @@map("boq_items")
@@ -576,6 +580,8 @@ model QuotationItem {
   unitPrice   Decimal   @default(0) @map("unit_price") @db.Decimal(18, 3)
   totalPrice  Decimal   @default(0) @map("total_price") @db.Decimal(18, 3)
   sortOrder   Int       @default(0) @map("sort_order")
+  // ر1/1 — البنود المُرحَّلة إلى بنود عقد (boq_items.source_quotation_item_id) تعود لأصلها
+  boqItems    BoqItem[] @relation("BoqItemSourceQuotation")
 
   @@index([quotationId])
   @@map("quotation_items")

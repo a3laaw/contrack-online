@@ -196,6 +196,21 @@ export async function POST(req: NextRequest) {
     if (q.notes.includes(QUOTE_CONVERT_MARKER)) return jsonError("عرض السعر محوَّل إلى فاتورة مسبقًا");
     fromQuote = { id: q.id, quotationNumber: q.quotationNumber, notes: q.notes };
   }
+  // ر1/1 — ترحيل بنود العرض إلى بنود العقد (BOQ) عند التحويل (docs/qc-completion-design.md):
+  // نسخ لا مرجع بنفس مبدأ BOQ المستقلة — كل بند يحمل أصلَه source_quotation_item_id
+  const transferQuoteItems = Boolean(fromQuote) && body.transferQuoteItems === true;
+
+  // ر1/4 — ربط العقد بمجموعة عقود (اختياري — المسار الخادمي عام لأي إنشاء):
+  // المجموعة بنطاق الشركة وعميلها يجب أن يطابق عميل العقد
+  const groupId = Math.trunc(numOr(body.groupId, 0));
+  let groupRow: { id: number; groupName: string } | null = null;
+  if (groupId > 0) {
+    const g = await db.contractGroup.findFirst({ where: { id: groupId } });
+    if (!g) return jsonError("مجموعة العقود غير موجودة", 404);
+    if (g.customerId !== customerId)
+      return jsonError("المجموعة تخص عميلًا آخر — اختر مجموعة لنفس العميل");
+    groupRow = { id: g.id, groupName: g.groupName };
+  }
 
   const startDate = parseDay(body.startDate);
   const endDate = parseDay(body.endDate);
@@ -420,6 +435,49 @@ export async function POST(req: NextRequest) {
             },
           });
         }
+        // ر1/1 — ترحيل بنود العرض إلى بنود العقد (نسخ لا مرجع) داخل المعاملة نفسها —
+        // كل بند يحمل أصلَه source_quotation_item_id، وبلا مرحلة (الربط لاحقًا من القوائم المرجعية)
+        let transferredCount = 0;
+        if (fromQuote && transferQuoteItems) {
+          const qItems = await tx.quotationItem.findMany({
+            where: { quotationId: fromQuote.id },
+            orderBy: [{ sortOrder: "asc" as const }, { id: "asc" as const }],
+            select: {
+              id: true,
+              description: true,
+              unit: true,
+              quantity: true,
+              unitPrice: true,
+              totalPrice: true,
+              sortOrder: true,
+            },
+          });
+          for (let i = 0; i < qItems.length; i++) {
+            const it = qItems[i];
+            await tx.boqItem.create({
+              data: {
+                contractId: contract.id,
+                description: it.description,
+                unit: it.unit,
+                qty: it.quantity,
+                unitPrice: it.unitPrice,
+                amount: it.totalPrice,
+                sortOrder: it.sortOrder ?? i,
+                itemNo: "",
+                divisionCode: "",
+                divisionName: "",
+                sourceQuotationItemId: it.id,
+              },
+            });
+          }
+          transferredCount = qItems.length;
+        }
+        // ر1/4 — إلحاق العقد بالمجموعة المختارة (صف الربط داخل المعاملة نفسها)
+        if (groupRow) {
+          await tx.contractGroupItem.create({
+            data: { groupId: groupRow.id, contractId: contract.id },
+          });
+        }
         // تحويل عرض سعر — الوسم ذري مع إنشاء العقد (وحدة «العقود وعروض الأسعار»)
         if (fromQuote) {
           await tx.quotation.update({
@@ -433,7 +491,11 @@ export async function POST(req: NextRequest) {
           data: {
             contractId: contract.id,
             eventType: "إنشاء عقد",
-            description: `تم إنشاء العقد ${contractNumber} للعميل ${customer.name} بقيمة ${finalAmount}${fromQuote ? ` — من تحويل عرض السعر ${fromQuote.quotationNumber}` : ""}`,
+            description: `تم إنشاء العقد ${contractNumber} للعميل ${customer.name} بقيمة ${finalAmount}${
+              fromQuote
+                ? ` — من تحويل عرض السعر ${fromQuote.quotationNumber}${transferredCount ? ` ورُحّلت بنوده (${transferredCount}) إلى بنود العقد` : ""}`
+                : ""
+            }${groupRow ? ` — مُلحق بمجموعة العقود «${groupRow.groupName}»` : ""}`,
             username: guard.user.username,
           },
         });

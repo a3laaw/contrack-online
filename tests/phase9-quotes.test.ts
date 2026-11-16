@@ -4,7 +4,8 @@
  *   lifecycle_service.py:96      next_quote_number → QUO-%04d
  *   :4781-4782                   «يجب اختيار العميل.» · «يجب إضافة بند واحد على الأقل لعرض السعر.»
  *   :4802-4825                   list_quotations (بحث مطبَّع · status فلتر · ORDER BY q.id DESC)
- *   :4845-4849                   set_quotation_status بلا مصفوفة انتقالات + «حالة عرض السعر غير صحيحة.»
+ *   :4845-4849                   set_quotation_status — تحديث ر1/2: مصفوفة انتقالات قرار المالك
+ *                                (docs/qc-completion-design.md) فوق أي→أي المكتبي
  *   :4851-4884                   convert_quotation_to_contract (خارج نطاق الويب — موثق)
  *   database_schema_postgresql.sql:865-898  quotations/quotation_items (RESTRICT/SET NULL/CASCADE
  *                                            · status DEFAULT 'جديد' · إجمالي البند مولَّد)
@@ -23,8 +24,10 @@ import {
   isQuotationStatus,
   itemsMatchTotal,
   nextQuotationNumber,
+  quotationAllowedTargets,
   quotationStatusBadgeClass,
   quotationTransitionAllowed,
+  quotationTransitionBlockedMessage,
   sortQuotationsDesc,
   QUOTATION_CUSTOMER_REQUIRED,
   QUOTATION_INVALID_STATUS,
@@ -52,7 +55,7 @@ describe("الترقيم الآلي — مرآة next_quote_number (QUO-%04d)", 
   });
 });
 
-describe("دورة الحالة — مرآة set_quotation_status (بلا مصفوفة انتقالات)", () => {
+describe("دورة الحالة — ر1/2 مصفوفة الانتقالات (قرار المالك فوق المرجع المكتبي)", () => {
   test("قيم المخطط المرجعي §49 حرفيًا وافتراضيها «جديد»", () => {
     expect(QUOTATION_STATUS_DEFAULT).toBe("جديد");
     expect([...QUOTATION_STATUSES]).toEqual(["جديد", "مرسل", "مقبول", "مرفوض", "منتهي"]);
@@ -70,16 +73,42 @@ describe("دورة الحالة — مرآة set_quotation_status (بلا مصف
     expect(isQuotationStatus(null)).toBe(false);
   });
 
-  test("الانتقالات: أي حالة من المجموعة تصلح لأي أخرى — وخارجها مرفوض", () => {
-    // المكتبي بلا مصفوفة: any→any داخل المجموعة (ومنها «مقبول» بلا أثر جانبي)
-    for (const from of QUOTATION_STATUSES) {
-      for (const to of QUOTATION_STATUSES) {
-        expect(quotationTransitionAllowed(from, to)).toBe(true);
-      }
+  test("المصفوفة المعتمدة: المسارات الشرعية فقط — والنهائي منتهي بلا عودة", () => {
+    // ر1/2 (docs/qc-completion-design.md): جديد→مرسل/مقبول/مرفوض · مرسل→مقبول/مرفوض/منتهي
+    // · مقبول→منتهي · مرفوض→منتهي · منتهي نهائي
+    const legal: [string, string][] = [
+      ["جديد", "مرسل"],
+      ["جديد", "مقبول"],
+      ["جديد", "مرفوض"],
+      ["مرسل", "مقبول"],
+      ["مرسل", "مرفوض"],
+      ["مرسل", "منتهي"],
+      ["مقبول", "منتهي"],
+      ["مرفوض", "منتهي"],
+    ];
+    for (const [from, to] of legal) {
+      expect(quotationTransitionAllowed(from, to)).toBe(true);
+      expect(quotationAllowedTargets(from)).toContain(to);
     }
+    // الممنوع بالمصفوفة (كان مسموحًا في any→any المكتبي)
+    expect(quotationTransitionAllowed("جديد", "منتهي")).toBe(false);
+    expect(quotationTransitionAllowed("مقبول", "جديد")).toBe(false);
+    expect(quotationTransitionAllowed("مقبول", "مرسل")).toBe(false);
+    expect(quotationTransitionAllowed("مقبول", "مرفوض")).toBe(false);
+    expect(quotationTransitionAllowed("مرفوض", "مقبول")).toBe(false);
+    expect(quotationTransitionAllowed("منتهي", "جديد")).toBe(false);
+    expect(quotationTransitionAllowed("منتهي", "مرسل")).toBe(false);
+    expect(quotationAllowedTargets("منتهي")).toEqual([]);
+    // خارج المجموعة إطلاقًا مرفوض كما كان
     expect(quotationTransitionAllowed("جديد", "مسودة")).toBe(false);
     expect(quotationTransitionAllowed("مقبول", "تم تحويله إلى عقد")).toBe(false);
     expect(quotationTransitionAllowed("جديد", "")).toBe(false);
+  });
+
+  test("رسالة الانتقال الممنوع تحمل الحالتين (ر1/2)", () => {
+    expect(quotationTransitionBlockedMessage("مقبول", "جديد")).toBe(
+      "انتقال حالة عرض السعر غير مسموح (من مقبول إلى جديد)."
+    );
   });
 
   test("ألوان الشارات: مرسل أزرق · مقبول/منتهي بنفسجي · مرفوض أحمر · جديد رمادي", () => {

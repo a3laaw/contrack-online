@@ -29,6 +29,10 @@ export const QUOTATION_NUMBER_PREFIX = "QUO";
 /**
  * الترقيم الآلي (QUO-%04d): يقرأ أعلى رقم موجود ويزيد 1؛
  * بلا سابق أو بصيغة تالفة ⇒ QUO-0001.
+ *
+ * ر1/3 — الإنتاج انتقل إلى العدّاد الذري nextNumberByKey("quotation:number")
+ * مع مزامنة العدّاد فوق الأرقام القائمة (نمط voucher:INV) — وهذه الدالة النقية
+ * تبقى للاختبارات ومرجع المكتبي (next_quote_number) بلا مستدعٍ إنتاجي.
  */
 export function nextQuotationNumber(last?: string | null): string {
   let n = 1;
@@ -55,6 +59,30 @@ export const QUOTATION_STATUSES = ["جديد", "مرسل", "مقبول", "مرف
 /** رسالة الحالة غير الشرعية الحرفية من set_quotation_status (lifecycle_service.py:4847) */
 export const QUOTATION_INVALID_STATUS = "حالة عرض السعر غير صحيحة.";
 
+/**
+ * ر1/2 — مصفوفة انتقالات العرض (docs/qc-completion-design.md — قرار المالك فوق المرجع المكتبي):
+ * جديد → [مرسل، مقبول، مرفوض] · مرسل → [مقبول، مرفوض، منتهي] · مقبول → [منتهي]
+ * مرفوض → [منتهي] · منتهي نهائي بلا عودة — والعرض المحوّل (وسم الملاحظات)
+ * لا يتحول مرة أخرى بعيدًا عن المصفوفة أصلاً (حرس التحويل المزدوج القائم).
+ */
+export const QUOTE_TRANSITIONS: Record<string, readonly string[]> = {
+  "جديد": ["مرسل", "مقبول", "مرفوض"],
+  "مرسل": ["مقبول", "مرفوض", "منتهي"],
+  "مقبول": ["منتهي"],
+  "مرفوض": ["منتهي"],
+  "منتهي": [],
+};
+
+/** الهدف المسموح من حالة — خارج المصفوفة (حالة تالفة) بلا أهداف */
+export function quotationAllowedTargets(from: string): readonly string[] {
+  return QUOTE_TRANSITIONS[from] ?? [];
+}
+
+/** رسالة الانتقال الممنوع — الحالة داخل المجموعة لكن المصفوفة تمنعه (ر1/2) */
+export function quotationTransitionBlockedMessage(from: string, to: string): string {
+  return `انتقال حالة عرض السعر غير مسموح (من ${from} إلى ${to}).`;
+}
+
 /** رسالة إلزامية العميل الحرفية من add_quotation (lifecycle_service.py:4781) */
 export const QUOTATION_CUSTOMER_REQUIRED = "يجب اختيار العميل.";
 
@@ -67,11 +95,13 @@ export function isQuotationStatus(status: unknown): status is (typeof QUOTATION_
 }
 
 /**
- * الانتقال الشرعي — المكتبي بلا مصفوفة: أي حالة من المجموعة تصلح لأي أخرى.
- * غير الشرعي = الحالة الهدف خارج المجموعة إطلاقًا (والرسالة الحرفية أعلاه).
+ * الانتقال الشرعي — ر1/2 مصفوفة الانتقالات (قرار المالك 2026-11 فوق المرجع المكتبي
+ * الذي كان any→any بلا مصفوفة): الهدف يجب أن يكون من المجموعة أصلًا
+ * ثم من أهداف المصفوفة للحالة الحالية. الحالة التالفة (خارج المجموعة) مرفوضة دائمًا.
  */
 export function quotationTransitionAllowed(from: string, to: string): boolean {
-  return isQuotationStatus(to);
+  if (!isQuotationStatus(to) || !isQuotationStatus(from)) return false;
+  return quotationAllowedTargets(from).includes(to);
 }
 
 /** ألوان الشارات — مفردات STATUS_COLORS المكتبية (منتهي بنفسجي · مرفوض أحمر · مرسل أزرق · جديد رمادي) */

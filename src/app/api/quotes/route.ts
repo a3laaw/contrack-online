@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { audit, authGuard, jsonError, ok } from "@/lib/api-utils";
 import { listQuotations } from "@/lib/quotes-server";
+import { nextNumberByKey } from "@/lib/contrack-server";
 import {
   cleanQuotationCustomerId,
   cleanQuotationDate,
@@ -11,7 +12,6 @@ import {
   cleanQuotationText,
   computeItemsTotal,
   isQuotationStatus,
-  nextQuotationNumber,
   QUOTATION_CUSTOMER_REQUIRED,
   QUOTATION_ITEMS_REQUIRED,
 } from "@/lib/quotes-core";
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
   return ok({ quotations });
 }
 
-/** إنشاء عرض — مرآة add_quotation: عميل إلزامي + بند واحد على الأقل + QUO-%04d مع إعادة محاولة 8× عند تضارب UNIQUE */
+/** إنشاء عرض — مرآة add_quotation: عميل إلزامي + بند واحد على الأقل + QUO-%04d ذريًا (ر1/3) */
 export async function POST(req: NextRequest) {
   const guard = await authGuard(req, "screen_customers");
   if ("response" in guard) return guard.response;
@@ -91,8 +91,27 @@ export async function POST(req: NextRequest) {
   for (let attempt = 0; attempt < 8; attempt++) {
     try {
       created = await db.$transaction(async (tx) => {
-        const last = await tx.quotation.findFirst({ orderBy: { quotationNumber: "desc" } });
-        const quotationNumber = nextQuotationNumber(last?.quotationNumber);
+        // ر1/3 — الترقيم الذري: عدّاد number_sequences بدل قراءة الأعلى
+        // + مزامنة العدّاد فوق الأرقام القائمة أول استخدام (نمط voucher:INV —
+        // العروض القديمة أرقامها أعلى من العدّاد الصفري المضروب في seed)
+        const last = await tx.quotation.findFirst({
+          orderBy: { quotationNumber: "desc" },
+          select: { quotationNumber: true },
+        });
+        const m = last?.quotationNumber?.match(/QUO-(\d+)/);
+        const maxNo = m ? parseInt(m[1], 10) : 0;
+        if (Number.isFinite(maxNo) && maxNo > 0) {
+          const seqRow = await tx.numberSequence.findFirst({ where: { name: "quotation:number" } });
+          if (!seqRow) {
+            await tx.numberSequence.create({ data: { name: "quotation:number", lastNo: maxNo } });
+          } else if (Number(seqRow.lastNo) < maxNo) {
+            await tx.numberSequence.update({
+              where: { companyId_name: { companyId: seqRow.companyId, name: "quotation:number" } },
+              data: { lastNo: maxNo },
+            });
+          }
+        }
+        const quotationNumber = await nextNumberByKey("quotation:number", "QUO", 4, tx);
         const quotation = await tx.quotation.create({
           data: { ...data, quotationNumber },
           select: { id: true, quotationNumber: true },

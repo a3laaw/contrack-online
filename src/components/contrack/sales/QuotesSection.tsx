@@ -50,6 +50,7 @@ import {
   QUOTATION_CUSTOMER_REQUIRED,
   QUOTATION_ITEMS_REQUIRED,
   QUOTATION_STATUSES,
+  quotationAllowedTargets,
   quotationStatusBadgeClass,
   type QuotationRow,
 } from "@/lib/quotes-core";
@@ -201,10 +202,16 @@ export function QuotesSection({ user, onAuthError, onOpenPos, onConvertToContrac
   const transitionMutation = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) =>
       apiPost(`/api/quotes/${id}/transition`, { status }),
-    onSuccess: (d) => {
+    onSuccess: (d, vars) => {
       invalidate();
       const status = (d as { quotation?: { status?: string } })?.quotation?.status || "";
       toast({ title: "تم تحديث الحالة ✅", description: status });
+      // ر1/2 — أثر الحالة المعتمد: قبول العرض يفتح معالج العقد معبأً فورًا
+      // (وحدة «العقود وعروض الأسعار» فقط — المبيعات تحوّل لفاتورة حصرًا)
+      if (status === "مقبول" && onConvertToContract) {
+        const accepted = rows.find((r) => r.id === vars.id);
+        if (accepted) onConvertToContract(accepted);
+      }
     },
     onError: (e) => handleError(e, "تعذر تغيير الحالة"),
   });
@@ -393,23 +400,32 @@ export function QuotesSection({ user, onAuthError, onOpenPos, onConvertToContrac
                   <TableCell className="text-sm">{row.customerName}</TableCell>
                   <TableCell className="text-sm">{row.projectName || "—"}</TableCell>
                   <TableCell>
-                    <Dropdown
-                      align="start"
-                      triggerLabel={`تغيير حالة ${row.quotationNumber}`}
-                      minWidth={170}
-                      trigger={
-                        <>
-                          {row.status || "—"}
-                          <ChevronDown className="size-3" aria-hidden />
-                        </>
-                      }
-                      triggerClassName={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80 ${quotationStatusBadgeClass(row.status)}`}
-                      items={QUOTATION_STATUSES.filter((s) => s !== row.status).map((s) => ({
-                        key: s,
-                        label: s,
-                        onSelect: () => transitionMutation.mutate({ id: row.id, status: s }),
-                      }))}
-                    />
+                    {/* ر1/2 — قائمة الانتقالات المسموحة فقط (المصفوفة) — والنهائي «منتهي» بلا قائمة */}
+                    {quotationAllowedTargets(row.status).length > 0 ? (
+                      <Dropdown
+                        align="start"
+                        triggerLabel={`تغيير حالة ${row.quotationNumber}`}
+                        minWidth={170}
+                        trigger={
+                          <>
+                            {row.status || "—"}
+                            <ChevronDown className="size-3" aria-hidden />
+                          </>
+                        }
+                        triggerClassName={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium transition-colors hover:opacity-80 ${quotationStatusBadgeClass(row.status)}`}
+                        items={quotationAllowedTargets(row.status).map((s) => ({
+                          key: s,
+                          label: s,
+                          onSelect: () => transitionMutation.mutate({ id: row.id, status: s }),
+                        }))}
+                      />
+                    ) : (
+                      <span
+                        className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${quotationStatusBadgeClass(row.status)}`}
+                      >
+                        {row.status || "—"}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-center text-sm tabular-nums" dir="ltr">
                     {formatKWD(row.totalAmount)}

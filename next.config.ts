@@ -6,7 +6,10 @@ const nextConfig: NextConfig = {
   // الجلسة 2026-11-15 (7): الصندوق 4GB — ترجمة / مع محرر TipTap أكلت ~2GB RSS
   // وأطلقت oom-kill لنظام next-server في dev. سقف ذاكرة أخف يجبر Turbopack
   // على GC أكثر عدوانية أثناء الترجمة (لا يلمس الإنتاج).
-  turbopack: { memoryLimit: 1024 },
+  // تحديث 2026-11-16: Next 16.1.3 نقل المفتاح — turbopack.memoryLimit غير معترف
+  // به وتجاهله أدى لعودة oom-kill أثناء ترجمة / — الصيغة الصحيحة هنا:
+  // experimental.turbopackMemoryLimit (config-schema.js:297).
+  experimental: { turbopackMemoryLimit: 2048 },
   // المرحلة 8: كروميوم خادمي لتوليد PDF — نُبقي الحزم خارج حزمة الباندل
   // ويُضمَّن مجلد @sparticuz/chromium كاملًا (الثنائية المضغوطة chromium.br)
   // في تتبع ملفات الـserverless وإلا فشل executablePath() على Vercel.

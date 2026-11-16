@@ -3,17 +3,19 @@ import { db } from "@/lib/db";
 import { audit, authGuard, jsonError, ok } from "@/lib/api-utils";
 import {
   isQuotationStatus,
+  quotationAllowedTargets,
+  quotationTransitionBlockedMessage,
   QUOTATION_INVALID_STATUS,
 } from "@/lib/quotes-core";
 
 type P = { params: Promise<{ id: string }> };
 
 /**
- * انتقال حالة عرض السعر — مرآة set_quotation_status (lifecycle_service.py:4845-4849)
- * حرفيًا: بلا مصفوفة انتقالات — أي حالة من مجموعة العروض تصلح لأي أخرى،
- * وغير الموجود في المجموعة ⇒ «حالة عرض السعر غير صحيحة.»
- * و«مقبول» بلا أي أثر جانبي: لا سند ولا عقد (لا شيء في تدفق العروض المكتبية
- * ينشئ سندات إطلاقًا — تحويل العرض لعقد دالة صريحة منفصلة خارج نطاق الويب).
+ * انتقال حالة عرض السعر — ر1/2 (docs/qc-completion-design.md — قرار المالك):
+ * مصفوفة انتقالات تُحترم خادمًا (المرجع المكتبي كان any→any بلا مصفوفة)،
+ * وغير الموجود في المجموعة ⇒ «حالة عرض السعر غير صحيحة.» والانتقال الممنوع
+ * بالمصفوفة ⇒ رسالة الانتقال الممنوع. أثر الحالة «مقبول» واجهة فقط:
+ * فتح معالج العقد المعبأ (وحدة qc) — لا عقد آلي خادمًا.
  * التدقيق إضافة ويب موثقة (المكتبي لا يدقق هذه الدالة).
  */
 export async function POST(req: NextRequest, { params }: P) {
@@ -32,6 +34,10 @@ export async function POST(req: NextRequest, { params }: P) {
     select: { id: true, quotationNumber: true, status: true },
   });
   if (!existing) return jsonError("عرض السعر غير موجود", 404);
+  // ر1/2 — حرس المصفوفة: الهدف من أهداف الحالة الحالية فقط
+  if (!quotationAllowedTargets(existing.status).includes(status)) {
+    return jsonError(quotationTransitionBlockedMessage(existing.status, status), 400);
+  }
 
   const quotation = await db.$transaction(async (tx) => {
     const row = await tx.quotation.update({

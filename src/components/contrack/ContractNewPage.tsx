@@ -171,6 +171,12 @@ export function ContractNewPage({
   const [fCustomerId, setFCustomerId] = React.useState(
     presetQuote ? String(presetQuote.customerId) : presetCustomerId ? String(presetCustomerId) : ""
   );
+  // ر1/4 — مجموعات عقود العميل المختار (وضع التحويل من عرض حصرًا) — بعد تعريف fCustomerId
+  const groupsQuery = useQuery<{ groups: { id: number; groupName: string; groupNumber: string }[] }>({
+    queryKey: ["contract-groups", "selector", fCustomerId],
+    queryFn: () => apiGet(`/api/contract-groups?customerId=${fCustomerId}`),
+    enabled: Boolean(presetQuote && fCustomerId),
+  });
   // تحويل عرض سعر — الاسم والمبلغ مقترحان من العرض (وصف العرض = اسم العقد، الإجمالي = القيمة)
   const [fName, setFName] = React.useState(presetQuote?.name ?? "");
   const [fTypeId, setFTypeId] = React.useState("");
@@ -190,6 +196,10 @@ export function ContractNewPage({
   const [dpOn, setDpOn] = React.useState(false);
   const [dpAmount, setDpAmount] = React.useState("");
   const [dpDueDate, setDpDueDate] = React.useState("");
+  // ر1/1 — ترحيل بنود العرض إلى بنود العقد عند التحويل (افتراضي: مفعّل — س3 المعتمد)
+  const [transferItems, setTransferItems] = React.useState(true);
+  // ر1/4 — إضافة العقد إلى مجموعة عقود عند التحويل (اختياري)
+  const [fGroupId, setFGroupId] = React.useState("");
   const [supForm, setSupForm] = React.useState({ start: "", months: "", monthly: "", discount: "0" });
   const [bundleOn, setBundleOn] = React.useState<Record<string, BundleRowState>>({});
 
@@ -384,7 +394,13 @@ export function ContractNewPage({
         body.downPayment = { amount: Number(dpAmount), dueDate: dpDueDate || fDate };
       }
       // وحدة «العقود وعروض الأسعار» — تحويل عرض: يُوسم العرض آليًا بعد إنشاء العقد
-      if (presetQuote?.quotationId) body.quotationId = presetQuote.quotationId;
+      if (presetQuote?.quotationId) {
+        body.quotationId = presetQuote.quotationId;
+        // ر1/1 — ترحيل بنود العرض إلى بنود العقد (BOQ) — افتراضي مفعّل ويمكن إلغاؤه
+        body.transferQuoteItems = transferItems;
+      }
+      // ر1/4 — إلحاق العقد بمجموعة عقود مختارة (اختياري)
+      if (fGroupId) body.groupId = Number(fGroupId);
       if (amountPolicy) body.amountPolicy = amountPolicy;
       return apiPost<{ contract: { id: number; contractNumber: string } }>("/api/contracts", body);
     },
@@ -560,10 +576,40 @@ export function ContractNewPage({
 
       {/* ===== تحويل عرض سعر — شريط توضيحي (وحدة «العقود وعروض الأسعار») ===== */}
       {presetQuote && (
-        <div className="rounded-md border border-info-blue/30 bg-info-soft px-3 py-2 text-xs text-info-blue-text">
-          يُنشأ هذا العقد من عرض السعر <span className="font-bold" dir="ltr">{presetQuote.quotationNumber}</span> للعميل{" "}
-          <span className="font-bold">{presetQuote.customerName}</span> — العميل والاسم والقيمة معبأة من العرض،
-          وبعد الحفظ يُوسم العرض «تحويل إلى عقد» آليًا. أكمل نوع العقد والمراحل والدفعة الأولى عند التعاقد.
+        <div className="space-y-2.5 rounded-md border border-info-blue/30 bg-info-soft px-3 py-2.5 text-xs text-info-blue-text">
+          <div>
+            يُنشأ هذا العقد من عرض السعر <span className="font-bold" dir="ltr">{presetQuote.quotationNumber}</span> للعميل{" "}
+            <span className="font-bold">{presetQuote.customerName}</span> — العميل والاسم والقيمة معبأة من العرض،
+            وبعد الحفظ يُوسم العرض «تحويل إلى عقد» آليًا. أكمل نوع العقد والمراحل والدفعة الأولى عند التعاقد.
+          </div>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            {/* ر1/1 — ترحيل بنود العرض إلى بنود العقد (BOQ) — افتراضي مفعّل (س3 المعتمد) */}
+            <label className="flex cursor-pointer items-center gap-2 font-medium" htmlFor="transfer-items">
+              <Checkbox
+                id="transfer-items"
+                checked={transferItems}
+                onCheckedChange={(v) => setTransferItems(v === true)}
+                aria-label="ترحيل بنود العرض إلى بنود العقد"
+              />
+              ترحيل بنود العرض إلى بنود العقد (BOQ)
+            </label>
+            {/* ر1/4 — إضافة العقد إلى مجموعة عقود (اختياري) */}
+            <div className="flex min-w-[240px] flex-1 items-center gap-2">
+              <span className="whitespace-nowrap">إضافة إلى مجموعة عقود:</span>
+              <SearchableSelect
+                value={fGroupId}
+                onValueChange={setFGroupId}
+                options={(groupsQuery.data?.groups ?? []).map((g) => ({
+                  value: String(g.id),
+                  label: `${g.groupName} (${g.groupNumber})`,
+                }))}
+                placeholder="بلا مجموعة (اختياري)"
+                searchPlaceholder="ابحث باسم المجموعة…"
+                emptyText="لا مجموعات لهذا العميل"
+                loading={groupsQuery.isLoading}
+              />
+            </div>
+          </div>
         </div>
       )}
 
