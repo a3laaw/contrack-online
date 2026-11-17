@@ -48,7 +48,6 @@ export async function GET(req: NextRequest) {
       where: { appointmentDate: date },
       include: {
         customer: { select: { name: true } },
-        contract: { select: { contractNumber: true, contractName: true } },
         engineer: { select: { name: true } },
       },
     }),
@@ -67,8 +66,6 @@ export async function GET(req: NextRequest) {
       id: a.id,
       customerId: a.customerId,
       customerName: a.customer?.name || "",
-      contractId: a.contractId,
-      contractNumber: a.contract?.contractNumber || "",
       note: a.note,
       createdBy: a.createdBy,
     };
@@ -143,14 +140,9 @@ export async function POST(req: NextRequest) {
     const customer = await db.customer.findUnique({ where: { id: customerId } });
     if (!customer) return jsonError("العميل غير موجود", 404);
   }
-  const contractId = Number(body.contractId) || 0;
-  if (contractId) {
-    const contract = await db.contract.findUnique({ where: { id: contractId } });
-    if (!contract) return jsonError("العقد غير موجود", 404);
-  }
 
   const note = String(body.note || "");
-  const data = { customerId: customerId || null, contractId: contractId || null, note };
+  const data = { customerId: customerId || null, note };
 
   const appointment = await db.$transaction(async (tx) => {
     const row = await tx.engineerAppointment.upsert({
@@ -177,7 +169,6 @@ export async function POST(req: NextRequest) {
         engineerId: appointment.engineerId,
         engineerName: engineer.name,
         customerId: appointment.customerId,
-        contractId: appointment.contractId,
         note: appointment.note,
         createdBy: appointment.createdBy,
       },

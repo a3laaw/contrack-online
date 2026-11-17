@@ -5,7 +5,6 @@ import {
   canDecide,
   canDelete,
   canEdit,
-  REVISION_APPROVED,
   validateDecision,
   validateRevisionInput,
 } from "@/lib/consulting-revision-core";
@@ -15,8 +14,7 @@ import {
  * PATCH: تعديل بيانات قبل الحسم — أو القرار (decision: مقبول|معاد بتعديلات)
  *        القرار نهائي (G7) وملاحظة الإرجاع إلزامية — مع تدقيق
  * DELETE: حذف دورة قيد المراجعة فقط — المحسوم تاريخ لا يُمس
- * قرار المالك (docs/consulting-projects-design.md): حدث العقد للمراجعات المربوطة بعقد فقط —
- * المراجعات الموجهة لمشروع استشاري تكفيها التدقيقة (لا عقد ليكتب فيه)
+ * قرار المالك المُحدّث: الاستشارات نشاط مستقل خالص — بلا أحداث عقود
  */
 
 type P = { params: Promise<{ id: string }> };
@@ -33,16 +31,13 @@ export async function PATCH(req: NextRequest, { params }: P) {
   const row = await db.consultingRevision.findUnique({
     where: { id },
     select: {
-      id: true, contractId: true, consultingProjectId: true, title: true, revNo: true, status: true,
-      contract: { select: { contractNumber: true } },
+      id: true, consultingProjectId: true, title: true, revNo: true, status: true,
       consultingProject: { select: { projectNumber: true, name: true } },
     },
   });
   if (!row) return jsonError("دورة المراجعة غير موجودة", 404);
-  /** وسم الهدف — للوصف في الأحداث والتدقيق: العقد رقمه، والمشروع رقمه واسمه */
-  const targetLabel = row.contract
-    ? `العقد ${row.contract.contractNumber}`
-    : `المشروع الاستشاري ${row.consultingProject?.projectNumber || ""} — ${row.consultingProject?.name || ""}`.trim();
+  /** وسم الهدف — للوصف في التدقيق: المشروع رقمه واسمه */
+  const targetLabel = `المشروع الاستشاري ${row.consultingProject?.projectNumber || ""} — ${row.consultingProject?.name || ""}`.trim();
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
@@ -63,20 +58,6 @@ export async function PATCH(req: NextRequest, { params }: P) {
           decisionNote: decision.value.note,
         },
       });
-      // حدث العقد للمراجعات المربوطة بعقد فقط (قرار المالك — الهدف مشروع استشاري أو عقد)
-      if (row.contractId) {
-        await tx.contractEvent.create({
-          data: {
-            contractId: row.contractId,
-            eventType: decision.value.decision === REVISION_APPROVED ? "اعتماد مراجعة مخطط" : "إرجاع مراجعة مخطط",
-            description:
-              decision.value.decision === REVISION_APPROVED
-                ? `اعتُمد الإصدار V${row.revNo} من «${row.title}» — العقد ${row.contract!.contractNumber}`
-                : `أُعيد الإصدار V${row.revNo} من «${row.title}» بتعديلات: ${decision.value.note}`,
-            username: guard.user.username,
-          },
-        });
-      }
       await audit(tx, {
         username: guard.user.username,
         action: "تعديل",
@@ -133,7 +114,7 @@ export async function DELETE(req: NextRequest, { params }: P) {
   if (!Number.isFinite(id)) return jsonError("معرف غير صالح");
   const row = await db.consultingRevision.findUnique({
     where: { id },
-    select: { id: true, contractId: true, title: true, revNo: true, status: true },
+    select: { id: true, title: true, revNo: true, status: true },
   });
   if (!row) return jsonError("دورة المراجعة غير موجودة", 404);
   if (!canDelete(row.status)) {
@@ -141,17 +122,6 @@ export async function DELETE(req: NextRequest, { params }: P) {
   }
   await db.$transaction(async (tx) => {
     await tx.consultingRevision.delete({ where: { id: row.id } });
-    // حدث العقد للمراجعات المربوطة بعقد فقط (قرار المالك — docs/consulting-projects-design.md)
-    if (row.contractId) {
-      await tx.contractEvent.create({
-        data: {
-          contractId: row.contractId,
-          eventType: "حذف مراجعة مخطط",
-          description: `حُذف الإصدار V${row.revNo} من «${row.title}» وهو قيد المراجعة`,
-          username: guard.user.username,
-        },
-      });
-    }
     await audit(tx, {
       username: guard.user.username,
       action: "حذف",

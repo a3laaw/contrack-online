@@ -20,7 +20,7 @@ import { EPS, filterReadyIpcLines, type ReadyIpcLineInput } from "../src/lib/con
 
 // ==================== نواة المراجعات ====================
 
-describe("nextRevNo — الترقيم الآلي لكل (عقد، عنوان)", () => {
+describe("nextRevNo — الترقيم الآلي لكل (مشروع استشاري، عنوان)", () => {
   test("القائمة الفارغة تبدأ من V1", () => {
     expect(nextRevNo([])).toBe(1);
   });

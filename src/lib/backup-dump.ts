@@ -161,7 +161,7 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "formTemplate", table: "form_templates", serial: true },
   { model: "formField", table: "form_fields", serial: true },
   { model: "formDocument", table: "form_documents", serial: true },
-  // ===== الاستشارات الهندسية (موديول consulting) — بعد الموظفين والعقود =====
+  // ===== الاستشارات الهندسية (موديول consulting) — بعد الموظفين والعملاء (نشاط مستقل بلا عقود) =====
   // إصلاح فجوة موثقة: كانت النماذج الأربعة في TENANT_MODELS وغائبة عن النسخ الاحتياطي (نمط درس T112 مع taxDeclaration)
   // المشاريع الاستشارية المستقلة أولًا (FK للإسنادات/الساعات/المراجعات — قرار المالك الخيار ب)
   { model: "consultingProject", table: "consulting_projects", serial: true },
@@ -169,7 +169,7 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "engineerAssignment", table: "engineer_assignments", serial: true },
   { model: "engineerTimesheet", table: "engineer_timesheets", serial: true },
   { model: "engineerLeave", table: "engineer_leaves", serial: true },
-  // NOVA 4 — رادار المواعيد: بعد المهندسين والعملاء والعقود (FK: engineer Cascade · customer/contract)
+  // NOVA 4 — رادار المواعيد: بعد المهندسين والعملاء (FK: engineer Cascade · customer)
   { model: "engineerAppointment", table: "engineer_appointments", serial: true },
   // ===== HR-1 — الموارد البشرية: بعد employees (فوق) وقب�� القيود (FK batch→entry/voucher) =====
   { model: "employeeAttendance", table: "employee_attendance", serial: true },
@@ -195,7 +195,7 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "maintenancePlan", table: "maintenance_plans", serial: true }, // بعد contracts
   { model: "maintenanceOccurrence", table: "maintenance_occurrences", serial: true }, // بعد maintenancePlan (FK Cascade)
   { model: "workOrder", table: "work_orders", serial: true }, // أخيرًا — بعد occurrences/invoices/stock_docs/visit_staff لارتباطاته
-  // ===== الاستشارات — مراجعات المخططات — بعد العقود والمهندسين (FK: contract Cascade · engineer) =====
+  // ===== الاستشارات — مراجعات المخططات — بعد المشاريع الاستشارية والمهندسين (FK: project Cascade · engineer) =====
   { model: "consultingRevision", table: "consulting_revisions", serial: true },
   // ===== سجلات النظام (آخرًا لكي تُحذف أولًا عند الاستعادة) =====
   { model: "auditLog", table: "audit_log", serial: true },

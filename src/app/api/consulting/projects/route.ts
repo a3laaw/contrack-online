@@ -9,8 +9,9 @@ import {
 } from "@/lib/consulting-constants";
 
 /**
- * المشاريع الاستشارية المستقلة (docs/consulting-projects-design.md) — قرار المالك 2026-11-16:
- * GET: القائمة مع العميل/العقد الاختياري وعدادات الارتباطات — فلاتر status/customerId/q
+ * المشاريع الاستشارية المستقلة (docs/consulting-projects-design.md) — قرار المالك 2026-11-16 مُحدَّث:
+ * نشاط مستقل خالص بلا أي ربط بعقود المقاولات.
+ * GET: القائمة مع العميل وعدادات الارتباطات — فلاتر status/customerId/q
  * POST: إنشاء مشروع — الترقيم الذري CPR عبر nextNumberByKey داخل المعاملة (نمط QUO/CON)
  * الحرس: screen_consulting ⇐ moduleGuard("consulting") — نمط الوحدة حرفيًا
  */
@@ -33,7 +34,6 @@ export async function GET(req: NextRequest) {
     orderBy: { id: "desc" },
     include: {
       customer: { select: { name: true } },
-      contract: { select: { contractNumber: true, contractName: true } },
       _count: { select: { assignments: true, timesheets: true, revisions: true } },
     },
   });
@@ -60,9 +60,6 @@ export async function GET(req: NextRequest) {
       endDate: p.endDate,
       customerId: p.customerId,
       customerName: p.customer?.name || "",
-      contractId: p.contractId,
-      contractNumber: p.contract?.contractNumber || "",
-      contractName: p.contract?.contractName || "",
       assignmentsCount: p._count.assignments,
       timesheetsCount: p._count.timesheets,
       revisionsCount: p._count.revisions,
@@ -102,14 +99,9 @@ export async function POST(req: NextRequest) {
   if (startDate && endDate && endDate < startDate) return jsonError("تاريخ النهاية قبل البداية");
 
   const customerId = Number(body.customerId) || 0;
-  const contractId = Number(body.contractId) || 0;
   if (customerId) {
     const customer = await db.customer.findUnique({ where: { id: customerId }, select: { id: true } });
     if (!customer) return jsonError("العميل غير موجود", 404);
-  }
-  if (contractId) {
-    const contract = await db.contract.findUnique({ where: { id: contractId }, select: { id: true } });
-    if (!contract) return jsonError("العقد غير موجود", 404);
   }
 
   const created = await db.$transaction(async (tx) => {
@@ -124,7 +116,6 @@ export async function POST(req: NextRequest) {
         startDate,
         endDate,
         customerId: customerId || null,
-        contractId: contractId || null,
         notes: String(body.notes ?? "").trim(),
         createdBy: guard.user.username,
       },

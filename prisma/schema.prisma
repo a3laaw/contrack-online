@@ -245,9 +245,6 @@ model Contract {
   contractScopes       ContractScope[]
   stageNotes           StageNote[]
   txMessages           TxMessage[]
-  // الاستشارات الهندسية — نقطة الربط HR↔العقود (إسنادات المهندسين وساعاتهم)
-  engAssignments       EngineerAssignment[]
-  engTimesheets        EngineerTimesheet[]
   // HR-3 — تكليفات الموظفين وتخصيص العمالة
   employeeAssignments  EmployeeAssignment[]
   laborAllocations     LaborAllocation[]
@@ -259,12 +256,7 @@ model Contract {
   // المرحلة (أ) — الدفعة المقدمة واستردادها (docs/retention-subipc-advance-design.md §2)
   advanceAmount        Decimal               @default(0) @map("advance_amount") @db.Decimal(18, 3)
   advanceRecoveryPct   Decimal               @default(0) @map("advance_recovery_pct") @db.Decimal(5, 2)
-  // الاستشارات — دورات مراجعة المخططات على العقود (docs/revisions-ipc-design.md §1)
-  consultingRevisions  ConsultingRevision[]
-  // رادار المواعيد — مواعيد المهندسين على العقد (docs/consulting-radar-design.md)
-  engineerAppointments EngineerAppointment[] @relation("EngineerAppointmentContract")
-  // المشاريع الاستشارية المرتبطة اختياريًا بالعقد (أنشطة الإشراف) — docs/consulting-projects-design.md
-  consultingProjects   ConsultingProject[] @relation("ConsultingProjectContract")
+  // قرار المالك (2026-11-16 مُحدَّث): الاستشارات نشاط مستقل خالص — بلا أي ارتباط بعقود المقاولات
 
   @@unique([companyId, contractNumber])
   @@index([customerId, status])
@@ -2347,12 +2339,9 @@ model EngineerAssignment {
   id            Int      @id @default(autoincrement())
   engineerId    Int      @map("engineer_id")
   engineer      Engineer @relation(fields: [engineerId], references: [id], onDelete: Cascade)
-  // قرار المالك (docs/consulting-projects-design.md): الهدف مشروع استشاري أو عقد — واحد على الأقل
-  // إلزامي (تحقق خادميًا) وكلاهما مسموح؛ contractId صار اختياريًا للتوافق مع القائم
-  contractId    Int?      @map("contract_id")
-  contract      Contract? @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  consultingProjectId Int?      @map("consulting_project_id")
-  consultingProject   ConsultingProject? @relation(fields: [consultingProjectId], references: [id], onDelete: Cascade)
+  // قرار المالك المُحدَّث (2026-11-16): الإسناد على مشروع استشاري إلزامي — الاستشارات نشاط مستقل خالص بلا عقود
+  consultingProjectId Int      @map("consulting_project_id")
+  consultingProject   ConsultingProject @relation(fields: [consultingProjectId], references: [id], onDelete: Cascade)
   role          String   @default("") // الدور في المشروع: مدير المشروع / مصمم / مشرف…
   allocationPct Decimal  @default(0) @map("allocation_pct") // نسبة الإخصاص %
   startDate     String   @default("") @map("start_date")
@@ -2362,22 +2351,19 @@ model EngineerAssignment {
   createdAt     DateTime @default(now()) @map("created_at")
 
   @@index([engineerId])
-  @@index([contractId])
   @@index([consultingProjectId])
   @@map("engineer_assignments")
 }
 
 /**
- * ساعات العمل على المشاريع — المخططات والإشراف والمراجعات (الربط اختياري للساعات الإدارية:
- * مشروع استشاري أو عقد — قرار المالك docs/consulting-projects-design.md)
+ * ساعات العمل على المشاريع — المخططات والإشراف والمراجعات (الربط اختياري بمشروع استشاري —
+ * الساعات الإدارية بلا ربط — قرار المالك المُحدَّث: بلا عقود إطلاقًا)
  */
 model EngineerTimesheet {
   companyId  Int       @default(1) @map("company_id")
   id         Int       @id @default(autoincrement())
   engineerId Int       @map("engineer_id")
   engineer   Engineer  @relation(fields: [engineerId], references: [id], onDelete: Cascade)
-  contractId Int?      @map("contract_id")
-  contract   Contract? @relation(fields: [contractId], references: [id])
   consultingProjectId Int?      @map("consulting_project_id")
   consultingProject   ConsultingProject? @relation(fields: [consultingProjectId], references: [id], onDelete: Cascade)
   workDate   String    @map("work_date") // YYYY-MM-DD
@@ -2387,7 +2373,6 @@ model EngineerTimesheet {
   createdAt  DateTime  @default(now()) @map("created_at")
 
   @@index([engineerId, workDate])
-  @@index([contractId])
   @@index([consultingProjectId])
   @@map("engineer_timesheets")
 }
@@ -2425,8 +2410,6 @@ model EngineerAppointment {
   hourSlot        String    @map("hour_slot") // HH:mm — داخل نطاق دوام الشركة
   customerId      Int?      @map("customer_id")
   customer        Customer? @relation("EngineerAppointmentCustomer", fields: [customerId], references: [id])
-  contractId      Int?      @map("contract_id")
-  contract        Contract? @relation("EngineerAppointmentContract", fields: [contractId], references: [id])
   note            String    @default("")
   createdBy       String    @default("") @map("created_by")
   createdAt       DateTime  @default(now()) @map("created_at")
@@ -2438,7 +2421,8 @@ model EngineerAppointment {
 
 /**
  * دورة مراجعة مخطط (docs/revisions-ipc-design.md §1) — بند 1 من خريطة NOVA:
- * كل صف = إصدار واحد لمخطط (title) — revNo يرقَّم خادميًا لكل (هدف، عنوان) حيث الهدف مشروع استشاري أو عقد
+ * كل صف = إصدار واحد لمخطط (title) — revNo يرقَّم خادميًا لكل (مشروع استشاري، عنوان)
+ * قرار المالك المُحدَّث (2026-11-16): الهدف مشروع استشاري إلزامي — بلا عقود
  * بلا قيد فريد (النص الحر لا يُحاصَر) — آلة حالات مغلقة G7:
  * «بانتظار مراجعة» ⇐ (مقبول | معاد بتعديلات) — القرار نهائي (لا تعديل ولا حذف بعده)
  * وملاحظة الإرجاع إلزامية (نمط إجازات المهندسين).
@@ -2446,12 +2430,10 @@ model EngineerAppointment {
 model ConsultingRevision {
   companyId    Int       @default(1) @map("company_id")
   id           Int       @id @default(autoincrement())
-  contractId   Int?      @map("contract_id")
-  contract     Contract? @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  consultingProjectId Int?      @map("consulting_project_id")
-  consultingProject   ConsultingProject? @relation(fields: [consultingProjectId], references: [id], onDelete: Cascade)
+  consultingProjectId Int      @map("consulting_project_id")
+  consultingProject   ConsultingProject @relation(fields: [consultingProjectId], references: [id], onDelete: Cascade)
   title        String // اسم المخطط/الوثيقة — مفتاح التجميع بين الإصدارات
-  revNo        Int       @map("rev_no") // يُرقَّم خادميًا max+1 لكل (عقد، عنوان)
+  revNo        Int       @map("rev_no") // يُرقَّم خادميًا max+1 لكل (مشروع استشاري، عنوان)
   status       String    @default("بانتظار مراجعة") // بانتظار مراجعة | مقبول | معاد بتعديلات
   engineerId   Int?      @map("engineer_id") // مُعد الإصدار — اختياري
   engineer     Engineer? @relation(fields: [engineerId], references: [id])
@@ -2463,7 +2445,6 @@ model ConsultingRevision {
   createdBy    String    @default("") @map("created_by")
   createdAt    DateTime  @default(now()) @map("created_at")
 
-  @@index([contractId])
   @@index([consultingProjectId])
   @@index([status])
   @@map("consulting_revisions")
@@ -2472,8 +2453,8 @@ model ConsultingRevision {
 /**
  * المشروع الاستشاري المستقل (docs/consulting-projects-design.md) — قرار المالك 2026-11-16:
  * «الاستشارات نشاط منفصل لا للمقاولات» — كيان يُباع لعملاء بأتعاب، وهو الهدف المرجعي
- * للإسنادات والساعات والمراجعات، مع ربط اختياري بعقد مقاولات لأنشطة الإشراف.
- * الترقيم الذري CPR عبر number_sequences (نمط QUO/CON) — بلا أرصدة مخزنة.
+ * للإسنادات والساعات والمراجعات — ومُحدَّث لاحقًا بقرار المالك: بلا أي ربط بعقود المقاولات
+ * (نشاط مستقل خالص). الترقيم الذري CPR عبر number_sequences (نمط QUO/CON) — بلا أرصدة مخزنة.
  */
 model ConsultingProject {
   companyId     Int       @default(1) @map("company_id")
@@ -2487,8 +2468,6 @@ model ConsultingProject {
   status        String    @default("قيد التنفيذ") // CONSULTING_PROJECT_STATUSES
   startDate     String    @default("") @map("start_date") // YYYY-MM-DD
   endDate       String    @default("") @map("end_date") // YYYY-MM-DD
-  contractId    Int?      @map("contract_id") // ربط اختياري بعقد مقاولات (أنشطة الإشراف)
-  contract      Contract? @relation("ConsultingProjectContract", fields: [contractId], references: [id])
   notes         String    @default("")
   createdBy     String    @default("") @map("created_by")
   createdAt     DateTime  @default(now()) @map("created_at")
@@ -2501,7 +2480,6 @@ model ConsultingProject {
   @@unique([companyId, projectNumber])
   @@index([status])
   @@index([customerId])
-  @@index([contractId])
   @@map("consulting_projects")
 }
 

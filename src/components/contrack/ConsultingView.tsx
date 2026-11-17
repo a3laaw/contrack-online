@@ -3,8 +3,10 @@
 /**
  * ConsultingView.tsx — شاشة موديول «الاستشارات الهندسية» (خطة الأنشطة):
  * قرار المالك 2026-11-16 (docs/consulting-projects-design.md): النشاط مستقل لا للمقاولات —
- *   المشاريع الاستشارية (كيان CPR مستقل بأتعاب) · الفريق الهندسي · إسناد (مشروع استشاري أو عقد)
- *   · ساعات العمل · مراجعات المخططات · الإجازات + رادار المواعيد (NOVA 4)
+ * ومُحدّث لاحقًا بقرار المالك: بلا أي ربط بعقود المقاولات — الإسناد والساعات والمراجعات
+ * تستهدف المشروع الاستشاري حصرًا (النشاط مستقل خالص).
+ *   المشاريع الاستشارية (كيان CPR مستقل بأتعاب) · الفريق الهندسي · الإسناد · ساعات العمل
+ *   · مراجعات المخططات · الإجازات + رادار المواعيد (NOVA 4)
  * + بطاقات مؤشرات وتنبيه تراخيص (ملخص /api/consulting/summary) تظهر في كل الأقسام.
  * الموديول يظهر حصرًا للشركات التي فعّلته (navModules) — والإيقاف يخفي التبويب كله (تجميد).
  */
@@ -50,7 +52,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { ApiError, api as apiLite, apiDelete, apiGet, apiPatch, apiPost, apiPut, type ContractOption, type CustomerOption } from "./api";
+import { ApiError, api as apiLite, apiDelete, apiGet, apiPatch, apiPost, apiPut, type CustomerOption } from "./api";
 import { errMessage, type User } from "./contrack-types";
 import { cn } from "@/lib/utils";
 import { SearchableSelect } from "./SearchableSelect";
@@ -99,15 +101,10 @@ interface AssignmentItem {
   engineerId: number;
   engineerName: string;
   engineerSpecialty: string;
-  consultingProjectId: number | null;
+  consultingProjectId: number;
   consultingProjectNumber: string;
   consultingProjectName: string;
   consultingProjectCustomer: string;
-  contractId: number | null;
-  contractNumber: string;
-  contractName: string;
-  contractStatus: string;
-  customerName: string;
   role: string;
   allocationPct: number;
   startDate: string;
@@ -127,9 +124,6 @@ interface ConsultingProjectItem {
   endDate: string;
   customerId: number | null;
   customerName: string;
-  contractId: number | null;
-  contractNumber: string;
-  contractName: string;
   assignmentsCount: number;
   timesheetsCount: number;
   revisionsCount: number;
@@ -143,10 +137,6 @@ interface TimesheetItem {
   consultingProjectId: number | null;
   consultingProjectNumber: string;
   consultingProjectName: string;
-  contractId: number | null;
-  contractNumber: string;
-  contractName: string;
-  customerName: string;
   workDate: string;
   hours: number;
   activity: string;
@@ -156,7 +146,6 @@ interface TimesheetItem {
 interface TimesheetTotals {
   totalHours: number;
   byEngineer: { engineerId: number; name: string; hours: number }[];
-  byContract: { contractId: number; label: string; hours: number }[];
   byProject: { consultingProjectId: number; label: string; hours: number }[];
   byActivity: { activity: string; hours: number }[];
 }
@@ -199,11 +188,7 @@ interface SummaryResponse {
 
 interface RevisionItem {
   id: number;
-  contractId: number | null;
-  contractNumber: string;
-  contractName: string;
-  customerName: string;
-  consultingProjectId: number | null;
+  consultingProjectId: number;
   consultingProjectNumber: string;
   consultingProjectName: string;
   title: string;
@@ -350,27 +335,6 @@ export function ConsultingView({ user, onAuthError, section, onSectionChange }: 
       })),
     [projects]
   );
-
-  // خيارات العقود للاختيار (SearchableSelect) — من نهاية العقود الجاهزة
-  const [contractOptions, setContractOptions] = React.useState<ContractOption[]>([]);
-  React.useEffect(() => {
-    let alive = true;
-    apiLite
-      .contracts()
-      .then((rows) => alive && setContractOptions(rows))
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
-  const contractOpts = React.useMemo(
-    () =>
-      contractOptions.map((c) => ({
-        value: String(c.id),
-        label: `${c.contractNumber} — ${c.contractName || c.contractType}${c.customerName ? ` (${c.customerName})` : ""}`,
-      })),
-    [contractOptions]
-  );
   const engineerOpts = React.useMemo(
     () =>
       engineers
@@ -431,7 +395,7 @@ export function ConsultingView({ user, onAuthError, section, onSectionChange }: 
               icon={Network}
               label="إسنادات سارية"
               value={String(kpis?.activeAssignments ?? 0)}
-              sub="مهندسون مرتبطون بأهداف"
+              sub="مهندسون مرتبطون بمشاريع"
               tone="text-status-info"
             />
             <KpiCard
@@ -479,7 +443,7 @@ export function ConsultingView({ user, onAuthError, section, onSectionChange }: 
 
       {/* محتوى القسم */}
       {section === "projects" && (
-        <ProjectsSection contractOpts={contractOpts} onErr={onErr} invalidate={invalidate} setDeleteTarget={setDeleteTarget} />
+        <ProjectsSection onErr={onErr} invalidate={invalidate} setDeleteTarget={setDeleteTarget} />
       )}
       {section === "team" && (
         <TeamSection
@@ -493,7 +457,6 @@ export function ConsultingView({ user, onAuthError, section, onSectionChange }: 
       {section === "assignments" && (
         <AssignmentsSection
           engineerOpts={engineerOpts}
-          contractOpts={contractOpts}
           projectOpts={projectOpts}
           onErr={onErr}
           onAuthError={onAuthError}
@@ -504,7 +467,6 @@ export function ConsultingView({ user, onAuthError, section, onSectionChange }: 
       {section === "timesheets" && (
         <TimesheetsSection
           engineerOpts={engineerOpts}
-          contractOpts={contractOpts}
           projectOpts={projectOpts}
           onErr={onErr}
           onAuthError={onAuthError}
@@ -515,7 +477,6 @@ export function ConsultingView({ user, onAuthError, section, onSectionChange }: 
       {section === "revisions" && (
         <RevisionsSection
           engineerOpts={engineerOpts}
-          contractOpts={contractOpts}
           projectOpts={projectOpts}
           onErr={onErr}
           onAuthError={onAuthError}
@@ -535,7 +496,6 @@ export function ConsultingView({ user, onAuthError, section, onSectionChange }: 
       {section === "radar" && (
         <RadarSection
           isAdmin={isAdmin}
-          contractOpts={contractOpts}
           onErr={onErr}
           onAuthError={onAuthError}
           invalidate={invalidate}
@@ -958,11 +918,10 @@ function EngineerDialog({
 // ==================== قسم المشاريع الاستشارية (قرار المالك 2026-11-16) ====================
 
 function ProjectsSection({
-  contractOpts,
   onErr,
   invalidate,
   setDeleteTarget,
-}: SectionCommon & { contractOpts: { value: string; label: string }[] }) {
+}: SectionCommon) {
   const { toast } = useToast();
 
   const listQuery = useQuery<{ projects: ConsultingProjectItem[] }>({
@@ -1051,11 +1010,6 @@ function ProjectsSection({
                     <div className="flex flex-wrap items-center gap-1.5">
                       {p.serviceType && <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">{p.serviceType}</Badge>}
                       {p.customerName && <Badge variant="outline" className="h-5 px-1.5 text-[10px]">العميل: {p.customerName}</Badge>}
-                      {p.contractNumber && (
-                        <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px]" title="مرتبط بعقد مقاولات (اختياري — أنشطة الإشراف)">
-                          عقد: <span dir="ltr" className="tabular-nums">{p.contractNumber}</span>
-                        </Badge>
-                      )}
                       {p.fee > 0 && <Badge variant="outline" className="h-5 px-1.5 text-[10px] tabular-nums">الأتعاب: {p.fee.toLocaleString("en", { maximumFractionDigits: 3 })} د.ك</Badge>}
                     </div>
                     {(p.startDate || p.endDate) && (
@@ -1096,7 +1050,6 @@ function ProjectsSection({
       <ProjectDialog
         open={!!editor}
         editing={editor?.editing ?? null}
-        contractOpts={contractOpts}
         pending={saveMutation.isPending}
         onClose={() => setEditor(null)}
         onSave={(data) => saveMutation.mutate({ id: editor?.editing?.id, data })}
@@ -1108,14 +1061,12 @@ function ProjectsSection({
 function ProjectDialog({
   open,
   editing,
-  contractOpts,
   pending,
   onClose,
   onSave,
 }: {
   open: boolean;
   editing: ConsultingProjectItem | null;
-  contractOpts: { value: string; label: string }[];
   pending: boolean;
   onClose: () => void;
   onSave: (data: Record<string, unknown>) => void;
@@ -1128,7 +1079,6 @@ function ProjectDialog({
     startDate: "",
     endDate: "",
     customerId: "",
-    contractId: "",
     notes: "",
   });
   const [customerOpts, setCustomerOpts] = React.useState<{ value: string; label: string }[]>([]);
@@ -1157,7 +1107,6 @@ function ProjectDialog({
         startDate: editing?.startDate ?? "",
         endDate: editing?.endDate ?? "",
         customerId: editing?.customerId ? String(editing.customerId) : "",
-        contractId: editing?.contractId ? String(editing.contractId) : "",
         notes: editing?.notes ?? "",
       });
     }
@@ -1172,7 +1121,6 @@ function ProjectDialog({
       startDate: form.startDate,
       endDate: form.endDate,
       customerId: Number(form.customerId) || 0,
-      contractId: Number(form.contractId) || 0,
       notes: form.notes,
     });
   };
@@ -1183,7 +1131,7 @@ function ProjectDialog({
         <DialogHeader>
           <DialogTitle>{editing ? `تعديل ${editing.projectNumber}` : "مشروع استشاري جديد"}</DialogTitle>
           <DialogDescription>
-            النشاط المستقل للاستشارات — يُرقَّم CPR آليًا، وربط عقد المقاولات اختياري لأنشطة الإشراف
+            النشاط المستقل للاستشارات — يُرقَّم CPR آليًا — بلا أي ربط بعقود المقاولات
           </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1244,18 +1192,6 @@ function ProjectDialog({
               clearLabel="بلا عميل"
             />
           </div>
-          <div className="space-y-1.5">
-            <Label>عقد مقاولات (اختياري)</Label>
-            <SearchableSelect
-              value={form.contractId}
-              onValueChange={(v) => setForm((f) => ({ ...f, contractId: v }))}
-              options={contractOpts}
-              placeholder="لأنشطة الإشراف على عقد"
-              searchPlaceholder="ابحث برقم/اسم العقد…"
-              allowClear
-              clearLabel="بلا عقد"
-            />
-          </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label>ملاحظات</Label>
             <Input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="اختياري" />
@@ -1279,14 +1215,12 @@ function ProjectDialog({
 
 function AssignmentsSection({
   engineerOpts,
-  contractOpts,
   projectOpts,
   onErr,
   invalidate,
   setDeleteTarget,
 }: SectionCommon & {
   engineerOpts: { value: string; label: string }[];
-  contractOpts: { value: string; label: string }[];
   projectOpts: { value: string; label: string }[];
 }) {
   const { toast } = useToast();
@@ -1304,7 +1238,7 @@ function AssignmentsSection({
     const needle = normSearch(q.trim());
     return assignments.filter((a) => {
       if (tab !== "الكل" && a.status !== tab) return false;
-      if (needle && !normSearch(`${a.engineerName} ${a.consultingProjectNumber} ${a.consultingProjectName} ${a.consultingProjectCustomer} ${a.contractNumber} ${a.contractName} ${a.customerName} ${a.role}`).includes(needle)) return false;
+      if (needle && !normSearch(`${a.engineerName} ${a.consultingProjectNumber} ${a.consultingProjectName} ${a.consultingProjectCustomer} ${a.role}`).includes(needle)) return false;
       return true;
     });
   }, [assignments, tab, q]);
@@ -1346,7 +1280,7 @@ function AssignmentsSection({
         </Tabs>
         <div className="relative">
           <Search className="absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث بالمهندس/العقد/العميل/الدور…" className="ps-8" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث بالمهندس/المشروع/الدور…" className="ps-8" />
         </div>
       </Card>
 
@@ -1384,20 +1318,9 @@ function AssignmentsSection({
                     <StatusPill label={a.status} tone={a.status === "سارية" ? { text: "text-status-info", bg: "bg-status-info-bg" } : { text: "text-muted-foreground", bg: "bg-muted" }} />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {a.consultingProjectId ? (
-                      <>
-                        <span dir="ltr" className="font-semibold">{a.consultingProjectNumber}</span>
-                        {a.consultingProjectName ? ` — ${a.consultingProjectName}` : ""}
-                        {a.consultingProjectCustomer ? ` · ${a.consultingProjectCustomer}` : ""}
-                        <Badge variant="outline" className="ms-1.5 h-4 px-1 text-[9px]">مشروع استشاري</Badge>
-                      </>
-                    ) : (
-                      <>
-                        <span dir="ltr" className="font-semibold">{a.contractNumber}</span>
-                        {a.contractName ? ` — ${a.contractName}` : ""}
-                        {a.customerName ? ` · ${a.customerName}` : ""}
-                      </>
-                    )}
+                    <span dir="ltr" className="font-semibold">{a.consultingProjectNumber}</span>
+                    {a.consultingProjectName ? ` — ${a.consultingProjectName}` : ""}
+                    {a.consultingProjectCustomer ? ` · ${a.consultingProjectCustomer}` : ""}
                   </p>
                   {(a.startDate || a.endDate) && (
                     <p className="text-[11px] text-muted-foreground tabular-nums">
@@ -1431,7 +1354,7 @@ function AssignmentsSection({
                       setDeleteTarget({
                         kind: "assignments",
                         id: a.id,
-                        label: `${a.engineerName} ← ${a.consultingProjectId ? `${a.consultingProjectNumber} — ${a.consultingProjectName}` : a.contractNumber}`,
+                        label: `${a.engineerName} ← ${a.consultingProjectNumber} — ${a.consultingProjectName}`,
                       })
                     }
                   >
@@ -1448,7 +1371,6 @@ function AssignmentsSection({
         open={!!editor}
         editing={editor?.editing ?? null}
         engineerOpts={engineerOpts}
-        contractOpts={contractOpts}
         projectOpts={projectOpts}
         pending={saveMutation.isPending}
         onClose={() => setEditor(null)}
@@ -1462,7 +1384,6 @@ function AssignmentDialog({
   open,
   editing,
   engineerOpts,
-  contractOpts,
   projectOpts,
   pending,
   onClose,
@@ -1471,7 +1392,6 @@ function AssignmentDialog({
   open: boolean;
   editing: AssignmentItem | null;
   engineerOpts: { value: string; label: string }[];
-  contractOpts: { value: string; label: string }[];
   projectOpts: { value: string; label: string }[];
   pending: boolean;
   onClose: () => void;
@@ -1479,9 +1399,7 @@ function AssignmentDialog({
 }) {
   const [form, setForm] = React.useState({
     engineerId: "",
-    targetMode: "project" as "project" | "contract",
     consultingProjectId: "",
-    contractId: "",
     role: "",
     allocationPct: "",
     startDate: "",
@@ -1493,9 +1411,7 @@ function AssignmentDialog({
     if (open) {
       setForm({
         engineerId: editing ? String(editing.engineerId) : "",
-        targetMode: editing ? (editing.consultingProjectId ? "project" : "contract") : "project",
         consultingProjectId: editing?.consultingProjectId ? String(editing.consultingProjectId) : "",
-        contractId: editing?.contractId ? String(editing.contractId) : "",
         role: editing?.role ?? "",
         allocationPct: editing?.allocationPct ? String(editing.allocationPct) : "",
         startDate: editing?.startDate ?? "",
@@ -1506,11 +1422,9 @@ function AssignmentDialog({
   }, [open, editing]);
 
   const submit = () => {
-    const useProject = form.targetMode === "project";
     onSave({
       engineerId: Number(form.engineerId) || 0,
-      consultingProjectId: useProject ? Number(form.consultingProjectId) || 0 : 0,
-      contractId: !useProject ? Number(form.contractId) || 0 : 0,
+      consultingProjectId: Number(form.consultingProjectId) || 0,
       role: form.role,
       allocationPct: form.allocationPct === "" ? 0 : Number(form.allocationPct),
       startDate: form.startDate,
@@ -1519,14 +1433,12 @@ function AssignmentDialog({
     });
   };
 
-  const targetReady = form.targetMode === "project" ? !!form.consultingProjectId : !!form.contractId;
-
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{editing ? "تعديل إسناد" : "إسناد مهندس لمشروع"}</DialogTitle>
-          <DialogDescription>الهدف مشروع استشاري أو عقد (واحد على الأقل) — تظهر الساعات على الهدف</DialogDescription>
+          <DialogDescription>الإسناد على المشروع الاستشاري حصرًا — الاستشارات نشاط مستقل بلا عقود</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
@@ -1540,47 +1452,14 @@ function AssignmentDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label>نوع الهدف *</Label>
-            <div className="flex gap-1.5">
-              {([
-                { key: "project", label: "مشروع استشاري" },
-                { key: "contract", label: "عقد" },
-              ] as const).map((m) => (
-                <button
-                  key={m.key}
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, targetMode: m.key }))}
-                  className={cn(
-                    "flex-1 rounded-full border px-3 py-1.5 text-xs transition-colors",
-                    form.targetMode === m.key
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "bg-background text-muted-foreground hover:bg-secondary"
-                  )}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>{form.targetMode === "project" ? "المشروع الاستشاري *" : "العقد *"}</Label>
-            {form.targetMode === "project" ? (
-              <SearchableSelect
-                value={form.consultingProjectId}
-                onValueChange={(v) => setForm((f) => ({ ...f, consultingProjectId: v }))}
-                options={projectOpts}
-                placeholder="اختر المشروع الاستشاري"
-                searchPlaceholder="ابحث برقم CPR/الاسم/العميل…"
-              />
-            ) : (
-              <SearchableSelect
-                value={form.contractId}
-                onValueChange={(v) => setForm((f) => ({ ...f, contractId: v }))}
-                options={contractOpts}
-                placeholder="اختر العقد"
-                searchPlaceholder="ابحث برقم/اسم العقد…"
-              />
-            )}
+            <Label>المشروع الاستشاري *</Label>
+            <SearchableSelect
+              value={form.consultingProjectId}
+              onValueChange={(v) => setForm((f) => ({ ...f, consultingProjectId: v }))}
+              options={projectOpts}
+              placeholder="اختر المشروع الاستشاري"
+              searchPlaceholder="ابحث برقم CPR/الاسم/العميل…"
+            />
           </div>
           <div className="space-y-1.5">
             <Label>الدور في المشروع</Label>
@@ -1613,7 +1492,7 @@ function AssignmentDialog({
           <Button variant="outline" onClick={onClose} disabled={pending}>
             إلغاء
           </Button>
-          <Button onClick={submit} disabled={pending || !form.engineerId || !targetReady}>
+          <Button onClick={submit} disabled={pending || !form.engineerId || !form.consultingProjectId}>
             {pending && <Loader2 className="size-4 animate-spin" />}
             {editing ? "حفظ التعديلات" : "إسناد"}
           </Button>
@@ -1627,14 +1506,12 @@ function AssignmentDialog({
 
 function TimesheetsSection({
   engineerOpts,
-  contractOpts,
   projectOpts,
   onErr,
   invalidate,
   setDeleteTarget,
 }: SectionCommon & {
   engineerOpts: { value: string; label: string }[];
-  contractOpts: { value: string; label: string }[];
   projectOpts: { value: string; label: string }[];
 }) {
   const { toast } = useToast();
@@ -1659,7 +1536,7 @@ function TimesheetsSection({
   const filtered = React.useMemo(() => {
     const needle = normSearch(q.trim());
     if (!needle) return entries;
-    return entries.filter((t) => normSearch(`${t.engineerName} ${t.consultingProjectNumber} ${t.consultingProjectName} ${t.contractNumber} ${t.contractName} ${t.activity} ${t.notes}`).includes(needle));
+    return entries.filter((t) => normSearch(`${t.engineerName} ${t.consultingProjectNumber} ${t.consultingProjectName} ${t.activity} ${t.notes}`).includes(needle));
   }, [entries, q]);
 
   const [editor, setEditor] = React.useState<{ editing: TimesheetItem | null } | null>(null);
@@ -1688,7 +1565,7 @@ function TimesheetsSection({
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_220px]">
             <div className="relative">
               <Search className="absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث بالمهندس/العقد/النشاط…" className="ps-8" />
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث بالمهندس/المشروع/النشاط…" className="ps-8" />
             </div>
             <SearchableSelect
               value={engineerFilter}
@@ -1773,16 +1650,9 @@ function TimesheetsSection({
                       <>
                         <span dir="ltr" className="font-semibold">{t.consultingProjectNumber}</span>
                         {t.consultingProjectName ? ` — ${t.consultingProjectName}` : ""}
-                        <Badge variant="outline" className="ms-1.5 h-4 px-1 text-[9px]">مشروع استشاري</Badge>
-                      </>
-                    ) : t.contractId ? (
-                      <>
-                        <span dir="ltr" className="font-semibold">{t.contractNumber}</span>
-                        {t.contractName ? ` — ${t.contractName}` : ""}
-                        {t.customerName ? ` · ${t.customerName}` : ""}
                       </>
                     ) : (
-                      "ساعات غير مرتبطة بهدف (إداري/عام)"
+                      "ساعات غير مرتبطة بمشروع (إداري/عام)"
                     )}
                   </p>
                   {t.notes && <p className="line-clamp-1 text-[11px] text-muted-foreground">{t.notes}</p>}
@@ -1811,7 +1681,6 @@ function TimesheetsSection({
         open={!!editor}
         editing={editor?.editing ?? null}
         engineerOpts={engineerOpts}
-        contractOpts={contractOpts}
         projectOpts={projectOpts}
         pending={saveMutation.isPending}
         onClose={() => setEditor(null)}
@@ -1825,7 +1694,6 @@ function TimesheetDialog({
   open,
   editing,
   engineerOpts,
-  contractOpts,
   projectOpts,
   pending,
   onClose,
@@ -1834,7 +1702,6 @@ function TimesheetDialog({
   open: boolean;
   editing: TimesheetItem | null;
   engineerOpts: { value: string; label: string }[];
-  contractOpts: { value: string; label: string }[];
   projectOpts: { value: string; label: string }[];
   pending: boolean;
   onClose: () => void;
@@ -1842,9 +1709,8 @@ function TimesheetDialog({
 }) {
   const [form, setForm] = React.useState({
     engineerId: "",
-    linkMode: "none" as "none" | "project" | "contract",
+    linkMode: "none" as "none" | "project",
     consultingProjectId: "",
-    contractId: "",
     workDate: todayStr(),
     hours: "",
     activity: "تصميم",
@@ -1855,9 +1721,8 @@ function TimesheetDialog({
     if (open) {
       setForm({
         engineerId: editing ? String(editing.engineerId) : "",
-        linkMode: editing ? (editing.consultingProjectId ? "project" : editing.contractId ? "contract" : "none") : "none",
+        linkMode: editing ? (editing.consultingProjectId ? "project" : "none") : "none",
         consultingProjectId: editing?.consultingProjectId ? String(editing.consultingProjectId) : "",
-        contractId: editing?.contractId ? String(editing.contractId) : "",
         workDate: editing?.workDate || todayStr(),
         hours: editing?.hours ? String(editing.hours) : "",
         activity: editing?.activity || "تصميم",
@@ -1870,7 +1735,6 @@ function TimesheetDialog({
     onSave({
       engineerId: Number(form.engineerId) || 0,
       consultingProjectId: form.linkMode === "project" ? Number(form.consultingProjectId) || null : null,
-      contractId: form.linkMode === "contract" ? Number(form.contractId) || null : null,
       workDate: form.workDate,
       hours: Number(form.hours) || 0,
       activity: form.activity,
@@ -1883,7 +1747,7 @@ function TimesheetDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{editing ? "تعديل سجل ساعات" : "تسجيل ساعات عمل"}</DialogTitle>
-          <DialogDescription>ساعات المهندس — الربط بمشروع استشاري أو عقد اختياري (الساعات الإدارية بلا ربط)</DialogDescription>
+          <DialogDescription>ساعات المهندس — الربط بمشروع استشاري اختياري (الساعات الإدارية بلا ربط) — بلا عقود</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
@@ -1906,7 +1770,6 @@ function TimesheetDialog({
               {([
                 { key: "none", label: "بلا ربط" },
                 { key: "project", label: "مشروع استشاري" },
-                { key: "contract", label: "عقد" },
               ] as const).map((m) => (
                 <button
                   key={m.key}
@@ -1933,18 +1796,6 @@ function TimesheetDialog({
                 options={projectOpts}
                 placeholder="اختر المشروع الاستشاري"
                 searchPlaceholder="ابحث برقم CPR/الاسم/العميل…"
-              />
-            </div>
-          )}
-          {form.linkMode === "contract" && (
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label>العقد</Label>
-              <SearchableSelect
-                value={form.contractId}
-                onValueChange={(v) => setForm((f) => ({ ...f, contractId: v }))}
-                options={contractOpts}
-                placeholder="اختر العقد"
-                searchPlaceholder="ابحث برقم/اسم العقد…"
               />
             </div>
           )}
@@ -1981,7 +1832,7 @@ function TimesheetDialog({
           <Button variant="outline" onClick={onClose} disabled={pending}>
             إلغاء
           </Button>
-          <Button onClick={submit} disabled={pending || !form.engineerId || !form.workDate || !(Number(form.hours) > 0) || (form.linkMode === "project" && !form.consultingProjectId) || (form.linkMode === "contract" && !form.contractId)}>
+          <Button onClick={submit} disabled={pending || !form.engineerId || !form.workDate || !(Number(form.hours) > 0) || (form.linkMode === "project" && !form.consultingProjectId)}>
             {pending && <Loader2 className="size-4 animate-spin" />}
             {editing ? "حفظ التعديلات" : "تسجيل"}
           </Button>
@@ -2343,14 +2194,12 @@ const REVISION_STATUS_TONE: Record<string, { text: string; bg: string }> = {
 
 function RevisionsSection({
   engineerOpts,
-  contractOpts,
   projectOpts,
   onErr,
   invalidate,
   setDeleteTarget,
 }: SectionCommon & {
   engineerOpts: { value: string; label: string }[];
-  contractOpts: { value: string; label: string }[];
   projectOpts: { value: string; label: string }[];
 }) {
   const { toast } = useToast();
@@ -2368,7 +2217,7 @@ function RevisionsSection({
     const needle = normSearch(q.trim());
     return revisions.filter((r) => {
       if (tab !== "الكل" && r.status !== tab) return false;
-      if (needle && !normSearch(`${r.title} ${r.consultingProjectNumber} ${r.consultingProjectName} ${r.contractNumber} ${r.contractName} ${r.customerName} ${r.engineerName ?? ""}`).includes(needle)) return false;
+      if (needle && !normSearch(`${r.title} ${r.consultingProjectNumber} ${r.consultingProjectName} ${r.engineerName ?? ""}`).includes(needle)) return false;
       return true;
     });
   }, [revisions, tab, q]);
@@ -2414,7 +2263,7 @@ function RevisionsSection({
         </Tabs>
         <div className="relative">
           <Search className="absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث بالمخطط/العقد/العميل/المهندس…" className="ps-8" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث بالمخطط/المشروع/المهندس…" className="ps-8" />
         </div>
       </Card>
 
@@ -2452,19 +2301,8 @@ function RevisionsSection({
                       <StatusPill label={r.status} tone={tone} />
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                      {r.consultingProjectId ? (
-                        <>
-                          <span dir="ltr" className="font-semibold">{r.consultingProjectNumber}</span>
-                          {r.consultingProjectName ? ` — ${r.consultingProjectName}` : ""}
-                          <Badge variant="outline" className="ms-1.5 h-4 px-1 text-[9px]">مشروع استشاري</Badge>
-                        </>
-                      ) : (
-                        <>
-                          {r.contractNumber}
-                          {r.contractName ? ` — ${r.contractName}` : ""}
-                          {r.customerName ? ` · ${r.customerName}` : ""}
-                        </>
-                      )}
+                      <span dir="ltr" className="font-semibold">{r.consultingProjectNumber}</span>
+                      {r.consultingProjectName ? ` — ${r.consultingProjectName}` : ""}
                       {r.engineerName ? ` · بتحضير ${r.engineerName}` : ""}
                     </p>
                     <p className="text-[11px] tabular-nums text-muted-foreground">
@@ -2530,7 +2368,6 @@ function RevisionsSection({
         open={!!editor}
         editing={editor?.editing ?? null}
         engineerOpts={engineerOpts}
-        contractOpts={contractOpts}
         projectOpts={projectOpts}
         pending={saveMutation.isPending}
         onClose={() => setEditor(null)}
@@ -2594,7 +2431,6 @@ function RevisionDialog({
   open,
   editing,
   engineerOpts,
-  contractOpts,
   projectOpts,
   pending,
   onClose,
@@ -2603,16 +2439,13 @@ function RevisionDialog({
   open: boolean;
   editing: RevisionItem | null;
   engineerOpts: { value: string; label: string }[];
-  contractOpts: { value: string; label: string }[];
   projectOpts: { value: string; label: string }[];
   pending: boolean;
   onClose: () => void;
   onSave: (data: Record<string, unknown>) => void;
 }) {
   const [form, setForm] = React.useState({
-    targetMode: "project" as "project" | "contract",
     consultingProjectId: "",
-    contractId: "",
     title: "",
     engineerId: "",
     submittedAt: "",
@@ -2622,9 +2455,7 @@ function RevisionDialog({
   React.useEffect(() => {
     if (open) {
       setForm({
-        targetMode: editing ? (editing.consultingProjectId ? "project" : "contract") : "project",
         consultingProjectId: editing?.consultingProjectId ? String(editing.consultingProjectId) : "",
-        contractId: editing?.contractId ? String(editing.contractId) : "",
         title: editing?.title ?? "",
         engineerId: editing?.engineerId ? String(editing.engineerId) : "",
         submittedAt: editing?.submittedAt || todayStr(),
@@ -2634,22 +2465,14 @@ function RevisionDialog({
   }, [open, editing]);
 
   const submit = () => {
-    const useProject = form.targetMode === "project";
     onSave({
-      ...(editing
-        ? {}
-        : {
-            consultingProjectId: useProject ? Number(form.consultingProjectId) || 0 : 0,
-            contractId: !useProject ? Number(form.contractId) || 0 : 0,
-          }),
+      ...(editing ? {} : { consultingProjectId: Number(form.consultingProjectId) || 0 }),
       title: form.title,
       engineerId: form.engineerId ? Number(form.engineerId) : null,
       submittedAt: form.submittedAt,
       notes: form.notes,
     });
   };
-
-  const targetReady = form.targetMode === "project" ? !!form.consultingProjectId : !!form.contractId;
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -2658,64 +2481,27 @@ function RevisionDialog({
           <DialogTitle>{editing ? `تعديل الإصدار V${editing.revNo}` : "دورة مراجعة جديدة"}</DialogTitle>
           <DialogDescription>
             {editing
-              ? "التعديل قبل الحسم فقط — الرقم V يبقى كما هو والدورة لا تُنقل لهدف آخر"
-              : "كل رفع إصدار لنفس المخطط على الهدف يُرقَّم V تالٍ آليًا — والحسم (اعتماد/إرجاع) من القائمة"}
+              ? "التعديل قبل الحسم فقط — الرقم V يبقى كما هو والدورة لا تُنقل لمشروع آخر"
+              : "كل رفع إصدار لنفس المخطط على المشروع يُرقَّم V تالٍ آليًا — والحسم (اعتماد/إرجاع) من القائمة"}
           </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5 sm:col-span-2">
-            <Label>نوع الهدف *</Label>
+            <Label>المشروع الاستشاري *</Label>
             {editing ? (
               <p className="text-xs text-muted-foreground">
-                {editing.consultingProjectId
-                  ? `مشروع استشاري: ${editing.consultingProjectNumber} — ${editing.consultingProjectName}`
-                  : `عقد: ${editing.contractNumber}`}
+                مشروع استشاري: {editing.consultingProjectNumber} — {editing.consultingProjectName}
               </p>
             ) : (
-              <div className="flex gap-1.5">
-                {([
-                  { key: "project", label: "مشروع استشاري" },
-                  { key: "contract", label: "عقد" },
-                ] as const).map((m) => (
-                  <button
-                    key={m.key}
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, targetMode: m.key }))}
-                    className={cn(
-                      "flex-1 rounded-full border px-3 py-1.5 text-xs transition-colors",
-                      form.targetMode === m.key
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "bg-background text-muted-foreground hover:bg-secondary"
-                    )}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
+              <SearchableSelect
+                value={form.consultingProjectId}
+                onValueChange={(v) => setForm((f) => ({ ...f, consultingProjectId: v }))}
+                options={projectOpts}
+                placeholder="اختر المشروع الاستشاري"
+                searchPlaceholder="ابحث برقم CPR/الاسم/العميل…"
+              />
             )}
           </div>
-          {!editing && (
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label>{form.targetMode === "project" ? "المشروع الاستشاري *" : "العقد *"}</Label>
-              {form.targetMode === "project" ? (
-                <SearchableSelect
-                  value={form.consultingProjectId}
-                  onValueChange={(v) => setForm((f) => ({ ...f, consultingProjectId: v }))}
-                  options={projectOpts}
-                  placeholder="اختر المشروع الاستشاري"
-                  searchPlaceholder="ابحث برقم CPR/الاسم/العميل…"
-                />
-              ) : (
-                <SearchableSelect
-                  value={form.contractId}
-                  onValueChange={(v) => setForm((f) => ({ ...f, contractId: v }))}
-                  options={contractOpts}
-                  placeholder="اختر العقد"
-                  searchPlaceholder="ابحث برقم العقد/الاسم/العميل…"
-                />
-              )}
-            </div>
-          )}
           <div className="space-y-1.5 sm:col-span-2">
             <Label>اسم المخطط/الوثيقة *</Label>
             <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="مثال: مخطط معماري — الدور الأول" />
@@ -2743,7 +2529,7 @@ function RevisionDialog({
           <Button variant="outline" onClick={onClose} disabled={pending}>
             إلغاء
           </Button>
-          <Button onClick={submit} disabled={pending || !form.title.trim() || (!editing && !targetReady)}>
+          <Button onClick={submit} disabled={pending || !form.title.trim() || (!editing && !form.consultingProjectId)}>
             {pending && <Loader2 className="size-4 animate-spin" />}
             {editing ? "حفظ التعديلات" : "تسجيل الإصدار"}
           </Button>
@@ -2762,8 +2548,6 @@ interface RadarCell {
   id: number;
   customerId: number | null;
   customerName: string;
-  contractId: number | null;
-  contractNumber: string;
   note: string;
   createdBy: string;
 }
@@ -2786,10 +2570,9 @@ interface RadarSlotCtx {
 
 function RadarSection({
   isAdmin,
-  contractOpts,
   onErr,
   invalidate,
-}: SectionCommon & { isAdmin: boolean; contractOpts: { value: string; label: string }[] }) {
+}: SectionCommon & { isAdmin: boolean }) {
   const { toast } = useToast();
 
   const [date, setDate] = React.useState(todayStr());
@@ -2833,7 +2616,7 @@ function RadarSection({
   });
 
   const bookMutation = useMutation({
-    mutationFn: (v: { engineerId: number; hourSlot: string; customerId: number | null; contractId: number | null; note: string }) =>
+    mutationFn: (v: { engineerId: number; hourSlot: string; customerId: number | null; note: string }) =>
       apiPost("/api/consulting/radar", { appointmentDate: date, ...v }),
     onSuccess: () => {
       setSlotCtx(null);
@@ -2971,9 +2754,6 @@ function RadarSection({
                                   {cell.note}
                                 </p>
                               )}
-                              {cell.contractNumber && (
-                                <p className="truncate text-[10px] tabular-nums text-status-done/80">{cell.contractNumber}</p>
-                              )}
                               <div className="flex items-center gap-0.5 pt-0.5">
                                 <Button
                                   variant="ghost"
@@ -3018,7 +2798,6 @@ function RadarSection({
           label: e.specialty ? `${e.name} — ${e.specialty}` : e.name,
         }))}
         customerOpts={customerOpts}
-        contractOpts={contractOpts}
         pending={bookMutation.isPending}
         onClose={() => setSlotCtx(null)}
         onSave={(v) => bookMutation.mutate(v)}
@@ -3059,7 +2838,6 @@ function RadarBookingDialog({
   slots,
   engineerOpts,
   customerOpts,
-  contractOpts,
   pending,
   onClose,
   onSave,
@@ -3071,12 +2849,11 @@ function RadarBookingDialog({
   slots: string[];
   engineerOpts: { value: string; label: string }[];
   customerOpts: { value: string; label: string }[];
-  contractOpts: { value: string; label: string }[];
   pending: boolean;
   onClose: () => void;
-  onSave: (v: { engineerId: number; hourSlot: string; customerId: number | null; contractId: number | null; note: string }) => void;
+  onSave: (v: { engineerId: number; hourSlot: string; customerId: number | null; note: string }) => void;
 }) {
-  const [form, setForm] = React.useState({ engineerId: "", hourSlot: "", customerId: "", contractId: "", note: "" });
+  const [form, setForm] = React.useState({ engineerId: "", hourSlot: "", customerId: "", note: "" });
 
   React.useEffect(() => {
     if (open && ctx) {
@@ -3084,7 +2861,6 @@ function RadarBookingDialog({
         engineerId: ctx.engineerId ? String(ctx.engineerId) : "",
         hourSlot: ctx.hourSlot || "",
         customerId: cell?.customerId ? String(cell.customerId) : "",
-        contractId: cell?.contractId ? String(cell.contractId) : "",
         note: cell?.note ?? "",
       });
     }
@@ -3097,7 +2873,6 @@ function RadarBookingDialog({
       engineerId: Number(form.engineerId) || 0,
       hourSlot: form.hourSlot,
       customerId: form.customerId ? Number(form.customerId) : null,
-      contractId: form.contractId ? Number(form.contractId) : null,
       note: form.note,
     });
   };
@@ -3157,16 +2932,6 @@ function RadarBookingDialog({
               options={[{ value: "none", label: "— بلا عميل —" }, ...customerOpts]}
               placeholder="اختياري"
               searchPlaceholder="ابحث بالاسم…"
-            />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>العقد</Label>
-            <SearchableSelect
-              value={form.contractId}
-              onValueChange={(v) => setForm((f) => ({ ...f, contractId: v === "none" ? "" : v }))}
-              options={[{ value: "none", label: "— بلا عقد —" }, ...contractOpts]}
-              placeholder="اختياري"
-              searchPlaceholder="ابحث برقم العقد/الاسم…"
             />
           </div>
           <div className="space-y-1.5 sm:col-span-2">

@@ -39,16 +39,6 @@ export async function PATCH(req: NextRequest, { params }: P) {
     data.activity = activity;
   }
   if (body.notes !== undefined) data.notes = String(body.notes || "").trim();
-  if (body.contractId !== undefined) {
-    const cid = Number(body.contractId) || 0;
-    if (cid) {
-      const contract = await db.contract.findUnique({ where: { id: cid }, select: { id: true } });
-      if (!contract) return jsonError("العقد غير موجود", 404);
-      data.contract = { connect: { id: cid } };
-    } else {
-      data.contract = { disconnect: true };
-    }
-  }
   if (body.engineerId !== undefined) {
     const eid = Number(body.engineerId) || 0;
     if (!eid) return jsonError("اختيار المهندس إلزامي");

@@ -6,7 +6,7 @@ import { r3 } from "@/lib/contrack-core";
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
 
-/** GET: الساعات — فلاتر month (YYYY-MM)/engineerId/contractId/consultingProjectId + تجميعات (بالأنشطة/بالمهندسين/بالأهداف) */
+/** GET: الساعات — فلاتر month (YYYY-MM)/engineerId/consultingProjectId + تجميعات (بالأنشطة/بالمهندسين/بالمشاريع) */
 export async function GET(req: NextRequest) {
   const guard = await authGuard(req, "screen_consulting");
   if ("response" in guard) return guard.response;
@@ -17,14 +17,12 @@ export async function GET(req: NextRequest) {
   const month = (sp.get("month") || "").trim();
   if (month && !MONTH_RE.test(month)) return jsonError("صيغة الشهر يجب أن تكون YYYY-MM");
   const engineerId = Number(sp.get("engineerId")) || 0;
-  const contractId = Number(sp.get("contractId")) || 0;
   const consultingProjectId = Number(sp.get("consultingProjectId")) || 0;
 
   const rows = await db.engineerTimesheet.findMany({
     where: {
       ...(month ? { workDate: { startsWith: `${month}-` } } : {}),
       ...(engineerId ? { engineerId } : {}),
-      ...(contractId ? { contractId } : {}),
       ...(consultingProjectId ? { consultingProjectId } : {}),
     },
     orderBy: [{ workDate: "desc" }, { id: "desc" }],
@@ -32,16 +30,12 @@ export async function GET(req: NextRequest) {
     include: {
       engineer: { select: { name: true, specialty: true } },
       consultingProject: { select: { projectNumber: true, name: true } },
-      contract: {
-        select: { contractNumber: true, contractName: true, customer: { select: { name: true } } },
-      },
     },
   });
 
   // ===== تجميعات من نفس المجموعة المفلترة (عرض لحظي — القوائم صغيرة) =====
   let totalHours = 0;
   const byEngineer = new Map<number, { engineerId: number; name: string; hours: number }>();
-  const byContract = new Map<number, { contractId: number; label: string; hours: number }>();
   const byProject = new Map<number, { consultingProjectId: number; label: string; hours: number }>();
   const byActivity = new Map<string, number>();
 
@@ -60,15 +54,6 @@ export async function GET(req: NextRequest) {
       pr.hours += h;
       byProject.set(t.consultingProjectId, pr);
     }
-    if (t.contractId) {
-      const c = byContract.get(t.contractId) || {
-        contractId: t.contractId,
-        label: `${t.contract?.contractNumber || ""} — ${t.contract?.contractName || ""}`.trim(),
-        hours: 0,
-      };
-      c.hours += h;
-      byContract.set(t.contractId, c);
-    }
     const act = t.activity || "غير محدد";
     byActivity.set(act, (byActivity.get(act) || 0) + h);
   }
@@ -81,10 +66,6 @@ export async function GET(req: NextRequest) {
       consultingProjectId: t.consultingProjectId,
       consultingProjectNumber: t.consultingProject?.projectNumber || "",
       consultingProjectName: t.consultingProject?.name || "",
-      contractId: t.contractId,
-      contractNumber: t.contract?.contractNumber || "",
-      contractName: t.contract?.contractName || "",
-      customerName: t.contract?.customer?.name || "",
       workDate: t.workDate,
       hours: Number(t.hours),
       activity: t.activity,
@@ -93,9 +74,6 @@ export async function GET(req: NextRequest) {
     totals: {
       totalHours: r3(totalHours),
       byEngineer: [...byEngineer.values()]
-        .map((x) => ({ ...x, hours: r3(x.hours) }))
-        .sort((a, b) => b.hours - a.hours),
-      byContract: [...byContract.values()]
         .map((x) => ({ ...x, hours: r3(x.hours) }))
         .sort((a, b) => b.hours - a.hours),
       byProject: [...byProject.values()]
@@ -108,7 +86,7 @@ export async function GET(req: NextRequest) {
   });
 }
 
-/** POST: تسجيل ساعات — المهندس والتاريخ والساعات إلزامية، والربط اختياري (مشروع استشاري أو عقد — ساعات إدارية بلا ربط) */
+/** POST: تسجيل ساعات — المهندس والتاريخ والساعات إلزامية، والربط اختياري بمشروع استشاري (الساعات الإدارية بلا ربط — بلا عقود) */
 export async function POST(req: NextRequest) {
   const guard = await authGuard(req, "screen_consulting");
   if ("response" in guard) return guard.response;
@@ -131,16 +109,6 @@ export async function POST(req: NextRequest) {
   const activity = String(body.activity || "تصميم");
   if (!(TIMESHEET_ACTIVITIES as readonly string[]).includes(activity)) return jsonError("نوع النشاط غير معروف");
 
-  let contractId: number | null = null;
-  if (body.contractId !== undefined && body.contractId !== null && String(body.contractId) !== "") {
-    const cid = Number(body.contractId) || 0;
-    if (cid) {
-      const contract = await db.contract.findUnique({ where: { id: cid }, select: { id: true } });
-      if (!contract) return jsonError("العقد غير موجود", 404);
-      contractId = cid;
-    }
-  }
-
   let consultingProjectId: number | null = null;
   if (body.consultingProjectId !== undefined && body.consultingProjectId !== null && String(body.consultingProjectId) !== "") {
     const pid = Number(body.consultingProjectId) || 0;
@@ -154,7 +122,6 @@ export async function POST(req: NextRequest) {
   const created = await db.engineerTimesheet.create({
     data: {
       engineerId,
-      contractId,
       consultingProjectId,
       workDate,
       hours,

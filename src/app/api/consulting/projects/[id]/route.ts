@@ -69,16 +69,6 @@ export async function PATCH(req: NextRequest, { params }: P) {
       data.customer = { disconnect: true };
     }
   }
-  if (body.contractId !== undefined) {
-    const contractId = Number(body.contractId) || 0;
-    if (contractId) {
-      const contract = await db.contract.findUnique({ where: { id: contractId }, select: { id: true } });
-      if (!contract) return jsonError("العقد غير موجود", 404);
-      data.contract = { connect: { id: contractId } };
-    } else {
-      data.contract = { disconnect: true };
-    }
-  }
   if (body.notes !== undefined) data.notes = String(body.notes || "").trim();
 
   try {
