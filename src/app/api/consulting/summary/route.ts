@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   const now = new Date();
   const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-`;
 
-  const [engineers, monthHours, activeAssignments, pendingLeaves, onVacationNow] = await Promise.all([
+  const [engineers, monthHours, activeAssignments, pendingLeaves, onVacationNow, activeProjects] = await Promise.all([
     db.engineer.findMany({
       where: { licenseExpiry: { not: "" } },
       select: { id: true, name: true, licenseNo: true, licenseExpiry: true },
@@ -30,6 +30,8 @@ export async function GET(req: NextRequest) {
     db.engineerLeave.count({
       where: { status: "معتمدة", startDate: { lte: today }, endDate: { gte: today } },
     }),
+    // المشاريع الاستشارية الجارية — قرار المالك: النشاط المستقل (docs/consulting-projects-design.md)
+    db.consultingProject.count({ where: { status: "قيد التنفيذ" } }),
   ]);
 
   const [teamTotal, teamActive] = await Promise.all([
@@ -61,6 +63,7 @@ export async function GET(req: NextRequest) {
       activeAssignments,
       pendingLeaves,
       onVacationNow,
+      activeProjects,
     },
     expiring,
   });

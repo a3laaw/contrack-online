@@ -6,7 +6,7 @@ import { r3 } from "@/lib/contrack-core";
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
 
-/** GET: الساعات — فلاتر month (YYYY-MM)/engineerId/contractId + تجميعات (بالأنشطة/بالمهندسين/بالعقود) */
+/** GET: الساعات — فلاتر month (YYYY-MM)/engineerId/contractId/consultingProjectId + تجميعات (بالأنشطة/بالمهندسين/بالأهداف) */
 export async function GET(req: NextRequest) {
   const guard = await authGuard(req, "screen_consulting");
   if ("response" in guard) return guard.response;
@@ -18,17 +18,20 @@ export async function GET(req: NextRequest) {
   if (month && !MONTH_RE.test(month)) return jsonError("صيغة الشهر يجب أن تكون YYYY-MM");
   const engineerId = Number(sp.get("engineerId")) || 0;
   const contractId = Number(sp.get("contractId")) || 0;
+  const consultingProjectId = Number(sp.get("consultingProjectId")) || 0;
 
   const rows = await db.engineerTimesheet.findMany({
     where: {
       ...(month ? { workDate: { startsWith: `${month}-` } } : {}),
       ...(engineerId ? { engineerId } : {}),
       ...(contractId ? { contractId } : {}),
+      ...(consultingProjectId ? { consultingProjectId } : {}),
     },
     orderBy: [{ workDate: "desc" }, { id: "desc" }],
     take: 1000,
     include: {
       engineer: { select: { name: true, specialty: true } },
+      consultingProject: { select: { projectNumber: true, name: true } },
       contract: {
         select: { contractNumber: true, contractName: true, customer: { select: { name: true } } },
       },
@@ -39,6 +42,7 @@ export async function GET(req: NextRequest) {
   let totalHours = 0;
   const byEngineer = new Map<number, { engineerId: number; name: string; hours: number }>();
   const byContract = new Map<number, { contractId: number; label: string; hours: number }>();
+  const byProject = new Map<number, { consultingProjectId: number; label: string; hours: number }>();
   const byActivity = new Map<string, number>();
 
   for (const t of rows) {
@@ -47,6 +51,15 @@ export async function GET(req: NextRequest) {
     const e = byEngineer.get(t.engineerId) || { engineerId: t.engineerId, name: t.engineer.name, hours: 0 };
     e.hours += h;
     byEngineer.set(t.engineerId, e);
+    if (t.consultingProjectId) {
+      const pr = byProject.get(t.consultingProjectId) || {
+        consultingProjectId: t.consultingProjectId,
+        label: `${t.consultingProject?.projectNumber || ""} — ${t.consultingProject?.name || ""}`.trim(),
+        hours: 0,
+      };
+      pr.hours += h;
+      byProject.set(t.consultingProjectId, pr);
+    }
     if (t.contractId) {
       const c = byContract.get(t.contractId) || {
         contractId: t.contractId,
@@ -65,6 +78,9 @@ export async function GET(req: NextRequest) {
       id: t.id,
       engineerId: t.engineerId,
       engineerName: t.engineer.name,
+      consultingProjectId: t.consultingProjectId,
+      consultingProjectNumber: t.consultingProject?.projectNumber || "",
+      consultingProjectName: t.consultingProject?.name || "",
       contractId: t.contractId,
       contractNumber: t.contract?.contractNumber || "",
       contractName: t.contract?.contractName || "",
@@ -82,6 +98,9 @@ export async function GET(req: NextRequest) {
       byContract: [...byContract.values()]
         .map((x) => ({ ...x, hours: r3(x.hours) }))
         .sort((a, b) => b.hours - a.hours),
+      byProject: [...byProject.values()]
+        .map((x) => ({ ...x, hours: r3(x.hours) }))
+        .sort((a, b) => b.hours - a.hours),
       byActivity: [...byActivity.entries()]
         .map(([activity, hours]) => ({ activity, hours: r3(hours) }))
         .sort((a, b) => b.hours - a.hours),
@@ -89,7 +108,7 @@ export async function GET(req: NextRequest) {
   });
 }
 
-/** POST: تسجيل ساعات — المهندس والتاريخ والساعات إلزامية، والعقد اختياري (ساعات إدارية) */
+/** POST: تسجيل ساعات — المهندس والتاريخ والساعات إلزامية، والربط اختياري (مشروع استشاري أو عقد — ساعات إدارية بلا ربط) */
 export async function POST(req: NextRequest) {
   const guard = await authGuard(req, "screen_consulting");
   if ("response" in guard) return guard.response;
@@ -122,10 +141,21 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let consultingProjectId: number | null = null;
+  if (body.consultingProjectId !== undefined && body.consultingProjectId !== null && String(body.consultingProjectId) !== "") {
+    const pid = Number(body.consultingProjectId) || 0;
+    if (pid) {
+      const project = await db.consultingProject.findUnique({ where: { id: pid }, select: { id: true } });
+      if (!project) return jsonError("المشروع الاستشاري غير موجود", 404);
+      consultingProjectId = pid;
+    }
+  }
+
   const created = await db.engineerTimesheet.create({
     data: {
       engineerId,
       contractId,
+      consultingProjectId,
       workDate,
       hours,
       activity,

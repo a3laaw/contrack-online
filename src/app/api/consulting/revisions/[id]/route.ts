@@ -13,8 +13,10 @@ import {
 /**
  * دورة مراجعة واحدة (docs/revisions-ipc-design.md §1.3):
  * PATCH: تعديل بيانات قبل الحسم — أو القرار (decision: مقبول|معاد بتعديلات)
- *        القرار نهائي (G7) وملاحظة الإرجاع إلزامية — مع حدث عقد وتدقيق
+ *        القرار نهائي (G7) وملاحظة الإرجاع إلزامية — مع تدقيق
  * DELETE: حذف دورة قيد المراجعة فقط — المحسوم تاريخ لا يُمس
+ * قرار المالك (docs/consulting-projects-design.md): حدث العقد للمراجعات المربوطة بعقد فقط —
+ * المراجعات الموجهة لمشروع استشاري تكفيها التدقيقة (لا عقد ليكتب فيه)
  */
 
 type P = { params: Promise<{ id: string }> };
@@ -31,11 +33,16 @@ export async function PATCH(req: NextRequest, { params }: P) {
   const row = await db.consultingRevision.findUnique({
     where: { id },
     select: {
-      id: true, contractId: true, title: true, revNo: true, status: true,
+      id: true, contractId: true, consultingProjectId: true, title: true, revNo: true, status: true,
       contract: { select: { contractNumber: true } },
+      consultingProject: { select: { projectNumber: true, name: true } },
     },
   });
   if (!row) return jsonError("دورة المراجعة غير موجودة", 404);
+  /** وسم الهدف — للوصف في الأحداث والتدقيق: العقد رقمه، والمشروع رقمه واسمه */
+  const targetLabel = row.contract
+    ? `العقد ${row.contract.contractNumber}`
+    : `المشروع الاستشاري ${row.consultingProject?.projectNumber || ""} — ${row.consultingProject?.name || ""}`.trim();
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
@@ -56,23 +63,26 @@ export async function PATCH(req: NextRequest, { params }: P) {
           decisionNote: decision.value.note,
         },
       });
-      await tx.contractEvent.create({
-        data: {
-          contractId: row.contractId,
-          eventType: decision.value.decision === REVISION_APPROVED ? "اعتماد مراجعة مخطط" : "إرجاع مراجعة مخطط",
-          description:
-            decision.value.decision === REVISION_APPROVED
-              ? `اعتُمد الإصدار V${row.revNo} من «${row.title}» — العقد ${row.contract.contractNumber}`
-              : `أُعيد الإصدار V${row.revNo} من «${row.title}» بتعديلات: ${decision.value.note}`,
-          username: guard.user.username,
-        },
-      });
+      // حدث العقد للمراجعات المربوطة بعقد فقط (قرار المالك — الهدف مشروع استشاري أو عقد)
+      if (row.contractId) {
+        await tx.contractEvent.create({
+          data: {
+            contractId: row.contractId,
+            eventType: decision.value.decision === REVISION_APPROVED ? "اعتماد مراجعة مخطط" : "إرجاع مراجعة مخطط",
+            description:
+              decision.value.decision === REVISION_APPROVED
+                ? `اعتُمد الإصدار V${row.revNo} من «${row.title}» — العقد ${row.contract!.contractNumber}`
+                : `أُعيد الإصدار V${row.revNo} من «${row.title}» بتعديلات: ${decision.value.note}`,
+            username: guard.user.username,
+          },
+        });
+      }
       await audit(tx, {
         username: guard.user.username,
         action: "تعديل",
         entityType: "consulting_revision",
         entityId: row.id,
-        entityName: `${row.title} V${row.revNo} → ${decision.value.decision}`,
+        entityName: `${row.title} V${row.revNo} → ${decision.value.decision} — ${targetLabel}`,
       });
       return out;
     });
@@ -131,14 +141,17 @@ export async function DELETE(req: NextRequest, { params }: P) {
   }
   await db.$transaction(async (tx) => {
     await tx.consultingRevision.delete({ where: { id: row.id } });
-    await tx.contractEvent.create({
-      data: {
-        contractId: row.contractId,
-        eventType: "حذف مراجعة مخطط",
-        description: `حُذف الإصدار V${row.revNo} من «${row.title}» وهو قيد المراجعة`,
-        username: guard.user.username,
-      },
-    });
+    // حدث العقد للمراجعات المربوطة بعقد فقط (قرار المالك — docs/consulting-projects-design.md)
+    if (row.contractId) {
+      await tx.contractEvent.create({
+        data: {
+          contractId: row.contractId,
+          eventType: "حذف مراجعة مخطط",
+          description: `حُذف الإصدار V${row.revNo} من «${row.title}» وهو قيد المراجعة`,
+          username: guard.user.username,
+        },
+      });
+    }
     await audit(tx, {
       username: guard.user.username,
       action: "حذف",

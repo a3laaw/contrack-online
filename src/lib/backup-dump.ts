@@ -152,6 +152,8 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "formDocument", table: "form_documents", serial: true },
   // ===== الاستشارات الهندسية (موديول consulting) — بعد الموظفين والعقود =====
   // إصلاح فجوة موثقة: كانت النماذج الأربعة في TENANT_MODELS وغائبة عن النسخ الاحتياطي (نمط درس T112 مع taxDeclaration)
+  // المشاريع الاستشارية المستقلة أولًا (FK للإسنادات/الساعات/المراجعات — قرار المالك الخيار ب)
+  { model: "consultingProject", table: "consulting_projects", serial: true },
   { model: "engineer", table: "engineers", serial: true },
   { model: "engineerAssignment", table: "engineer_assignments", serial: true },
   { model: "engineerTimesheet", table: "engineer_timesheets", serial: true },

@@ -31,6 +31,7 @@ import {
   ListTodo,
   ListTree,
   LockKeyhole,
+  FolderKanban,
   MessageSquareText,
   Milestone,
   Receipt,
@@ -58,8 +59,6 @@ import {
   NotebookPen,
   // الاستشارات — رادار المواعيد (NOVA 4)
   Radar,
-  // المشاريع — مركز عمليات الموقع
-  FolderKanban,
   // القوائم المرجعية — مركز البيانات المرجعية
   BookMarked,
   // المناطق — الهرمية الجغرافية
@@ -160,7 +159,8 @@ export interface NavModule {
  *      (تجميع اشتقاقي فوق سجلات التنفيذ الميداني — لا جدول جديد G9 — docs/daily-report-forecast-design.md)،
  *      تنفيذ البنود (مقايسة التنفيذ بالبنود: تعاقدي/منفذ/موثق/مفوتر)
  *   4. الباطن: مقاولو الباطن (ملف المقاول: العقود والدفعات والأوامر)
- *   5. الاستشارات: الفريق الهندسي، إسناد المشاريع، ساعات العمل، الإجازات (موديول consulting)
+ *   5. الاستشارات: المشاريع الاستشارية المستقلة (قرار المالك 2026-11-16 — نشاط منفصل لا للمقاولات)،
+ *      الفريق الهندسي، الإسناد لمشاريع استشارية أو عقود، ساعات العمل، المراجعات، الإجازات (موديول consulting)
  *   6. المحاسبة: سندات القبض/الصرف، كشف الحساب، العُهد، السلف، البوابة، الشركة الأخرى، المطالبات، الفواتير
  *   7. التقارير: التقارير الـ11 بنودًا حقيقية في القائمة الجانبية الرسمية كالمحاسبة (توجيه المستخدم — الخيار 2)
  *   8. الإعدادات: الشركة، الطباعة، الأمان، المستخدمون، الزيارات، قواعد الترحيل، النسخ، أدوات المطور
@@ -240,6 +240,8 @@ export const NAV_MODULES: NavModule[] = [
     label: "الاستشارات",
     icon: Compass,
     children: [
+      // قرار المالك 2026-11-16: المشاريع الاستشارية أول الوحدة — النشاط المستقل لا للمقاولات
+      { id: "consulting-projects", label: "المشاريع الاستشارية", icon: FolderKanban, view: "consulting", section: "projects", perm: "screen_consulting" },
       { id: "consulting-team", label: "الفريق الهندسي", icon: UsersRound, view: "consulting", section: "team", perm: "screen_consulting" },
       { id: "consulting-assignments", label: "إسناد المشاريع", icon: Network, view: "consulting", section: "assignments", perm: "screen_consulting" },
       { id: "consulting-timesheets", label: "ساعات العمل", icon: Timer, view: "consulting", section: "timesheets", perm: "screen_consulting" },
@@ -249,6 +251,7 @@ export const NAV_MODULES: NavModule[] = [
     ],
     // الجلسة 15 — أقسام مباشرة بعناوين مختصرة (6 بنود ← 6 أقسام) لتثبيت عرض الشريط
     top: [
+      { id: "t-con-projects", children: ["consulting-projects"] },
       { id: "t-con-team", children: ["consulting-team"] },
       { id: "t-con-assign", label: "الإسناد", children: ["consulting-assignments"] },
       { id: "t-con-timesheets", children: ["consulting-timesheets"] },

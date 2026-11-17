@@ -2,9 +2,9 @@
 
 /**
  * ConsultingView.tsx — شاشة موديول «الاستشارات الهندسية» (خطة الأنشطة):
- * أربعة أقسام يملكها تبويب الشل «الاستشارات» (nav-structure → section):
- *   الفريق الهندسي · إسناد المشاريع (الربط HR↔العقود) · ساعات العمل · الإجازات
- * + رادار المواعيد (NOVA 4 — سلوتس مشتقة من إعدادات الدوام)
+ * قرار المالك 2026-11-16 (docs/consulting-projects-design.md): النشاط مستقل لا للمقاولات —
+ *   المشاريع الاستشارية (كيان CPR مستقل بأتعاب) · الفريق الهندسي · إسناد (مشروع استشاري أو عقد)
+ *   · ساعات العمل · مراجعات المخططات · الإجازات + رادار المواعيد (NOVA 4)
  * + بطاقات مؤشرات وتنبيه تراخيص (ملخص /api/consulting/summary) تظهر في كل الأقسام.
  * الموديول يظهر حصرًا للشركات التي فعّلته (navModules) — والإيقاف يخفي التبويب كله (تجميد).
  */
@@ -17,6 +17,7 @@ import {
   Check,
   Clock,
   FileStack,
+  FolderKanban,
   Loader2,
   Mail,
   Network,
@@ -49,7 +50,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { ApiError, api as apiLite, apiDelete, apiGet, apiPatch, apiPost, apiPut, type ContractOption } from "./api";
+import { ApiError, api as apiLite, apiDelete, apiGet, apiPatch, apiPost, apiPut, type ContractOption, type CustomerOption } from "./api";
 import { errMessage, type User } from "./contrack-types";
 import { cn } from "@/lib/utils";
 import { SearchableSelect } from "./SearchableSelect";
@@ -61,6 +62,8 @@ import {
 } from "@/lib/consulting-revision-core";
 import {
   ASSIGNMENT_ROLES,
+  CONSULTING_PROJECT_STATUSES,
+  CONSULTING_SERVICE_TYPES,
   ENGINEER_SPECIALTIES,
   ENGINEER_STATUSES,
   LEAVE_TYPES,
@@ -96,7 +99,11 @@ interface AssignmentItem {
   engineerId: number;
   engineerName: string;
   engineerSpecialty: string;
-  contractId: number;
+  consultingProjectId: number | null;
+  consultingProjectNumber: string;
+  consultingProjectName: string;
+  consultingProjectCustomer: string;
+  contractId: number | null;
   contractNumber: string;
   contractName: string;
   contractStatus: string;
@@ -109,10 +116,33 @@ interface AssignmentItem {
   notes: string;
 }
 
+interface ConsultingProjectItem {
+  id: number;
+  projectNumber: string;
+  name: string;
+  serviceType: string;
+  fee: number;
+  status: string;
+  startDate: string;
+  endDate: string;
+  customerId: number | null;
+  customerName: string;
+  contractId: number | null;
+  contractNumber: string;
+  contractName: string;
+  assignmentsCount: number;
+  timesheetsCount: number;
+  revisionsCount: number;
+  notes: string;
+}
+
 interface TimesheetItem {
   id: number;
   engineerId: number;
   engineerName: string;
+  consultingProjectId: number | null;
+  consultingProjectNumber: string;
+  consultingProjectName: string;
   contractId: number | null;
   contractNumber: string;
   contractName: string;
@@ -127,6 +157,7 @@ interface TimesheetTotals {
   totalHours: number;
   byEngineer: { engineerId: number; name: string; hours: number }[];
   byContract: { contractId: number; label: string; hours: number }[];
+  byProject: { consultingProjectId: number; label: string; hours: number }[];
   byActivity: { activity: string; hours: number }[];
 }
 
@@ -154,6 +185,7 @@ interface SummaryResponse {
     activeAssignments: number;
     pendingLeaves: number;
     onVacationNow: number;
+    activeProjects: number;
   };
   expiring: {
     id: number;
@@ -167,10 +199,13 @@ interface SummaryResponse {
 
 interface RevisionItem {
   id: number;
-  contractId: number;
+  contractId: number | null;
   contractNumber: string;
   contractName: string;
   customerName: string;
+  consultingProjectId: number | null;
+  consultingProjectNumber: string;
+  consultingProjectName: string;
   title: string;
   revNo: number;
   status: string;
@@ -183,7 +218,7 @@ interface RevisionItem {
   notes: string;
 }
 
-export type ConsultingSection = "team" | "assignments" | "timesheets" | "revisions" | "leaves" | "radar";
+export type ConsultingSection = "projects" | "team" | "assignments" | "timesheets" | "revisions" | "leaves" | "radar";
 
 interface ConsultingViewProps {
   user: User;
@@ -219,6 +254,14 @@ const LEAVE_STATUS_TONE: Record<string, { text: string; bg: string }> = {
   "معلقة": { text: "text-status-warn", bg: "bg-status-warn-bg" },
   "معتمدة": { text: "text-status-done", bg: "bg-status-done-bg" },
   "مرفوضة": { text: "text-status-danger", bg: "bg-status-danger-bg" },
+};
+
+const PROJECT_STATUS_TONE: Record<string, { text: string; bg: string }> = {
+  "جديد": { text: "text-status-info", bg: "bg-status-info-bg" },
+  "قيد التنفيذ": { text: "text-status-done", bg: "bg-status-done-bg" },
+  "معلق": { text: "text-status-warn", bg: "bg-status-warn-bg" },
+  "مكتمل": { text: "text-muted-foreground", bg: "bg-muted" },
+  "ملغي": { text: "text-status-danger", bg: "bg-status-danger-bg" },
 };
 
 function StatusPill({ label, tone }: { label: string; tone: { text: string; bg: string } }) {
@@ -293,6 +336,21 @@ export function ConsultingView({ user, onAuthError, section, onSectionChange }: 
   });
   const engineers: EngineerItem[] = teamQuery.data?.engineers ?? [];
 
+  // المشاريع الاستشارية (قرار المالك: النشاط المستقل) — للقسم نفسه وخيارات اختيار الهدف في النوافذ
+  const projectsQuery = useQuery<{ projects: ConsultingProjectItem[] }>({
+    queryKey: ["consulting", "projects"],
+    queryFn: () => apiGet<{ projects: ConsultingProjectItem[] }>("/api/consulting/projects"),
+  });
+  const projects: ConsultingProjectItem[] = projectsQuery.data?.projects ?? [];
+  const projectOpts = React.useMemo(
+    () =>
+      projects.map((p) => ({
+        value: String(p.id),
+        label: `${p.projectNumber} — ${p.name}${p.customerName ? ` (${p.customerName})` : ""}`,
+      })),
+    [projects]
+  );
+
   // خيارات العقود للاختيار (SearchableSelect) — من نهاية العقود الجاهزة
   const [contractOptions, setContractOptions] = React.useState<ContractOption[]>([]);
   React.useEffect(() => {
@@ -343,31 +401,37 @@ export function ConsultingView({ user, onAuthError, section, onSectionChange }: 
         <div>
           <h1 className="text-lg font-extrabold tracking-tight sm:text-xl">الاستشارات الهندسية</h1>
           <p className="text-xs text-muted-foreground">
-            الفريق بتخصصاتهم وتراخيصهم · إسنادهم للمشاريع · ساعاتهم على المخططات والإشراف · الإجازات · رادار المواعيد
+            نشاط مستقل لا للمقاولات · المشاريع الاستشارية بأتعابها · الفريق بتخصصاتهم وتراخيصهم · الإسناد والساعات والمراجعات
           </p>
         </div>
         <SectionAction section={section} engineersReady={engineers.length > 0} onNoEngineers={() => onSectionChange("team")} />
       </div>
 
       {/* المؤشرات */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {summaryQuery.isLoading ? (
-          [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[76px] w-full" />)
+          [0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-[76px] w-full" />)
         ) : (
           <>
+            <KpiCard
+              icon={FolderKanban}
+              label="مشاريع قيد التنفيذ"
+              value={String(kpis?.activeProjects ?? 0)}
+              sub="المشاريع الاستشارية الجارية"
+              tone="text-status-done"
+            />
             <KpiCard
               icon={UsersRound}
               label="الفريق الهندسي"
               value={`${kpis?.teamActive ?? 0} نشط`}
               sub={`من إجمالي ${kpis?.teamTotal ?? 0}`}
-              tone="text-status-done"
             />
             <KpiCard icon={Timer} label="ساعات هذا الشهر" value={String(kpis?.monthHours ?? 0)} sub="مجموع الساعات المسجلة" />
             <KpiCard
               icon={Network}
               label="إسنادات سارية"
               value={String(kpis?.activeAssignments ?? 0)}
-              sub="مهندسون مرتبطون بمشاريع"
+              sub="مهندسون مرتبطون بأهداف"
               tone="text-status-info"
             />
             <KpiCard
@@ -414,6 +478,9 @@ export function ConsultingView({ user, onAuthError, section, onSectionChange }: 
       {/* شريط الأقسام انتقل للشل ModuleTabsBar (الهاتف فقط) — docs/mobile-tabs-design.md */}
 
       {/* محتوى القسم */}
+      {section === "projects" && (
+        <ProjectsSection contractOpts={contractOpts} onErr={onErr} invalidate={invalidate} setDeleteTarget={setDeleteTarget} />
+      )}
       {section === "team" && (
         <TeamSection
           teamQuery={teamQuery}
@@ -427,6 +494,7 @@ export function ConsultingView({ user, onAuthError, section, onSectionChange }: 
         <AssignmentsSection
           engineerOpts={engineerOpts}
           contractOpts={contractOpts}
+          projectOpts={projectOpts}
           onErr={onErr}
           onAuthError={onAuthError}
           invalidate={invalidate}
@@ -437,6 +505,7 @@ export function ConsultingView({ user, onAuthError, section, onSectionChange }: 
         <TimesheetsSection
           engineerOpts={engineerOpts}
           contractOpts={contractOpts}
+          projectOpts={projectOpts}
           onErr={onErr}
           onAuthError={onAuthError}
           invalidate={invalidate}
@@ -447,6 +516,7 @@ export function ConsultingView({ user, onAuthError, section, onSectionChange }: 
         <RevisionsSection
           engineerOpts={engineerOpts}
           contractOpts={contractOpts}
+          projectOpts={projectOpts}
           onErr={onErr}
           onAuthError={onAuthError}
           invalidate={invalidate}
@@ -502,6 +572,7 @@ export function ConsultingView({ user, onAuthError, section, onSectionChange }: 
 }
 
 const LABELS_DELETE: Record<string, string> = {
+  projects: "حُذف المشروع الاستشاري",
   team: "حُذف المهندس",
   assignments: "حُذف الإسناد",
   timesheets: "حُذف سجل الساعات",
@@ -520,6 +591,7 @@ function SectionAction({
   onNoEngineers: () => void;
 }) {
   const labels: Record<ConsultingSection, string> = {
+    projects: "مشروع استشاري جديد",
     team: "مهندس جديد",
     assignments: "إسناد جديد",
     timesheets: "تسجيل ساعات",
@@ -883,15 +955,340 @@ function EngineerDialog({
   );
 }
 
+// ==================== قسم المشاريع الاستشارية (قرار المالك 2026-11-16) ====================
+
+function ProjectsSection({
+  contractOpts,
+  onErr,
+  invalidate,
+  setDeleteTarget,
+}: SectionCommon & { contractOpts: { value: string; label: string }[] }) {
+  const { toast } = useToast();
+
+  const listQuery = useQuery<{ projects: ConsultingProjectItem[] }>({
+    queryKey: ["consulting", "projects"],
+    queryFn: () => apiGet<{ projects: ConsultingProjectItem[] }>("/api/consulting/projects"),
+  });
+  const projects = listQuery.data?.projects ?? [];
+
+  const [tab, setTab] = React.useState<string>("الكل");
+  const [q, setQ] = React.useState("");
+
+  const filtered = React.useMemo(() => {
+    const needle = normSearch(q.trim());
+    return projects.filter((p) => {
+      if (tab !== "الكل" && p.status !== tab) return false;
+      if (needle && !normSearch(`${p.projectNumber} ${p.name} ${p.serviceType} ${p.customerName}`).includes(needle)) return false;
+      return true;
+    });
+  }, [projects, tab, q]);
+
+  const [editor, setEditor] = React.useState<{ editing: ConsultingProjectItem | null } | null>(null);
+  useAddEvent("projects", React.useCallback(() => setEditor({ editing: null }), []));
+
+  const saveMutation = useMutation({
+    mutationFn: (v: { id?: number; data: Record<string, unknown> }) =>
+      v.id ? apiPatch(`/api/consulting/projects/${v.id}`, v.data) : apiPost("/api/consulting/projects", v.data),
+    onSuccess: (_r, v) => {
+      setEditor(null);
+      invalidate();
+      toast({ title: v.id ? "حُدّث المشروع الاستشاري" : "أُنشئ المشروع الاستشاري" });
+    },
+    onError: (e) => onErr(e, "تعذر الحفظ"),
+  });
+
+  const activeCount = projects.filter((p) => p.status === "قيد التنفيذ").length;
+
+  return (
+    <div className="space-y-3">
+      <Card className="gap-3 p-3 sm:p-4">
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList className="h-9 w-full justify-start overflow-x-auto sm:w-auto">
+            <TabsTrigger value="الكل">الكل ({projects.length})</TabsTrigger>
+            <TabsTrigger value="قيد التنفيذ">قيد التنفيذ ({activeCount})</TabsTrigger>
+            <TabsTrigger value="معلق">معلق ({projects.filter((p) => p.status === "معلق").length})</TabsTrigger>
+            <TabsTrigger value="مكتمل">مكتمل ({projects.filter((p) => p.status === "مكتمل").length})</TabsTrigger>
+            <TabsTrigger value="ملغي">ملغي ({projects.filter((p) => p.status === "ملغي").length})</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="relative">
+          <Search className="absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث بالرقم/الاسم/العميل/الخدمة…" className="ps-8" />
+        </div>
+      </Card>
+
+      {listQuery.isLoading ? (
+        <div className="space-y-2">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-20 w-full" />
+          ))}
+        </div>
+      ) : listQuery.isError ? (
+        <Card className="p-8 text-center text-sm text-destructive">تعذر تحميل المشاريع — {errMessage(listQuery.error)}</Card>
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={FolderKanban}
+          title={projects.length === 0 ? "لا مشاريع استشارية بعد" : "لا نتائج مطابقة للفلاتر"}
+          hint={projects.length === 0 ? "نشاط الاستشارات المستقل يبدأ من هنا — أضف أول مشروع بزر «مشروع استشاري جديد»" : "جرّب تعديل البحث أو تبويب الحالة"}
+        />
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((p) => {
+            const tone = PROJECT_STATUS_TONE[p.status] || PROJECT_STATUS_TONE["قيد التنفيذ"];
+            const done = p.status === "مكتمل" || p.status === "ملغي";
+            return (
+              <Card key={p.id} className={cn("p-3 sm:p-4", done && "opacity-75")}>
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-soft-foreground">
+                    <FolderKanban className="size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span dir="ltr" className="text-xs font-bold tabular-nums text-muted-foreground">{p.projectNumber}</span>
+                      <span className="text-sm font-bold">{p.name}</span>
+                      <StatusPill label={p.status} tone={tone} />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {p.serviceType && <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">{p.serviceType}</Badge>}
+                      {p.customerName && <Badge variant="outline" className="h-5 px-1.5 text-[10px]">العميل: {p.customerName}</Badge>}
+                      {p.contractNumber && (
+                        <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px]" title="مرتبط بعقد مقاولات (اختياري — أنشطة الإشراف)">
+                          عقد: <span dir="ltr" className="tabular-nums">{p.contractNumber}</span>
+                        </Badge>
+                      )}
+                      {p.fee > 0 && <Badge variant="outline" className="h-5 px-1.5 text-[10px] tabular-nums">الأتعاب: {p.fee.toLocaleString("en", { maximumFractionDigits: 3 })} د.ك</Badge>}
+                    </div>
+                    {(p.startDate || p.endDate) && (
+                      <p className="text-[11px] text-muted-foreground tabular-nums">
+                        {p.startDate || "…"} ← {p.endDate || "مفتوح"}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
+                      <span>إسنادات: {p.assignmentsCount}</span>
+                      <span>·</span>
+                      <span>ساعات: {p.timesheetsCount}</span>
+                      <span>·</span>
+                      <span>مراجعات: {p.revisionsCount}</span>
+                    </div>
+                    {p.notes && <p className="line-clamp-1 text-[11px] text-muted-foreground">{p.notes}</p>}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground" title="تعديل" onClick={() => setEditor({ editing: p })}>
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-destructive hover:text-destructive"
+                      title="حذف"
+                      onClick={() => setDeleteTarget({ kind: "projects", id: p.id, label: `${p.projectNumber} — ${p.name}` })}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      <ProjectDialog
+        open={!!editor}
+        editing={editor?.editing ?? null}
+        contractOpts={contractOpts}
+        pending={saveMutation.isPending}
+        onClose={() => setEditor(null)}
+        onSave={(data) => saveMutation.mutate({ id: editor?.editing?.id, data })}
+      />
+    </div>
+  );
+}
+
+function ProjectDialog({
+  open,
+  editing,
+  contractOpts,
+  pending,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  editing: ConsultingProjectItem | null;
+  contractOpts: { value: string; label: string }[];
+  pending: boolean;
+  onClose: () => void;
+  onSave: (data: Record<string, unknown>) => void;
+}) {
+  const [form, setForm] = React.useState({
+    name: "",
+    serviceType: "تصميم",
+    fee: "",
+    status: "قيد التنفيذ",
+    startDate: "",
+    endDate: "",
+    customerId: "",
+    contractId: "",
+    notes: "",
+  });
+  const [customerOpts, setCustomerOpts] = React.useState<{ value: string; label: string }[]>([]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    apiLite
+      .customers("")
+      .then((rows: CustomerOption[]) =>
+        alive && setCustomerOpts(rows.map((c) => ({ value: String(c.id), label: c.name }))),
+      )
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [open]);
+
+  React.useEffect(() => {
+    if (open) {
+      setForm({
+        name: editing?.name ?? "",
+        serviceType: editing?.serviceType || "تصميم",
+        fee: editing?.fee ? String(editing.fee) : "",
+        status: editing?.status || "قيد التنفيذ",
+        startDate: editing?.startDate ?? "",
+        endDate: editing?.endDate ?? "",
+        customerId: editing?.customerId ? String(editing.customerId) : "",
+        contractId: editing?.contractId ? String(editing.contractId) : "",
+        notes: editing?.notes ?? "",
+      });
+    }
+  }, [open, editing]);
+
+  const submit = () => {
+    onSave({
+      name: form.name,
+      serviceType: form.serviceType,
+      fee: form.fee === "" ? 0 : Number(form.fee),
+      status: form.status,
+      startDate: form.startDate,
+      endDate: form.endDate,
+      customerId: Number(form.customerId) || 0,
+      contractId: Number(form.contractId) || 0,
+      notes: form.notes,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{editing ? `تعديل ${editing.projectNumber}` : "مشروع استشاري جديد"}</DialogTitle>
+          <DialogDescription>
+            النشاط المستقل للاستشارات — يُرقَّم CPR آليًا، وربط عقد المقاولات اختياري لأنشطة الإشراف
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>اسم المشروع *</Label>
+            <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="مثال: تصميم فيلا سكنية — العدان" />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>نوع الخدمة *</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {CONSULTING_SERVICE_TYPES.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, serviceType: t }))}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-xs transition-colors",
+                    form.serviceType === t
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:bg-secondary"
+                  )}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>الأتعاب (د.ك)</Label>
+            <Input type="number" min="0" step="0.001" value={form.fee} onChange={(e) => setForm((f) => ({ ...f, fee: e.target.value }))} dir="ltr" placeholder="استرشادية — مثال: 1500" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>الحالة</Label>
+            <SearchableSelect
+              value={form.status}
+              onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}
+              options={CONSULTING_PROJECT_STATUSES.map((s) => ({ value: s, label: s }))}
+              placeholder="اختر الحالة"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>من تاريخ</Label>
+            <Input type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>إلى تاريخ</Label>
+            <Input type="date" value={form.endDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>العميل</Label>
+            <SearchableSelect
+              value={form.customerId}
+              onValueChange={(v) => setForm((f) => ({ ...f, customerId: v }))}
+              options={customerOpts}
+              placeholder="اختياري — عميل المشروع"
+              searchPlaceholder="ابحث بالاسم…"
+              allowClear
+              clearLabel="بلا عميل"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>عقد مقاولات (اختياري)</Label>
+            <SearchableSelect
+              value={form.contractId}
+              onValueChange={(v) => setForm((f) => ({ ...f, contractId: v }))}
+              options={contractOpts}
+              placeholder="لأنشطة الإشراف على عقد"
+              searchPlaceholder="ابحث برقم/اسم العقد…"
+              allowClear
+              clearLabel="بلا عقد"
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>ملاحظات</Label>
+            <Input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="اختياري" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            إلغاء
+          </Button>
+          <Button onClick={submit} disabled={pending || !form.name.trim()}>
+            {pending && <Loader2 className="size-4 animate-spin" />}
+            {editing ? "حفظ التعديلات" : "إضافة المشروع"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ==================== قسم إسناد المشاريع ====================
 
 function AssignmentsSection({
   engineerOpts,
   contractOpts,
+  projectOpts,
   onErr,
   invalidate,
   setDeleteTarget,
-}: SectionCommon & { engineerOpts: { value: string; label: string }[]; contractOpts: { value: string; label: string }[] }) {
+}: SectionCommon & {
+  engineerOpts: { value: string; label: string }[];
+  contractOpts: { value: string; label: string }[];
+  projectOpts: { value: string; label: string }[];
+}) {
   const { toast } = useToast();
 
   const listQuery = useQuery<{ assignments: AssignmentItem[] }>({
@@ -907,7 +1304,7 @@ function AssignmentsSection({
     const needle = normSearch(q.trim());
     return assignments.filter((a) => {
       if (tab !== "الكل" && a.status !== tab) return false;
-      if (needle && !normSearch(`${a.engineerName} ${a.contractNumber} ${a.contractName} ${a.customerName} ${a.role}`).includes(needle)) return false;
+      if (needle && !normSearch(`${a.engineerName} ${a.consultingProjectNumber} ${a.consultingProjectName} ${a.consultingProjectCustomer} ${a.contractNumber} ${a.contractName} ${a.customerName} ${a.role}`).includes(needle)) return false;
       return true;
     });
   }, [assignments, tab, q]);
@@ -987,9 +1384,20 @@ function AssignmentsSection({
                     <StatusPill label={a.status} tone={a.status === "سارية" ? { text: "text-status-info", bg: "bg-status-info-bg" } : { text: "text-muted-foreground", bg: "bg-muted" }} />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    <span dir="ltr" className="font-semibold">{a.contractNumber}</span>
-                    {a.contractName ? ` — ${a.contractName}` : ""}
-                    {a.customerName ? ` · ${a.customerName}` : ""}
+                    {a.consultingProjectId ? (
+                      <>
+                        <span dir="ltr" className="font-semibold">{a.consultingProjectNumber}</span>
+                        {a.consultingProjectName ? ` — ${a.consultingProjectName}` : ""}
+                        {a.consultingProjectCustomer ? ` · ${a.consultingProjectCustomer}` : ""}
+                        <Badge variant="outline" className="ms-1.5 h-4 px-1 text-[9px]">مشروع استشاري</Badge>
+                      </>
+                    ) : (
+                      <>
+                        <span dir="ltr" className="font-semibold">{a.contractNumber}</span>
+                        {a.contractName ? ` — ${a.contractName}` : ""}
+                        {a.customerName ? ` · ${a.customerName}` : ""}
+                      </>
+                    )}
                   </p>
                   {(a.startDate || a.endDate) && (
                     <p className="text-[11px] text-muted-foreground tabular-nums">
@@ -1019,7 +1427,13 @@ function AssignmentsSection({
                     size="icon"
                     className="size-8 text-destructive hover:text-destructive"
                     title="حذف"
-                    onClick={() => setDeleteTarget({ kind: "assignments", id: a.id, label: `${a.engineerName} ← ${a.contractNumber}` })}
+                    onClick={() =>
+                      setDeleteTarget({
+                        kind: "assignments",
+                        id: a.id,
+                        label: `${a.engineerName} ← ${a.consultingProjectId ? `${a.consultingProjectNumber} — ${a.consultingProjectName}` : a.contractNumber}`,
+                      })
+                    }
                   >
                     <Trash2 className="size-4" />
                   </Button>
@@ -1035,6 +1449,7 @@ function AssignmentsSection({
         editing={editor?.editing ?? null}
         engineerOpts={engineerOpts}
         contractOpts={contractOpts}
+        projectOpts={projectOpts}
         pending={saveMutation.isPending}
         onClose={() => setEditor(null)}
         onSave={(data) => saveMutation.mutate({ id: editor?.editing?.id, data })}
@@ -1048,6 +1463,7 @@ function AssignmentDialog({
   editing,
   engineerOpts,
   contractOpts,
+  projectOpts,
   pending,
   onClose,
   onSave,
@@ -1056,12 +1472,15 @@ function AssignmentDialog({
   editing: AssignmentItem | null;
   engineerOpts: { value: string; label: string }[];
   contractOpts: { value: string; label: string }[];
+  projectOpts: { value: string; label: string }[];
   pending: boolean;
   onClose: () => void;
   onSave: (data: Record<string, unknown>) => void;
 }) {
   const [form, setForm] = React.useState({
     engineerId: "",
+    targetMode: "project" as "project" | "contract",
+    consultingProjectId: "",
     contractId: "",
     role: "",
     allocationPct: "",
@@ -1074,7 +1493,9 @@ function AssignmentDialog({
     if (open) {
       setForm({
         engineerId: editing ? String(editing.engineerId) : "",
-        contractId: editing ? String(editing.contractId) : "",
+        targetMode: editing ? (editing.consultingProjectId ? "project" : "contract") : "project",
+        consultingProjectId: editing?.consultingProjectId ? String(editing.consultingProjectId) : "",
+        contractId: editing?.contractId ? String(editing.contractId) : "",
         role: editing?.role ?? "",
         allocationPct: editing?.allocationPct ? String(editing.allocationPct) : "",
         startDate: editing?.startDate ?? "",
@@ -1085,9 +1506,11 @@ function AssignmentDialog({
   }, [open, editing]);
 
   const submit = () => {
+    const useProject = form.targetMode === "project";
     onSave({
       engineerId: Number(form.engineerId) || 0,
-      contractId: Number(form.contractId) || 0,
+      consultingProjectId: useProject ? Number(form.consultingProjectId) || 0 : 0,
+      contractId: !useProject ? Number(form.contractId) || 0 : 0,
       role: form.role,
       allocationPct: form.allocationPct === "" ? 0 : Number(form.allocationPct),
       startDate: form.startDate,
@@ -1096,12 +1519,14 @@ function AssignmentDialog({
     });
   };
 
+  const targetReady = form.targetMode === "project" ? !!form.consultingProjectId : !!form.contractId;
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{editing ? "تعديل إسناد" : "إسناد مهندس لمشروع"}</DialogTitle>
-          <DialogDescription>نقطة الربط بين الفريق الهندسي والعقود — تظهر الساعات على المشروع</DialogDescription>
+          <DialogDescription>الهدف مشروع استشاري أو عقد (واحد على الأقل) — تظهر الساعات على الهدف</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
@@ -1115,14 +1540,47 @@ function AssignmentDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label>العقد/المشروع *</Label>
-            <SearchableSelect
-              value={form.contractId}
-              onValueChange={(v) => setForm((f) => ({ ...f, contractId: v }))}
-              options={contractOpts}
-              placeholder="اختر العقد"
-              searchPlaceholder="ابحث برقم/اسم العقد…"
-            />
+            <Label>نوع الهدف *</Label>
+            <div className="flex gap-1.5">
+              {([
+                { key: "project", label: "مشروع استشاري" },
+                { key: "contract", label: "عقد" },
+              ] as const).map((m) => (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, targetMode: m.key }))}
+                  className={cn(
+                    "flex-1 rounded-full border px-3 py-1.5 text-xs transition-colors",
+                    form.targetMode === m.key
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:bg-secondary"
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>{form.targetMode === "project" ? "المشروع الاستشاري *" : "العقد *"}</Label>
+            {form.targetMode === "project" ? (
+              <SearchableSelect
+                value={form.consultingProjectId}
+                onValueChange={(v) => setForm((f) => ({ ...f, consultingProjectId: v }))}
+                options={projectOpts}
+                placeholder="اختر المشروع الاستشاري"
+                searchPlaceholder="ابحث برقم CPR/الاسم/العميل…"
+              />
+            ) : (
+              <SearchableSelect
+                value={form.contractId}
+                onValueChange={(v) => setForm((f) => ({ ...f, contractId: v }))}
+                options={contractOpts}
+                placeholder="اختر العقد"
+                searchPlaceholder="ابحث برقم/اسم العقد…"
+              />
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>الدور في المشروع</Label>
@@ -1155,7 +1613,7 @@ function AssignmentDialog({
           <Button variant="outline" onClick={onClose} disabled={pending}>
             إلغاء
           </Button>
-          <Button onClick={submit} disabled={pending || !form.engineerId || !form.contractId}>
+          <Button onClick={submit} disabled={pending || !form.engineerId || !targetReady}>
             {pending && <Loader2 className="size-4 animate-spin" />}
             {editing ? "حفظ التعديلات" : "إسناد"}
           </Button>
@@ -1170,10 +1628,15 @@ function AssignmentDialog({
 function TimesheetsSection({
   engineerOpts,
   contractOpts,
+  projectOpts,
   onErr,
   invalidate,
   setDeleteTarget,
-}: SectionCommon & { engineerOpts: { value: string; label: string }[]; contractOpts: { value: string; label: string }[] }) {
+}: SectionCommon & {
+  engineerOpts: { value: string; label: string }[];
+  contractOpts: { value: string; label: string }[];
+  projectOpts: { value: string; label: string }[];
+}) {
   const { toast } = useToast();
 
   const [month, setMonth] = React.useState(thisMonth());
@@ -1196,7 +1659,7 @@ function TimesheetsSection({
   const filtered = React.useMemo(() => {
     const needle = normSearch(q.trim());
     if (!needle) return entries;
-    return entries.filter((t) => normSearch(`${t.engineerName} ${t.contractNumber} ${t.contractName} ${t.activity} ${t.notes}`).includes(needle));
+    return entries.filter((t) => normSearch(`${t.engineerName} ${t.consultingProjectNumber} ${t.consultingProjectName} ${t.contractNumber} ${t.contractName} ${t.activity} ${t.notes}`).includes(needle));
   }, [entries, q]);
 
   const [editor, setEditor] = React.useState<{ editing: TimesheetItem | null } | null>(null);
@@ -1306,14 +1769,20 @@ function TimesheetsSection({
                     <span className="text-[11px] tabular-nums text-muted-foreground">{t.workDate}</span>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    {t.contractNumber ? (
+                    {t.consultingProjectId ? (
+                      <>
+                        <span dir="ltr" className="font-semibold">{t.consultingProjectNumber}</span>
+                        {t.consultingProjectName ? ` — ${t.consultingProjectName}` : ""}
+                        <Badge variant="outline" className="ms-1.5 h-4 px-1 text-[9px]">مشروع استشاري</Badge>
+                      </>
+                    ) : t.contractId ? (
                       <>
                         <span dir="ltr" className="font-semibold">{t.contractNumber}</span>
                         {t.contractName ? ` — ${t.contractName}` : ""}
                         {t.customerName ? ` · ${t.customerName}` : ""}
                       </>
                     ) : (
-                      "ساعات غير مرتبطة بمشروع (إداري/عام)"
+                      "ساعات غير مرتبطة بهدف (إداري/عام)"
                     )}
                   </p>
                   {t.notes && <p className="line-clamp-1 text-[11px] text-muted-foreground">{t.notes}</p>}
@@ -1343,6 +1812,7 @@ function TimesheetsSection({
         editing={editor?.editing ?? null}
         engineerOpts={engineerOpts}
         contractOpts={contractOpts}
+        projectOpts={projectOpts}
         pending={saveMutation.isPending}
         onClose={() => setEditor(null)}
         onSave={(data) => saveMutation.mutate({ id: editor?.editing?.id, data })}
@@ -1356,6 +1826,7 @@ function TimesheetDialog({
   editing,
   engineerOpts,
   contractOpts,
+  projectOpts,
   pending,
   onClose,
   onSave,
@@ -1364,12 +1835,15 @@ function TimesheetDialog({
   editing: TimesheetItem | null;
   engineerOpts: { value: string; label: string }[];
   contractOpts: { value: string; label: string }[];
+  projectOpts: { value: string; label: string }[];
   pending: boolean;
   onClose: () => void;
   onSave: (data: Record<string, unknown>) => void;
 }) {
   const [form, setForm] = React.useState({
     engineerId: "",
+    linkMode: "none" as "none" | "project" | "contract",
+    consultingProjectId: "",
     contractId: "",
     workDate: todayStr(),
     hours: "",
@@ -1381,6 +1855,8 @@ function TimesheetDialog({
     if (open) {
       setForm({
         engineerId: editing ? String(editing.engineerId) : "",
+        linkMode: editing ? (editing.consultingProjectId ? "project" : editing.contractId ? "contract" : "none") : "none",
+        consultingProjectId: editing?.consultingProjectId ? String(editing.consultingProjectId) : "",
         contractId: editing?.contractId ? String(editing.contractId) : "",
         workDate: editing?.workDate || todayStr(),
         hours: editing?.hours ? String(editing.hours) : "",
@@ -1393,7 +1869,8 @@ function TimesheetDialog({
   const submit = () => {
     onSave({
       engineerId: Number(form.engineerId) || 0,
-      contractId: form.contractId || null,
+      consultingProjectId: form.linkMode === "project" ? Number(form.consultingProjectId) || null : null,
+      contractId: form.linkMode === "contract" ? Number(form.contractId) || null : null,
       workDate: form.workDate,
       hours: Number(form.hours) || 0,
       activity: form.activity,
@@ -1406,7 +1883,7 @@ function TimesheetDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{editing ? "تعديل سجل ساعات" : "تسجيل ساعات عمل"}</DialogTitle>
-          <DialogDescription>ساعات المهندس على المخططات والإشراف — وربطها بالمشروع اختياري للساعات الإدارية</DialogDescription>
+          <DialogDescription>ساعات المهندس — الربط بمشروع استشاري أو عقد اختياري (الساعات الإدارية بلا ربط)</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
@@ -1420,20 +1897,57 @@ function TimesheetDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label>العقد/المشروع</Label>
-            <SearchableSelect
-              value={form.contractId}
-              onValueChange={(v) => setForm((f) => ({ ...f, contractId: v }))}
-              options={contractOpts}
-              placeholder="بدون مشروع (إداري)"
-              allowClear
-              clearLabel="إزالة المشروع"
-            />
-          </div>
-          <div className="space-y-1.5">
             <Label>تاريخ العمل *</Label>
             <Input type="date" value={form.workDate} onChange={(e) => setForm((f) => ({ ...f, workDate: e.target.value }))} />
           </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>الربط (اختياري)</Label>
+            <div className="flex gap-1.5">
+              {([
+                { key: "none", label: "بلا ربط" },
+                { key: "project", label: "مشروع استشاري" },
+                { key: "contract", label: "عقد" },
+              ] as const).map((m) => (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, linkMode: m.key }))}
+                  className={cn(
+                    "flex-1 rounded-full border px-3 py-1.5 text-xs transition-colors",
+                    form.linkMode === m.key
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:bg-secondary"
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {form.linkMode === "project" && (
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>المشروع الاستشاري</Label>
+              <SearchableSelect
+                value={form.consultingProjectId}
+                onValueChange={(v) => setForm((f) => ({ ...f, consultingProjectId: v }))}
+                options={projectOpts}
+                placeholder="اختر المشروع الاستشاري"
+                searchPlaceholder="ابحث برقم CPR/الاسم/العميل…"
+              />
+            </div>
+          )}
+          {form.linkMode === "contract" && (
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>العقد</Label>
+              <SearchableSelect
+                value={form.contractId}
+                onValueChange={(v) => setForm((f) => ({ ...f, contractId: v }))}
+                options={contractOpts}
+                placeholder="اختر العقد"
+                searchPlaceholder="ابحث برقم/اسم العقد…"
+              />
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>الساعات *</Label>
             <Input type="number" min="0.25" max="24" step="0.25" value={form.hours} onChange={(e) => setForm((f) => ({ ...f, hours: e.target.value }))} dir="ltr" placeholder="مثال: 4.5" />
@@ -1467,7 +1981,7 @@ function TimesheetDialog({
           <Button variant="outline" onClick={onClose} disabled={pending}>
             إلغاء
           </Button>
-          <Button onClick={submit} disabled={pending || !form.engineerId || !form.workDate || !(Number(form.hours) > 0)}>
+          <Button onClick={submit} disabled={pending || !form.engineerId || !form.workDate || !(Number(form.hours) > 0) || (form.linkMode === "project" && !form.consultingProjectId) || (form.linkMode === "contract" && !form.contractId)}>
             {pending && <Loader2 className="size-4 animate-spin" />}
             {editing ? "حفظ التعديلات" : "تسجيل"}
           </Button>
@@ -1830,12 +2344,14 @@ const REVISION_STATUS_TONE: Record<string, { text: string; bg: string }> = {
 function RevisionsSection({
   engineerOpts,
   contractOpts,
+  projectOpts,
   onErr,
   invalidate,
   setDeleteTarget,
 }: SectionCommon & {
   engineerOpts: { value: string; label: string }[];
   contractOpts: { value: string; label: string }[];
+  projectOpts: { value: string; label: string }[];
 }) {
   const { toast } = useToast();
 
@@ -1852,7 +2368,7 @@ function RevisionsSection({
     const needle = normSearch(q.trim());
     return revisions.filter((r) => {
       if (tab !== "الكل" && r.status !== tab) return false;
-      if (needle && !normSearch(`${r.title} ${r.contractNumber} ${r.contractName} ${r.customerName} ${r.engineerName ?? ""}`).includes(needle)) return false;
+      if (needle && !normSearch(`${r.title} ${r.consultingProjectNumber} ${r.consultingProjectName} ${r.contractNumber} ${r.contractName} ${r.customerName} ${r.engineerName ?? ""}`).includes(needle)) return false;
       return true;
     });
   }, [revisions, tab, q]);
@@ -1936,9 +2452,19 @@ function RevisionsSection({
                       <StatusPill label={r.status} tone={tone} />
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                      {r.contractNumber}
-                      {r.contractName ? ` — ${r.contractName}` : ""}
-                      {r.customerName ? ` · ${r.customerName}` : ""}
+                      {r.consultingProjectId ? (
+                        <>
+                          <span dir="ltr" className="font-semibold">{r.consultingProjectNumber}</span>
+                          {r.consultingProjectName ? ` — ${r.consultingProjectName}` : ""}
+                          <Badge variant="outline" className="ms-1.5 h-4 px-1 text-[9px]">مشروع استشاري</Badge>
+                        </>
+                      ) : (
+                        <>
+                          {r.contractNumber}
+                          {r.contractName ? ` — ${r.contractName}` : ""}
+                          {r.customerName ? ` · ${r.customerName}` : ""}
+                        </>
+                      )}
                       {r.engineerName ? ` · بتحضير ${r.engineerName}` : ""}
                     </p>
                     <p className="text-[11px] tabular-nums text-muted-foreground">
@@ -2005,6 +2531,7 @@ function RevisionsSection({
         editing={editor?.editing ?? null}
         engineerOpts={engineerOpts}
         contractOpts={contractOpts}
+        projectOpts={projectOpts}
         pending={saveMutation.isPending}
         onClose={() => setEditor(null)}
         onSave={(data) => saveMutation.mutate({ id: editor?.editing?.id, data })}
@@ -2068,6 +2595,7 @@ function RevisionDialog({
   editing,
   engineerOpts,
   contractOpts,
+  projectOpts,
   pending,
   onClose,
   onSave,
@@ -2076,11 +2604,14 @@ function RevisionDialog({
   editing: RevisionItem | null;
   engineerOpts: { value: string; label: string }[];
   contractOpts: { value: string; label: string }[];
+  projectOpts: { value: string; label: string }[];
   pending: boolean;
   onClose: () => void;
   onSave: (data: Record<string, unknown>) => void;
 }) {
   const [form, setForm] = React.useState({
+    targetMode: "project" as "project" | "contract",
+    consultingProjectId: "",
     contractId: "",
     title: "",
     engineerId: "",
@@ -2091,7 +2622,9 @@ function RevisionDialog({
   React.useEffect(() => {
     if (open) {
       setForm({
-        contractId: editing ? String(editing.contractId) : "",
+        targetMode: editing ? (editing.consultingProjectId ? "project" : "contract") : "project",
+        consultingProjectId: editing?.consultingProjectId ? String(editing.consultingProjectId) : "",
+        contractId: editing?.contractId ? String(editing.contractId) : "",
         title: editing?.title ?? "",
         engineerId: editing?.engineerId ? String(editing.engineerId) : "",
         submittedAt: editing?.submittedAt || todayStr(),
@@ -2101,14 +2634,22 @@ function RevisionDialog({
   }, [open, editing]);
 
   const submit = () => {
+    const useProject = form.targetMode === "project";
     onSave({
-      ...(editing ? {} : { contractId: Number(form.contractId) || 0 }),
+      ...(editing
+        ? {}
+        : {
+            consultingProjectId: useProject ? Number(form.consultingProjectId) || 0 : 0,
+            contractId: !useProject ? Number(form.contractId) || 0 : 0,
+          }),
       title: form.title,
       engineerId: form.engineerId ? Number(form.engineerId) : null,
       submittedAt: form.submittedAt,
       notes: form.notes,
     });
   };
+
+  const targetReady = form.targetMode === "project" ? !!form.consultingProjectId : !!form.contractId;
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -2117,22 +2658,64 @@ function RevisionDialog({
           <DialogTitle>{editing ? `تعديل الإصدار V${editing.revNo}` : "دورة مراجعة جديدة"}</DialogTitle>
           <DialogDescription>
             {editing
-              ? "التعديل قبل الحسم فقط — الرقم V يبقى كما هو والدورة لا تُنقل لعقد آخر"
-              : "كل رفع إصدار لنفس المخطط يُرقَّم V تالٍ آليًا — والحسم (اعتماد/إرجاع) من القائمة"}
+              ? "التعديل قبل الحسم فقط — الرقم V يبقى كما هو والدورة لا تُنقل لهدف آخر"
+              : "كل رفع إصدار لنفس المخطط على الهدف يُرقَّم V تالٍ آليًا — والحسم (اعتماد/إرجاع) من القائمة"}
           </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5 sm:col-span-2">
-            <Label>العقد/المشروع *</Label>
-            <SearchableSelect
-              value={form.contractId}
-              onValueChange={(v) => setForm((f) => ({ ...f, contractId: v }))}
-              options={contractOpts}
-              placeholder="اختر العقد"
-              searchPlaceholder="ابحث برقم العقد/الاسم/العميل…"
-              disabled={!!editing}
-            />
+            <Label>نوع الهدف *</Label>
+            {editing ? (
+              <p className="text-xs text-muted-foreground">
+                {editing.consultingProjectId
+                  ? `مشروع استشاري: ${editing.consultingProjectNumber} — ${editing.consultingProjectName}`
+                  : `عقد: ${editing.contractNumber}`}
+              </p>
+            ) : (
+              <div className="flex gap-1.5">
+                {([
+                  { key: "project", label: "مشروع استشاري" },
+                  { key: "contract", label: "عقد" },
+                ] as const).map((m) => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, targetMode: m.key }))}
+                    className={cn(
+                      "flex-1 rounded-full border px-3 py-1.5 text-xs transition-colors",
+                      form.targetMode === m.key
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "bg-background text-muted-foreground hover:bg-secondary"
+                    )}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+          {!editing && (
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>{form.targetMode === "project" ? "المشروع الاستشاري *" : "العقد *"}</Label>
+              {form.targetMode === "project" ? (
+                <SearchableSelect
+                  value={form.consultingProjectId}
+                  onValueChange={(v) => setForm((f) => ({ ...f, consultingProjectId: v }))}
+                  options={projectOpts}
+                  placeholder="اختر المشروع الاستشاري"
+                  searchPlaceholder="ابحث برقم CPR/الاسم/العميل…"
+                />
+              ) : (
+                <SearchableSelect
+                  value={form.contractId}
+                  onValueChange={(v) => setForm((f) => ({ ...f, contractId: v }))}
+                  options={contractOpts}
+                  placeholder="اختر العقد"
+                  searchPlaceholder="ابحث برقم العقد/الاسم/العميل…"
+                />
+              )}
+            </div>
+          )}
           <div className="space-y-1.5 sm:col-span-2">
             <Label>اسم المخطط/الوثيقة *</Label>
             <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="مثال: مخطط معماري — الدور الأول" />
@@ -2160,7 +2743,7 @@ function RevisionDialog({
           <Button variant="outline" onClick={onClose} disabled={pending}>
             إلغاء
           </Button>
-          <Button onClick={submit} disabled={pending || !form.title.trim() || (!editing && !form.contractId)}>
+          <Button onClick={submit} disabled={pending || !form.title.trim() || (!editing && !targetReady)}>
             {pending && <Loader2 className="size-4 animate-spin" />}
             {editing ? "حفظ التعديلات" : "تسجيل الإصدار"}
           </Button>
