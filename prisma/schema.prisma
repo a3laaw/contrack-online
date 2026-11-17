@@ -183,6 +183,8 @@ model Customer {
   engineerAppointments EngineerAppointment[] @relation("EngineerAppointmentCustomer")
   // المشاريع الاستشارية المستقلة (docs/consulting-projects-design.md — قرار المالك: الخيار ب)
   consultingProjects   ConsultingProject[] @relation("ConsultingProjectCustomer")
+  // ر3 — فرص البيع (docs/opportunities-design.md): الفرصة بعميل اختياري — SetNull مع حذف العميل
+  opportunities        Opportunity[]       @relation("OpportunityCustomer")
 
   @@unique([companyId, customerCode])
   @@map("customers")
@@ -236,6 +238,8 @@ model Contract {
   tasks                Task[]
   comments             Comment[]
   groupItems           ContractGroupItem[]
+  // ر4 — أوامر الشراء: ربط معرفي اختياري للعرض والتقارير حصرًا (docs/purchase-design.md د5 — لا قيد يتأثر)
+  purchaseOrders       PurchaseOrder[]       @relation("PoContract")
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   contractScopes       ContractScope[]
@@ -488,6 +492,9 @@ model Voucher {
   cancelled             Boolean              @default(false)
   cancelReason          String               @default("") @map("cancel_reason")
   cancelledAt           String               @default("") @map("cancelled_at")
+  // ر4 — أوامر الشراء (docs/purchase-design.md د6): كشف حساب المورد بالربط المعرفي — بلا ذمم موردون
+  supplierId Int?      @map("supplier_id")
+  supplier   Supplier? @relation("VoucherSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
   links                 VoucherPaymentLink[]
   invoicePaymentLinks   InvoicePaymentLink[] // سداد الفواتير المخصص من هذا السند (Task 107)
   gatewayFeeLinks       GatewayFeeVoucher[]
@@ -566,6 +573,8 @@ model Quotation {
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
   items           QuotationItem[]
+  // ر3 — فرص البيع: أول عرض صدر من الفرصة (الربط بجهة الفرصة — SetNull مع حذف العرض)
+  opportunities   Opportunity[]   @relation("OpportunityQuotation")
 
   @@unique([companyId, quotationNumber])
   @@index([customerId])
@@ -589,6 +598,106 @@ model QuotationItem {
 
   @@index([quotationId])
   @@map("quotation_items")
+}
+
+model Opportunity {
+  /**
+   * ر3 — فرص البيع (CRM خفيف) (docs/opportunities-design.md — اعتماد المالك «كليهما معًا»):
+   * جدول واحد بخط أنابيب مغلق (جديدة→مؤهّلة→عُرض عليها→مقبولة/مفقودة بسبب إلزامي) —
+   * الفرصة تستهلك معالج العروض القائم حرفيًا (لا شاشة عروض ثانية — G3) والربط بجهة الفرصة حصرًا.
+   */
+  companyId         Int        @default(1) @map("company_id")
+  id                Int        @id @default(autoincrement())
+  opportunityNumber String     @map("opportunity_number") // OPP-#### ذري عبر nextNumberByKey (د6)
+  name              String
+  customerId        Int?       @map("customer_id") // اختياري — د5 (إنشاء عميل من الفرصة)
+  customer          Customer?  @relation("OpportunityCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  stage             String     @default("جديدة") // OPPORTUNITY_STAGES — قائمة مغلقة (د2)
+  expectedAmount    Decimal    @default(0) @map("expected_amount") @db.Decimal(18, 3)
+  expectedCloseDate String     @default("") @map("expected_close_date") // YYYY-MM-DD
+  source            String     @default("") // OPPORTUNITY_SOURCES (د7)
+  quotationId       Int?       @map("quotation_id") // أول عرض صدر منها — نمط SetNull
+  quotation         Quotation? @relation("OpportunityQuotation", fields: [quotationId], references: [id], onDelete: SetNull)
+  lostReason        String     @default("") @map("lost_reason") // إلزامي عند «مفقودة» (د3)
+  notes             String     @default("")
+  createdBy         Int?       @map("created_by")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+
+  @@unique([companyId, opportunityNumber])
+  @@index([companyId, stage])
+  @@index([customerId])
+  @@map("opportunities")
+}
+
+/**
+ * ر4 — الموردون وأوامر الشراء (docs/purchase-design.md — اعتماد المالك «كليهما معًا»):
+ * صفر محركات جديدة — الاستلام يستدعي دالة الإدخال القائمة createStockDocTx داخل المعاملة نفسها
+ * (لقطة سعر الأمر إلى snapUnitCost والمتوسط المرجحي يحسبه محرك الإدخال)، والسداد سند صرف مورد
+ * عبر محرك السندات القائم بلا تعديل — لا سطور حرة بلا صنف (G7) ولا تجاوز للمطلوب (د4).
+ */
+model Supplier {
+  companyId      Int             @default(1) @map("company_id")
+  id             Int             @id @default(autoincrement())
+  supplierCode   String          @map("supplier_code") // SUP-#### ذري عبر nextNumberByKey (د7)
+  name           String
+  phone          String          @default("")
+  email          String          @default("")
+  address        String          @default("")
+  crNumber       String          @default("") @map("cr_number") // السجل التجاري
+  active         Boolean         @default(true)
+  notes          String          @default("")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  purchaseOrders PurchaseOrder[]
+  vouchers       Voucher[]       @relation("VoucherSupplier")
+
+  @@unique([companyId, supplierCode])
+  @@unique([companyId, name])
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  companyId      Int                 @default(1) @map("company_id")
+  id             Int                 @id @default(autoincrement())
+  poNumber       String              @map("po_number") // PO-#### ذري عبر nextNumberByKey (د7)
+  supplierId     Int                 @map("supplier_id")
+  supplier       Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  orderDate      String              @map("order_date") // YYYY-MM-DD
+  expectedDate   String              @default("") @map("expected_date")
+  contractId     Int?                @map("contract_id") // د5 — معرفي للعرض والتقارير حصرًا (لا قيد يتأثر)
+  contract       Contract?           @relation("PoContract", fields: [contractId], references: [id], onDelete: SetNull)
+  status         String              @default("مسودة") // PO_STATUSES — قائمة مغلقة (د3): مسودة/مرسل للمورد/جزئي/مستلم/ملغى
+  totalAmount    Decimal             @default(0) @map("total_amount") @db.Decimal(18, 3) // مجمّد على الرأس لحظة الحفظ
+  receivedAmount Decimal             @default(0) @map("received_amount") @db.Decimal(18, 3) // قيمة المستلم تجمّد مع كل استلام
+  notes          String              @default("")
+  createdBy      Int?                @map("created_by")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  items          PurchaseOrderItem[]
+  receipts       StockDoc[]          @relation("PoReceiptDocs") // إذن الإدخالات المولدة من هذا الأمر
+
+  @@unique([companyId, poNumber])
+  @@index([supplierId])
+  @@index([companyId, status])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  companyId   Int           @default(1) @map("company_id")
+  id          Int           @id @default(autoincrement())
+  poId        Int           @map("po_id")
+  po          PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  itemId      Int           @map("item_id") // د2 — صنف مخزني إلزامي (الاستلام يولّد إذن إدخال سطره إلزامي الصنف)
+  item        StockItem     @relation("PoItemItem", fields: [itemId], references: [id], onDelete: Restrict)
+  qty         Decimal       @db.Decimal(18, 3) // المطلوب
+  receivedQty Decimal       @default(0) @map("received_qty") @db.Decimal(18, 3) // يتراكم مع كل استلام
+  unitPrice   Decimal       @map("unit_price") @db.Decimal(18, 3) // لقطة سعر الشراء (د1 الفلسفة)
+  amount      Decimal       @db.Decimal(18, 3) // = r3(qty × unitPrice) مجمّد
+  sortOrder   Int           @default(0) @map("sort_order")
+
+  @@index([poId])
+  @@index([itemId])
+  @@map("purchase_order_items")
 }
 
 model VoucherPaymentLink {
@@ -2678,6 +2787,8 @@ model StockItem {
   createdAt    DateTime       @default(now()) @map("created_at")
   docLines     StockDocLine[]
   invoiceItems InvoiceItem[] // بنود الفواتير المخزنية (المبيعات — علاقة عكسية)
+  // ر4 — أوامر الشراء: بنود الأوامر على الصنف (د2 — صنف إلزامي)
+  poItems      PurchaseOrderItem[] @relation("PoItemItem")
 
   @@unique([companyId, name])
   @@map("stock_items")
@@ -2708,6 +2819,10 @@ model StockDoc {
   // موديول المبيعات (docs/sales-design.md §3): إذن الصرف الآلي للبيع — مرتبط بفاتورة بلا عقد، وSetNull مع حذف الفاتورة
   saleInvoiceId     Int?           @map("sale_invoice_id")
   saleInvoice       Invoice?       @relation("SaleInvoiceDocs", fields: [saleInvoiceId], references: [id])
+  // ر4 — أوامر الشراء (docs/purchase-design.md §3): إذن الإدخال الآلي من الاستلام — SetNull
+  // (الأمر المُستلم منه ممنوع من الحذف أصلًا، والSetNull درع لا مسار)
+  purchaseOrderId   Int?           @map("purchase_order_id")
+  purchaseOrder     PurchaseOrder? @relation("PoReceiptDocs", fields: [purchaseOrderId], references: [id], onDelete: SetNull)
   totalAmount       Decimal        @default(0) @map("total_amount") @db.Decimal(18, 3) // مجمّد على الرأس لحظة الحفظ
   status            String         @default("posted") // posted | cancelled — لا مسودات (د6)
   cancelReason      String         @default("") @map("cancel_reason")

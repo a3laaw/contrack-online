@@ -34,6 +34,9 @@ import {
   Wrench,
   DraftingCompass,
   XCircle,
+  // ر3/ر4 — أيقونات الموديولين الجديدين
+  Target,
+  ShoppingCart,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -215,6 +218,9 @@ const CATALOG_ICONS: Record<string, React.ComponentType<{ className?: string }>>
   wrench: Wrench,
   compass: DraftingCompass,
   users: Users,
+  // ر3/ر4
+  target: Target,
+  "shopping-cart": ShoppingCart,
 };
 
 export function DevConsoleView({

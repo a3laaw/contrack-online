@@ -56,6 +56,8 @@ import {
 } from "@/lib/quotes-core";
 import { quoteConvertible } from "@/lib/sales-core";
 import { QUOTE_CONVERT_MARKER, QUOTE_TO_CONTRACT_MARKER } from "@/lib/sales-constants";
+// ر3 — إصدار عرض من فرصة بيع (docs/opportunities-design.md د4): حمولة التعبئة من الفرصة
+import type { OpportunityQuotePreset } from "@/lib/opportunities-core";
 import { printDoc } from "../doc-templates/print-doc";
 import type { DocTemplateMeta, DocTemplateRenderResponse } from "@/lib/doc-template-core";
 import type { CustomersResponse } from "../contrack-types";
@@ -76,6 +78,10 @@ interface QuotesSectionProps {
   /** اختياري — تحويل عرض مقبول إلى عقد (وحدة «العقود وعروض الأسعار»)؛
    *  غيابه يخفي زر التحويل — موديول المبيعات يحوّل لفاتورة حصرًا */
   onConvertToContract?: (q: QuotationRow) => void;
+  /** ر3 — تعبئة معالج العرض من فرصة بيع (د4): الشل يستلم الحمولة من شاشة الفرص ويلاحظها هنا */
+  presetFromOpportunity?: OpportunityQuotePreset | null;
+  /** استهلاك الحمولة مرة واحدة كي لا يعاد فتح النموذج في الرسم التالي */
+  onConsumeOpportunityPreset?: () => void;
 }
 
 interface ItemFormRow {
@@ -105,7 +111,14 @@ const EMPTY_FORM: QuoteFormState = {
   items: [{ ...EMPTY_ITEM }],
 };
 
-export function QuotesSection({ user, onAuthError, onOpenPos, onConvertToContract }: QuotesSectionProps) {
+export function QuotesSection({
+  user,
+  onAuthError,
+  onOpenPos,
+  onConvertToContract,
+  presetFromOpportunity,
+  onConsumeOpportunityPreset,
+}: QuotesSectionProps) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const manager = isManagerRole(user.role);
@@ -116,6 +129,24 @@ export function QuotesSection({ user, onAuthError, onOpenPos, onConvertToContrac
   const [form, setForm] = React.useState<QuoteFormState | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<QuotationRow | null>(null);
   const [convertTarget, setConvertTarget] = React.useState<QuotationRow | null>(null);
+  // ر3 — الفرصة المُصدَر منها العرض الجاري (ترسل مع الحفظ كي يحدث الربط ورفع المرحلة في معاملة الإصدار)
+  const [opportunityId, setOpportunityId] = React.useState<number | null>(null);
+  const [opportunityNumber, setOpportunityNumber] = React.useState("");
+
+  // ر3/د4 — استهلاك حمولة الفرصة مرة واحدة: يفتح نموذج الإنشاء معبأً (الوصف من الفرصة + العميل إن وُجد)
+  React.useEffect(() => {
+    if (presetFromOpportunity) {
+      setOpportunityId(presetFromOpportunity.opportunityId);
+      setOpportunityNumber(presetFromOpportunity.opportunityNumber);
+      setForm({
+        ...EMPTY_FORM,
+        items: [{ ...EMPTY_ITEM }],
+        customerId: presetFromOpportunity.customerId ? String(presetFromOpportunity.customerId) : "",
+        description: presetFromOpportunity.opportunityName || "",
+      });
+      onConsumeOpportunityPreset?.();
+    }
+  }, [presetFromOpportunity, onConsumeOpportunityPreset]);
 
   React.useEffect(() => {
     const t = setTimeout(() => setQ(searchInput.trim()), 300);
@@ -187,6 +218,8 @@ export function QuotesSection({ user, onAuthError, onOpenPos, onConvertToContrac
           quantity: Number(it.quantity) || 0,
           unitPrice: Number(it.unitPrice) || 0,
         })),
+        // ر3 — ربط العرض بالفرصة في معاملة الإصدار نفسها (د4) — للإنشاء الجديد من فرصة حصرًا
+        ...(f.id || !opportunityId ? {} : { opportunityId }),
       };
       return f.id ? apiPut(`/api/quotes/${f.id}`, body) : apiPost("/api/quotes", body);
     },
@@ -195,6 +228,8 @@ export function QuotesSection({ user, onAuthError, onOpenPos, onConvertToContrac
       const num = (d as { quotation?: { quotationNumber?: string } })?.quotation?.quotationNumber || "";
       toast({ title: f.id ? "تم تعديل عرض السعر ✅" : "أُنشئ عرض السعر ✅", description: num || undefined });
       setForm(null);
+      setOpportunityId(null);
+      setOpportunityNumber("");
     },
     onError: (e) => handleError(e, QUOTATION_ITEMS_REQUIRED),
   });
@@ -508,8 +543,17 @@ export function QuotesSection({ user, onAuthError, onOpenPos, onConvertToContrac
         </Table>
       </div>
 
-      {/* حوار الإنشاء/التعديل — مرآة حوار العملاء بشاشة كاملة */}
-      <Dialog open={form !== null} onOpenChange={(o) => !o && setForm(null)}>
+      {/* حوار الإنشاء/التعديل — مرآة حوار العملاء بشاشة كاملة — الإغلاق يصفّر سياق الفرصة (ر3) */}
+      <Dialog
+        open={form !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setForm(null);
+            setOpportunityId(null);
+            setOpportunityNumber("");
+          }
+        }}
+      >
         <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto" dir="rtl">
           <DialogHeader>
             <DialogTitle>{form?.id ? `تعديل العرض ${""}` : "عرض سعر جديد"}</DialogTitle>
@@ -517,6 +561,12 @@ export function QuotesSection({ user, onAuthError, onOpenPos, onConvertToContrac
               تُرقَّم آليًا QUO-#### — بنود بوصف وكمية وسعر، والحالة تُدار من القائمة.
             </DialogDescription>
           </DialogHeader>
+          {/* ر3 — شعار الفرصة: العرض المُصدَر منها يربطها ويرفع مرحلتها آليًا عند الحفظ (د4) */}
+          {!form?.id && !!opportunityId && (
+            <div className="rounded-lg border border-status-warn bg-status-warn-bg px-3 py-2 text-xs text-warn-ink">
+              إصدار عرض من الفرصة <span className="font-mono font-bold">{opportunityNumber}</span> — عند الحفظ تُربط الفرصة بهذا العرض وترتفع مرحلتها إلى «عُرض عليها» آليًا
+            </div>
+          )}
           {form && (
             <form
               className="space-y-3"

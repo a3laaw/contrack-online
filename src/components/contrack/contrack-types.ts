@@ -28,6 +28,8 @@ export type ViewName =
   | "warehouses"
   | "sales"
   | "maintenance"
+  | "opportunities"
+  | "purchase"
   | "projects"
   | "reports"
   | "reports-home"

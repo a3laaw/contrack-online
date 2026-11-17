@@ -15,6 +15,8 @@ import {
   QUOTATION_CUSTOMER_REQUIRED,
   QUOTATION_ITEMS_REQUIRED,
 } from "@/lib/quotes-core";
+// ر3 — فرص البيع: الربط ورفع المرحلة داخل معاملة الإصدار نفسها (د4 — docs/opportunities-design.md)
+import { autoStageForQuotationEvent } from "@/lib/opportunities-core";
 
 /**
  * عروض الأسعار — بند 12 من المرحلة 9.
@@ -60,6 +62,19 @@ export async function POST(req: NextRequest) {
 
   const items = cleanQuotationItems(body.items);
   if (items.length === 0) return jsonError(QUOTATION_ITEMS_REQUIRED, 400);
+
+  // ر3 — الفرصة المُصدَر منها العرض (اختياري): تتحقق خارج المعاملة وتُربط داخلها (د4)
+  const opportunityId = Number(body.opportunityId ?? 0) || 0;
+  if (opportunityId > 0) {
+    const opp = await db.opportunity.findUnique({
+      where: { id: opportunityId },
+      select: { id: true, opportunityNumber: true, stage: true },
+    });
+    if (!opp) return jsonError("الفرصة المرتبطة غير موجودة.", 400);
+    if (opp.stage === "مقبولة" || opp.stage === "مفقودة") {
+      return jsonError("الفرصة مقفلة — لا يُصدر منها عرض جديد.", 400);
+    }
+  }
 
   const status = typeof body.status === "string" && body.status && isQuotationStatus(body.status)
     ? body.status
@@ -123,6 +138,32 @@ export async function POST(req: NextRequest) {
           entityId: quotation.id,
           entityName: `${quotation.quotationNumber}`,
         });
+        // ر3 — ربط العرض بالفرصة ورفع مرحلتها إلى «عُرض عليها» داخل المعاملة نفسها (د4):
+        // quotationId = أول عرض صدر منها (لا يُستبدل)، والمرحلة تلقائية إذا لم تكن مقفلة
+        if (opportunityId > 0) {
+          const opp = await tx.opportunity.findUnique({
+            where: { id: opportunityId },
+            select: { id: true, opportunityNumber: true, stage: true, quotationId: true },
+          });
+          if (opp) {
+            const next = autoStageForQuotationEvent(opp.stage, "issued");
+            await tx.opportunity.update({
+              where: { id: opp.id },
+              data: {
+                ...(next ? { stage: next } : {}),
+                ...(opp.quotationId ? {} : { quotationId: quotation.id }),
+              },
+            });
+            await audit(tx, {
+              username: guard.user.username,
+              action: next ? `تحديث مرحلة الفرصة إلى «${next}» — إصدار عرض` : "ربط عرض إضافي بالفرصة",
+              entityType: "opportunity",
+              entityId: opp.id,
+              entityName: opp.opportunityNumber,
+              newStatus: next ?? undefined,
+            });
+          }
+        }
         return quotation;
       });
       break;

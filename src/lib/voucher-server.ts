@@ -776,6 +776,8 @@ export interface CreateVoucherInput {
   boqItemId?: number;
   costCenter?: string;
   expenseCustomerId?: number;
+  /** ر4 — د6 (docs/purchase-design.md): كشف حساب المورد بالربط المعرفي — مع partyType="supplier" */
+  supplierId?: number;
 }
 
 interface PreparedVoucher {
@@ -804,6 +806,7 @@ interface PreparedVoucher {
   costCenter: string;
   expenseCustomerId: number | null;
   boqItemId: number | null;
+  supplierId: number | null;
 }
 
 /** تجهيز بيانات السند والتحققات قبل المعاملة (فحوص السقوف برسائلها الحرفية) */
@@ -841,6 +844,7 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
     costCenter: String(input.costCenter || ""),
     expenseCustomerId: input.expenseCustomerId ? intOr(input.expenseCustomerId, 0) || null : null,
     boqItemId: input.boqItemId ? intOr(input.boqItemId, 0) || null : null,
+    supplierId: input.supplierId ? intOr(input.supplierId, 0) || null : null,
   };
 
   if (base.vtype === "receipt") {
@@ -991,6 +995,13 @@ export async function prepareVoucher(input: CreateVoucherInput, user: { id: numb
     }
     base.accountId = acc.id;
     base.accountSnapshot = acc.name;
+    // ر4 — د6: سند صرف مورد — تحقق الوجود فقط (لا منطق ترحيل جديد — قاعدة payment_expense كما هي)
+    if (base.partyType === "supplier") {
+      if (!base.supplierId) throw new VoucherError("المورد مطلوب لسند صرف مورد");
+      const sup = await db.supplier.findUnique({ where: { id: base.supplierId }, select: { name: true } });
+      if (!sup) throw new VoucherError("المورد غير موجود");
+      if (!base.party.trim()) base.party = sup.name; // لقطة الاسم للعرض
+    }
     if (base.partyType === "subcontractor" && base.partyId) {
       if (!base.contractId) throw new VoucherError("العقد مطلوب للصرف لمقاول باطن");
       if (!base.description.trim()) {
@@ -1113,6 +1124,7 @@ export async function createVoucherTx(
       boqItemId: prep.boqItemId,
       costCenter: prep.costCenter,
       expenseCustomerId: prep.expenseCustomerId,
+      supplierId: prep.supplierId,
       chequeDueDate: prep.chequeDueDate,
       allocation: prep.allocation,
     },

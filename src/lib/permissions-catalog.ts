@@ -52,6 +52,10 @@ export const PERMISSIONS: { key: string; label: string; group: string; secretary
   { key: "screen_sales", label: "شاشة المبيعات (عروض الأسعار/نقاط البيع)", group: "الشاشات", secretary: true },
   // مفتاح ويب-فقط لموديول الصيانة والتشغيل (docs/maintenance-design.md د10) — بلا مقابل مكتبي: secretary:true (شاشة تشغيلية)
   { key: "screen_maintenance", label: "شاشة الصيانة والتشغيل (العقود/الجدول الوقائي/أوامر العمل)", group: "الشاشات", secretary: true },
+  // مفتاح ويب-فقط لموديول فرص البيع (docs/opportunities-design.md د1) — بلا مقابل مكتبي: secretary:true (شاشة تشغيلية)
+  { key: "screen_opportunities", label: "شاشة فرص البيع (خط الأنابيب/إصدار العروض)", group: "الشاشات", secretary: true },
+  // مفتاح ويب-فقط لموديول الشراء (docs/purchase-design.md د1) — بلا مقابل مكتبي: secretary:true (شاشة تشغيلية)
+  { key: "screen_purchase", label: "شاشة الشراء (الموردون/أوامر الشراء/الاستلام)", group: "الشاشات", secretary: true },
   // مفتاح ويب-فقط لقسم المشاريع (مركز عمليات الموقع: اللوحة/التقرير اليومي/تنفيذ البنود)
   // — بلا مقابل مكتبي: secretary:true (شاشة تشغيلية ملك نشاط المقاولات)
   { key: "screen_projects", label: "شاشة المشاريع (اللوحة/التقرير اليومي/تنفيذ البنود)", group: "الشاشات", secretary: true },

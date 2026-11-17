@@ -84,6 +84,10 @@ const TENANT_MODELS = new Set<string>([
   "refList", "refItem", "refItemStage",
   // ربط القوائم المرجعية مع الدفعات: بنود القوائم على سطور خطة الدفعات — فصل الشركات بنفس القاعدة (درس T111)
   "refItemPayment",
+  // ر3 — فرص البيع (docs/opportunities-design.md): جدول واحد بخط أنابيب مغلق — فصل الشركات بنفس القاعدة (درس T111)
+  "opportunity",
+  // ر4 — الموردون وأوامر الشراء (docs/purchase-design.md): الرأس ثم بنوده — بنفس القاعدة بنفس الـcommit (درس T111)
+  "supplier", "purchaseOrder", "purchaseOrderItem",
   // تصحيح الجلسة 11: وثائق BOQ المستقلة (كوميت المرحلة أ) حملت company_id في المخطط
   // لكنها فاتتها قائمة الحجب — والمسارات تعتمد على الغلاف (findMany بلا where.companyId)
   // ⇒ تسريب بين الشركات على نمط درس T111 — تسجيلهما إلزامي

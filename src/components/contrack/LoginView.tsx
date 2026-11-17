@@ -27,6 +27,9 @@ import {
   Home,
   Utensils,
   Briefcase,
+  // ر3/ر4 — أيقونات الموديولين الجديدين
+  Target,
+  ShoppingCart,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -62,6 +65,9 @@ const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
   home: Home,
   utensils: Utensils,
   briefcase: Briefcase,
+  // ر3/ر4
+  target: Target,
+  "shopping-cart": ShoppingCart,
 };
 
 interface LoginViewProps {

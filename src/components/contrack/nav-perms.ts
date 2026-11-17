@@ -102,6 +102,9 @@ export const VIEW_PERMS: Partial<Record<ViewName, string>> = {
   warehouses: "screen_warehouses",
   sales: "screen_sales",
   maintenance: "screen_maintenance",
+  // ر3 — فرص البيع + ر4 — الشراء (docs/opportunities-design.md د1 · docs/purchase-design.md د1)
+  opportunities: "screen_opportunities",
+  purchase: "screen_purchase",
   vouchers: "screen_vouchers",
   statement: "screen_statement",
   custody: "screen_custody",

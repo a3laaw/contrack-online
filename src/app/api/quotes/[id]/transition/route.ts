@@ -7,6 +7,8 @@ import {
   quotationTransitionBlockedMessage,
   QUOTATION_INVALID_STATUS,
 } from "@/lib/quotes-core";
+// ر3 — المزامنة الآلية مع الفرصة المرتبطة داخل معاملة الحدث (د4 — docs/opportunities-design.md)
+import { autoStageForQuotationEvent, AUTO_LOST_REASON } from "@/lib/opportunities-core";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -54,6 +56,36 @@ export async function POST(req: NextRequest, { params }: P) {
       oldStatus: existing.status,
       newStatus: row.status,
     });
+    // ر3 — قبول العرض ⇒ الفرصة «مقبولة» آليًا · رفضه ⇒ «مفقودة» بسبب افتراضي قابل للتعديل (د4)
+    // — داخل معاملة حدث العرض نفسها (لا مسار كتابة ثانٍ)، والمقفلة لا تتحرك أصلًا
+    if (status === "مقبول" || status === "مرفوض") {
+      const opp = await tx.opportunity.findFirst({
+        where: { quotationId: id },
+        select: { id: true, opportunityNumber: true, stage: true, lostReason: true },
+      });
+      if (opp) {
+        const event = status === "مقبول" ? "accepted" as const : "rejected" as const;
+        const next = autoStageForQuotationEvent(opp.stage, event);
+        if (next) {
+          await tx.opportunity.update({
+            where: { id: opp.id },
+            data: {
+              stage: next,
+              ...(event === "rejected" && !String(opp.lostReason ?? "").trim() ? { lostReason: AUTO_LOST_REASON } : {}),
+            },
+          });
+          await audit(tx, {
+            username: guard.user.username,
+            action: `تحديث مرحلة الفرصة إلى «${next}» — ${status === "مقبول" ? "قبول" : "رفض"} العرض`,
+            entityType: "opportunity",
+            entityId: opp.id,
+            entityName: opp.opportunityNumber,
+            oldStatus: opp.stage,
+            newStatus: next,
+          });
+        }
+      }
+    }
     return row;
   });
 

@@ -159,6 +159,8 @@ export async function POST(req: NextRequest) {
     boqItemId: body.boqItemId ? Number(body.boqItemId) : undefined,
     costCenter: String(body.costCenter || ""),
     expenseCustomerId: body.expenseCustomerId ? Number(body.expenseCustomerId) : undefined,
+    // ر4 — د6 (docs/purchase-design.md): كشف المورد بالربط المعرفي مع partyType="supplier"
+    supplierId: body.supplierId ? Number(body.supplierId) : undefined,
   };
 
   try {

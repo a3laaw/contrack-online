@@ -41,9 +41,13 @@ import { SubcontractorsView } from "./SubcontractorsView";
 import { ConsultingView, type ConsultingSection } from "./ConsultingView";
 import { HRView, type HRSection } from "./HRView";
 import { WarehousesView, type WarehousesSection } from "./WarehousesView";
+import { PurchaseView, type PurchaseSection } from "./PurchaseView";
 import { SalesView } from "./SalesView";
 import { QuotationsContractsView } from "./QuotationsContractsView";
+import { OpportunitiesView } from "./OpportunitiesView";
 import type { QuotationContractPreset, QuotationRow } from "@/lib/quotes-core";
+// ر3 — فرص البيع: حمولة إصدار العرض من الفرصة (د4)
+import type { OpportunityQuotePreset } from "@/lib/opportunities-core";
 import { MaintenanceView, type MaintenanceSection } from "./MaintenanceView";
 import { ProjectsView } from "./ProjectsView";
 import { RefListsView, type RefListsSection } from "./RefListsView";
@@ -138,9 +142,13 @@ function AppRoot() {
   const [hrSection, setHrSection] = React.useState<HRSection>("team");
   // المخازن — قسم الشاشة الموحدة (مرآة أقسام HR/الاستشارات)
   const [warehousesSection, setWarehousesSection] = React.useState<WarehousesSection>("items");
+  // ر4 — الشراء: لوحتا الموديول (أوامر الشراء/الموردون)
+  const [purchaseSection, setPurchaseSection] = React.useState<PurchaseSection>("orders");
   // المبيعات — نقاط البيع حصرًا بعد نقل العروض إلى وحدة qc (قرار المالك)
   // وحدة «العقود وعروض الأسعار» — عرض مقبول يتحول إلى عقد: معالج العقد يُفتح معبأً في تبويب العقود
   const [quoteContractPreset, setQuoteContractPreset] = React.useState<QuotationContractPreset | null>(null);
+  // ر3 — فرص البيع: حمولة إصدار العرض من الفرصة تفتح معالج العرض القائم معبأً (د4)
+  const [opportunityQuotePreset, setOpportunityQuotePreset] = React.useState<OpportunityQuotePreset | null>(null);
   // الصيانة والتشغيل — قسم الشاشة الموحدة (عقود/جدول/أوامر)
   const [maintenanceSection, setMaintenanceSection] = React.useState<MaintenanceSection>("contracts");
   // المشاريع — قسم مركز عمليات الموقع (لوحة/تقرير يومي/تنفيذ بنود)
@@ -170,6 +178,13 @@ function AppRoot() {
           "wh-items")
         : view === "sales"
         ? "sales-pos"
+        // ر3 — فرص البيع: بند شل وحيد
+        : view === "opportunities"
+        ? "crm-pipeline"
+        // ر4 — الشراء — القسمان يُحلان بمطابقة view+section
+        : view === "purchase"
+        ? (NAV_MODULES.flatMap((m) => m.children).find((c) => c.view === "purchase" && c.section === purchaseSection)?.id ??
+          "pu-orders")
         // وحدة «العقود وعروض الأسعار» — قسم العروض (العقود/التقدم/المجموعات تُحلّ بمطابقة view نفسه)
         : view === "quotes-contracts"
         ? "qc-quotes"
@@ -210,6 +225,8 @@ function AppRoot() {
       if (child.view === "hr" && child.section) setHrSection(child.section as HRSection);
       if (child.view === "warehouses" && child.section) setWarehousesSection(child.section as WarehousesSection);
       if (child.view === "maintenance" && child.section) setMaintenanceSection(child.section as MaintenanceSection);
+      // ر4 — الشراء: لوحتا الموديول
+      if (child.view === "purchase" && child.section) setPurchaseSection(child.section as PurchaseSection);
       if (child.view === "projects" && child.section) setProjectsSection(child.section as ProjectsSection);
       if (child.view === "ref-lists" && child.section) setRefListsSection(child.section as RefListsSection);
       setView(child.view);
@@ -362,6 +379,15 @@ function AppRoot() {
     [navigate]
   );
 
+  // ر3 — إصدار عرض من فرصة بيع (د4): الشل يستلم الحمولة من الخادم ويفتح معالج العرض القائم معبأً
+  const issueQuoteFromOpportunity = React.useCallback(
+    (preset: OpportunityQuotePreset) => {
+      setOpportunityQuotePreset(preset);
+      navigate("quotes-contracts");
+    },
+    [navigate]
+  );
+
   // لوحة المطور (Task 97/100): «رجوع للوحة» من شريط التمييز أو زر الدرع —
   // المطور بلا شركة: إن كان داخل شركة يُعاد إصدار التوكن بسياق 0 (بلا شركة) ثم إعادة تحميل
   // بعلامة فتح اللوحة؛ وإن كان بلا شركة أصلًا فتح مباشر
@@ -436,8 +462,20 @@ function AppRoot() {
       )}
       {/* وحدة «العقود وعروض الأسعار» المستقلة (قرار المالك) — قسم العروض مع التحويل إلى عقد */}
       {view === "quotes-contracts" && (
-        <QuotationsContractsView user={user} onAuthError={onAuthError} onConvertToContract={convertQuoteToContract} />
+        <QuotationsContractsView
+          user={user}
+          onAuthError={onAuthError}
+          onConvertToContract={convertQuoteToContract}
+          presetFromOpportunity={opportunityQuotePreset}
+          onConsumeOpportunityPreset={() => setOpportunityQuotePreset(null)}
+        />
       )}
+      {/* ر3 — شاشة فرص البيع: خط الأنابيب قبل التسعير — الإصدار عبر معالج العروض القائم (د4) */}
+      {view === "opportunities" && (
+        <OpportunitiesView user={user} onAuthError={onAuthError} onIssueQuote={issueQuoteFromOpportunity} />
+      )}
+      {/* ر4 — شل الشراء: لوحتا أوامر الشراء والموردون (د1) */}
+      {view === "purchase" && <PurchaseView user={user} onAuthError={onAuthError} section={purchaseSection} />}
       {/* لوحة «أين وصلنا» — ربط العقود بمراحل العمل وموقع التقدم (قرار المالك 2026-11) */}
       {view === "contract-progress" && (
         <ContractProgressView user={user} perms={perms} onAuthError={onAuthError} onOpenContract={openContract} />

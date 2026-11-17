@@ -76,6 +76,11 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "numberSequence", table: "number_sequences", serial: false },
   // ===== العملاء والعقود =====
   { model: "customer", table: "customers", serial: true },
+  // إصلاح فجوة موروثة بنمط درس T112 (مع ر3/ر4): projects وquotations/quotation_items كانت غائبة عن
+  // النسخ الاحتياطي رغم FK عليها من الجداول المسجلة — تُسجل قبل الفرص وعرض الأسعار المربوطة بها
+  { model: "project", table: "projects", serial: true },
+  // ر4 — الموردون: قبل السندات (voucher.supplier_id SetNull — docs/purchase-design.md د6)
+  { model: "supplier", table: "suppliers", serial: true },
   { model: "contractType", table: "contract_types", serial: true },
   { model: "workflowStage", table: "workflow_stages", serial: true }, // FK ذاتي
   { model: "paymentMethod", table: "payment_methods", serial: true },
@@ -91,6 +96,8 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "contractStage", table: "contract_stages", serial: true },
   { model: "boqItem", table: "boq_items", serial: true },
   { model: "paymentPlanItem", table: "payment_plan", serial: true },
+  // ر4 — أوامر الشراء: الرأس (FK مورد فوق + عقد فوق) قبل بنوده التي تحتاج stock_items (أسفل)
+  { model: "purchaseOrder", table: "purchase_orders", serial: true },
   // ===== الباطن =====
   { model: "subcontractor", table: "subcontractors", serial: true },
   { model: "subContract", table: "sub_contracts", serial: true },
@@ -113,6 +120,10 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   // ===== المجموعات والفواتير =====
   { model: "contractGroup", table: "contract_groups", serial: true },
   { model: "contractGroupItem", table: "contract_group_items", serial: true },
+  // ر3 — فرص البيع: بعد العملاء والمشاريع والعروض (FK: customer/quotation SetNull — docs/opportunities-design.md)
+  { model: "quotation", table: "quotations", serial: true },
+  { model: "quotationItem", table: "quotation_items", serial: true },
+  { model: "opportunity", table: "opportunities", serial: true },
   // Task 107 — الفواتير ببنودها وروابط سدادها (الرأس ثم البنود ثم الروابط — FK على voucher أعلاه)
   { model: "invoice", table: "invoices", serial: true },
   { model: "invoiceItem", table: "invoice_items", serial: true },
@@ -176,6 +187,8 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   // ===== المخازن — بعد القيود والأقسام (FK: journal_entry SetNull · مستودع/صنف/عقد Cascade — كلها فوق) =====
   { model: "warehouse", table: "warehouses", serial: true },
   { model: "stockItem", table: "stock_items", serial: true },
+  // ر4 — بنود أوامر الشراء: بعد stock_items (FK صنف Restrict — د2) وقبل stock_docs (purchase_order_id عليها)
+  { model: "purchaseOrderItem", table: "purchase_order_items", serial: true },
   { model: "stockDoc", table: "stock_docs", serial: true }, // بعد warehouse/stockItem/journalEntries/contracts
   { model: "stockDocLine", table: "stock_doc_lines", serial: true }, // بعد stockDoc (FK Cascade)
   // ===== الصيانة والتشغيل — بعد العقود والفواتير والأذون (FK: contract Cascade · occurrence/invoice/stockDoc/visitStaff) =====

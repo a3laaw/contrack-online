@@ -7,10 +7,12 @@
  * العرض آليًا «تحويل إلى عقد»)، وتبويب العقود يعرض القائمة القائمة (view contracts)
  * مع «أين وصلنا» و«مجموعات العقود» — كلها بنود هذه الوحدة في الشل.
  * التنقل بين القسمين عبر الشل (ModuleTabsBar في الهاتف) — لا شريط تابات داخلي.
+ * ر3 — إصدار عرض من فرصة بيع: حمولة الفرصة تمر عبر الشل إلى معالج العرض نفسه (د4).
  */
 
 import * as React from "react";
 
+import type { OpportunityQuotePreset } from "@/lib/opportunities-core";
 import type { QuotationRow } from "@/lib/quotes-core";
 import type { User } from "./contrack-types";
 import { QuotesSection } from "./sales/QuotesSection";
@@ -20,9 +22,19 @@ interface QuotationsContractsViewProps {
   onAuthError: () => void;
   /** تحويل عرض مقبول إلى عقد — يفتح معالج العقد معبأً في تبويب العقود (ConTrackApp) */
   onConvertToContract: (q: QuotationRow) => void;
+  /** ر3 — تعبئة معالج العرض من فرصة بيع (إصدار عرض من الفرصة — د4) */
+  presetFromOpportunity?: OpportunityQuotePreset | null;
+  /** استهلاك الحمولة مرة واحدة كي لا يعاد فتح المعالج في الرسم التالي */
+  onConsumeOpportunityPreset?: () => void;
 }
 
-export function QuotationsContractsView({ user, onAuthError, onConvertToContract }: QuotationsContractsViewProps) {
+export function QuotationsContractsView({
+  user,
+  onAuthError,
+  onConvertToContract,
+  presetFromOpportunity,
+  onConsumeOpportunityPreset,
+}: QuotationsContractsViewProps) {
   return (
     <div className="space-y-4">
       {/* العنوان */}
@@ -34,7 +46,13 @@ export function QuotationsContractsView({ user, onAuthError, onConvertToContract
       </div>
 
       {/* قسم العروض — نافذة الوحدة الأولى */}
-      <QuotesSection user={user} onAuthError={onAuthError} onConvertToContract={onConvertToContract} />
+      <QuotesSection
+        user={user}
+        onAuthError={onAuthError}
+        onConvertToContract={onConvertToContract}
+        presetFromOpportunity={presetFromOpportunity}
+        onConsumeOpportunityPreset={onConsumeOpportunityPreset}
+      />
     </div>
   );
 }

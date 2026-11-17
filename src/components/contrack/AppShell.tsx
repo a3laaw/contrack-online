@@ -403,6 +403,8 @@ const MODULE_TONE: Record<string, { tile: string; icon: string }> = {
   maintenance: { tile: "bg-info-tile", icon: "text-info-blue-text" },
   hr: { tile: "bg-brand-yellow-tile", icon: "text-warn-ink" },
   consulting: { tile: "bg-brand-yellow-tile", icon: "text-warn-ink" },
+  opportunities: { tile: "bg-brand-gold-tile", icon: "text-brand-orange" },
+  purchase: { tile: "bg-info-tile", icon: "text-info-blue-text" },
   reports: { tile: "bg-hover", icon: "text-muted-foreground" },
   refs: { tile: "bg-hover", icon: "text-muted-foreground" },
   settings: { tile: "bg-hover", icon: "text-muted-foreground" },

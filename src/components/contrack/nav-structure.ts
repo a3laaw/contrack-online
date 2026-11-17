@@ -63,6 +63,10 @@ import {
   BookMarked,
   // المناطق — الهرمية الجغرافية
   MapPin,
+  // ر3 — فرص البيع + ر4 — الشراء
+  Target,
+  ShoppingCart,
+  Truck,
 } from "lucide-react";
 
 import type { ViewName } from "./contrack-types";
@@ -97,6 +101,8 @@ export type ModuleId =
   | "warehouses"
   | "sales"
   | "maintenance"
+  | "opportunities"
+  | "purchase"
   | "accounting"
   | "reports"
   // القوائم المرجعية (الجلسة 11) — مركز البيانات المرجعية المشتركة بين كل الأنشطة
@@ -253,8 +259,9 @@ export const NAV_MODULES: NavModule[] = [
     top: [
       { id: "t-con-projects", children: ["consulting-projects"] },
       { id: "t-con-team", children: ["consulting-team"] },
-      { id: "t-con-assign", label: "الإسناد", children: ["consulting-assignments"] },
-      { id: "t-con-timesheets", children: ["consulting-timesheets"] },
+      // إصلاح موروث (مع ر3/ر4): «ب» أضاف المشاريع الاستشارية قسمًا سابعًا فكسرت سقف 6 الأقسام
+      // (الجلسة 15) — والإسناد والساعات وجهان لنفس العمل اليومي (هدف مزدوج) فدُمجا قسمًا واحدًا
+      { id: "t-con-assign", label: "الإسناد والساعات", children: ["consulting-assignments", "consulting-timesheets"] },
       { id: "t-con-revisions", label: "المراجعات", children: ["consulting-revisions"] },
       { id: "t-con-leaves", children: ["consulting-leaves"] },
       { id: "t-con-radar", children: ["consulting-radar"] },
@@ -319,6 +326,27 @@ export const NAV_MODULES: NavModule[] = [
       { id: "mt-contracts", label: "عقود الصيانة", icon: FileSignature, view: "maintenance", section: "contracts", perm: "screen_maintenance" },
       { id: "mt-schedule", label: "الجدول الوقائي", icon: CalendarClock, view: "maintenance", section: "schedule", perm: "screen_maintenance" },
       { id: "mt-orders", label: "أوامر العمل", icon: NotebookPen, view: "maintenance", section: "orders", perm: "screen_maintenance" },
+    ],
+  },
+  {
+    // ر3 — فرص البيع (docs/opportunities-design.md §6): خط أنابيب واحد قبل التسعير —
+    // إصدار العرض يفتح معالج العروض القائم معبأً (لا شاشة عروض ثانية — G3)
+    id: "opportunities" as ModuleId,
+    label: "فرص البيع",
+    icon: Target,
+    children: [
+      { id: "crm-pipeline", label: "خط الفرص", icon: Target, view: "opportunities", perm: "screen_opportunities" },
+    ],
+  },
+  {
+    // ر4 — الشراء (docs/purchase-design.md §6): لوحتا الموديول — أوامر الشراء والموردون
+    // (الاستلام يولّد إذن إدخال آليًا عبر دالة المخازن، والسداد سند صرف مورد)
+    id: "purchase" as ModuleId,
+    label: "الشراء",
+    icon: ShoppingCart,
+    children: [
+      { id: "pu-orders", label: "أوامر الشراء", icon: ShoppingCart, view: "purchase", section: "orders", perm: "screen_purchase" },
+      { id: "pu-suppliers", label: "الموردون", icon: Truck, view: "purchase", section: "suppliers", perm: "screen_purchase" },
     ],
   },
   {

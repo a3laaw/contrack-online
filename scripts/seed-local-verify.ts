@@ -43,8 +43,8 @@ async function main() {
   } else {
     console.log("admin already bound to", admin.companyId);
   }
-  // الموديولات كلها فعّالة للشركة (استشارات/موارد/مخازن/مبيعات/صيانة/مقاولات)
-  for (const code of ["consulting", "hr", "warehouses", "sales", "maintenance", "contracting"]) {
+  // الموديولات كلها فعّالة للشركة (استشارات/موارد/مخازن/مبيعات/صيانة/مقاولات/فرص البيع/الشراء)
+  for (const code of ["consulting", "hr", "warehouses", "sales", "maintenance", "contracting", "crm", "purchase"]) {
     const exists = await db.companyModule.findFirst({ where: { companyId: c.id, code } });
     if (!exists) {
       await db.companyModule.create({ data: { companyId: c.id, code, status: "active" } as never });

@@ -91,6 +91,28 @@ export const MODULE_CATALOG: ModuleDef[] = [
     core: false,
     navModules: ["maintenance"],
   },
+  {
+    // ر3 — فرص البيع (docs/opportunities-design.md — اعتماد المالك «كليهما معًا»):
+    // موديول مستقل لا يُقترح آليًا من Onboarding (د1) — التفعيل يدوي من الإعدادات حصرًا
+    code: "crm",
+    name: "فرص البيع",
+    icon: "target",
+    desc: "خط أنابيب الفرص التجارية قبل التسعير (جديدة ← مؤهَّلة ← عُرض عليها ← مقبولة/مفقودة) — إصدار عرض السعر من الفرصة عبر معالج العروض القائم ومزامنة آلية عند القبول والرفض",
+    available: true,
+    core: false,
+    navModules: ["opportunities"],
+  },
+  {
+    // ر4 — الموردون وأوامر الشراء (docs/purchase-design.md — اعتماد المالك «كليهما معًا»):
+    // صفر محركات جديدة — الاستلام يولّد إذن إدخال آليًا عبر دالة المخازن، والسداد سند صرف مورد
+    code: "purchase",
+    name: "الشراء",
+    icon: "shopping-cart",
+    desc: "الموردون وأوامر شراء المواد — استلام جزئي أو كلي يولّد إذن إدخال آليًا بلقطة سعر الأمر، وسداد بسند صرف مورد، وطباعة الأمر PDF",
+    available: true,
+    core: false,
+    navModules: ["purchase"],
+  },
 ];
 
 /** كود موديول الأساس (المحاسبة) — مشمول دائمًا حتى بلا صفوف company_modules */
