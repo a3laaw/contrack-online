@@ -54,6 +54,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "./api";
 import { CustomerEditPage } from "./CustomerEditPage";
+import { CustomerFollowupTasks } from "./CustomerFollowupTasks";
+import { CustomerStatementPanel } from "./CustomerStatementPanel";
 import { ContractDetailView } from "./ContractDetailView";
 import type {
   CustomerAttachment,
@@ -122,7 +124,7 @@ export interface CustomerFilePageProps {
   onOpenCommentsCenter?: () => void;
 }
 
-type PageKey = "overview" | "contracts";
+type PageKey = "overview" | "contracts" | "statement" | "followup";
 
 export function CustomerFilePage({
   customerId,
@@ -398,20 +400,26 @@ export function CustomerFilePage({
         </CardContent>
       </Card>
 
-      {/* ===== شريط التنقل (تبويبان فقط كالمصدر) ===== */}
+      {/* ===== شريط التنقل — ر2: 4 تبويبات (البيانات · العقود · الكشف المالي · التعليقات والمتابعة) ===== */}
       <Tabs value={page} onValueChange={(v) => switchPage(v as PageKey)}>
-        <TabsList className="grid w-full max-w-md grid-cols-2 sm:w-fit sm:max-w-none">
+        <TabsList className="grid w-full max-w-2xl grid-cols-2 gap-1 sm:grid-cols-4 sm:w-fit sm:max-w-none">
           <TabsTrigger value="overview" className="h-9">
             عام
           </TabsTrigger>
           <TabsTrigger value="contracts" className="h-9">
             العقود والتفاصيل
           </TabsTrigger>
+          <TabsTrigger value="statement" className="h-9">
+            الكشف المالي
+          </TabsTrigger>
+          <TabsTrigger value="followup" className="h-9">
+            التعليقات والمتابعة
+          </TabsTrigger>
         </TabsList>
 
         {/* ==================== تبويب «عام» (مقابل _page_overview) ==================== */}
         <TabsContent value="overview" className="mt-3 space-y-4">
-          <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="space-y-4">
             {/* العمود الرئيسي */}
             <div className="min-w-0 space-y-4">
               {/* ملخص العميل */}
@@ -532,16 +540,6 @@ export function CustomerFilePage({
               </Card>
             </div>
 
-            {/* لوحة التعليقات الجانبية (مدمجة في «عام» كالمصدر) — لاصقة على الشاشات العريضة كي لا يبقى فراغ تحتها */}
-            <div className="min-w-0 xl:sticky xl:top-0">
-              <CommentsPanel
-                customerId={customerId}
-                contracts={contracts.map((c) => ({ id: c.id, name: c.name || c.contractNumber, contractNumber: c.contractNumber }))}
-                user={user}
-                onAuthError={onAuthError}
-                onError={handleError}
-              />
-            </div>
           </div>
         </TabsContent>
 
@@ -556,6 +554,33 @@ export function CustomerFilePage({
             onSelectContract={setSelectedContractId}
             onLeaveDetail={refreshFile}
           />
+        </TabsContent>
+
+        {/* ==================== تبويب «الكشف المالي» — ر2 ملف العميل الموحد ==================== */}
+        <TabsContent value="statement" className="mt-3">
+          <CustomerStatementPanel
+            customerId={customerId}
+            customerName={customer?.name || ""}
+            onAuthError={onAuthError}
+          />
+        </TabsContent>
+
+        {/* ==================== تبويب «التعليقات والمتابعة» — ر2 ملف العميل الموحد ==================== */}
+        <TabsContent value="followup" className="mt-3">
+          <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <div className="min-w-0">
+              <CustomerFollowupTasks customerId={customerId} onAuthError={onAuthError} onError={handleError} />
+            </div>
+            <div className="min-w-0 xl:sticky xl:top-0">
+              <CommentsPanel
+                customerId={customerId}
+                contracts={contracts.map((c) => ({ id: c.id, name: c.name || c.contractNumber, contractNumber: c.contractNumber }))}
+                user={user}
+                onAuthError={onAuthError}
+                onError={handleError}
+              />
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
 

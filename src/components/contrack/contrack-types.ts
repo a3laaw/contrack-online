@@ -1303,16 +1303,26 @@ export interface ContractStatementResponse {
   totals: StatementTotals;
 }
 
-export interface CustomerStatementSection {
-  contract: { contractNumber: string; customerName: string; contractId?: number };
-  rows: StatementRow[];
-  subtotal: { debit: number; credit: number };
-}
-
-/** GET /api/statement/customer/[id]?contractId&from&to */
+/** GET /api/statement/customer/[id]?contractId&from&to — كشف مدمج زمنيًا مع «إجمالي العقد» لكل عقد و«الإجمالي العام» (buildCustomerStatement) */
 export interface CustomerStatementResponse {
-  sections: CustomerStatementSection[];
+  customer: { id: number; name: string; customerCode: string; phone: string };
+  contracts: { id: number; contractNumber: string; contractName: string; contractDate: string }[];
+  contract: number | null;
+  rows: StatementRow[];
   totals: StatementTotals;
+  opening: number;
+  contractsCount: number;
+  dateFrom: string;
+  dateTo: string;
+  perContract: {
+    contractId: number;
+    contractNumber: string;
+    opening: number;
+    debit: number;
+    credit: number;
+    balance: number;
+    remaining: number;
+  }[];
 }
 
 /** GET /api/statement/subcontractor/[id]?from&to */

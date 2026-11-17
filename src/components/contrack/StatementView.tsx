@@ -37,7 +37,6 @@ import type {
   ContractStatementResponse,
   CustomerStatementResponse,
   CustomersResponse,
-  StatementRow,
   StatementTarget,
   SubContractorsResponse,
   SubcontractorStatementResponse,
@@ -175,33 +174,8 @@ export function StatementView({ user: _user, onAuthError, presetTarget, onConsum
     }
   }, [contractStatementQuery.error, customerStatementQuery.error, subStatementQuery.error, onAuthError]);
 
-  // ===== تركيب صفوف كشف العميل الشامل: قسم لكل عقد + مجموع العقد =====
-  const customerSections = customerStatementQuery.data?.sections ?? [];
-  const composedRows: StatementRow[] = React.useMemo(() => {
-    const rows: StatementRow[] = [];
-    for (const sec of customerSections) {
-      rows.push({
-        date: "",
-        ref: sec.contract.contractNumber,
-        desc: `${sec.contract.customerName} — عقد ${sec.contract.contractNumber}`,
-        debit: 0,
-        credit: 0,
-        balance: 0,
-        kind: "section",
-      });
-      rows.push(...(sec.rows ?? []));
-      rows.push({
-        date: "",
-        ref: "",
-        desc: `مجموع عقد ${sec.contract.contractNumber}`,
-        debit: sec.subtotal?.debit ?? 0,
-        credit: sec.subtotal?.credit ?? 0,
-        balance: 0,
-        kind: "subtotal",
-      });
-    }
-    return rows;
-  }, [customerSections]);
+  // ===== كشف العميل الشامل: مدمج زمنيًا من الخادم مع «إجمالي العقد» لكل عقد و«الإجمالي العام" =====
+  const customerRows = customerStatementQuery.data?.rows ?? [];
 
   const contractData = contractStatementQuery.data ?? null;
   const subData = subStatementQuery.data ?? null;
@@ -498,11 +472,11 @@ export function StatementView({ user: _user, onAuthError, presetTarget, onConsum
             {selectedCustomerName && (
               <p className="text-xs text-muted-foreground">
                 الكشف الشامل للعميل: <span className="font-medium text-foreground">{selectedCustomerName}</span> —{" "}
-                {customerSections.length} عقد/أقسام
+                {customerStatementQuery.data?.contractsCount ?? 0} عقد
               </p>
             )}
             <StatementTable
-              rows={composedRows}
+              rows={customerRows}
               totals={customerStatementQuery.data?.totals ?? null}
               loading={customerStatementQuery.isLoading}
               emptyMessage="لا عقود أو حركات لهذا العميل في هذه الفترة"

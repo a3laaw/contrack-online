@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   // تحديث 2026-11-16: Next 16.1.3 نقل المفتاح — turbopack.memoryLimit غير معترف
   // به وتجاهله أدى لعودة oom-kill أثناء ترجمة / — الصيغة الصحيحة هنا:
   // experimental.turbopackMemoryLimit (config-schema.js:297).
-  experimental: { turbopackMemoryLimit: 2048 },
+  experimental: { turbopackMemoryLimit: 768 },
   // المرحلة 8: كروميوم خادمي لتوليد PDF — نُبقي الحزم خارج حزمة الباندل
   // ويُضمَّن مجلد @sparticuz/chromium كاملًا (الثنائية المضغوطة chromium.br)
   // في تتبع ملفات الـserverless وإلا فشل executablePath() على Vercel.
