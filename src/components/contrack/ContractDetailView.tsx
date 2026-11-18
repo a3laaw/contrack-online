@@ -127,6 +127,7 @@ import { ContractBoqPage } from "./ContractBoqPage";
 import { BoqImportDialog } from "./BoqImportDialog";
 import { ScheduleImportDialog } from "./ScheduleImportDialog";
 import { ScheduleSection } from "./ScheduleSection";
+import { ForecastSection } from "./ForecastSection";
 import { validatePlannedWindow } from "@/lib/schedule-items-core";
 import type { ScheduleStateDTO } from "@/lib/schedule-types";
 import { ContractSupervisionPage } from "./ContractSupervisionPage";
@@ -3056,6 +3057,10 @@ function PayPage({
           )}
         </CardContent>
       </Card>
+
+      {/* ⑤-م م1 — قسم «التنبؤ بالأعمال»: المصالحة بين الرسمي والميداني + التحذيرات + منحنى S
+          (docs/daily-report-forecast-design.md §3.3 — قراءة حصرًا: مقترحات لا أفعال) */}
+      <ForecastSection contractId={contractId} />
 
       {/* ⑤-ب البرنامج الزمني والتنفيذ الميداني انتقلا لصفحة «بنود الكميات BOQ» المستقلة */}
     </div>

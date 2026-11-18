@@ -970,6 +970,65 @@ export interface BoqTimelineResponse {
   events: BoqTimelineEvent[];
 }
 
+// ==================== م1 — المصالحة: التنبؤ بالأعمال (daily-report-forecast §9) ====================
+
+export interface ForecastRowDTO {
+  boqItemId: number;
+  itemNo: string;
+  divisionCode: string;
+  divisionName: string;
+  description: string;
+  unit: string;
+  contractQty: number;
+  unitPrice: number;
+  fieldQty: number;
+  documentedQty: number;
+  officialQty: number;
+  /** الفجوة = ميداني − رسمي — موجبة مستحق قادم · سالبة استباق */
+  gapQty: number;
+  gapValue: number;
+  remainingQty: number;
+  fieldAmount: number;
+  officialAmount: number;
+  ratePerDay: number;
+  expectedFinish: string | null;
+}
+
+export interface ForecastTotalsDTO {
+  expectedNextIpc: number;
+  totalGapValue: number;
+  fieldAmount: number;
+  officialAmount: number;
+  coveragePct: number;
+}
+
+export interface ForecastSCurvePoint {
+  date: string;
+  fieldCum: number;
+  officialCum: number;
+}
+
+export interface ForecastWarningDTO {
+  kind: "late_billing" | "overrun" | "stalled";
+  boqItemId: number;
+  itemNo: string;
+  description: string;
+  title: string;
+  message: string;
+  value: number;
+}
+
+export interface ForecastResponse {
+  mode: "live" | "historical";
+  asOf: string | null;
+  today: string;
+  rows: ForecastRowDTO[];
+  totals: ForecastTotalsDTO;
+  sCurve: ForecastSCurvePoint[];
+  warnings: ForecastWarningDTO[];
+}
+
+
 // ==================== التنفيذ الميداني — مقايسة التنفيذ (بند NOVA 5) ====================
 
 export interface TakeoffItemDTO {
