@@ -165,3 +165,67 @@ describe("summarizeTakeoff — مجاميع المقايسة على مستوى �
     expect(t.executedAmount).toBe(0);
   });
 });
+
+// ============================================================
+// د1 — ربط الزيارات (docs/daily-report-forecast-design.md §2.1/§2.2)
+// ============================================================
+
+import {
+  validateVisitLink,
+  visitLabel,
+  type VisitLinkRow,
+} from "../src/lib/field-execution-core";
+
+const visitRow = (over: Partial<VisitLinkRow>): VisitLinkRow => ({
+  id: 7,
+  contractId: null,
+  visitDate: "2026-11-18",
+  hourSlot: "09:00",
+  ...over,
+});
+
+describe("validateVisitLink — ربط سجل التنفيذ بزيارة (د1)", () => {
+  test("فارغ/0/undefined ⇒ بلا زيارة — سلوك القائم حرفيًا (توافق خلفي)", () => {
+    expect(validateVisitLink(undefined, 5, null)).toEqual({ ok: true });
+    expect(validateVisitLink(0, 5, null)).toEqual({ ok: true });
+    expect(validateVisitLink("", 5, null)).toEqual({ ok: true });
+    expect(validateVisitLink(null, 5, null)).toEqual({ ok: true });
+  });
+
+  test("رقم صحيح وزيارة عامة (بلا عقد) ⇒ مقبول لأي عقد", () => {
+    expect(validateVisitLink(7, 5, visitRow({}))).toEqual({ ok: true, value: 7 });
+  });
+
+  test("زيارة لنفس العقد ⇒ مقبولة", () => {
+    expect(validateVisitLink("7", 12, visitRow({ contractId: 12 }))).toEqual({ ok: true, value: 7 });
+  });
+
+  test("زيارة لعقد آخر ⇒ مرفوضة برسالة عربية صريحة", () => {
+    const r = validateVisitLink(7, 5, visitRow({ contractId: 9 }));
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe("الزيارة مرتبطة بعقد آخر — لا يمكن ربطها بسجل تنفيذ هذا العقد");
+  });
+
+  test("الزيارة غير موجودة ⇒ مرفوضة", () => {
+    const r = validateVisitLink(99, 5, null);
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe("الزيارة غير موجودة");
+  });
+
+  test("معرف غير صالح (سالب/كسري/نص فاسد) ⇒ مرفوض", () => {
+    expect(validateVisitLink(-3, 5, visitRow({})).error).toBe("معرف الزيارة غير صالح");
+    expect(validateVisitLink(2.5, 5, visitRow({})).error).toBe("معرف الزيارة غير صالح");
+    expect(validateVisitLink("abc", 5, visitRow({})).error).toBe("معرف الزيارة غير صالح");
+  });
+
+  test("نص «0» أو فراغات ⇒ بلا زيارة", () => {
+    expect(validateVisitLink("  ", 5, visitRow({}))).toEqual({ ok: true });
+    expect(validateVisitLink("0", 5, visitRow({}))).toEqual({ ok: true });
+  });
+});
+
+describe("visitLabel — نص الزيارة الموحد", () => {
+  test("«HH:mm — يوم YYYY-MM-DD»", () => {
+    expect(visitLabel({ hourSlot: "09:00", visitDate: "2026-11-18" })).toBe("09:00 — 2026-11-18");
+  });
+});

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { audit, authGuard, jsonError, ok } from "@/lib/api-utils";
-import { validateExecutionInput } from "@/lib/field-execution-core";
+import { validateExecutionInput, validateVisitLink } from "@/lib/field-execution-core";
 import { quantumForStage } from "@/lib/stage-quantum-server";
 
 type P = { params: Promise<{ id: string }> };
@@ -28,6 +28,24 @@ async function resolveAttachmentId(
   return id;
 }
 
+/**
+ * د1 — ربط الزيارات: قراءة الزيارة للتحقق النقي —
+ * الزيارة الموجودة إما عامة (بلا عقد) أو لنفس العقد حصرًا (تصميم د1 §2.1)
+ */
+async function resolveVisitId(
+  tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
+  raw: unknown,
+  contractId: number
+): Promise<{ visitId: number | null; hourSlot: string }> {
+  if (raw === undefined || raw === null || raw === "" || Number(raw) === 0) {
+    return { visitId: null, hourSlot: "" };
+  }
+  const visit = await tx.visit.findUnique({ where: { id: Number(raw) || 0 } });
+  const check = validateVisitLink(raw, contractId, visit);
+  if (!check.ok || !check.value) throw new ExecutionError(check.error || "ربط الزيارة غير صالح");
+  return { visitId: check.value, hourSlot: visit?.hourSlot || "" };
+}
+
 /** تسجيل تنفيذ ميداني — يغذي عدادات المقايسة المشتقة لحظيًا (G9) */
 export async function POST(req: NextRequest, { params }: P) {
   const guard = await authGuard(req, "action_edit_contract");
@@ -52,6 +70,8 @@ export async function POST(req: NextRequest, { params }: P) {
       const item = await tx.boqItem.findFirst({ where: { id: boqItemId, contractId, deleted: false } });
       if (!item) throw new ExecutionError("بند الكميات غير موجود في هذا العقد");
       const attachmentId = await resolveAttachmentId(tx, body.attachmentId, contractId);
+      // د1 — ربط الزيارات: سجل التنفيذ ابن يوميته — يحفظ في أي زيارة دوّن
+      const visitLink = await resolveVisitId(tx, body.visitId, contractId);
       // الحالة الكمّية للمرحلة قبل/بعد الإنشاء (بند NOVA 6 — تصميم §3):
       // becameComplete تُحسب من قبل القاعدة نفسها — بلا افتراضات في العميل
       const stageId = item.stageId;
@@ -66,6 +86,7 @@ export async function POST(req: NextRequest, { params }: P) {
           gpsLat: v.gpsLat,
           gpsLng: v.gpsLng,
           attachmentId,
+          visitId: visitLink.visitId,
           note: v.note,
           createdBy: guard.user.username,
         },
@@ -75,7 +96,7 @@ export async function POST(req: NextRequest, { params }: P) {
         data: {
           contractId,
           eventType: "تنفيذ ميداني",
-          description: `تسجيل تنفيذ «${item.description}» — ${v.qty} ${item.unit || ""} بتاريخ ${v.executionDate}${created.documented ? " (موثق)" : ""}${after?.complete && !before?.complete ? " — المرحلة اكتملت كمّيًا" : ""}`,
+          description: `تسجيل تنفيذ «${item.description}» — ${v.qty} ${item.unit || ""} بتاريخ ${v.executionDate}${created.documented ? " (موثق)" : ""}${visitLink.visitId ? ` — أثناء زيارة ${visitLink.hourSlot}` : ""}${after?.complete && !before?.complete ? " — المرحلة اكتملت كمّيًا" : ""}`,
           username: guard.user.username,
         },
       });
@@ -140,6 +161,11 @@ export async function PATCH(req: NextRequest, { params }: P) {
       if (body.documented !== undefined) data.documented = Boolean(body.documented);
       if (body.attachmentId !== undefined) {
         data.attachmentId = await resolveAttachmentId(tx, body.attachmentId, contractId);
+      }
+      // د1 — ربط الزيارات في التعديل: الفارغ يفك الربط، والمقبول يجتاز التحقق النقي
+      if (body.visitId !== undefined) {
+        const visitLink = await resolveVisitId(tx, body.visitId, contractId);
+        data.visitId = visitLink.visitId;
       }
 
       const updated = await tx.fieldExecution.update({ where: { id: row.id }, data });

@@ -135,7 +135,7 @@ function mergeWhere(where: unknown, ctx: Ctx): Record<string, unknown> {
   return { AND: [(where as object) ?? {}, { companyId: ctx.companyId }] };
 }
 
-/** توسيع حيث-الفريد (id / مركّب companyId_x) إلى where عادي محصور بالشركة */
+/** توسيع حيث-الفريد (id / مركّب companyId_x / مركّب عام) إلى where عادي محصور بالشركة */
 function flattenUnique(w: Record<string, unknown> | undefined, ctx: Ctx): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(w ?? {})) {
@@ -144,7 +144,9 @@ function flattenUnique(w: Record<string, unknown> | undefined, ctx: Ctx): Record
       out.companyId = ctx.companyId;
     } else if (k === "companyId") {
       out.companyId = ctx.companyId; // فرض السياق (Setting PK)
-    } else if (typeof k === "string" && k.startsWith("companyId_")) {
+    } else if (typeof k === "string" && k.includes("_") && v && typeof v === "object") {
+      // مفتاح الفريد المركّب (companyId_x أو عام كـ visitDate_hourSlot_staffId — د1):
+      // يُفك إلى حقوله ويحصور بالشركة — findFirst لا يقبل مفاتيح الفريد المركّب أصلًا
       Object.assign(out, v as object);
       out.companyId = ctx.companyId;
     } else {

@@ -232,6 +232,8 @@ model Contract {
   attachments          ContractAttachment[]
   // التنفيذ الميداني — سجلات الكميات الميدانية على العقد (بند NOVA 5)
   fieldExecutions      FieldExecution[]      @relation("FieldExecutionContract")
+  // د1 — ربط الزيارات: زيارات موقع هذا العقد (docs/daily-report-forecast-design.md §2.1)
+  visits               Visit[]               @relation("VisitContract")
   // ب1 — البرنامج الزمني CPM: دفعات الاستيراد وأسطر أنشطتها (docs/schedule-import-design.md §2)
   scheduleImports      ScheduleImport[]      @relation("ScheduleImportContract")
   invoices             Invoice[]
@@ -1806,13 +1808,20 @@ model Visit {
   staff      VisitStaff @relation(fields: [staffId], references: [id])
   customerId Int?       @map("customer_id")
   customer   Customer?  @relation(fields: [customerId], references: [id])
+  // د1 — ربط الزيارات (docs/daily-report-forecast-design.md §2.1):
+  // زيارة قد تكون لعميل عام أو لموقع عقد — اليومية تُقرأ في سياق عقد
+  contractId Int?       @map("contract_id")
+  contract   Contract?  @relation("VisitContract", fields: [contractId], references: [id])
   note       String     @default("")
   taskId     Int?       @map("task_id")
   task       Task?      @relation(fields: [taskId], references: [id])
   createdBy  String     @default("") @map("created_by")
   createdAt  DateTime   @default(now())
+  // سجلات التنفيذ الميداني التي دوّنت أثناء هذه الزيارة
+  executions FieldExecution[]
 
   @@unique([visitDate, hourSlot, staffId])
+  @@index([contractId, visitDate])
   @@map("visits")
 }
 
@@ -1926,12 +1935,16 @@ model FieldExecution {
   gpsLng        String              @default("") @map("gps_lng")
   attachmentId  Int?                @map("attachment_id")
   attachment    ContractAttachment? @relation(fields: [attachmentId], references: [id])
+  // د1 — سجل التنفيذ ابن يوميته: يحفظ في أي زيارة دوّن (docs/daily-report-forecast-design.md §2.1)
+  visitId       Int?                @map("visit_id")
+  visit         Visit?              @relation(fields: [visitId], references: [id])
   note          String              @default("")
   createdBy     String              @default("") @map("created_by")
   createdAt     DateTime            @default(now()) @map("created_at")
 
   @@index([contractId])
   @@index([boqItemId, executionDate])
+  @@index([visitId])
   @@map("field_executions")
 }
 

@@ -18,6 +18,8 @@ export async function GET(req: NextRequest) {
       include: {
         customer: { select: { id: true, name: true, customerCode: true } },
         task: { select: { id: true, title: true, status: true } },
+        // د1 — ربط الزيارات: قراءة اليومية في سياق عقد
+        contract: { select: { id: true, contractNumber: true, contractName: true } },
       },
     }),
   ]);
@@ -39,6 +41,10 @@ export async function GET(req: NextRequest) {
       taskId: v.taskId,
       taskTitle: v.task?.title || "",
       taskStatus: v.task?.status || "",
+      // د1 — ربط الزيارات
+      contractId: v.contractId,
+      contractNumber: v.contract?.contractNumber || "",
+      contractName: v.contract?.contractName || "",
       createdBy: v.createdBy,
     };
   }
@@ -88,6 +94,13 @@ async function upsertVisit(
   const note = String(body.note || "");
   const taskId = Number(body.taskId) || 0;
 
+  // د1 — ربط الزيارات: زيارة لموقع عقد (اختياري — الفارغ زيارة عامة كما القائم)
+  const contractId = Number(body.contractId) || 0;
+  if (contractId) {
+    const contract = await db.contract.findUnique({ where: { id: contractId } });
+    if (!contract) return jsonError("العقد غير موجود", 404);
+  }
+
   const existing = await db.visit.findUnique({
     where: { visitDate_hourSlot_staffId: { visitDate, hourSlot, staffId } },
   });
@@ -101,6 +114,7 @@ async function upsertVisit(
     customerId: customerId || null,
     note,
     taskId: taskId || null,
+    contractId: contractId || null, // د1 — ربط الزيارات
   };
 
   const visit = await db.$transaction(async (tx) => {
@@ -131,6 +145,7 @@ async function upsertVisit(
         staffName: staff.name,
         customerId: visit.customerId,
         customerName: customer?.name || "",
+        contractId: visit.contractId, // د1 — ربط الزيارات
         note: visit.note,
         taskId: visit.taskId,
       },

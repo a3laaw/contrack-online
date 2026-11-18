@@ -32,12 +32,14 @@ export async function GET(req: NextRequest, { params }: P) {
   });
   if (!contract) return jsonError("العقد غير موجود", 404);
 
-  const [rawRows, addParts, totalAgg, beforeAgg, activeDateRows] = await Promise.all([
+  const [rawRows, addParts, totalAgg, beforeAgg, activeDateRows, dayVisits] = await Promise.all([
     db.fieldExecution.findMany({
       where: { contractId, executionDate: date },
       include: {
         boqItem: { select: { itemNo: true, description: true, unit: true, qty: true, unitPrice: true } },
         attachment: { select: { fileName: true } },
+        // د1 — ربط الزيارات: «من دوّن وفي أي زيارة»
+        visit: { select: { id: true, hourSlot: true, note: true, staff: { select: { name: true } } } },
       },
       orderBy: [{ boqItemId: "asc" }, { id: "asc" }],
     }),
@@ -58,6 +60,16 @@ export async function GET(req: NextRequest, { params }: P) {
       distinct: ["executionDate"],
       orderBy: { executionDate: "desc" },
       take: 14,
+    }),
+    // د1 — زيارات هذا العقد في ذلك اليوم (ربط الزيارات — المرتبطة والسجلات عائدة إليها)
+    db.visit.findMany({
+      where: { contractId, visitDate: date },
+      include: {
+        staff: { select: { name: true } },
+        customer: { select: { name: true } },
+        _count: { select: { executions: true } },
+      },
+      orderBy: { hourSlot: "asc" },
     }),
   ]);
 
@@ -92,6 +104,11 @@ export async function GET(req: NextRequest, { params }: P) {
       gpsLng: e.gpsLng,
       attachmentId: e.attachmentId,
       attachmentName: e.attachment?.fileName || "",
+      // د1 — الزيارة المرتبطة بالسجل إن وجدت
+      visitId: e.visitId,
+      visitHour: e.visit?.hourSlot || "",
+      visitStaff: e.visit?.staff.name || "",
+      visitNote: e.visit?.note || "",
       createdBy: e.createdBy,
       effectiveQty: r3(effectiveQty),
       executedTotal: r3(executedTotal),
@@ -115,6 +132,15 @@ export async function GET(req: NextRequest, { params }: P) {
     date,
     rows,
     summary,
+    // د1 — زيارات العقد في ذلك اليوم (المعروضة بترويسة التقرير والمنتقي في الإدخال السريع)
+    visits: dayVisits.map((v) => ({
+      id: v.id,
+      hourSlot: v.hourSlot,
+      staffName: v.staff.name,
+      customerName: v.customer?.name || "",
+      note: v.note,
+      executionsCount: v._count.executions,
+    })),
     activeDates: activeDateRows.map((d) => d.executionDate),
   });
 }

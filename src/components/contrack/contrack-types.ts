@@ -1052,6 +1052,11 @@ export interface DailyReportRowDTO {
   attachmentId: number | null;
   attachmentName: string;
   createdBy: string;
+  // د1 — الزيارة المرتبطة بالسجل إن وجدت (ربط الزيارات)
+  visitId: number | null;
+  visitHour: string;
+  visitStaff: string;
+  visitNote: string;
   /** الكمية الفعّالة للبند (تعاقدي + تغييري) */
   effectiveQty: number;
   /** المنفذ التراكمي الكلي بعد يوم التقرير */
@@ -1076,8 +1081,21 @@ export interface DailyReportResponse {
     /** قيمة يوم العمل = Σ كمية × سعر الوحدة */
     dayAmount: number;
   };
+  /** د1 — زيارات العقد في ذلك اليوم (بترويسة التقرير ومنتقي الإدخال السريع) */
+  visits: DailyReportVisitDTO[];
   /** أحدث أيام النشاط للتنقل السريع */
   activeDates: string[];
+}
+
+/** زيارة العقد في يوم التقرير (د1 — ربط الزيارات) */
+export interface DailyReportVisitDTO {
+  id: number;
+  hourSlot: string;
+  staffName: string;
+  customerName: string;
+  note: string;
+  /** عدد سجلات التنفيذ الدوّنة أثناء هذه الزيارة */
+  executionsCount: number;
 }
 
 export interface TakeoffTotalsDTO {
@@ -2178,6 +2196,10 @@ export interface VisitCell {
   customerId?: number | null;
   customerName?: string | null;
   customerCode?: string;
+  // د1 — ربط الزيارات: زيارة لموقع عقد
+  contractId?: number | null;
+  contractNumber?: string;
+  contractName?: string;
   note?: string;
   taskId?: number | null;
   taskTitle?: string;
@@ -2198,6 +2220,10 @@ export interface VisitFlatRow {
   staffId: number;
   customerId?: number | null;
   customerName?: string | null;
+  // د1 — ربط الزيارات
+  contractId?: number | null;
+  contractNumber?: string;
+  contractName?: string;
   note?: string;
   taskId?: number | null;
 }

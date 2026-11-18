@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Building2,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -50,6 +51,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost, apiPut } from "./api";
 import { SearchableSelect } from "./SearchableSelect";
 import type {
+  ContractsResponse,
   CustomerDetailResponse,
   User,
   VisitCell,
@@ -135,6 +137,7 @@ interface SlotDialogProps {
 function SlotDialog({ open, onOpenChange, context, existing, onAuthError, onSaved }: SlotDialogProps) {
   const { toast } = useToast();
   const [customerId, setCustomerId] = React.useState(NONE);
+  const [contractId, setContractId] = React.useState(NONE);
   const [note, setNote] = React.useState("");
   const [formError, setFormError] = React.useState("");
 
@@ -143,6 +146,7 @@ function SlotDialog({ open, onOpenChange, context, existing, onAuthError, onSave
     if (open && !wasOpen.current) {
       setFormError("");
       setCustomerId(existing?.customerId != null ? String(existing.customerId) : NONE);
+      setContractId(existing?.contractId != null ? String(existing.contractId) : NONE);
       setNote(existing?.note || "");
     }
     wasOpen.current = open;
@@ -153,6 +157,33 @@ function SlotDialog({ open, onOpenChange, context, existing, onAuthError, onSave
     queryFn: () => apiGet<{ customers: { id: number; name: string }[] }>("/api/customers"),
     enabled: open,
   });
+
+  // د1 — ربط الزيارات: عقود العقد المختار حصرًا، وإلا كل العقود (زيارة لموقع عقد)
+  const contractsQuery = useQuery<ContractsResponse>({
+    queryKey: ["contracts", "visit-link", customerId],
+    queryFn: () =>
+      apiGet<ContractsResponse>(
+        customerId !== NONE ? `/api/contracts?customerId=${customerId}` : "/api/contracts"
+      ),
+    enabled: open,
+  });
+  const contractOptions = React.useMemo(
+    () =>
+      (contractsQuery.data?.contracts ?? []).map((c) => ({
+        value: String(c.id),
+        label: `${c.contractNumber}${c.contractName ? " · " + c.contractName : ""}`,
+      })),
+    [contractsQuery.data]
+  );
+
+  // اختيار عقد بلا عميل ⇒ يورّد عميل العقد تلقائيًا (الزيارة لموقع العقد = عميله)
+  const onContractChange = (v: string) => {
+    setContractId(v);
+    if (v !== NONE && customerId === NONE) {
+      const c = (contractsQuery.data?.contracts ?? []).find((x) => String(x.id) === v);
+      if (c?.customerId) setCustomerId(String(c.customerId));
+    }
+  };
 
   // الحجز/التعديل: PUT ثم POST احتياطًا إن لم يُنفَّذ المسار
   const saveMutation = useMutation({
@@ -187,6 +218,7 @@ function SlotDialog({ open, onOpenChange, context, existing, onAuthError, onSave
       hourSlot: context.hourSlot,
       staffId: context.staffId,
       customerId: customerId !== NONE ? Number(customerId) : null,
+      contractId: contractId !== NONE ? Number(contractId) : null, // د1 — ربط الزيارات
       note: note.trim(),
       // تعديل خانة محجوزة أصلاً: الخلفي يطلب force=true للسماح بالتحديث فوق نفس الخانة
       // (بدون force يُرفض بالتعارض «الخانة محجوزة» — وهو المطلوب عند سباق حجز خانة جديدة)
@@ -209,7 +241,10 @@ function SlotDialog({ open, onOpenChange, context, existing, onAuthError, onSave
             <Label>العميل (اختياري)</Label>
             <SearchableSelect
               value={customerId}
-              onValueChange={setCustomerId}
+              onValueChange={(v) => {
+                setCustomerId(v);
+                if (v === NONE) setContractId(NONE); // تفريغ العميل يفك عقدًا لا يخصه
+              }}
               options={[
                 { value: NONE, label: "بدون عميل (خانة حجز عام)" },
                 ...(customersQuery.data?.customers ?? []).map((c) => ({ value: String(c.id), label: c.name })),
@@ -217,6 +252,22 @@ function SlotDialog({ open, onOpenChange, context, existing, onAuthError, onSave
               placeholder="بدون عميل"
               searchPlaceholder="ابحث بالاسم…"
               emptyText="لا نتائج مطابقة"
+            />
+          </div>
+          {/* د1 — ربط الزيارات: زيارة لموقع عقد — اليومية تُقرأ في سياق العقد */}
+          <div className="grid gap-1.5">
+            <Label>العقد (اختياري)</Label>
+            <SearchableSelect
+              value={contractId}
+              onValueChange={onContractChange}
+              options={[
+                { value: NONE, label: "زيارة عامة (بلا عقد)" },
+                ...contractOptions,
+              ]}
+              placeholder="زيارة عامة"
+              searchPlaceholder="ابحث برقم العقد أو الاسم…"
+              emptyText="لا عقود مطابقة"
+              loading={contractsQuery.isLoading}
             />
           </div>
           <div className="grid gap-1.5">
@@ -526,6 +577,11 @@ export function VisitsView({ onAuthError }: VisitsViewProps) {
     (acc, row) => acc + columns.filter((s) => row.cells?.[String(s.id)]?.customerId != null).length,
     0
   );
+  // د1 — ربط الزيارات: زيارات مواقع العقود اليوم
+  const withContract = gridRows.reduce(
+    (acc, row) => acc + columns.filter((s) => row.cells?.[String(s.id)]?.contractId != null).length,
+    0
+  );
 
   // ===== الحجوزات =====
   const [slotCtx, setSlotCtx] = React.useState<{
@@ -593,7 +649,7 @@ export function VisitsView({ onAuthError }: VisitsViewProps) {
       </div>
 
       {/* المؤشرات */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <KpiCard
           icon={CalendarDays}
           label="محجوزة"
@@ -613,6 +669,14 @@ export function VisitsView({ onAuthError }: VisitsViewProps) {
           value={String(withCustomer)}
           tone="text-status-info"
           sub={booked - withCustomer > 0 ? `${booked - withCustomer} بلا عميل` : undefined}
+        />
+        {/* د1 — ربط الزيارات: زيارات مواقع العقود — اليومية تُقرأ في سياق العقد */}
+        <KpiCard
+          icon={Building2}
+          label="بالعقد"
+          value={String(withContract)}
+          tone="text-primary-ink"
+          sub={withContract > 0 ? "لها تقرير يومي بالعقد" : undefined}
         />
       </div>
 
@@ -700,6 +764,16 @@ export function VisitsView({ onAuthError }: VisitsViewProps) {
                             <p className="truncate text-xs font-bold text-status-done">
                               {cell.customerName || "حجز بلا عميل"}
                             </p>
+                            {/* د1 — ربط الزيارات: شارة عقد الموقع */}
+                            {cell.contractId ? (
+                              <Badge
+                                variant="outline"
+                                className="h-4 max-w-full truncate px-1 text-[9px] text-primary-ink"
+                                title={cell.contractName || cell.contractNumber || ""}
+                              >
+                                عقد {cell.contractNumber || cell.contractId}
+                              </Badge>
+                            ) : null}
                             {cell.note && (
                               <p className="truncate text-[10px] text-status-done/80" title={cell.note}>
                                 {cell.note}

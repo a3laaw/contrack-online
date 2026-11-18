@@ -155,3 +155,63 @@ export function summarizeTakeoff(rows: TakeoffRow[], invoicedAmount: number, col
     progressPct,
   };
 }
+
+// ============================================================
+// د1 — ربط الزيارات (docs/daily-report-forecast-design.md §2.1/§2.2):
+// `Visit.contractId` يقرأ اليومية في سياق عقد، و`FieldExecution.visitId`
+// يحفظ «من دوّن وفي أي زيارة» — سجل التنفيذ ابن يوميته.
+// ============================================================
+
+/** صف الزيارة كما يصل من القاعدة للتحقق النقي (أدنى حقول) */
+export interface VisitLinkRow {
+  id: number;
+  contractId: number | null;
+  visitDate: string;
+  hourSlot: string;
+}
+
+export interface VisitLinkCheck {
+  ok: boolean;
+  error?: string;
+  /** معرف الزيارة المقبول — undefined عند عدم الربط (الفارغ سلوك القائم حرفيًا) */
+  value?: number;
+}
+
+/**
+ * تحقق ربط سجل تنفيذ بزيارة:
+ * - الفارغ/0 ⇒ بلا زيارة (توافق خلفي كامل — كل المسارات القائمة بلا تغيير)
+ * - رقم غير صالح ⇒ خطأ صريح
+ * - الزيارة غير موجودة ⇒ خطأ
+ * - الزيارة مرتبطة بعقد آخر ⇒ خطأ — الزيارة العامة (بلا عقد) تُقبل لأي عقد
+ */
+export function validateVisitLink(
+  input: unknown,
+  contractId: number,
+  visit: VisitLinkRow | null
+): VisitLinkCheck {
+  let visitId = 0;
+  if (typeof input === "number") visitId = input;
+  else if (typeof input === "string") {
+    const s = input.trim();
+    if (s) {
+      const n = Number(s);
+      // نص غير رقمي (مثل «abc») إدخال فاسد يُرفض صراحةً — لا يُتلقم كـ«بلا زيارة»
+      visitId = Number.isFinite(n) ? n : NaN;
+    }
+  }
+  if (Number.isNaN(visitId)) return { ok: false, error: "معرف الزيارة غير صالح" };
+  if (!visitId) return { ok: true };
+  if (!Number.isInteger(visitId) || visitId <= 0) {
+    return { ok: false, error: "معرف الزيارة غير صالح" };
+  }
+  if (!visit) return { ok: false, error: "الزيارة غير موجودة" };
+  if (visit.contractId !== null && visit.contractId !== contractId) {
+    return { ok: false, error: "الزيارة مرتبطة بعقد آخر — لا يمكن ربطها بسجل تنفيذ هذا العقد" };
+  }
+  return { ok: true, value: visitId };
+}
+
+/** وصف الزيارة للعرض «HH:mm — يوم YYYY-MM-DD» — نص اشتقاقي موحد للمسار والواجهة */
+export function visitLabel(visit: Pick<VisitLinkRow, "hourSlot" | "visitDate">): string {
+  return `${visit.hourSlot} — ${visit.visitDate}`;
+}

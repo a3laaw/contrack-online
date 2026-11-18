@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { ApiError, apiDelete, apiGet, apiPost } from "./api";
 import type {
   DailyReportResponse,
+  DailyReportVisitDTO,
   ProjectHubRow,
   ProjectsHubResponse,
   ProjectsSection,
@@ -46,6 +47,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { formatKWD, round3, statusBadgeClass } from "@/lib/format";
+
+const NONE = "none";
 
 /** تاريخ اليوم بتوقيت الكويت (YYYY-MM-DD) — المالك بتوقيت آسيا/الكويت */
 function todayKw(): string {
@@ -500,6 +503,7 @@ function DailySection({
                         <TableHead className="w-24 text-center">التراكمي</TableHead>
                         <TableHead className="w-20 text-center">النسبة</TableHead>
                         <TableHead className="w-16 text-center">موثق</TableHead>
+                        <TableHead className="w-28">الزيارة</TableHead>
                         <TableHead className="min-w-32">ملاحظة</TableHead>
                         <TableHead className="w-24">بواسطة</TableHead>
                         <TableHead className="w-12 text-center">حذف</TableHead>
@@ -516,8 +520,8 @@ function DailySection({
             </Card>
           )}
 
-          {/* نموذج التسجيل السريع */}
-          <QuickEntry contractId={contractId} date={date} qc={qc} onAuthError={onAuthError} />
+          {/* نموذج التسجيل السريع — الزيارات المرتبطة بالعقد في ذلك اليوم متاحة للربط (د1) */}
+          <QuickEntry contractId={contractId} date={date} dayVisits={report.visits} qc={qc} onAuthError={onAuthError} />
 
           {/* وصول سريع لتفصيل البنود */}
           <div className="flex justify-start">
@@ -589,6 +593,17 @@ function DailyRow({
       <TableCell className="text-center">
         {row.documented ? <Badge className="bg-status-done-bg text-status-done">موثق</Badge> : <Badge variant="outline" className="text-[10px]">—</Badge>}
       </TableCell>
+      {/* د1 — الزيارة التي دوّن خلالها السجل (ربط الزيارات) */}
+      <TableCell className="text-[11px] text-muted-foreground">
+        {row.visitId ? (
+          <span dir="ltr" className="tabular-nums">
+            {row.visitHour} {row.visitStaff && "· "}
+          </span>
+        ) : (
+          "—"
+        )}
+        {row.visitId && row.visitStaff ? <span className="text-[10px]">{row.visitStaff}</span> : null}
+      </TableCell>
       <TableCell className="max-w-40 truncate text-xs text-muted-foreground" title={row.note || undefined}>
         {row.note || "—"}
       </TableCell>
@@ -611,15 +626,18 @@ function DailyRow({
   );
 }
 
-/** نموذج تسجيل سريع: بند + كمية أو نسبة % + موثق + ملاحظة — يغذي FieldExecution مباشرة */
+/** نموذج تسجيل سريع: بند + كمية أو نسبة % + موثق + ملاحظة + زيارة مرتبطة (د1) — يغذي FieldExecution مباشرة */
 function QuickEntry({
   contractId,
   date,
+  dayVisits,
   qc,
   onAuthError,
 }: {
   contractId: number;
   date: string;
+  /** د1 — زيارات هذا العقد في ذلك اليوم (ربط الزيارات) */
+  dayVisits: DailyReportVisitDTO[];
   qc: ReturnType<typeof useQueryClient>;
   onAuthError: () => void;
 }) {
@@ -647,6 +665,8 @@ function QuickEntry({
   const [amount, setAmount] = React.useState("");
   const [documented, setDocumented] = React.useState(false);
   const [note, setNote] = React.useState("");
+  // د1 — الزيارة المرتبطة اختياريًا (زيارات العقد في ذلك اليوم من التقرير نفسه)
+  const [visitId, setVisitId] = React.useState(NONE);
 
   const selectedItem = items.find((it) => String(it.boqItemId) === boqItemId) || null;
   // النسبة تتحول لكمية: qty = النسبة × الكمية الفعّالة ÷ 100 (تصميم §2.1 — الكمية الصلبة محرك العدادات G9)
@@ -664,6 +684,7 @@ function QuickEntry({
     setAmount("");
     setDocumented(false);
     setNote("");
+    setVisitId(NONE);
   };
 
   const save = useMutation({
@@ -702,6 +723,7 @@ function QuickEntry({
       qty,
       documented,
       note: note.trim(),
+      visitId: visitId !== NONE ? Number(visitId) : null, // د1 — ربط الزيارات
     });
   };
 
@@ -787,6 +809,26 @@ function QuickEntry({
                 موثق من مهندس الموقع
               </Label>
             </div>
+            {/* د1 — الزيارة التي دوّن خلالها — من زيارات العقد في هذا اليوم */}
+            {dayVisits.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>الزيارة المرتبطة (اختياري)</Label>
+                <SearchableSelect
+                  value={visitId}
+                  onValueChange={setVisitId}
+                  options={[
+                    { value: NONE, label: "بلا زيارة (سجل ميداني مباشر)" },
+                    ...dayVisits.map((v) => ({
+                      value: String(v.id),
+                      label: `${v.hourSlot} — ${v.staffName}${v.executionsCount ? ` · ${v.executionsCount} سجل` : ""}`,
+                    })),
+                  ]}
+                  placeholder="بلا زيارة"
+                  searchPlaceholder="ابحث بالساعة أو الموظف…"
+                  emptyText="لا زيارات مطابقة"
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -824,6 +866,7 @@ function PrintableReport({ report }: { report: DailyReportResponse }) {
             <th className="border border-black p-1">التراكمي</th>
             <th className="border border-black p-1">النسبة</th>
             <th className="border border-black p-1">موثق</th>
+            <th className="border border-black p-1">الزيارة</th>
             <th className="border border-black p-1">ملاحظة</th>
           </tr>
         </thead>
@@ -838,6 +881,9 @@ function PrintableReport({ report }: { report: DailyReportResponse }) {
               <td className="border border-black p-1 text-center" dir="ltr">{e.executedTotal}</td>
               <td className="border border-black p-1 text-center" dir="ltr">{e.progressPct}%</td>
               <td className="border border-black p-1 text-center">{e.documented ? "نعم" : "لا"}</td>
+              <td className="border border-black p-1 text-center" dir="ltr">
+                {e.visitId ? `${e.visitHour}${e.visitStaff ? " — " + e.visitStaff : ""}` : "—"}
+              </td>
               <td className="border border-black p-1">{e.note}</td>
             </tr>
           ))}
@@ -847,6 +893,17 @@ function PrintableReport({ report }: { report: DailyReportResponse }) {
         قيمة يوم العمل: <span dir="ltr">{formatKWD(report.summary.dayAmount)}</span> KWD · السجلات: {report.summary.records} · الموثقة:{" "}
         {report.summary.documentedRecords}
       </div>
+      {/* د1 — ربط الزيارات: زيارات الموقع المعتمدة بترويسة التقرير */}
+      {report.visits.length > 0 && (
+        <div className="mt-1 text-[11px]">
+          زيارات الموقع اليوم: {" "}
+          {report.visits.map((v) => (
+            <span key={v.id} dir="ltr" className="ms-2 inline-block">
+              {v.hourSlot} — {v.staffName}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="mt-10 flex justify-between text-xs">
         <div>مهندس الموقع: ...............................</div>
         <div>تمثيل العميل/الاستشاري: ...............................</div>
