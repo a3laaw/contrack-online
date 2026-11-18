@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { authGuard, jsonError, ok } from "@/lib/api-utils";
 import { r3 } from "@/lib/contrack-core";
 import { invoicedQtyByBoqItem } from "@/lib/invoice-server";
+import { validatePlannedWindow } from "@/lib/schedule-items-core";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -115,6 +116,14 @@ export async function POST(req: NextRequest, { params }: P) {
   // الكمية المخططة للتنفيذ (عداد «مخطط» — بند NOVA 5) — اختيارية بأرضية صفر
   const plannedQty = Math.max(0, r3(Number(body.plannedQty) || 0));
 
+  // ج1 المتبقي — نافذة البند المخططة عند الإضافة اليدوية (docs/schedule-import-design.md §8.2)
+  const winData: Record<string, string> = {};
+  if (body.plannedStart !== undefined || body.plannedFinish !== undefined) {
+    const win = validatePlannedWindow(body.plannedStart, body.plannedFinish);
+    if (!win.ok) return jsonError(win.error || "نافذة البند غير صالحة");
+    if (win.value) Object.assign(winData, win.value);
+  }
+
   // سيناريو المالك 2026-11 — مرحلة واحدة أو أكثر: stageIds[] (الأولى أساسية) مع مرآة stageId
   const stageIds = parseStageIds(body.stageIds);
   if (body.stageIds === undefined && body.stageId !== undefined && body.stageId !== null && body.stageId !== "") {
@@ -140,6 +149,8 @@ export async function POST(req: NextRequest, { params }: P) {
         unitPrice,
         plannedQty,
         amount,
+        plannedStart: winData.plannedStart ?? "",
+        plannedFinish: winData.plannedFinish ?? "",
         sortOrder: body.sortOrder !== undefined ? Math.trunc(Number(body.sortOrder)) : (max._max.sortOrder ?? -1) + 1,
       },
     });
@@ -167,6 +178,13 @@ export async function PATCH(req: NextRequest, { params }: P) {
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const data: Record<string, unknown> = {};
+  // ج1 المتبقي — النافذة المخططة للبند: التحقق عبر النواة (فارغ = إفراغ صريح)
+  if (body.plannedStart !== undefined || body.plannedFinish !== undefined) {
+    const win = validatePlannedWindow(body.plannedStart, body.plannedFinish);
+    if (!win.ok) return jsonError(win.error || "نافذة البند غير صالحة");
+    data.plannedStart = win.value?.plannedStart ?? "";
+    data.plannedFinish = win.value?.plannedFinish ?? "";
+  }
   if (body.itemNo !== undefined) data.itemNo = String(body.itemNo || "").trim();
   if (body.divisionCode !== undefined) data.divisionCode = String(body.divisionCode || "").trim();
   if (body.divisionName !== undefined) data.divisionName = String(body.divisionName || "").trim();

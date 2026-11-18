@@ -127,6 +127,8 @@ import { ContractBoqPage } from "./ContractBoqPage";
 import { BoqImportDialog } from "./BoqImportDialog";
 import { ScheduleImportDialog } from "./ScheduleImportDialog";
 import { ScheduleSection } from "./ScheduleSection";
+import { validatePlannedWindow } from "@/lib/schedule-items-core";
+import type { ScheduleStateDTO } from "@/lib/schedule-types";
 import { ContractSupervisionPage } from "./ContractSupervisionPage";
 
 // ==================== ربط القوائم المرجعية مع الدفعات ====================
@@ -3184,6 +3186,48 @@ function BoqPage({
     },
     onError: (e) => onActionError(e, "تعذر تحديث مراحل البند"),
   });
+
+  // ج1 المتبقي — محرر النافذة المخططة للبند (docs/schedule-import-design.md §8.3):
+  // حقلان تاريخ + «مطابقة قسمه» من نوافذ الأقسام المشتقة + إفراغ صريح — بلا جداول جديدة
+  const [windowEditItem, setWindowEditItem] = React.useState<BoqItemDTO | null>(null);
+  const [winStart, setWinStart] = React.useState("");
+  const [winFinish, setWinFinish] = React.useState("");
+  const scheduleWinQuery = useQuery<ScheduleStateDTO>({
+    queryKey: ["contract", contractId, "schedule", scheduleRefreshKey],
+    queryFn: () => apiGet<ScheduleStateDTO>(`/api/contracts/${contractId}/schedule`),
+    enabled: windowEditItem !== null, // نوافذ الأقسام لزر «مطابقة قسمه» حصرًا — مشاركة كاش القسم
+  });
+  const divisionWindow = React.useMemo(() => {
+    if (!windowEditItem) return null;
+    const code = windowEditItem.divisionCode ?? "";
+    if (!code) return null;
+    return scheduleWinQuery.data?.divisions.find((d) => d.code === code) ?? null;
+  }, [windowEditItem, scheduleWinQuery.data]);
+  const winCheck = React.useMemo(() => validatePlannedWindow(winStart, winFinish), [winStart, winFinish]);
+  const saveWindowMutation = useMutation({
+    mutationFn: () =>
+      apiPatch(`/api/contracts/${contractId}/boq?itemId=${windowEditItem?.id ?? 0}`, {
+        plannedStart: winStart.trim(),
+        plannedFinish: winFinish.trim(),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contract", contractId, "boq"] });
+      toast({
+        title: "تم تعيين النافذة",
+        description:
+          winStart && winFinish
+            ? `«${windowEditItem?.itemNo || windowEditItem?.description || ""}»: ${winStart.slice(2)} ← ${winFinish.slice(2)}`
+            : "فُرّغت نافذة البند",
+      });
+      setWindowEditItem(null);
+    },
+    onError: (e) => onActionError(e, "تعذر تعيين نافذة البند"),
+  });
+  const openWindowEdit = (it: BoqItemDTO) => {
+    setWindowEditItem(it);
+    setWinStart(it.plannedStart ?? "");
+    setWinFinish(it.plannedFinish ?? "");
+  };
   return (
     <div className="space-y-3">
       {/* ① الشريط التوضيحي — BOQ قلب النظام: منه المستخلصات والتنفيذ والتنبؤ */}
@@ -3432,9 +3476,25 @@ function BoqPage({
                         </TableCell>
                         <TableCell className="text-center">
                           {it.plannedStart && it.plannedFinish ? (
-                            <span className="text-xs tabular-nums text-muted-foreground" dir="ltr">
+                            <button
+                              type="button"
+                              disabled={!manager || historical}
+                              onClick={() => openWindowEdit(it)}
+                              title={manager && !historical ? "تعديل النافذة المخططة" : undefined}
+                              className={`text-xs tabular-nums text-muted-foreground ${manager && !historical ? "rounded-md underline decoration-dotted underline-offset-4 hover:text-primary" : "cursor-default"}`}
+                              dir="ltr"
+                            >
                               {it.plannedStart.slice(2)} ← {it.plannedFinish.slice(2)}
-                            </span>
+                            </button>
+                          ) : manager && !historical ? (
+                            <Button
+                              variant="link"
+                              size="sm"
+                              className="h-6 px-1 text-[11px]"
+                              onClick={() => openWindowEdit(it)}
+                            >
+                              تعيين نافذة
+                            </Button>
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
@@ -3518,7 +3578,11 @@ function BoqPage({
                     </div>
                     <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
                       <span>{it.unit || "—"} · سعر {formatKWD(it.unitPrice)}</span>
-                      {it.stageName && <span>المرحلة: {it.stageName}</span>}
+                      {it.plannedStart && it.plannedFinish ? (
+                        <span dir="ltr" className="tabular-nums">{it.plannedStart.slice(2)} ← {it.plannedFinish.slice(2)}</span>
+                      ) : it.stageName ? (
+                        <span>المرحلة: {it.stageName}</span>
+                      ) : null}
                     </div>
                   </Card>
                 ))}
@@ -3592,6 +3656,82 @@ function BoqPage({
             </Button>
             <Button className="h-9" onClick={() => saveStagesMutation.mutate()} disabled={saveStagesMutation.isPending}>
               {saveStagesMutation.isPending ? "جارٍ الحفظ…" : "حفظ الربط"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ج1 المتبقي — حوار تعيين النافذة المخططة للبند (docs/schedule-import-design.md §8.3) */}
+      <Dialog open={windowEditItem !== null} onOpenChange={(o) => !o && setWindowEditItem(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>النافذة المخططة للبند</DialogTitle>
+            <DialogDescription>
+              تاريخا بدء ونهاية البند «{windowEditItem?.itemNo || windowEditItem?.description || ""}» —
+              تُعبّئ آليًا من نافذة قسمه عند استيراد البرنامج الزمني، والتحرير هنا يدوي صريح فوقها.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2.5">
+            {divisionWindow && (
+              <button
+                type="button"
+                onClick={() => {
+                  setWinStart(divisionWindow.start);
+                  setWinFinish(divisionWindow.finish);
+                }}
+                className="flex w-full items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2 text-xs hover:bg-primary/10"
+              >
+                <span>مطابقة قسمه ({divisionWindow.code})</span>
+                <span dir="ltr" className="tabular-nums font-bold">
+                  {divisionWindow.start.slice(2)} ← {divisionWindow.finish.slice(2)}
+                </span>
+              </button>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="win-start">تاريخ البداية</Label>
+                <Input
+                  id="win-start"
+                  type="date"
+                  className="h-9"
+                  value={winStart}
+                  onChange={(e) => setWinStart(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="win-finish">تاريخ النهاية</Label>
+                <Input
+                  id="win-finish"
+                  type="date"
+                  className="h-9"
+                  value={winFinish}
+                  onChange={(e) => setWinFinish(e.target.value)}
+                />
+              </div>
+            </div>
+            {!winCheck.ok && <p className="text-xs text-destructive">{winCheck.error}</p>}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              className="h-9"
+              onClick={() => {
+                setWinStart("");
+                setWinFinish("");
+              }}
+              disabled={saveWindowMutation.isPending}
+            >
+              إفراغ
+            </Button>
+            <Button variant="outline" className="h-9" onClick={() => setWindowEditItem(null)} disabled={saveWindowMutation.isPending}>
+              إلغاء
+            </Button>
+            <Button
+              className="h-9"
+              onClick={() => saveWindowMutation.mutate()}
+              disabled={saveWindowMutation.isPending || !winCheck.ok}
+            >
+              {saveWindowMutation.isPending ? "جارٍ الحفظ…" : "حفظ النافذة"}
             </Button>
           </DialogFooter>
         </DialogContent>
