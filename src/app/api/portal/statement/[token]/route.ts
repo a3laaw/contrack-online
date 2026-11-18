@@ -36,7 +36,11 @@ function clientIp(req: NextRequest): string {
 }
 
 function genericReject(): NextResponse {
-  return NextResponse.json({ error: PORTAL_GENERIC_REJECT }, { status: 404 });
+  // noindex على كل ردود المسار العام (د4 — الملاحظة الأمنية) — بما فيها الرفض الموحد
+  return NextResponse.json(
+    { error: PORTAL_GENERIC_REJECT },
+    { status: 404, headers: { "X-Robots-Tag": "noindex, nofollow" } }
+  );
 }
 
 /** GET /api/portal/statement/[token] — عام: رمز 256-bit هو الهوية، القراءة فقط، بلا جلسة */
