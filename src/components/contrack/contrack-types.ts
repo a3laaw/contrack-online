@@ -914,6 +914,62 @@ export interface BoqResponse {
   items: BoqItemDTO[];
 }
 
+// ==================== ز3 — محرك الحالة الزمنية لـ BOQ (docs/boq-state-timeline-design.md §4) ====================
+
+/** صف حالة البند: بنية as-of + سابق/حالي/نسبة/متاح — كلها مشتقة لحظيًا (G9) */
+export interface BoqStateItemRow {
+  id: number;
+  itemNo: string;
+  divisionCode: string;
+  divisionName: string;
+  description: string;
+  unit: string;
+  qty: number; // التعاقدي الظاهر عند asOf
+  unitPrice: number;
+  amount: number;
+  visible: boolean;
+  priorQty: number;
+  currentQty: number;
+  availableQty: number;
+  totalPct: number;
+  priorAmount: number;
+  currentAmount: number;
+}
+
+/** دور المستخلص عند التاريخ — sakat: كان «حاليًا» ثم أغلقته اعتمادات أحدث («أصبح ساقًا») */
+export interface BoqStateInvoiceRow {
+  id: number;
+  invoiceNumber: string;
+  invoiceDate: string;
+  state: string;
+  approveAt: string;
+  total: number;
+  role: "سابق" | "حالي" | "لاحق";
+  sakat: boolean;
+}
+
+export interface BoqStateResponse {
+  mode: "live" | "historical";
+  asOf: string | null;
+  items: BoqStateItemRow[];
+  totals: { contractAmount: number; priorAmount: number; currentAmount: number; pct: number };
+  invoices: BoqStateInvoiceRow[];
+}
+
+/** حدث خط الزمن — date هو مفتاح «افتح كما كان في» */
+export interface BoqTimelineEvent {
+  date: string;
+  kind: string;
+  label: string;
+  invoiceNumber?: string;
+  invoiceId?: number;
+  amount?: number;
+}
+
+export interface BoqTimelineResponse {
+  events: BoqTimelineEvent[];
+}
+
 // ==================== التنفيذ الميداني — مقايسة التنفيذ (بند NOVA 5) ====================
 
 export interface TakeoffItemDTO {

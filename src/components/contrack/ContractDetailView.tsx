@@ -37,6 +37,7 @@ import {
   Lock,
   Upload,
   Layers,
+  History,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -90,6 +91,8 @@ import { fetchBlobDownload } from "@/lib/download-blob";
 import type {
   BoqItemDTO,
   BoqResponse,
+  BoqStateResponse,
+  BoqTimelineResponse,
   ContractDetailResponse,
   ContractOverviewResponse,
   ContractPayViewResponse,
@@ -3062,6 +3065,19 @@ function PayPage({
 // جدول البنود + البرنامج الزمني CPM + التنفيذ الميداني — الكميات كلها بمكان واحد
 // فصل نظيف: الدفعات والمقاولون = المال · بنود الكميات = الكميات
 // ===================================================================
+
+/** ز3 — أيقونات أحداث خط الزمن (نمط أيقونات الأحداث في ملف العميل) */
+const TIMELINE_ICONS: Record<string, string> = {
+  "ملحق معتمد": "📎",
+  "فتح مستخلص": "🟢",
+  "تقديم مستخلص": "📤",
+  "اعتماد مستخلص": "✅",
+  "إلغاء مستخلص": "❌",
+};
+
+/** ز3 — صف عرض موحد للبند: بيانات العرض الحية أو التاريخية + أعمدة الحالة الزمنية */
+type BoqStateViewRow = BoqItemDTO & { priorQty: number; currentQty: number; totalPct: number };
+
 function BoqPage({
   manager,
   cur,
@@ -3098,6 +3114,56 @@ function BoqPage({
   const qc = useQueryClient();
   const boqTotal = boq.reduce((s, it) => s + Number(it.amount), 0);
   const coverage = contractAmount > 0 ? Math.round((boqTotal / contractAmount) * 100) : 0;
+
+  // ز3 — محرك الحالة الزمنية: وضع «افتح كما كان في…» + شريط الأحداث (docs/boq-state-timeline-design.md §5)
+  // الحاضر: معتمد = سابق ومسودة/مقدم = حالي — التاريخي: الاسترجاع الزمني كاملًا مع شارات «ساق»
+  const [asOf, setAsOf] = React.useState<string | null>(null);
+  const [asOfDraft, setAsOfDraft] = React.useState("");
+  const historical = asOf !== null;
+  const stateQuery = useQuery<BoqStateResponse>({
+    queryKey: ["contract", contractId, "boq-state", asOf ?? "live"],
+    queryFn: () =>
+      apiGet<BoqStateResponse>(`/api/contracts/${contractId}/boq/state${asOf ? `?asOf=${asOf}` : ""}`),
+    enabled: boq.length > 0,
+  });
+  const timelineQuery = useQuery<BoqTimelineResponse>({
+    queryKey: ["contract", contractId, "boq-timeline"],
+    queryFn: () => apiGet<BoqTimelineResponse>(`/api/contracts/${contractId}/boq/timeline`),
+    enabled: boq.length > 0,
+  });
+  const stateItems = stateQuery.data?.items ?? [];
+  const stateById = new Map(stateItems.map((i) => [i.id, i]));
+  // العمودان يظهران للعقود ذات مستخلصات مرتبطة بالبنود حصرًا (قرار §5) — بلا أسطر مرتبطة لا قيمة للأصفار
+  const showStateCols = stateItems.some((i) => i.priorQty > 0 || i.currentQty > 0);
+  const events = timelineQuery.data?.events ?? [];
+
+  // الصفوف الموحدة: التاريخي يُقرأ من محرك الحالة (البنية كما كانت — قراءة فقط)، والحاضر من GET /boq مع خريطة الحالة
+  const rows: BoqStateViewRow[] = historical
+    ? stateItems
+        .filter((i) => i.visible)
+        .map((i) => ({
+          id: i.id,
+          contractId,
+          itemNo: i.itemNo,
+          divisionCode: i.divisionCode,
+          divisionName: i.divisionName,
+          description: i.description,
+          qty: i.qty,
+          unit: i.unit,
+          unitPrice: i.unitPrice,
+          amount: i.amount,
+          plannedQty: 0,
+          plannedStart: "",
+          plannedFinish: "",
+          stageLinks: [],
+          priorQty: i.priorQty,
+          currentQty: i.currentQty,
+          totalPct: i.totalPct,
+        }))
+    : boq.map((it) => {
+        const s = stateById.get(it.id);
+        return { ...it, priorQty: s?.priorQty ?? 0, currentQty: s?.currentQty ?? 0, totalPct: s?.totalPct ?? 0 };
+      });
 
   // سيناريو المالك 2026-11 — محرر ربط البند بالمراحل (واحدة أو أكثر) عبر PATCH stageIds
   const [stageEditItem, setStageEditItem] = React.useState<BoqItemDTO | null>(null);
@@ -3139,12 +3205,127 @@ function BoqPage({
         )}
       </div>
 
+      {/* ①½ ز3 — خط زمن حالة BOQ: منتقي «افتح كما كان في…» + شريط الأحداث (docs/boq-state-timeline-design.md §5) */}
+      <Card className="p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <History className="size-4 text-muted-foreground" aria-hidden />
+          <span className="text-sm font-bold">خط زمن الحالة</span>
+          {historical ? (
+            <>
+              <Badge variant="warn" className="text-[11px]">وضع تاريخي — قراءة فقط</Badge>
+              <Badge variant="outline" className="text-[11px] tabular-nums" dir="ltr">{asOf}</Badge>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8"
+                onClick={() => {
+                  setAsOf(null);
+                  setAsOfDraft("");
+                }}
+              >
+                <RotateCcw className="size-3.5" />
+                العودة إلى الحاضر
+              </Button>
+            </>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="date"
+                className="h-8 w-40"
+                value={asOfDraft}
+                max={todayStr()}
+                aria-label="افتح كما كان في تاريخ"
+                onChange={(e) => setAsOfDraft(e.target.value)}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8"
+                disabled={!asOfDraft}
+                onClick={() => setAsOf(asOfDraft)}
+              >
+                افتح كما كان في…
+              </Button>
+            </div>
+          )}
+        </div>
+        {events.length > 0 && (
+          <>
+            {/* سطح المكتب: شريط أفقي — نقطة لكل حدث، الضغط يقفز إلى حالته عند ذلك التاريخ */}
+            <div className="mt-3 hidden gap-1.5 overflow-x-auto pb-1 md:flex" role="list" aria-label="أحداث خط زمن حالة البنود">
+              {events.map((ev, i) => {
+                const active = ev.date === asOf;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      setAsOf(ev.date);
+                      setAsOfDraft(ev.date);
+                    }}
+                    title={`${ev.kind} — ${ev.label}`}
+                    aria-label={`${ev.kind} في ${ev.date}`}
+                    className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                      active ? "border-primary bg-primary/10 font-bold" : "border-border hover:bg-muted/60"
+                    }`}
+                  >
+                    <span aria-hidden>{TIMELINE_ICONS[ev.kind] ?? "•"}</span>
+                    <span className="tabular-nums" dir="ltr">{ev.date.slice(5)}</span>
+                    <span className="text-muted-foreground">{ev.kind}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* الجوال: قائمة منسدلة بأحداث خط الزمن */}
+            <details className="mt-3 md:hidden">
+              <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+                أحداث خط الزمن ({events.length})
+              </summary>
+              <div className="mt-2 space-y-1">
+                {events.map((ev, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      setAsOf(ev.date);
+                      setAsOfDraft(ev.date);
+                    }}
+                    className={`flex w-full items-center gap-2 rounded-md border p-2 text-start text-xs hover:bg-muted/60 ${
+                      ev.date === asOf ? "border-primary bg-primary/10" : ""
+                    }`}
+                  >
+                    <span aria-hidden>{TIMELINE_ICONS[ev.kind] ?? "•"}</span>
+                    <span className="shrink-0 tabular-nums text-muted-foreground" dir="ltr">{ev.date}</span>
+                    <span className="shrink-0 font-bold">{ev.kind}</span>
+                    <span className="min-w-0 flex-1 truncate text-muted-foreground">{ev.label}</span>
+                  </button>
+                ))}
+              </div>
+            </details>
+          </>
+        )}
+        {/* المستخلصات عند التاريخ التاريخي — دور كل مستخلص + شارة «ساق» (من أغلقته اعتمادات أحدث) */}
+        {historical && (stateQuery.data?.invoices.length ?? 0) > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t pt-2">
+            <span className="text-xs text-muted-foreground">المستخلصات عند {asOf}:</span>
+            {stateQuery.data!.invoices.map((inv) => (
+              <Badge key={inv.id} variant={inv.sakat ? "warn" : inv.role === "سابق" ? "success" : "outline"} className="gap-1 text-[11px]">
+                <span dir="ltr" className="tabular-nums">{inv.invoiceNumber}</span>
+                {inv.role === "سابق" && <span>سابق</span>}
+                {inv.role === "حالي" && <span>{inv.sakat ? "ساق" : "حالي"}</span>}
+                {inv.role === "لاحق" && <span>لاحق</span>}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </Card>
+
       {/* ② جدول البنود — استيراد من ملف BOQ أو إضافة يدوية (سطر «بنود: N» كالمكتبي 1232) */}
       <Card className="p-4">
         <CardHeader className="p-0 pb-2">
           <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
             <span>بنود الكميات · بنود: {boq.length}</span>
-            {manager && (
+            {manager && !historical && (
               <div className="flex flex-wrap items-center gap-2">
                 <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={onImportBoq}>
                   <Upload className="size-4" />
@@ -3174,7 +3355,9 @@ function BoqPage({
               </p>
             </div>
           ) : (
-            <Card className="overflow-hidden">
+            <>
+              {/* سطح المكتب: الجدول الكامل — يخفى في الجوال لصالح البطاقات */}
+              <Card className="hidden overflow-hidden md:block">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -3188,11 +3371,18 @@ function BoqPage({
                       <TableHead className="w-20 text-center">الوحدة</TableHead>
                       <TableHead className="w-28 text-end">سعر الوحدة</TableHead>
                       <TableHead className="w-28 text-end">الإجمالي</TableHead>
-                      {manager && <TableHead className="w-16 text-center">حذف</TableHead>}
+                      {showStateCols && (
+                        <>
+                          <TableHead className="w-16 text-center">سابق</TableHead>
+                          <TableHead className="w-16 text-center">حالي</TableHead>
+                          <TableHead className="w-16 text-center">النسبة</TableHead>
+                        </>
+                      )}
+                      {manager && !historical && <TableHead className="w-16 text-center">حذف</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {boq.map((it) => (
+                    {rows.map((it) => (
                       <TableRow key={it.id}>
                         <TableCell className="tabular-nums text-muted-foreground" dir="ltr">{it.itemNo || "—"}</TableCell>
                         <TableCell>
@@ -3216,7 +3406,7 @@ function BoqPage({
                           ) : (
                             it.stageName && <div className="text-xs text-muted-foreground">المرحلة: {it.stageName}</div>
                           )}
-                          {manager && stageOptions.length > 0 && (
+                          {manager && !historical && stageOptions.length > 0 && (
                             <Button
                               variant="link"
                               size="sm"
@@ -3254,7 +3444,22 @@ function BoqPage({
                         <TableCell className="text-center">{it.unit || "—"}</TableCell>
                         <TableCell className="text-end tabular-nums" dir="ltr">{formatKWD(it.unitPrice)}</TableCell>
                         <TableCell className="text-end font-bold tabular-nums" dir="ltr">{formatKWD(it.amount)}</TableCell>
-                        {manager && (
+                        {showStateCols && (
+                          <>
+                            <TableCell className="text-center font-bold tabular-nums" dir="ltr">{it.priorQty}</TableCell>
+                            <TableCell className="text-center tabular-nums text-muted-foreground" dir="ltr">{it.currentQty}</TableCell>
+                            <TableCell className="text-center">
+                              <span
+                                className={`text-xs font-bold tabular-nums ${it.totalPct > 100 ? "text-destructive" : ""}`}
+                                title={it.totalPct > 100 ? "تنفيذ زائد — إشارة حقيقية لا تُخفى" : "النسبة الكلية (سابق + حالي) ÷ التعاقدي"}
+                                dir="ltr"
+                              >
+                                {it.totalPct}٪
+                              </span>
+                            </TableCell>
+                          </>
+                        )}
+                        {manager && !historical && (
                           <TableCell className="text-center">
                             <Button
                               variant="ghost"
@@ -3272,7 +3477,70 @@ function BoqPage({
                   </TableBody>
                 </Table>
               </div>
-            </Card>
+              </Card>
+              {/* الجوال: بطاقة لكل بند — سابق/حالي/النسبة كاملة بلا تمرير أفقي */}
+              <div className="space-y-2 md:hidden">
+                {rows.map((it) => (
+                  <Card key={it.id} className="p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {it.itemNo && (
+                            <span className="text-xs tabular-nums text-muted-foreground" dir="ltr">{it.itemNo}</span>
+                          )}
+                          {it.divisionName && (
+                            <Badge variant="outline" className="text-[10px]">{it.divisionName}</Badge>
+                          )}
+                        </div>
+                        <div className="mt-0.5 text-sm font-medium leading-snug">{it.description}</div>
+                      </div>
+                      <div className="shrink-0 text-end text-sm font-bold tabular-nums" dir="ltr">{formatKWD(it.amount)}</div>
+                    </div>
+                    <div className="mt-2 grid grid-cols-4 gap-1.5 text-center text-xs">
+                      <div className="rounded-md bg-muted/50 p-1.5">
+                        <div className="text-[10px] text-muted-foreground">الكمية</div>
+                        <div className="font-bold tabular-nums" dir="ltr">{Number(it.qty)}</div>
+                      </div>
+                      <div className="rounded-md bg-muted/50 p-1.5">
+                        <div className="text-[10px] text-muted-foreground">سابق</div>
+                        <div className="font-bold tabular-nums" dir="ltr">{it.priorQty}</div>
+                      </div>
+                      <div className="rounded-md bg-muted/50 p-1.5">
+                        <div className="text-[10px] text-muted-foreground">حالي</div>
+                        <div className="tabular-nums" dir="ltr">{it.currentQty}</div>
+                      </div>
+                      <div className="rounded-md bg-muted/50 p-1.5">
+                        <div className="text-[10px] text-muted-foreground">النسبة</div>
+                        <div className={`font-bold tabular-nums ${it.totalPct > 100 ? "text-destructive" : ""}`} dir="ltr">
+                          {it.totalPct}٪
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span>{it.unit || "—"} · سعر {formatKWD(it.unitPrice)}</span>
+                      {it.stageName && <span>المرحلة: {it.stageName}</span>}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+              {/* ز3 — إجماليات الحالة: السابق المُجمَّد · الحالي قيد الإعداد · النسبة الكلية (§4) */}
+              {showStateCols && stateQuery.data && (
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-muted/30 px-3 py-2 text-xs">
+                  <span>
+                    قيمة البنود الظاهرة: <b dir="ltr">{formatKWD(stateQuery.data.totals.contractAmount)}</b> {cur}
+                  </span>
+                  <span>
+                    السابق (معتمد): <b dir="ltr">{formatKWD(stateQuery.data.totals.priorAmount)}</b> {cur}
+                  </span>
+                  <span>
+                    الحالي قيد الإعداد: <b dir="ltr">{formatKWD(stateQuery.data.totals.currentAmount)}</b> {cur}
+                  </span>
+                  <span>
+                    النسبة الكلية: <b dir="ltr">{stateQuery.data.totals.pct}٪</b>
+                  </span>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
