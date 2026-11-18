@@ -185,6 +185,8 @@ model Customer {
   consultingProjects   ConsultingProject[] @relation("ConsultingProjectCustomer")
   // ر3 — فرص البيع (docs/opportunities-design.md): الفرصة بعميل اختياري — SetNull مع حذف العميل
   opportunities        Opportunity[]       @relation("OpportunityCustomer")
+  // ر5 — بوابة العميل: رموز الكشف المؤقتة — Cascade مع حذف العميل (د9 البطاقة)
+  portalTokens         CustomerPortalToken[] @relation("CustomerPortalToken")
 
   @@unique([companyId, customerCode])
   @@map("customers")
@@ -620,6 +622,29 @@ model Opportunity {
   @@index([companyId, stage])
   @@index([customerId])
   @@map("opportunities")
+}
+
+model CustomerPortalToken {
+  /**
+   * ر5 — بوابة العميل: رموز وصول مؤقتة لكشف PDF (docs/customer-portal-design.md — اعتماد المالك):
+   * الرمز الصريح لا يُخزن إطلاقًا — هاش SHA-256 حصرًا (د1) · صلاحية 30/90/365 بمقارنة خادمية
+   * بلا cron (د2) · إبطال فوري revokedAt (د3) · قراءة فقط بلا أي مسار كتابة (§1) ·
+   * lastUsedAt/Ip بلا جدول زيارات ولا عدادات (د7 — G9) · Cascade مع حذف العميل (د9).
+   */
+  companyId  Int       @default(1) @map("company_id")
+  id         Int       @id @default(autoincrement())
+  customerId Int       @map("customer_id")
+  customer   Customer  @relation("CustomerPortalToken", fields: [customerId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique @map("token_hash") // sha256 hex — الرمز الصريح مرة واحدة حواريًا حصرًا (د1)
+  expiresAt  DateTime  @map("expires_at") // الحكم خادمي عند كل طلب (د2)
+  revokedAt  DateTime? @map("revoked_at") // إبطال يدوي فوري (د3)
+  lastUsedAt DateTime? @map("last_used_at") // آخر استخدام ناجح — بلا عدادات (د7 — G9)
+  lastUsedIp String    @default("") @map("last_used_ip")
+  createdBy  Int?      @map("created_by")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([customerId])
+  @@map("customer_portal_tokens")
 }
 
 /**

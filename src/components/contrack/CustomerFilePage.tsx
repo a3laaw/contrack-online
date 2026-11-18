@@ -56,6 +56,7 @@ import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "./api";
 import { CustomerEditPage } from "./CustomerEditPage";
 import { CustomerFollowupTasks } from "./CustomerFollowupTasks";
 import { CustomerStatementPanel } from "./CustomerStatementPanel";
+import { CustomerPortalLinks } from "./CustomerPortalLinks";
 import { ContractDetailView } from "./ContractDetailView";
 import type {
   CustomerAttachment,
@@ -557,12 +558,14 @@ export function CustomerFilePage({
         </TabsContent>
 
         {/* ==================== تبويب «الكشف المالي» — ر2 ملف العميل الموحد ==================== */}
-        <TabsContent value="statement" className="mt-3">
+        <TabsContent value="statement" className="mt-3 space-y-4">
           <CustomerStatementPanel
             customerId={customerId}
             customerName={customer?.name || ""}
             onAuthError={onAuthError}
           />
+          {/* ر5 — بوابة العميل: روابط كشف مؤقتة (docs/customer-portal-design.md د8) */}
+          <CustomerPortalLinks customerId={customerId} customerName={customer?.name || ""} onAuthError={onAuthError} />
         </TabsContent>
 
         {/* ==================== تبويب «التعليقات والمتابعة» — ر2 ملف العميل الموحد ==================== */}

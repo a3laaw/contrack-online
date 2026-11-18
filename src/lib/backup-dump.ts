@@ -76,6 +76,8 @@ export const BACKUP_MODELS: BackupModelSpec[] = [
   { model: "numberSequence", table: "number_sequences", serial: false },
   // ===== العملاء والعقود =====
   { model: "customer", table: "customers", serial: true },
+  // ر5 — بوابة العميل: رموز الكشف بعد العملاء (FK Cascade — docs/customer-portal-design.md د9)
+  { model: "customerPortalToken", table: "customer_portal_tokens", serial: true },
   // إصلاح فجوة موروثة بنمط درس T112 (مع ر3/ر4): projects وquotations/quotation_items كانت غائبة عن
   // النسخ الاحتياطي رغم FK عليها من الجداول المسجلة — تُسجل قبل الفرص وعرض الأسعار المربوطة بها
   { model: "project", table: "projects", serial: true },

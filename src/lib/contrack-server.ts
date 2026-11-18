@@ -49,9 +49,10 @@ export async function nextNumberByKey(
 }
 
 /** إعدادات النظام — ينشئ صف شركة السياق إن لم يوجد */
-export async function getSettingsRow(tx?: Tx) {
+export async function getSettingsRow(tx?: Tx, explicitCompanyId?: number) {
   const client = tx || db;
-  const companyId = await currentCompanyId();
+  // explicitCompanyId: للسياقات العامة بلا جلسة (ر5 المسار العام للبوابة — د4 البطاقة)
+  const companyId = explicitCompanyId ?? (await currentCompanyId());
   if (companyId == null) throw new Error("سياق الشركة مفقود للإعدادات");
   const found = await client.setting.findUnique({ where: { companyId } });
   if (found) return found;

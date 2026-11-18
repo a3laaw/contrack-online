@@ -88,6 +88,8 @@ const TENANT_MODELS = new Set<string>([
   "opportunity",
   // ر4 — الموردون وأوامر الشراء (docs/purchase-design.md): الرأس ثم بنوده — بنفس القاعدة بنفس الـcommit (درس T111)
   "supplier", "purchaseOrder", "purchaseOrderItem",
+  // ر5 — بوابة العميل (docs/customer-portal-design.md): رموز الكشف المؤقتة — فصل الشركات بنفس القاعدة (درس T111)
+  "customerPortalToken",
   // تصحيح الجلسة 11: وثائق BOQ المستقلة (كوميت المرحلة أ) حملت company_id في المخطط
   // لكنها فاتتها قائمة الحجب — والمسارات تعتمد على الغلاف (findMany بلا where.companyId)
   // ⇒ تسريب بين الشركات على نمط درس T111 — تسجيلهما إلزامي

@@ -101,27 +101,31 @@ const byDateRef = (a: { date: string; ref: string }, b: { date: string; ref: str
  * صف افتتاحي «قيمة العقد» مدين + ملاحق معتمدة (زيادة مدين/خصم دائن ADD-xxx) +
  * فواتير محايدة (للعلم) + سندات قبض دائن + تمديد الإشراف مدين بتاريخ base_end.
  */
-export async function buildContractStatementRaw(contractId: number): Promise<RawStatement | null> {
-  const contract = await db.contract.findUnique({ where: { id: contractId } });
+/** كشف العقد الخام — client: غلاف الشركة للسياقات بلا جلسة (ر5 البوابة العامة) — الافتراضي db (الجلسة) */
+export async function buildContractStatementRaw(
+  contractId: number,
+  client: Prisma.TransactionClient = db
+): Promise<RawStatement | null> {
+  const contract = await client.contract.findUnique({ where: { id: contractId } });
   if (!contract) return null;
 
   const [addendums, invoices, receiptRows, stages] = await Promise.all([
-    db.addendum.findMany({
+    client.addendum.findMany({
       where: { contractId },
       select: { addendumNumber: true, addendumType: true, reason: true, adate: true, approvedDate: true, amountAdd: true, amountDeduct: true, status: true },
       orderBy: [{ adate: "asc" }, { id: "asc" }],
     }),
-    db.invoice.findMany({
+    client.invoice.findMany({
       where: { contractId },
       select: { invoiceNumber: true, invoiceDate: true, description: true, total: true, paidAmount: true, status: true },
       orderBy: [{ invoiceDate: "asc" }, { id: "asc" }],
     }),
-    db.voucher.findMany({
+    client.voucher.findMany({
       where: { contractId, vtype: "receipt", cancelled: false },
       select: { id: true, voucherNumber: true, vdate: true, amount: true, description: true },
       orderBy: [{ vdate: "asc" }, { id: "asc" }],
     }),
-    db.contractStage.findMany({
+    client.contractStage.findMany({
       where: { contractId },
       select: { name: true, endDate: true, supActualEnd: true },
       orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
@@ -319,12 +323,13 @@ export interface CustomerStatementResult {
   }[];
 }
 
-/** كشف العميل الشامل (statement_service.build_customer_statement — A.2) */
+/** كشف العميل الشامل — client اختياري للسياقات بلا جلسة (ر5 المسار العام — د4/د5 البطاقة) */
 export async function buildCustomerStatement(
   customerId: number,
-  opts: { contractId?: number; from?: string; to?: string } = {}
+  opts: { contractId?: number; from?: string; to?: string } = {},
+  client: Prisma.TransactionClient = db
 ): Promise<CustomerStatementResult | null> {
-  const customer = await db.customer.findUnique({
+  const customer = await client.customer.findUnique({
     where: { id: customerId },
     select: { id: true, name: true, customerCode: true, phone: true },
   });
@@ -333,7 +338,7 @@ export async function buildCustomerStatement(
   const to = opts.to || "";
 
   // النطاق: عقد محدد (مع تحقق ملكية) أو كل العقود بغير ملغى/مسودة مرتبة (contractDate, id)
-  const contracts = await db.contract.findMany({
+  const contracts = await client.contract.findMany({
     where: { customerId, id: opts.contractId || undefined, status: { notIn: STATUS_HIDE_STATEMENT } },
     select: { id: true, contractNumber: true, contractName: true, contractDate: true },
     orderBy: [{ contractDate: "asc" }, { id: "asc" }],
@@ -349,7 +354,7 @@ export async function buildCustomerStatement(
   const perContract: CustomerStatementResult["perContract"] = [];
 
   for (const c of contracts) {
-    const raw = await buildContractStatementRaw(c.id);
+    const raw = await buildContractStatementRaw(c.id, client);
     if (!raw) continue;
     // فلتر الفترة لكل عقد: الصفوف الأقدم من from ⇒ رصيد أول فترة لهذا العقد
     let contractOpening = 0;
