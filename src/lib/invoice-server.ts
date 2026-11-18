@@ -17,6 +17,10 @@ import {
   computeCumulativeSnapshots,
   validateInvoiceBoqLines,
 } from "@/lib/boq-invoice-core";
+import {
+  canInvoiceApprove,
+  INV_STATE_APPROVED,
+} from "@/lib/invoice-state-core";
 
 /** تحويل آمن لرقم (مرآة numOr — محلية لكسر دورة الاستيراد مع contrack-server) */
 const numOr = (v: unknown, d: number): number => {
@@ -127,8 +131,10 @@ export function buildInvoiceItems(raw: unknown): { ok: true } & BuiltInvoiceItem
 // ==================== ز1 — ربط أسطر المستخلص ببنود BOQ (boq-state-timeline-design §2) ====================
 
 /**
- * خريطة المفوتر السابق لكل بند BOQ في العقد — المصدر الوحيد لحساب المتاح واللقطات:
- * Σ كميات أسطر فواتير العقد غير الملغاة المرتبطة بالبند (الأسطر الحرة لا تدخل).
+ * خريطة المفوتر المعتمد السابق لكل بند BOQ في العقد — المصدر الوحيد لحساب المتاح واللقطات:
+ * Σ كميات أسطر فواتير العقد **المعتمدة** المرتبطة بالبند (ز2 — docs/boq-state-timeline-design.md §3:
+ * «المسودة لا تستهلك المتاح» — المسرّابان تُحسم منافستهما لحظة الاعتماد؛ الأسطر الحرة لا تدخل،
+ * والملغاة مستبعدة، وصفوف ما قبل ز2 كلها معتمدة افتراضيًا فلا تتغير النتيجة عن السابق).
  */
 export async function invoicedQtyByBoqItem(
   client: DbClient,
@@ -141,6 +147,7 @@ export async function invoicedQtyByBoqItem(
       invoice: {
         contractId,
         status: { not: "void" },
+        state: INV_STATE_APPROVED, // ز2 — المعتمد حصرًا: المسودة/المقدم لا يستنزفان المتاح
         ...(excludeInvoiceId ? { id: { not: excludeInvoiceId } } : {}),
       },
     },
@@ -436,6 +443,7 @@ export async function reallocateVoucherInvoiceLinks(
           customerId,
           legacy: false,
           status: { not: "void" },
+          state: INV_STATE_APPROVED, // ز2 — التخصيص على المعتمد حصرًا (§3: لا روابط سداد إلا على state=معتمد)
         },
         select: {
           id: true,
@@ -542,11 +550,119 @@ export async function voidInvoiceTx(
 
 // ==================== مساعدات القراءة ====================
 
-/** مجموع المفوتر لغير الملغاة على عقد — سقف الفوترة (القيمة الحالية − المفوتر) */
+/** مجموع المفوتر المعتمد على عقد — سقف الفوترة (القيمة الحالية − المفوتر)
+ *  ز2: المعتمد حصرًا — المسودة/المقدم لا تستهلكان القيمة (تحسم منافستهما لحظة الاعتماد) */
 export async function invoicedTotalForContract(client: DbClient, contractId: number): Promise<number> {
   const agg = await client.invoice.aggregate({
-    where: { contractId, status: { not: "void" } },
+    where: { contractId, status: { not: "void" }, state: INV_STATE_APPROVED },
     _sum: { total: true },
   });
   return r3(Number(agg._sum.total || 0));
+}
+
+// ==================== ز2 — آلة الاعتماد (boq-state-timeline-design §3) ====================
+
+/**
+ * اعتماد مستخلص العميل داخل معاملة — «لحظة الحقيقة» (§3):
+ *  1. الحواجز: موجودة · مقدم (canInvoiceApprove) · غير ملغاة · غير مرحّلة
+ *  2. إعادة حارس المتاح الكمي لحظة الحقيقة (خريطة المعتمد حصرًا — مسودات منافسة تُحسم هنا:
+ *     أول اعتماد يستهلك المتاح والثاني يُرفض برسالة صريحة)
+ *  3. إعادة سقف الفوترة المالي: المعتمد السابق + هذه ≤ القيمة الحالية
+ *  4. تجميد لقطات cumulativeQty لكل سطر من خريطة المعتمد السابق
+ *  5. لقطة استرداد الدفعة المقدمة محسوبة داخل المعاملة نفسها
+ *  6. نشر قيد الإصدار (بوابة الفترة المفتوحة على invoiceDate داخل النشر — فشله يتراجع كليًا)
+ *  7. التأشيرة: state=معتمد + approveBy/approveAt
+ * المستدعي (المسار) يضيف حدث العقد والتدقيق بعد نجاح المعاملة.
+ */
+export async function approveInvoiceTx(
+  tx: Tx,
+  invoiceId: number,
+  actor: string
+): Promise<{ invoiceNumber: string; entryNo: number; advanceRecovered: number }> {
+  const inv = await tx.invoice.findUnique({
+    where: { id: invoiceId },
+    include: {
+      items: { orderBy: { sortOrder: "asc" } },
+      customer: { select: { name: true } },
+    },
+  });
+  if (!inv) throw new Error("الفاتورة غير موجودة");
+  if (inv.status === "void") throw new Error("الفاتورة ملغاة — لا اعتماد بعد الإلغاء");
+  if (inv.legacy) throw new Error("الفاتورة الترحيلية أرشيفية معتمدة أصلًا");
+  if (!canInvoiceApprove(inv.state)) {
+    throw new Error(`الفاتورة بحالة ولاية «${inv.state}» — الاعتماد من «مقدم» حصرًا`);
+  }
+
+  const items = inv.items.map((it) => ({
+    boqItemId: it.boqItemId,
+    quantity: r3(Number(it.quantity)),
+  }));
+
+  // ز2 — إعادة حارس المتاح لحظة الحقيقة: خريطة المعتمد حصرًا (هذه الفاتورة مقدم فلا تدخل فيها)
+  const boqLines = items.map((it) => ({ boqItemId: it.boqItemId, qty: it.quantity }));
+  const boqIds = Array.from(new Set(boqLines.map((l) => l.boqItemId ?? 0).filter((v) => v > 0)));
+  if (boqIds.length > 0) {
+    if (!inv.contractId) throw new Error("أسطر بنود BOQ تتطلب عقدًا");
+    const boqItems = await tx.boqItem.findMany({
+      where: { id: { in: boqIds } },
+      select: { id: true, contractId: true, deleted: true, qty: true },
+    });
+    const invoicedBefore = await invoicedQtyByBoqItem(tx, inv.contractId);
+    const byId = new Map(boqItems.map((b) => [b.id, b]));
+    const availability = new Map<number, number>();
+    for (const boqId of boqIds) {
+      const b = byId.get(boqId);
+      if (!b || b.contractId !== inv.contractId || b.deleted) {
+        throw new Error("أحد بنود BOQ المختارة غير موجود في بنود هذا العقد");
+      }
+      availability.set(boqId, boqItemAvailable(Number(b.qty), invoicedBefore.get(boqId) || 0));
+    }
+    const check = validateInvoiceBoqLines(boqLines, availability);
+    if (!check.ok) throw new Error(check.error);
+  }
+
+  // ملاحظة السقف المالي: يُفحص في المسار قبل المعاملة عبر loadContractCore (نفس مستوى حماية
+  // إنشاء الفاتورة القائم حرفيًا — القيمة الحالية حساب مركب من القبض والإشراف لا يُكرر داخلًا)
+
+  // ز2 — تجميد لقطات التراكمي لكل سطر من خريطة المعتمد السابق (اللقطات كانت لحظة الإصدار في ز1)
+  if (inv.contractId) {
+    const invoicedBefore = await invoicedQtyByBoqItem(tx, inv.contractId);
+    const snapshots = computeCumulativeSnapshots(boqLines, invoicedBefore);
+    for (const [i, line] of inv.items.entries()) {
+      const snap = snapshots[i] ?? 0;
+      await tx.invoiceItem.update({ where: { id: line.id }, data: { cumulativeQty: snap } });
+    }
+  }
+
+  // لقطة استرداد الدفعة المقدمة محسوبة داخل المعاملة نفسها (المسودة كانت صفرًا عند الإنشاء)
+  const advanceRecovered = inv.contractId
+    ? await computeAdvanceRecoveryForContract(tx, inv.contractId, r3(Number(inv.total)))
+    : 0;
+
+  // نشر قيد الإصدار — بوابة الفترة المفتوحة على invoiceDate داخل النشر، وفشله يتراجع كليًا
+  const entry = await postInvoiceIssueEntry(
+    tx,
+    {
+      id: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      invoiceDate: inv.invoiceDate,
+      total: r3(Number(inv.total)),
+      customerId: inv.customerId,
+      contractId: inv.contractId,
+      retentionAmount: r3(Number(inv.retentionAmount)),
+    },
+    inv.customer.name,
+    actor
+  );
+
+  await tx.invoice.update({
+    where: { id: inv.id },
+    data: {
+      state: INV_STATE_APPROVED,
+      advanceRecovered,
+      approveBy: actor,
+      approveAt: new Date().toISOString().slice(0, 10),
+    },
+  });
+  return { invoiceNumber: inv.invoiceNumber, entryNo: entry.entryNo, advanceRecovered };
 }

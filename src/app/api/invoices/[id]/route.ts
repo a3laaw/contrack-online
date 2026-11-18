@@ -5,14 +5,18 @@ import { EPS, r3 } from "@/lib/contrack-core";
 import { intOr, loadContractCore } from "@/lib/contrack-server";
 import { computeNetDue } from "@/lib/phase-a-core";
 import {
-  buildBoqCumulativeSnapshots,
   buildInvoiceItems,
   guardInvoiceBoqAvailability,
   invoicedTotalForContract,
-  repostInvoiceEntry,
   voidInvoiceTx,
   type InvoiceItemInputRow,
 } from "@/lib/invoice-server";
+import {
+  canInvoiceEdit,
+  INV_STATE_APPROVED,
+  INV_STATE_DRAFT,
+  invoiceEditBlockedReason,
+} from "@/lib/invoice-state-core";
 import { voidPosLinkedTx } from "@/lib/sales-server";
 
 type P = { params: Promise<{ id: string }> };
@@ -72,6 +76,12 @@ export async function GET(req: NextRequest, { params }: P) {
       advanceRecovered: r3(Number(inv.advanceRecovered)),
       netDue: inv.status === "void" ? 0 : computeNetDue(Number(inv.total), Number(inv.retentionAmount), Number(inv.advanceRecovered)),
       status: inv.status,
+      // ز2 — ولاية الاعتماد وتفاصيلها (docs/boq-state-timeline-design.md §3)
+      state: inv.state,
+      submitBy: inv.submitBy,
+      submitAt: inv.submitAt,
+      approveBy: inv.approveBy,
+      approveAt: inv.approveAt,
       voidReason: inv.voidReason,
       legacy: inv.legacy,
       notes: inv.notes,
@@ -176,6 +186,11 @@ export async function PATCH(req: NextRequest, { params }: P) {
   if (inv.legacy) {
     return jsonError("الفاتورة الترحيلية أرشيفية (ما قبل النواة المزدوجة) — لا تُعدَّل مبالغها أو تواريخها، يمكن إلغاؤها فقط");
   }
+  // ز2 — التعديل: مسودة حصرًا (docs/boq-state-timeline-design.md §3) — المقدم مقفل والمعتمد
+  // «ساق» لا يُعدَّل إطلاقًا: «الاعتماد لحظة الحقيقة» — أي تصحيح بمستخلص لاحق
+  if (!canInvoiceEdit(inv.state)) {
+    return jsonError(invoiceEditBlockedReason(inv.state));
+  }
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const data: {
@@ -226,14 +241,14 @@ export async function PATCH(req: NextRequest, { params }: P) {
 
   if (!Object.keys(data).length) return jsonError("لا توجد حقول للتعديل");
 
-  // سقف الفوترة عند تغيّر الصافي أو العقد
+  // سقف الفوترة عند تغيّر الصافي أو العقد — المفوتر **المعتمد** حصرًا (ز2 §3)
   const newTotal = itemsProvided ? data.total! : r3(Number(inv.total));
   const effContractId = data.contractId !== undefined ? data.contractId : inv.contractId;
   if (effContractId && (itemsProvided || data.contractId !== undefined)) {
     const core = await loadContractCore(effContractId);
     if (!core) return jsonError("العقد غير موجود", 404);
     const invoicedExcl = await db.invoice.aggregate({
-      where: { contractId: effContractId, status: { not: "void" }, id: { not: id } },
+      where: { contractId: effContractId, status: { not: "void" }, state: INV_STATE_APPROVED, id: { not: id } },
       _sum: { total: true },
     });
     const remaining = r3(core.current - r3(Number(invoicedExcl._sum.total || 0)));
@@ -259,17 +274,19 @@ export async function PATCH(req: NextRequest, { params }: P) {
 
   const entryDateChanged = data.invoiceDate !== undefined && data.invoiceDate !== inv.invoiceDate;
   const totalChanged = itemsProvided && r3(newTotal) !== r3(Number(inv.total));
+  void entryDateChanged;
+  void totalChanged;
+  // ز2 — بلا إعادة نشر قيد هنا: التعديل مسودة حصرًا (الحارس أعلاه) والمسودة بلا قيد أصلًا —
+  // النشر يحدث لحظة الاعتماد بقيم المسودة النهائية (فشل الاعتماد يتراجع كليًا)
 
   try {
     const updated = await db.$transaction(
       async (tx) => {
         if (itemsProvided) {
-          // ز1 — حارس المتاح لحظة الحقيقة داخل المعاملة + لقطات التراكمي الجديدة
-          let boqTxMap = new Map<number, number>();
+          // ز1 — حارس المتاح لحظة الحقيقة داخل المعاملة (خريطة المعتمد حصرًا — ز2)
           if (effContractId) {
             const boqGuard = await guardInvoiceBoqAvailability(tx, effContractId, newItems, id);
             if (!boqGuard.ok) throw new Error(boqGuard.error);
-            boqTxMap = boqGuard.invoicedBeforeByBoqItem;
           }
           await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
           await tx.invoiceItem.createMany({
@@ -282,38 +299,20 @@ export async function PATCH(req: NextRequest, { params }: P) {
               lineTotal: it.lineTotal,
               sortOrder: i,
               boqItemId: it.boqItemId ?? null,
-              cumulativeQty: effContractId ? buildBoqCumulativeSnapshots(newItems, boqTxMap)[i] ?? 0 : 0,
+              // ز2 — التعديل مسودة حصرًا: بلا لقطات مجمدة — تُجمَّد كلها لحظة الاعتماد
+              cumulativeQty: 0,
             })),
           });
         }
         const row = await tx.invoice.update({ where: { id }, data });
 
-        // تغيّر الصافي أو تاريخ الإصدار ⇒ عكس القيد وإعادة نشره بقيم الفاتورة الحالية
-        if (totalChanged || entryDateChanged) {
-          await repostInvoiceEntry(
-            tx,
-            {
-              id,
-              invoiceNumber: row.invoiceNumber,
-              invoiceDate: row.invoiceDate,
-              total: r3(Number(row.total)),
-              customerId: row.customerId,
-              contractId: row.contractId,
-              entryId: row.entryId,
-              retentionAmount: r3(Number(row.retentionAmount)),
-            },
-            inv.customer.name,
-            totalChanged ? "تعديل فاتورة (تغيّر الصافي)" : "تعديل فاتورة (تغيّر تاريخ الإصدار)",
-            guard.user.username
-          );
-        }
-
+        // ز2 — صيغة الحدث تميز تعديل المسودة (بلا قيد أصلًا — النشر في مسار الاعتماد)
         if (effContractId) {
           await tx.contractEvent.create({
             data: {
               contractId: effContractId,
-              eventType: "تعديل فاتورة",
-              description: `تعديل الفاتورة ${row.invoiceNumber} — الصافي ${r3(Number(row.total))}`,
+              eventType: "تعديل مسودة مستخلص",
+              description: `تعديل مسودة المستخلص ${row.invoiceNumber} — الصافي ${r3(Number(row.total))} (الاعتماد يجمّد القيم النهائية)`,
               username: guard.user.username,
             },
           });

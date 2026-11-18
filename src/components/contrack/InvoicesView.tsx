@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BadgeCheck,
   Ban,
+  CheckCheck,
   Eye,
   FileStack,
   Loader2,
@@ -21,6 +22,7 @@ import {
   Printer,
   ReceiptText,
   ScrollText,
+  Send,
   TriangleAlert,
   Wallet,
 } from "lucide-react";
@@ -49,7 +51,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ApiError, apiGet, apiPatch } from "./api";
+import { ApiError, apiGet, apiPatch, apiPost } from "./api";
 import { SearchableSelect } from "./SearchableSelect";
 import type {
   InvoiceDetailResponse,
@@ -116,6 +118,32 @@ function StatusBadge({ status, legacy }: { status: InvoiceStatus; legacy?: boole
   );
 }
 
+// ===== ز2 — ولاية الاعتماد (docs/boq-state-timeline-design.md §3) =====
+/** شارة الولاية: مسودة رمادية · مقدم تحذيرية · معتمد خضراء — المعتمد هو الافتراضي فتُعرض بصمت هادئ */
+const STATE_BADGE_CLS: Record<string, string> = {
+  مسودة: "bg-muted text-muted-foreground",
+  مقدم: "bg-status-info-bg text-status-info",
+  معتمد: "bg-status-done/15 text-status-done",
+};
+
+function StateBadge({ state }: { state?: string }) {
+  if (!state) return null;
+  return (
+    <Badge
+      className={`border-0 text-[11px] ${STATE_BADGE_CLS[state] ?? "bg-muted text-muted-foreground"}`}
+      title={
+        state === "مسودة"
+          ? "مسودة بلا قيد — تُحرَّر ثم تُقدَّم فتُعتمد لنشر قيدها"
+          : state === "مقدم"
+            ? "مقدمة مقفلة التحرير — بانتظار الاعتماد (لحظة الحقيقة)"
+            : "معتمدة — القيد منشور واللقطات مجمدة ولا تُعدَّل"
+      }
+    >
+      {state}
+    </Badge>
+  );
+}
+
 /** المرحلة (أ) — شارة المحتجزات: المبلغ مع حالة الإفراج (معلّق/مُفرج عنه) */
 function RetentionBadge({ amount, released }: { amount: number; released?: boolean }) {
   if (!(amount > 0)) return null;
@@ -137,6 +165,7 @@ export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewP
 
   // ===== الفلاتر (خادمية عبر مفاتيح الاستعلام) =====
   const [statusFilter, setStatusFilter] = React.useState("all");
+  const [stateFilter, setStateFilter] = React.useState("all");
   const [customerFilter, setCustomerFilter] = React.useState("all");
   const [contractFilter, setContractFilter] = React.useState("all");
   const [q, setQ] = React.useState("");
@@ -144,11 +173,12 @@ export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewP
   const filtersQs = React.useMemo(() => {
     const p = new URLSearchParams();
     if (statusFilter !== "all") p.set("status", statusFilter);
+    if (stateFilter !== "all") p.set("state", stateFilter);
     if (customerFilter !== "all") p.set("customerId", customerFilter);
     if (contractFilter !== "all") p.set("contractId", contractFilter);
     if (q.trim()) p.set("q", q.trim());
     return p.toString();
-  }, [statusFilter, customerFilter, contractFilter, q]);
+  }, [statusFilter, stateFilter, customerFilter, contractFilter, q]);
 
   const invoicesQuery = useQuery<InvoicesResponse>({
     queryKey: ["invoices", filtersQs],
@@ -225,6 +255,29 @@ export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewP
     },
   });
 
+  // ===== ز2 — آلة الاعتماد: تقديم (مسودة←مقدم) واعتماد (مقدم←معتمد بنشر القيد وتجميد اللقطات) =====
+  const stateMutation = useMutation({
+    mutationFn: ({ id, action }: { id: number; action: "submit" | "approve" }) =>
+      apiPost<{ state?: string; entryNo?: number }>(`/api/invoices/${id}/${action}`, {}),
+    onSuccess: (res, vars) => {
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["invoice-detail"] });
+      qc.invalidateQueries({ queryKey: ["contract"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      toast({
+        title: vars.action === "submit" ? "قُدّمت المسودة" : "اعتُمد المستخلص",
+        description:
+          vars.action === "submit"
+            ? "انتقلت من «مسودة» إلى «مقدم» — مقفلة التحرير بانتظار الاعتماد"
+            : `«لحظة الحقيقة»: نُشر قيد الإصدار ${res.entryNo ? `#${res.entryNo}` : ""} وجُمدت اللقطات — لا تعديل بعدها`,
+      });
+    },
+    onError: (e) => {
+      if (e instanceof ApiError && e.status === 401) onAuthError();
+      toast({ variant: "destructive", title: "تعذر تنفيذ العملية", description: errMessage(e) });
+    },
+  });
+
   // ===== فاتورة جديدة — صفحة كاملة بدل النافذة =====
   const [newPage, setNewPage] = React.useState<{ presetCustomerId: string | null } | null>(null);
   const openNew = () => {
@@ -268,6 +321,32 @@ export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewP
         <Printer className="size-3.5" />
         طباعة
       </Button>
+      {inv.status !== "void" && inv.state === "مسودة" && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1 border-status-info/40 px-2 text-xs text-status-info hover:bg-status-info-bg hover:text-status-info"
+          disabled={stateMutation.isPending}
+          onClick={() => stateMutation.mutate({ id: inv.id, action: "submit" })}
+          aria-label={`تقديم المسودة ${inv.invoiceNumber}`}
+        >
+          {stateMutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+          تقديم
+        </Button>
+      )}
+      {inv.status !== "void" && inv.state === "مقدم" && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1 border-status-done/40 px-2 text-xs text-status-done hover:bg-status-done-bg hover:text-status-done"
+          disabled={stateMutation.isPending}
+          onClick={() => stateMutation.mutate({ id: inv.id, action: "approve" })}
+          aria-label={`اعتماد المستخلص ${inv.invoiceNumber}`}
+        >
+          {stateMutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCheck className="size-3.5" />}
+          اعتماد
+        </Button>
+      )}
       {manager && inv.status !== "void" && (
         <Button
           variant="outline"
@@ -337,20 +416,34 @@ export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewP
       </div>
 
       {/* الفلاتر */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         <SearchableSelect
           value={statusFilter}
           onValueChange={setStatusFilter}
           options={[
-            { value: "all", label: "كل الحالات" },
+            { value: "all", label: "كل الحالات المالية" },
             { value: "unpaid", label: "غير مسددة" },
             { value: "partial", label: "مسددة جزئيًا" },
             { value: "paid", label: "مسددة" },
             { value: "void", label: "ملغاة" },
             { value: "legacy", label: "المرحَّلة (أرشيف)" },
           ]}
-          placeholder="الحالة"
+          placeholder="الحالة المالية"
           searchPlaceholder="ابحث بالحالة…"
+          emptyText="لا نتائج مطابقة"
+        />
+        {/* ز2 — فلتر ولاية الاعتماد (مسودة/مقدم/معتمد) */}
+        <SearchableSelect
+          value={stateFilter}
+          onValueChange={setStateFilter}
+          options={[
+            { value: "all", label: "كل الولايات" },
+            { value: "مسودة", label: "مسودة (بلا قيد)" },
+            { value: "مقدم", label: "مقدم (بانتظار الاعتماد)" },
+            { value: "معتمد", label: "معتمد (القيد منشور)" },
+          ]}
+          placeholder="ولاية الاعتماد"
+          searchPlaceholder="ابحث بالولاية…"
           emptyText="لا نتائج مطابقة"
         />
         <SearchableSelect
@@ -464,7 +557,10 @@ export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewP
                         )}
                       </TableCell>
                       <TableCell>
-                        <StatusBadge status={inv.status} legacy={inv.legacy} />
+                        <span className="inline-flex items-center gap-1">
+                          <StateBadge state={inv.state} />
+                          <StatusBadge status={inv.status} legacy={inv.legacy} />
+                        </span>
                       </TableCell>
                       <TableCell>
                         {inv.entryNo ? (
@@ -497,6 +593,7 @@ export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewP
                 <CardContent className="space-y-2 p-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-xs font-bold">{inv.invoiceNumber}</span>
+                    <StateBadge state={inv.state} />
                     <StatusBadge status={inv.status} legacy={inv.legacy} />
                     <span className="ms-auto text-sm font-bold tabular-nums">{formatKWD(inv.total)}</span>
                   </div>
@@ -547,6 +644,7 @@ export function InvoicesView({ user, onAuthError, onOpenJournal }: InvoicesViewP
           <DialogHeader>
             <DialogTitle className="flex flex-wrap items-center gap-2">
               فاتورة {dInv?.invoiceNumber ?? ""}
+              {dInv && <StateBadge state={dInv.state} />}
               {dInv && <StatusBadge status={dInv.status} legacy={dInv.legacy} />}
             </DialogTitle>
             <DialogDescription>

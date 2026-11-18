@@ -1717,6 +1717,12 @@ export interface InvoiceRow {
   advanceRecovered?: number;
   netDue?: number;
   status: InvoiceStatus;
+  /** ز2 — ولاية الاعتماد (docs/boq-state-timeline-design.md §3): مسودة | مقدم | معتمد */
+  state?: string;
+  submitBy?: string;
+  submitAt?: string;
+  approveBy?: string;
+  approveAt?: string;
   legacy: boolean;
   entryId: number | null;
   entryNo: number | null;

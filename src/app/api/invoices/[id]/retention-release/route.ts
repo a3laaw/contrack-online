@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { adminGuard, audit, jsonError, ok, parseDay, todayStr } from "@/lib/api-utils";
 import { r3 } from "@/lib/contrack-core";
 import { canReleaseRetention } from "@/lib/phase-a-core";
+import { canInvoiceReleaseRetention } from "@/lib/invoice-state-core";
 import { ensurePeriodForDate, postNamedEntry } from "@/lib/journal-server";
 import { resolveContractSubsidiary } from "@/lib/subsidiary-server";
 import { resolveInvoiceIssueSides, resolveRetentionSide } from "@/lib/invoice-server";
@@ -36,6 +37,7 @@ export async function POST(req: NextRequest, { params }: P) {
             invoiceNumber: true,
             invoiceDate: true,
             status: true,
+            state: true,
             total: true,
             retentionAmount: true,
             retentionReleased: true,
@@ -46,6 +48,12 @@ export async function POST(req: NextRequest, { params }: P) {
           },
         });
         if (!inv) throw new Error("الفاتورة غير موجودة");
+
+        // ز2 — الإفراج عن المحتجزات على المعتمد حصرًا (docs/boq-state-timeline-design.md §3:
+        // «لا إفراج محتجزات إلا على state=معتمد») — المحتجز لقطة اعتماد لا لقطة إعداد
+        if (!canInvoiceReleaseRetention(inv.state)) {
+          throw new Error(`الفاتورة بحالة ولاية «${inv.state}» — الإفراج عن المحتجزات على المعتمد حصرًا`);
+        }
 
         const retentionAmount = r3(Number(inv.retentionAmount));
         const gate = canReleaseRetention({
@@ -130,7 +138,8 @@ export async function POST(req: NextRequest, { params }: P) {
       msg.includes("ملغاة") ||
       msg.includes("لا توجد محتجزات") ||
       msg.includes("مُفرج") ||
-      msg.includes("مقفلة")
+      msg.includes("مقفلة") ||
+      msg.includes("حصرًا") // ز2 — «الإفراج عن المحتجزات على المعتمد حصرًا»
     ) {
       return jsonError(msg, 400);
     }

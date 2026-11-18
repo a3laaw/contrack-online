@@ -1625,6 +1625,16 @@ model Invoice {
   paidAmount              Decimal              @default(0) @map("paid_amount") @db.Decimal(18, 3) // من الروابط حصرًا (كاش يُعاد حسابه)
   status                  String               @default("unpaid") // unpaid | partial | paid | void
   voidReason              String               @default("") @map("void_reason")
+  // ز2 — آلة اعتماد مستخلص العميل (docs/boq-state-timeline-design.md §3 — مرآة SubCertificate):
+  // الافتراضي «معتمد» يحفظ كل المسارات القائمة حرفيًا (الإنشاء ينشر قيده فورًا كما اليوم)،
+  // والمسودة خيار صريح جديد بلا قيد ولا لقطات مجمدة حتى الاعتماد — «الاعتماد لحظة الحقيقة»:
+  // نشر القيد وتجميد لقطات cumulativeQty ينتقلان إلى لحظة الاعتماد، والمعتمد لا يُعدَّل (السقوط)،
+  // والروابط المالية (سداد FIFO/إفراج محتجزات) على المعتمد حصرًا. حالة status المالية متعامدة.
+  state                   String               @default("معتمد") // مسودة | مقدم | معتمد — بلا enum (قواعد المشروع)
+  submitBy                String               @default("") @map("submit_by")
+  submitAt                String               @default("") @map("submit_at")
+  approveBy               String               @default("") @map("approve_by")
+  approveAt               String               @default("") @map("approve_at")
   legacy                  Boolean              @default(false) // فاتورة مرحَّلة من هيكل ما قبل Task 107 — بلا قيد
   notes                   String               @default("")
   entryId                 Int?                 @map("entry_id") // قيد الإصدار المرتبط (قيود التعديل تُعكس وتُعاد نشرها)
@@ -1653,6 +1663,7 @@ model Invoice {
   @@index([customerId])
   @@index([contractId])
   @@index([status])
+  @@index([state]) // ز2 — فلترة ولايات الاعتماد (المسودات/المقدمة/المعتمدة)
   @@index([paymentId])
   @@map("invoices")
 }

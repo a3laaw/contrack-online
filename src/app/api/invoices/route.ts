@@ -12,6 +12,7 @@ import {
   guardInvoiceBoqAvailability,
   postInvoiceIssueEntry,
 } from "@/lib/invoice-server";
+import { INV_STATE_APPROVED, INV_STATE_DRAFT, INV_STATE_SUBMITTED, isInvoiceState } from "@/lib/invoice-state-core";
 
 /**
  * الفواتير — Task 107 (استبدال كامل — منهج النواة الواحدة):
@@ -32,12 +33,18 @@ export async function GET(req: NextRequest) {
   const customerId = intOr(sp.get("customerId"), 0);
   const contractId = intOr(sp.get("contractId"), 0);
   const statusFilter = (sp.get("status") || "all").trim();
+  const stateFilter = (sp.get("state") || "all").trim();
   const from = parseDay(sp.get("from"));
   const to = parseDay(sp.get("to"));
 
   const where: Prisma.InvoiceWhereInput = {};
   if (customerId) where.customerId = customerId;
   if (contractId) where.contractId = contractId;
+  if (stateFilter !== "all") {
+    // ز2 — فلتر ولاية الاعتماد (مسودة/مقدم/معتمد) — القيمة الدخيلة تُرفض صريحًا لا تُسقط
+    if (!isInvoiceState(stateFilter)) return jsonError(`ولاية غير معروفة: ${stateFilter}`);
+    where.state = stateFilter;
+  }
   if (from || to) {
     where.invoiceDate = {};
     if (from) where.invoiceDate.gte = from;
@@ -97,6 +104,12 @@ export async function GET(req: NextRequest) {
         advanceRecovered,
         netDue: r.status === "void" ? 0 : computeNetDue(total, retentionAmount, advanceRecovered),
         status: r.status,
+        // ز2 — ولاية الاعتماد وتفاصيلها (docs/boq-state-timeline-design.md §3)
+        state: r.state,
+        submitBy: r.submitBy,
+        submitAt: r.submitAt,
+        approveBy: r.approveBy,
+        approveAt: r.approveAt,
         legacy: r.legacy,
         entryId: r.entry?.id ?? null,
         entryNo: r.entry?.entryNo ?? null,
@@ -124,6 +137,16 @@ export async function POST(req: NextRequest) {
   const dueDate = parseDay(body.dueDate) || "";
   const notes = String(body.notes || "").trim();
   const description = String(body.description || "").trim();
+  // ز2 — «حفظ كمسودة» خيار صريح: بلا قيد ولا لقطات مجمدة حتى الاعتماد (§3) —
+  // أي قيمة أخرى غير «مسودة» ترفض صريحًا (المفردات مقفلة) والغياب يعني الإصدار الفوري معتمدًا كما اليوم
+  const requestedState = String(body.state || INV_STATE_APPROVED).trim();
+  if (!isInvoiceState(requestedState)) {
+    return jsonError(`ولاية غير معروفة: ${requestedState} — المسموح «مسودة» فقط عند الإنشاء`);
+  }
+  if (requestedState === INV_STATE_SUBMITTED) {
+    return jsonError("الإنشاء معتمدًا أو كمسودة — التقديم عملية صريحة بعد الإنشاء (مسودة ← مقدم)");
+  }
+  const asDraft = requestedState === INV_STATE_DRAFT;
 
   const built = buildInvoiceItems(body.items);
   if (!built.ok) return jsonError(built.error);
@@ -159,14 +182,15 @@ export async function POST(req: NextRequest) {
     if (linked) return jsonError(`دفعة الخطة مرتبطة بفاتورة سارية (${linked.invoiceNumber})`);
   }
 
-  // سقف الفوترة: المفوتر (لغير الملغاة) + هذه الفاتورة ≤ القيمة الحالية
+  // سقف الفوترة: المفوتر **المعتمد** (ز2) + هذه الفاتورة ≤ القيمة الحالية
+  // المسودة/المقدم لا تستهلكان القيمة — والمنافسة تُحسم لحظة الاعتماد (§3)
   let core: Awaited<ReturnType<typeof loadContractCore>> | null = null;
   let invoicedBefore = 0;
   if (contractId) {
     core = await loadContractCore(contractId);
     if (!core) return jsonError("العقد غير موجود", 404);
     const invoicedAgg = await db.invoice.aggregate({
-      where: { contractId, status: { not: "void" } },
+      where: { contractId, status: { not: "void" }, state: INV_STATE_APPROVED },
       _sum: { total: true },
     });
     invoicedBefore = r3(Number(invoicedAgg._sum.total || 0));
@@ -175,6 +199,7 @@ export async function POST(req: NextRequest) {
       return jsonError(`الفاتورة تتجاوز المتبقي من العقد (${remaining} د.ك)`);
     }
     // ز1 — حارس المتاح الكمي (مرآة SubIPC §3.4): أسطر بنود BOQ لا تتجاوز متاح كل بند
+    // (ز2: الخريطة معتمد حصرًا — المسودات المنافسة لا تستهلك المتاح، والتحسم لحظة الاعتماد)
     const boqGuard = await guardInvoiceBoqAvailability(db, contractId, built.items);
     if (!boqGuard.ok) return jsonError(boqGuard.error);
   }
@@ -205,10 +230,10 @@ export async function POST(req: NextRequest) {
           const invoiceNumber = await nextNumber("INV", 4, tx);
           const invoiceNo = intOr(invoiceNumber.replace(/^INV-/, ""), 0);
           // المرحلة (أ) — المحتجز الفعلي + لقطة استرداد الدفعة المقدمة (محسوبة خادميًا داخل المعاملة)
+          // ز2 — المسودة: بلا لقطة استرداد ولا لقطات تراكمي — تُجمّد كلها لحظة الاعتماد
           const retentionAmount = contractId ? r3((built.total * retentionRate) / 100) : 0;
-          const advanceRecovered = contractId
-            ? await computeAdvanceRecoveryForContract(tx, contractId, built.total)
-            : 0;
+          const advanceRecovered =
+            contractId && !asDraft ? await computeAdvanceRecoveryForContract(tx, contractId, built.total) : 0;
           // ز1 — حارس المتاح لحظة الحقيقة داخل المعاملة (سباق متوازي يتراجع كليًا)
           let boqTxMap = new Map<number, number>();
           if (contractId) {
@@ -233,6 +258,7 @@ export async function POST(req: NextRequest) {
               retentionAmount,
               advanceRecovered,
               notes,
+              state: requestedState, // ز2 — الافتراضي معتمد (المسارات القائمة حرفيًا) والمسودة خيار صريح
             },
           });
           await tx.invoiceItem.createMany({
@@ -245,14 +271,17 @@ export async function POST(req: NextRequest) {
               lineTotal: it.lineTotal,
               sortOrder: i,
               boqItemId: it.boqItemId ?? null,
-              // ز1 — لقطة التراكمي لحظة الإصدار: تُحسب من المفوتر السابق داخل المعاملة نفسها
-              cumulativeQty: contractId ? buildBoqCumulativeSnapshots(built.items, boqTxMap)[i] ?? 0 : 0,
+              // ز1 — لقطة التراكمي: تُجمّد لحظة الإصدار للمعتمد الفوري، ولحظة الاعتماد للمسودة (ز2 §3)
+              cumulativeQty: contractId && !asDraft ? buildBoqCumulativeSnapshots(built.items, boqTxMap)[i] ?? 0 : 0,
             })),
           });
 
-          // قيد الإصدار الآلي — فشله يتراجع عن الإصدار كله (لا فاتورة بلا قيد)
+          // قيد الإصدار الآلي — فشله يتراجع عن الإصدار كله (لا فاتورة معتمدة بلا قيد)
+          // ز2 — المسودة بلا قيد: النشر ينتقل إلى لحظة الاعتماد مع تحقق الفترة المفتوحة وقتها (§3)
           // المرحلة (أ) — مع محتجزات: 3 أسطر (ذمم total−R · محتجزات R · إيراد total)
-          const entry = await postInvoiceIssueEntry(
+          const entry = asDraft
+            ? null
+            : await postInvoiceIssueEntry(
             tx,
             {
               id: invoice.id,
@@ -268,13 +297,17 @@ export async function POST(req: NextRequest) {
           );
 
           if (contractId && contract) {
+            // ز2 — صيغة الحدث تميز المسودة عن الإصدار الفوري
             const retentionNote = retentionAmount > 0 ? ` — محتجزات ${retentionAmount} (${retentionRate}%)` : "";
             const advanceNote = advanceRecovered > 0 ? ` — استرداد دفعة مقدمة ${advanceRecovered}` : "";
+            const eventText = asDraft
+              ? `إنشاء مسودة المستخلص ${invoiceNumber} بمبلغ ${built.total} — بلا قيد حتى الاعتماد${retentionNote} — العقد ${contract.contractNumber}`
+              : `إصدار فاتورة ${invoiceNumber} بمبلغ ${built.total} (قيد #${entry?.entryNo ?? ""})${retentionNote}${advanceNote} — العقد ${contract.contractNumber}`;
             await tx.contractEvent.create({
               data: {
                 contractId,
-                eventType: "إصدار فاتورة",
-                description: `إصدار فاتورة ${invoiceNumber} بمبلغ ${built.total}${retentionNote}${advanceNote} (قيد #${entry.entryNo}) — العقد ${contract.contractNumber}`,
+                eventType: asDraft ? "إنشاء مسودة مستخلص" : "إصدار فاتورة",
+                description: eventText,
                 username: guard.user.username,
               },
             });
@@ -286,7 +319,7 @@ export async function POST(req: NextRequest) {
             entityId: invoice.id,
             entityName: invoiceNumber,
           });
-          return { invoice, entryNo: entry.entryNo };
+          return { invoice, entryNo: entry?.entryNo ?? null };
         },
         { timeout: 30_000, maxWait: 10_000 }
       );
@@ -301,17 +334,18 @@ export async function POST(req: NextRequest) {
             contractNumber: contract?.contractNumber ?? null,
             invoiceDate,
             total: built.total,
+            state: requestedState,
             retentionRate,
             retentionAmount: created.invoice.retentionAmount ? r3(Number(created.invoice.retentionAmount)) : 0,
             advanceRecovered: created.invoice.advanceRecovered ? r3(Number(created.invoice.advanceRecovered)) : 0,
             netDue: computeNetDue(built.total, Number(created.invoice.retentionAmount), Number(created.invoice.advanceRecovered)),
-            entryNo: created.entryNo,
+            entryNo: asDraft ? null : created.entryNo ?? null,
           },
           financials: core
             ? {
                 current: core.current,
-                invoiced: r3(invoicedBefore + built.total),
-                remaining: r3(core.current - invoicedBefore - built.total),
+                invoiced: r3(invoicedBefore + (asDraft ? 0 : built.total)),
+                remaining: r3(core.current - invoicedBefore - (asDraft ? 0 : built.total)),
               }
             : undefined,
         },

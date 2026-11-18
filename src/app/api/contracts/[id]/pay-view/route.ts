@@ -173,8 +173,9 @@ export async function GET(req: NextRequest, { params }: P) {
   const freeClientIds = clientLines.map((l) => l.id).filter((id) => !usedClientIds.has(id));
 
   // ④ المرحلة (أ) — المحتجزات والدفعة المقدمة ومستخلصات الباطن (docs/retention-subipc-advance-design.md §5.3)
+  // ز2 — المحتجز لقطة اعتماد لا لقطة إعداد: المعتمد حصرًا (المسودة تُعرض لاحقًا في ز3 كـ«حالي»)
   const retentionInvoices = await db.invoice.findMany({
-    where: { contractId, status: { not: "void" }, retentionAmount: { gt: 0 } },
+    where: { contractId, status: { not: "void" }, state: "معتمد", retentionAmount: { gt: 0 } },
     select: {
       id: true,
       invoiceNumber: true,
@@ -194,7 +195,8 @@ export async function GET(req: NextRequest, { params }: P) {
     retentionInvoices.filter((i) => i.retentionReleased).reduce((s, i) => s + Number(i.retentionAmount), 0)
   );
   const invoiceRows = await db.invoice.findMany({
-    where: { contractId, status: { not: "void" } },
+    // ز2 — استرداد الدفعة المقدمة للمعتمد حصرًا (المسودة لقطة صفر حتى الاعتماد — §3)
+    where: { contractId, status: { not: "void" }, state: "معتمد" },
     select: { total: true, retentionAmount: true, advanceRecovered: true },
   });
   const advanceRecoveredTotal = r3(invoiceRows.reduce((s, i) => s + Number(i.advanceRecovered), 0));

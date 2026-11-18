@@ -38,13 +38,14 @@ export async function GET(req: NextRequest, { params }: P) {
     db.fieldExecution.groupBy({ by: ["boqItemId"], where: { contractId, documented: true }, _sum: { qty: true } }),
     // ز1 — عداد «مفوتر بالبند»: Σ كميات أسطر فواتير العميل غير الملغاة المرتبطة بالبند
     // (الأسطر الحرة بلا بند لا تدخل — docs/boq-state-timeline-design.md §2)
+    // ز2 — «المفوتر بالبند» للمعتمد حصرًا (§3: المسودة لا تستهلك — وتُعرض لاحقًا كـ«حالي» في ز3)
     db.invoiceItem.groupBy({
       by: ["boqItemId"],
-      where: { boqItemId: { not: null }, invoice: { contractId, status: { not: "void" } } },
+      where: { boqItemId: { not: null }, invoice: { contractId, status: { not: "void" }, state: "معتمد" } },
       _sum: { quantity: true },
     }),
     db.invoice.findMany({
-      where: { contractId, status: { not: "void" } },
+      where: { contractId, status: { not: "void" }, state: "معتمد" },
       select: { total: true, paidAmount: true },
     }),
     db.fieldExecution.findMany({

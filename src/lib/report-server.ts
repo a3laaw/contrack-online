@@ -116,7 +116,9 @@ export async function buildContractStatementRaw(
       orderBy: [{ adate: "asc" }, { id: "asc" }],
     }),
     client.invoice.findMany({
-      where: { contractId },
+      // ز2 — كشف العقد الرسمي يعرض المستخلصات المعتمدة حصرًا (docs/boq-state-timeline-design.md §3):
+      // المسودة/المقدم بلا قيد ولا موقع مالي — صفوف ما قبل ز2 كلها معتمدة افتراضيًا
+      where: { contractId, status: { not: "void" }, state: "معتمد" },
       select: { invoiceNumber: true, invoiceDate: true, description: true, total: true, paidAmount: true, status: true },
       orderBy: [{ invoiceDate: "asc" }, { id: "asc" }],
     }),

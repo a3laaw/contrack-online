@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ApiError, apiGet, apiPost } from "./api";
@@ -95,6 +96,9 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
   const [nDescription, setNDescription] = React.useState("");
   const [nNotes, setNNotes] = React.useState("");
   const [newError, setNewError] = React.useState("");
+  // ز2 — «حفظ كمسودة» خيار صريح (docs/boq-state-timeline-design.md §3):
+  // المسودة بلا قيد ولا لقطات مجمدة — تُحرَّر ثم تُقدَّم فتُعتمد لنشر قيدها — الغياب يعني الإصدار الفوري كما اليوم
+  const [nAsDraft, setNAsDraft] = React.useState(false);
 
   // ===== البنود =====
   const [items, setItems] = React.useState<DraftItem[]>([{ ...EMPTY_ITEM, description: "" }]);
@@ -173,17 +177,20 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
   const advanceRecoveryEstimate = round3(Math.min((totals.total * nAdvancePct) / 100, nAdvance));
   const netDue = round3(totals.total - retentionAmount);
 
-  // ===== الإصدار — ينشر القيد الآلي داخل المعاملة =====
+  // ===== الإصدار — ينشر القيد الآلي داخل المعاملة (المسودة تُحفظ بلا قيد — ز2) =====
   const createMutation = useMutation({
-    mutationFn: (body: Record<string, unknown>) => apiPost<{ invoice?: { invoiceNumber?: string; entryNo?: number } }>("/api/invoices", body),
+    mutationFn: (body: Record<string, unknown>) => apiPost<{ invoice?: { invoiceNumber?: string; entryNo?: number | null } }>("/api/invoices", body),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["contract"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       onSaved?.();
+      const isDraft = !res.invoice?.entryNo;
       toast({
-        title: "صدرت الفاتورة",
-        description: `${res.invoice?.invoiceNumber ?? ""} — قيد آلي #${res.invoice?.entryNo ?? ""} (مدين ذمم / دائن إيراد)`,
+        title: isDraft ? "حُفظت كمسودة" : "صدرت الفاتورة",
+        description: isDraft
+          ? `${res.invoice?.invoiceNumber ?? ""} — بلا قيد حتى التقديم والاعتماد (لحظة الحقيقة) — قابلة للتحرير الآن`
+          : `${res.invoice?.invoiceNumber ?? ""} — قيد آلي #${res.invoice?.entryNo ?? ""} (مدين ذمم / دائن إيراد)`,
       });
     },
     onError: (e) => {
@@ -258,6 +265,7 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
       description: nDescription.trim() || undefined,
       notes: nNotes.trim() || undefined,
       retentionRate: nContractIdNum !== null ? retentionRateNum : undefined,
+      state: nAsDraft ? "مسودة" : undefined,
       items: clean.map((it) => ({
         description: it.description.trim(),
         quantity: num(it.quantity),
@@ -697,13 +705,21 @@ export function InvoiceNewPage({ onAuthError, presetCustomerId, onSaved, onCance
       {/* ===== شريط الإجراءات السفلي ===== */}
       <div className="sticky bottom-0 z-30">
         <Card className="border bg-background/95 shadow-sm backdrop-blur">
-          <CardContent className="flex items-center justify-end gap-2 p-2">
+          <CardContent className="flex flex-wrap items-center justify-end gap-2 p-2">
+            {/* ز2 — خيار المسودة الصريح: بلا قيد حتى التقديم والاعتماد */}
+            <label
+              className="me-auto flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-status-info/50 bg-status-info-bg/60 px-3 py-2 text-xs font-semibold text-status-info"
+              title="المسودة بلا قيد ولا لقطات مجمدة — تُقدَّم ثم تُعتمد لنشر قيدها، وما زالت قابلة للتحرير حتى التقديم"
+            >
+              <Switch checked={nAsDraft} onCheckedChange={setNAsDraft} aria-label="حفظ كمسودة" />
+              حفظ كمسودة (بلا قيد حتى الاعتماد)
+            </label>
             <Button variant="outline" className="h-9" onClick={onCancel} disabled={createMutation.isPending}>
               إلغاء
             </Button>
             <Button className="h-9" disabled={createMutation.isPending} onClick={submitNew}>
               {createMutation.isPending && <Loader2 className="size-4 animate-spin" />}
-              إصدار الفاتورة
+              {nAsDraft ? "حفظ المسودة" : "إصدار الفاتورة"}
             </Button>
           </CardContent>
         </Card>
