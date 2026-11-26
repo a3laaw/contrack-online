@@ -1057,6 +1057,113 @@ export interface ForecastResponse {
   draftInvoice: ForecastDraftInvoiceDTO | null;
 }
 
+// ==================== ج3 — لوحة قيادة المشروع EVM (docs/project-dashboard-design.md §9) ====================
+
+export interface DashboardContractDTO {
+  id: number;
+  contractNumber: string;
+  contractName: string;
+  customerId: number;
+  customerName: string;
+  startDate: string;
+  endDate: string;
+}
+
+export interface EvmHeaderDTO {
+  projectStart: string | null;
+  plannedFinishMax: string | null;
+  durationDays: number | null;
+  elapsedDays: number | null;
+  elapsedPct: number | null;
+  expectedFinish: string | null;
+}
+
+export interface EvmMoneyDTO {
+  billed: number;
+  collected: number;
+  retentionOutstanding: number;
+  cashRemaining: number;
+  burnPerDay: number;
+  runwayDays: number | null;
+}
+
+export interface EvmDivisionRowDTO {
+  divisionCode: string;
+  divisionName: string;
+  value: number;
+  weightPct: number;
+  plannedPct: number;
+  fieldPct: number;
+  officialPct: number;
+  delayedCount: number;
+  maxDelayDays: number;
+}
+
+export interface EvmDelayedItemDTO {
+  boqItemId: number;
+  itemNo: string;
+  description: string;
+  unit: string;
+  plannedFinish: string;
+  delayDays: number;
+  contractQty: number;
+  fieldQty: number;
+  fieldPct: number;
+}
+
+export interface EvmWarningDTO {
+  kind: "spi_official" | "spi_field" | "cpi_official" | "cpi_field" | "delayed_items";
+  title: string;
+  message: string;
+  value: number;
+}
+
+export interface EvmSCurvePointDTO {
+  date: string;
+  plannedCum: number;
+  officialCum: number;
+  fieldCum: number;
+}
+
+export interface EvmResultDTO {
+  today: string;
+  bac: number;
+  pv: number;
+  evOfficial: number;
+  evField: number;
+  ac: number;
+  acBreakdown: { vouchers: number; labor: number; materials: number };
+  pvPct: number;
+  evOfficialPct: number;
+  evFieldPct: number;
+  spiOfficial: number | null;
+  spiField: number | null;
+  cpiOfficial: number | null;
+  cpiField: number | null;
+  eacOfficial: number | null;
+  eacField: number | null;
+  header: EvmHeaderDTO;
+  sCurve: EvmSCurvePointDTO[];
+  divisions: EvmDivisionRowDTO[];
+  delayedItems: EvmDelayedItemDTO[];
+  money: EvmMoneyDTO;
+  warnings: EvmWarningDTO[];
+}
+
+export interface DashboardResponse {
+  mode: "live" | "historical";
+  asOf: string | null;
+  today: string;
+  contract: DashboardContractDTO;
+  rows: ForecastRowDTO[];
+  totals: ForecastTotalsDTO;
+  sCurve: ForecastSCurvePoint[];
+  warnings: ForecastWarningDTO[];
+  evm: EvmResultDTO;
+  /** العتبات الفعّالة بعد التدقيق — للتلوين وفقها لا قيم صلبة (§9.3) */
+  thresholds: { spiMin: number; cpiMin: number; maxDelayDays: number };
+}
+
 
 // ==================== التنفيذ الميداني — مقايسة التنفيذ (بند NOVA 5) ====================
 
@@ -1369,6 +1476,10 @@ export interface SettingsDTO {
   collectionAlertDays: number;
   expiryAlerts?: string;
   uiTheme?: string;
+  // ج3 — عتبات لوحة المشروع EVM (§9.3)
+  evmSpiMin?: number;
+  evmCpiMin?: number;
+  evmMaxDelayDays?: number;
 }
 
 export interface SettingsResponse {

@@ -73,6 +73,33 @@ export interface EvmThresholds {
 
 export const EVM_DEFAULT_THRESHOLDS: EvmThresholds = { spiMin: 0.95, cpiMin: 0.95, maxDelayDays: 7 };
 
+/**
+ * ج3 — تدقيق العتبات القادمة من إعدادات الشركة المخزنة (§9.3):
+ * نطاق spiMin/cpiMin ∈ (0,1] وmaxDelayDays ≥ 0 — خارج النطاق أو غير رقم
+ * ⇒ سقوط للقيمة الافتراضية (لا قيمة فاسدة تصل النواة ولا 500 لحارس يقرأها).
+ * نقية بلا I/O — المدخل مرآة صف الإعدادات كما يعيدها serialize (Decimal نص).
+ */
+export function parseEvmThresholds(raw?: {
+  spiMin?: unknown;
+  cpiMin?: unknown;
+  maxDelayDays?: unknown;
+}): EvmThresholds {
+  const ratio = (v: unknown, d: number): number => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 && n <= 1 ? n : d;
+  };
+  const days = (v: unknown): number => {
+    if (v == null || v === "") return EVM_DEFAULT_THRESHOLDS.maxDelayDays; // الغياب لا صفر (Number(null)=0 فخ معلن)
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? Math.trunc(n) : EVM_DEFAULT_THRESHOLDS.maxDelayDays;
+  };
+  return {
+    spiMin: ratio(raw?.spiMin, EVM_DEFAULT_THRESHOLDS.spiMin),
+    cpiMin: ratio(raw?.cpiMin, EVM_DEFAULT_THRESHOLDS.cpiMin),
+    maxDelayDays: days(raw?.maxDelayDays),
+  };
+}
+
 // ==================== مخرجات ====================
 
 export interface EvmHeader {

@@ -11,6 +11,7 @@ import {
   EVM_DEFAULT_THRESHOLDS,
   deriveEvm,
   deriveEvmSCurve,
+  parseEvmThresholds,
   safeDiv,
   type EvmInvoiceInput,
   type EvmLaborInput,
@@ -351,5 +352,44 @@ describe("evm-core — deriveEvmSCurve نقية", () => {
       { date: "2026-11-05", plannedCum: 0, officialCum: 2000, fieldCum: 3000 },
       { date: "2026-11-20", plannedCum: 0, officialCum: 2000, fieldCum: 3000 },
     ]);
+  });
+});
+
+describe("evm-core — parseEvmThresholds تدقيق عتبات الإعدادات (ج3 §9.3)", () => {
+  test("بلا مدخل ⇒ الافتراضي حرفيًا", () => {
+    expect(parseEvmThresholds()).toEqual(EVM_DEFAULT_THRESHOLDS);
+    expect(parseEvmThresholds(undefined)).toEqual(EVM_DEFAULT_THRESHOLDS);
+    expect(parseEvmThresholds({})).toEqual(EVM_DEFAULT_THRESHOLDS);
+  });
+
+  test("قيم صالحة تُمر كما هي — والنص الرقمي (Decimal كنص) يُقبل", () => {
+    expect(parseEvmThresholds({ spiMin: 0.9, cpiMin: "0.85", maxDelayDays: 14 })).toEqual({
+      spiMin: 0.9,
+      cpiMin: 0.85,
+      maxDelayDays: 14,
+    });
+    expect(parseEvmThresholds({ spiMin: "0.95", cpiMin: "0.95", maxDelayDays: "10" })).toEqual({
+      spiMin: 0.95,
+      cpiMin: 0.95,
+      maxDelayDays: 10,
+    });
+  });
+
+  test("خارج النطاق ⇒ سقوط للافتراضي لا قبول فاسد", () => {
+    // صفر وسالب وفوق الواحد وغير رقم — كلها سقوط
+    expect(parseEvmThresholds({ spiMin: 0 })!.spiMin).toBe(0.95);
+    expect(parseEvmThresholds({ spiMin: -0.5 })!.spiMin).toBe(0.95);
+    expect(parseEvmThresholds({ cpiMin: 1.5 })!.cpiMin).toBe(0.95);
+    expect(parseEvmThresholds({ cpiMin: "abc" })!.cpiMin).toBe(0.95);
+    expect(parseEvmThresholds({ spiMin: Infinity })!.spiMin).toBe(0.95);
+    // الحد الأعلى 1 مقبول (تعطيل الحارس بالتساوي حرفيًا)
+    expect(parseEvmThresholds({ spiMin: 1, cpiMin: 1 })).toEqual({ spiMin: 1, cpiMin: 1, maxDelayDays: 7 });
+  });
+
+  test("أيام التأخر: سالب وغير رقم يسقط — والكسري يُجزأ", () => {
+    expect(parseEvmThresholds({ maxDelayDays: -3 })!.maxDelayDays).toBe(7);
+    expect(parseEvmThresholds({ maxDelayDays: null })!.maxDelayDays).toBe(7);
+    expect(parseEvmThresholds({ maxDelayDays: 12.8 })!.maxDelayDays).toBe(12);
+    expect(parseEvmThresholds({ maxDelayDays: 0 })!.maxDelayDays).toBe(0); // الصفر مقبول — تحذير فوري لأي تأخر
   });
 });

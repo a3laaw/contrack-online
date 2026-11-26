@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { authGuard, jsonError, ok } from "@/lib/api-utils";
 import { datePart10 } from "@/lib/boq-state-core";
+import { getSettingsRow } from "@/lib/contrack-server";
+import { parseEvmThresholds } from "@/lib/evm-core";
 import { deriveForecast, type ForecastExecutionInput, type ForecastInvoiceInput, type ForecastItemInput, type ForecastLineInput } from "@/lib/forecast-core";
 import { deriveEvm, type EvmInvoiceInput, type EvmLaborInput, type EvmMaterialInput, type EvmPlanInput, type EvmVoucherInput } from "@/lib/evm-core";
 
@@ -203,6 +205,16 @@ export async function GET(req: NextRequest, { params }: P) {
       approveDate: datePart10(inv.approveAt) || datePart10(inv.invoiceDate),
     }));
 
+  // ج3 §9.3 — العتبات من إعدادات الشركة المخزنة بتدقيق النواة النقية — بلا
+  // سياق إعدادات أو بقيم فاسدة ⇒ الافتراضي (سقوط لا فشل — اللوحة لا تنكسر)
+  let thresholds;
+  try {
+    const s = await getSettingsRow();
+    thresholds = parseEvmThresholds({ spiMin: s.evmSpiMin, cpiMin: s.evmCpiMin, maxDelayDays: s.evmMaxDelayDays });
+  } catch {
+    thresholds = parseEvmThresholds();
+  }
+
   const evm = deriveEvm({
     today,
     rows: forecast.rows,
@@ -213,6 +225,7 @@ export async function GET(req: NextRequest, { params }: P) {
     materialLines: materials,
     approvedInvoices,
     sCurve: forecast.sCurve,
+    thresholds,
   });
 
   return ok({
@@ -228,5 +241,6 @@ export async function GET(req: NextRequest, { params }: P) {
     },
     ...forecast,
     evm,
+    thresholds,
   });
 }

@@ -164,6 +164,60 @@ export function CompanyTab({ form, upd, methodsQuery, onReset, onSave, savePendi
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">عتبات لوحة قيادة المشروع EVM</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            ج3 §9.3 — عتبات تحذيرات اللوحة لكل شركة: المؤشر تحت العتبة يُلوّن وينشئ تحذيرًا، والبنود المتأخرة فوق عتبة الأيام تُجمع في تحذير واحد. خارج النطاق يُسقط للقيمة الافتراضية عند القراءة.
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="s-evm-spi">أدنى SPI مقبول</Label>
+              <Input
+                id="s-evm-spi"
+                className="h-9"
+                dir="ltr"
+                type="number"
+                min="0.001"
+                max="1"
+                step="0.01"
+                value={String(form.evmSpiMin ?? 0.95)}
+                onChange={(e) => upd({ evmSpiMin: Number(e.target.value || 0) })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="s-evm-cpi">أدنى CPI مقبول</Label>
+              <Input
+                id="s-evm-cpi"
+                className="h-9"
+                dir="ltr"
+                type="number"
+                min="0.001"
+                max="1"
+                step="0.01"
+                value={String(form.evmCpiMin ?? 0.95)}
+                onChange={(e) => upd({ evmCpiMin: Number(e.target.value || 0) })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="s-evm-delay">أقصى تأخر بند (يومًا)</Label>
+              <Input
+                id="s-evm-delay"
+                className="h-9"
+                dir="ltr"
+                type="number"
+                min="0"
+                step="1"
+                value={String(form.evmMaxDelayDays ?? 7)}
+                onChange={(e) => upd({ evmMaxDelayDays: Number(e.target.value || 0) })}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <PaymentMethodsCard methodsQuery={methodsQuery} onAuthError={onAuthError} />
 
       <SaveRow onReset={onReset} onSave={onSave} pending={savePending} />

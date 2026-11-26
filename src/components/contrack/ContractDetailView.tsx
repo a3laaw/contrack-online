@@ -128,6 +128,7 @@ import { BoqImportDialog } from "./BoqImportDialog";
 import { ScheduleImportDialog } from "./ScheduleImportDialog";
 import { ScheduleSection } from "./ScheduleSection";
 import { ForecastSection } from "./ForecastSection";
+import { EvmDashboardSection } from "./EvmDashboardSection";
 import { validatePlannedWindow } from "@/lib/schedule-items-core";
 import type { ScheduleStateDTO } from "@/lib/schedule-types";
 import { ContractSupervisionPage } from "./ContractSupervisionPage";
@@ -202,7 +203,7 @@ interface ContractDetailViewProps {
   onOpenCustomerFile?: (customerId: number) => void;
 }
 
-type PageKey = "stages" | "info" | "pay" | "boq" | "addendums";
+type PageKey = "stages" | "info" | "dashboard" | "pay" | "boq" | "addendums";
 
 /** الصفحات الداخلية الكاملة — بدل النوافذ الكبرى والصغيرة متوسطة الحجم */
 type FlowPage = "edit" | "sub-new" | "settle" | "boq" | "sup";
@@ -214,10 +215,12 @@ type StageActionMut = UseMutationResult<
   { stageId: number; body: Record<string, unknown> }
 >;
 
-/** PageNav بأسلوب المكتبي (contract_hub.py:129–135) — خمس صفحات بمجموعاتها */
+/** PageNav بأسلوب المكتبي (contract_hub.py:129–135) — ست صفحات بمجموعاتها (ج3 أضافت لوحة المشروع) */
 const PAGE_GROUPS: { key: PageKey; group: string; label: string }[] = [
   { key: "stages", group: "مراحل التنفيذ", label: "المسار الفني" },
   { key: "info", group: "ملخص العقد", label: "نظرة عامة" },
+  // ج3 — لوحة قيادة المشروع EVM (§9) — بعد «نظرة عامة» بنفس المجموعة
+  { key: "dashboard", group: "ملخص العقد", label: "لوحة قيادة المشروع" },
   { key: "pay", group: "💵 الدفعات والبنود", label: "الدفعات والمقاولون" },
   // صفحة الكميات المستقلة — BOQ نجم النظام (قلب التحكم الكمي): بنود + برنامج زمني + تنفيذ ميداني
   { key: "boq", group: "📐 الكميات والتنفيذ", label: "بنود الكميات BOQ" },
@@ -1136,6 +1139,9 @@ export function ContractDetailView({
           onIssued={onIpcIssued}
         />
       )}
+
+      {/* ===== الصفحة 2-ب: لوحة قيادة المشروع EVM (ج3 — §9) — قراءة حصرًا فوق مخرج ج2 ===== */}
+      {page === "dashboard" && <EvmDashboardSection contractId={contractId} />}
 
       {/* ===== الصفحة 3: الدفعات والمقاولون (_tab_pay) — المال فقط: بنود الكميات انتقلت لصفحتها المستقلة ===== */}
       {page === "pay" && (

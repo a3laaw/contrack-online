@@ -34,6 +34,10 @@ function serialize(s: Awaited<ReturnType<typeof getSettingsRow>>) {
     autoBackupInterval: s.autoBackupInterval,
     uiTheme: s.uiTheme,
     entryApprovalMode: s.entryApprovalMode,
+    // ج3 — عتبات لوحة المشروع EVM (§9.3)
+    evmSpiMin: Number(s.evmSpiMin),
+    evmCpiMin: Number(s.evmCpiMin),
+    evmMaxDelayDays: s.evmMaxDelayDays,
     updatedAt: s.updatedAt,
   };
 }
@@ -60,7 +64,6 @@ const STR_FIELDS = [
 
 const NUM_FIELDS = ["bankFeeAmount", "openingBalanceBank", "openingBalanceCash", "autoBackupInterval"] as const;
 const BOOL_FIELDS = ["bankFeeEnabled", "cashflowEnabled", "subPayClientGate", "autoBackupEnabled", "entryApprovalMode"] as const;
-
 /** الإعدادات — ينشئ الصف الافتراضي id=1 إن لم يوجد */
 export async function GET(req: NextRequest) {
   const guard = await authGuard(req);
@@ -82,6 +85,19 @@ export async function PUT(req: NextRequest) {
   if (body.collectionAlertDays !== undefined) {
     // أدنى نافذة 7 أيام (كالمصدر)
     data.collectionAlertDays = Math.max(7, Math.trunc(numOr(body.collectionAlertDays, 30)));
+  }
+  // ج3 §9.3 — عتبات EVM: النسب محصورة (0,1] والأيام ≥ 0 — والقراءة تتدقق
+  // مرّة ثانية بparseEvmThresholds فلا قيمة فاسدة تصل النواة ولو خُطيت هنا
+  if (body.evmSpiMin !== undefined) {
+    const n = numOr(body.evmSpiMin, 0.95);
+    data.evmSpiMin = Math.min(1, Math.max(0.001, n));
+  }
+  if (body.evmCpiMin !== undefined) {
+    const n = numOr(body.evmCpiMin, 0.95);
+    data.evmCpiMin = Math.min(1, Math.max(0.001, n));
+  }
+  if (body.evmMaxDelayDays !== undefined) {
+    data.evmMaxDelayDays = Math.max(0, Math.trunc(numOr(body.evmMaxDelayDays, 7)));
   }
   if (Object.keys(data).length === 0) {
     const s = await getSettingsRow();

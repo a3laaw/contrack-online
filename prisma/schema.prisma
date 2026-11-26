@@ -1271,6 +1271,9 @@ model Setting {
   autoBackupInterval    Int      @default(24) @map("auto_backup_interval")
   uiTheme               String   @default("light") @map("ui_theme")
   uiPrefs               String?  @map("ui_prefs")
+  evmSpiMin             Decimal  @default(0.950) @map("evm_spi_min") // ج3 — عتبة SPI للتحذير (0,1]
+  evmCpiMin             Decimal  @default(0.950) @map("evm_cpi_min") // ج3 — عتبة CPI للتحذير (0,1]
+  evmMaxDelayDays       Int      @default(7) @map("evm_max_delay_days") // ج3 — عتبة أيام تأخر البند
   updatedAt             DateTime @updatedAt
 
   @@map("settings")
