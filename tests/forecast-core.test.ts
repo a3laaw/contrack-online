@@ -8,13 +8,17 @@ import { describe, expect, test } from "bun:test";
 
 import {
   addDays,
+  deriveDraftProposal,
   deriveForecast,
   deriveForecastWarnings,
   deriveSCurve,
+  deriveSubMatch,
   rateWindowStart,
   summarizeForecast,
   type ForecastExecutionInput,
   type ForecastItemInput,
+  type ForecastRow,
+  type SubMatchCertLineInput,
 } from "../src/lib/forecast-core";
 
 const item = (over: Partial<ForecastItemInput>): ForecastItemInput => ({
@@ -295,5 +299,183 @@ describe("أدوات التاريخ", () => {
     // 2026-02-19 → 2026-03-20 شاملًا = 30 يومًا
     expect(rateWindowStart("2026-03-20", 30)).toBe("2026-02-19");
     expect(rateWindowStart("2026-03-20", 1)).toBe("2026-03-20");
+  });
+});
+
+// ==================== م2 — المحرك (§10) ====================
+
+/** صف تنبؤ مختصر لمساعدتي بالنواتين الجديدتين — قيم الفجوة صريحة لا مشتقة */
+const row = (over: Partial<ForecastRow>): ForecastRow => ({
+  boqItemId: 1,
+  itemNo: "A",
+  divisionCode: "03",
+  divisionName: "CONCRETE",
+  description: "خرسانة مسلحة",
+  unit: "م³",
+  contractQty: 100,
+  unitPrice: 50,
+  fieldQty: 60,
+  documentedQty: 60,
+  officialQty: 40,
+  gapQty: 20,
+  gapValue: 1000,
+  remainingQty: 40,
+  fieldAmount: 3000,
+  officialAmount: 2000,
+  ratePerDay: 0,
+  expectedFinish: null,
+  ...over,
+});
+
+const certLine = (over: Partial<SubMatchCertLineInput>): SubMatchCertLineInput => ({
+  certDate: "2026-03-10",
+  status: "معتمد",
+  boqItemId: 1,
+  qty: 30,
+  amount: 900,
+  ...over,
+});
+
+describe("deriveDraftProposal — أسطر المسودة من الفجوات الموجبة (م2 §10.1)", () => {
+  test("الفجوة الموجبة ⇒ سطر بالكمية كاملة والسعر الحالي وقيمته", () => {
+    const p = deriveDraftProposal([row({})]);
+    expect(p.lines).toHaveLength(1);
+    expect(p.lines[0]).toMatchObject({ boqItemId: 1, proposedQty: 20, unitPrice: 50, amount: 1000, cappedToAvailable: false });
+    expect(p.total).toBe(1000);
+  });
+
+  test("الفجوة السالبة (استباق) والصفرية مستبعدة — وبسعر صفر لا سطر (لا قيمة تُستخلص)", () => {
+    const p = deriveDraftProposal([
+      row({ boqItemId: 1, itemNo: "NEG", gapQty: -5, gapValue: -250 }),
+      row({ boqItemId: 2, itemNo: "ZERO", gapQty: 0, gapValue: 0 }),
+      row({ boqItemId: 3, itemNo: "NOPRICE", gapQty: 10, gapValue: 0 }),
+    ]);
+    expect(p.lines).toEqual([]);
+    expect(p.total).toBe(0);
+  });
+
+  test("الكمية المقترحة تُقص إلى المتاح (تعاقدي − رسمي) — وتعلّم القص", () => {
+    // تعاقدي 100 × رسمي 90 ⇒ متاح 10 — فجوة 20 (ميداني 110 فاق التعاقدي)
+    const p = deriveDraftProposal([row({ fieldQty: 110, officialQty: 90, gapQty: 20 })]);
+    expect(p.lines).toHaveLength(1);
+    expect(p.lines[0].proposedQty).toBe(10);
+    expect(p.lines[0].amount).toBe(500);
+    expect(p.lines[0].cappedToAvailable).toBe(true);
+    expect(p.total).toBe(500);
+  });
+
+  test("المستهلك بالكامل (المتاح ≤ 0) مستبعد حتى بفجوة موجبة — استباق الرسمي ليس مسودة", () => {
+    const p = deriveDraftProposal([row({ officialQty: 100, gapQty: 20 })]); // رسمي = تعاقدي
+    expect(p.lines).toEqual([]);
+    expect(p.total).toBe(0);
+  });
+
+  test("مزيج بنود: المؤهل فقط يدخل — والإجمالي مجموع قيمه", () => {
+    const p = deriveDraftProposal([
+      row({ boqItemId: 1, itemNo: "A", gapQty: 20, gapValue: 1000 }),
+      row({ boqItemId: 2, itemNo: "B", contractQty: 40, officialQty: 40, fieldQty: 45, gapQty: 5, gapValue: 100 }),
+      row({ boqItemId: 3, itemNo: "C", gapQty: 15, gapValue: 750 }),
+    ]);
+    expect(p.lines.map((l) => l.itemNo)).toEqual(["A", "C"]);
+    expect(p.total).toBe(1750);
+  });
+
+  test("بلا بنود ⇒ قائمة فارغة وإجمالي صفر (المسار يرفض التحويل برسالة صريحة)", () => {
+    expect(deriveDraftProposal([])).toEqual({ lines: [], total: 0 });
+  });
+});
+
+describe("deriveSubMatch — مطابقة الباطن بالميدان (م2 §10.1)", () => {
+  test("المعتمد والمدفوع يُحتسبان — المسودة والمقدم والملغي لا تستهلك", () => {
+    const rows = [row({ fieldQty: 60 })];
+    const m = deriveSubMatch({
+      rows,
+      subLinkedItemIds: [1],
+      certLines: [
+        certLine({ status: "معتمد", qty: 20, amount: 600 }),
+        certLine({ status: "مدفوع", certDate: "2026-03-12", qty: 10, amount: 300 }),
+        certLine({ status: "مسودة", qty: 99, amount: 0 }),
+        certLine({ status: "مقدم", qty: 88, amount: 0 }),
+        certLine({ status: "ملغي", qty: 77, amount: 0 }),
+      ],
+      asOf: null,
+    });
+    expect(m).toHaveLength(1);
+    expect(m[0].subBilledQty).toBe(30);
+    expect(m[0].subBilledAmount).toBe(900);
+    expect(m[0].gapQty).toBe(30);
+    expect(m[0].meaning).toContain("لم يفوتره الباطن");
+  });
+
+  test("الوضع التاريخي: شهادة بعد asOf مستبعدة — وتاريخها الحدّي شاملة", () => {
+    const rows = [row({ fieldQty: 20 })];
+    const m = deriveSubMatch({
+      rows,
+      subLinkedItemIds: [1],
+      certLines: [
+        certLine({ certDate: "2026-03-15", qty: 50 }),
+        certLine({ certDate: "2026-03-10", qty: 10, amount: 500 }),
+      ],
+      asOf: "2026-03-10",
+    });
+    expect(m[0].subBilledQty).toBe(10);
+    expect(m[0].gapQty).toBe(10);
+  });
+
+  test("السطر الحر بلا رابط بند خارج المطابقة — ورسوم أسطر البند نفسها تجتمع", () => {
+    const rows = [row({})];
+    const m = deriveSubMatch({
+      rows,
+      subLinkedItemIds: [1],
+      certLines: [
+        certLine({ boqItemId: null, qty: 500, amount: 9000 }),
+        certLine({ qty: 5, amount: 150 }),
+        certLine({ qty: 7, amount: 210 }),
+      ],
+      asOf: null,
+    });
+    expect(m[0].subBilledQty).toBe(12);
+    expect(m[0].subBilledAmount).toBe(360);
+    expect(m[0].gapQty).toBe(48);
+  });
+
+  test("الباطن فوتر فوق الميدان ⇒ فجوة سالبة برسالة الخطر", () => {
+    const m = deriveSubMatch({
+      rows: [row({ fieldQty: 10 })],
+      subLinkedItemIds: [1],
+      certLines: [certLine({ qty: 30, amount: 900 })],
+      asOf: null,
+    });
+    expect(m[0].gapQty).toBe(-20);
+    expect(m[0].meaning).toContain("فوق الميدان");
+  });
+
+  test("التوازن الكامل ⇒ فجوة صفرية بلا رسالة — وصفوف المطابقة محصورة بالموكل للباطن حصرًا", () => {
+    const m = deriveSubMatch({
+      rows: [
+        row({ boqItemId: 1, fieldQty: 30 }),
+        row({ boqItemId: 2, itemNo: "B", fieldQty: 99 }), // بند بلا موكلة باطنية
+      ],
+      subLinkedItemIds: [1],
+      certLines: [certLine({ qty: 30, amount: 900 })],
+      asOf: null,
+    });
+    expect(m).toHaveLength(1);
+    expect(m[0].boqItemId).toBe(1);
+    expect(m[0].gapQty).toBe(0);
+    expect(m[0].meaning).toBe("");
+  });
+
+  test("بلا بنود موكلة للباطن ⇒ قائمة فارغة (لا قسم بالمطابقة)", () => {
+    expect(
+      deriveSubMatch({ rows: [row({})], subLinkedItemIds: [], certLines: [certLine({})], asOf: null })
+    ).toEqual([]);
+  });
+
+  test("بند موكل بلا شهادات ⇒ صف بفوتر باطن صفر — الميداني كله غير مفوتر", () => {
+    const m = deriveSubMatch({ rows: [row({ fieldQty: 60 })], subLinkedItemIds: [1], certLines: [], asOf: null });
+    expect(m[0].subBilledQty).toBe(0);
+    expect(m[0].gapQty).toBe(60);
+    expect(m[0].meaning).toContain("لم يفوتره الباطن");
   });
 });

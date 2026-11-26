@@ -1018,14 +1018,43 @@ export interface ForecastWarningDTO {
   value: number;
 }
 
+// م2 §10 — المحرك: المسودة المقترحة ومطابقة الباطن
+export interface ForecastContractDTO {
+  id: number;
+  contractNumber: string;
+  customerId: number;
+  customerName: string;
+}
+
+export interface ForecastSubMatchRowDTO {
+  boqItemId: number;
+  itemNo: string;
+  description: string;
+  unit: string;
+  fieldQty: number;
+  subBilledQty: number;
+  subBilledAmount: number;
+  gapQty: number;
+  meaning: string;
+}
+
+export interface ForecastDraftInvoiceDTO {
+  id: number;
+  invoiceNumber: string;
+  total: number;
+}
+
 export interface ForecastResponse {
   mode: "live" | "historical";
   asOf: string | null;
   today: string;
+  contract: ForecastContractDTO;
   rows: ForecastRowDTO[];
   totals: ForecastTotalsDTO;
   sCurve: ForecastSCurvePoint[];
   warnings: ForecastWarningDTO[];
+  subMatch: ForecastSubMatchRowDTO[];
+  draftInvoice: ForecastDraftInvoiceDTO | null;
 }
 
 

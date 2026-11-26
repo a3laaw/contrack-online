@@ -3,10 +3,12 @@ import { db } from "@/lib/db";
 import { authGuard, jsonError, ok } from "@/lib/api-utils";
 import {
   deriveForecast,
+  deriveSubMatch,
   type ForecastExecutionInput,
   type ForecastInvoiceInput,
   type ForecastItemInput,
   type ForecastLineInput,
+  type SubMatchCertLineInput,
 } from "@/lib/forecast-core";
 
 type P = { params: Promise<{ id: string }> };
@@ -27,7 +29,11 @@ export async function GET(req: NextRequest, { params }: P) {
   const contractId = Number(idStr);
   if (!Number.isFinite(contractId)) return jsonError("معرف غير صالح");
 
-  const contract = await db.contract.findUnique({ where: { id: contractId }, select: { id: true } });
+  const contract = await db.contract.findUnique({
+    where: { id: contractId },
+    // م2 §10.2 — بيانات العقد لزر التحويل (عميل العقد حصرًا في إنشاء المسودة)
+    select: { id: true, contractNumber: true, customerId: true, customer: { select: { name: true } } },
+  });
   if (!contract) return jsonError("العقد غير موجود", 404);
 
   // asOf اختياري — لا يقبله إلا بصيغة التاريخ الموحدة
@@ -134,5 +140,61 @@ export async function GET(req: NextRequest, { params }: P) {
     ),
   });
 
-  return ok({ mode: asOf ? ("historical" as const) : ("live" as const), ...result });
+  // م2 §10.2 — مطابقة الباطن بالميدان: بنود العقد الموكلة للباطن عبر SubContractItem.boqItemId
+  // (القائم منذ مرحلة أ الباطن) وأسطر شهاداتها — والاشتقاق في النواة (المستهلك معتمد|مدفوع حصرًا)
+  const subItems = await db.subContractItem.findMany({
+    where: { subContract: { contractId }, boqItemId: { not: null } },
+    select: { id: true, boqItemId: true },
+  });
+  const subItemIds = subItems.map((s) => s.id);
+  const certLines: SubMatchCertLineInput[] = subItemIds.length
+    ? (
+        await db.subCertificateLine.findMany({
+          where: { subItemId: { in: subItemIds } },
+          select: {
+            subItemId: true,
+            qty: true,
+            amount: true,
+            certificate: { select: { certDate: true, status: true } },
+          },
+        })
+      ).map((cl) => ({
+        certDate: cl.certificate.certDate,
+        status: cl.certificate.status,
+        boqItemId: subItems.find((s) => s.id === cl.subItemId)?.boqItemId ?? null,
+        qty: Number(cl.qty),
+        amount: Number(cl.amount),
+      }))
+    : [];
+  const subMatch = deriveSubMatch({
+    rows: result.rows,
+    subLinkedItemIds: subItems.map((s) => s.boqItemId as number),
+    certLines,
+    asOf,
+  });
+
+  // م2 §10.2 — المسودة القائمة للعقد (وضع حاضر — لا دلالة تاريخية): تحويل ثانٍ مرفوض
+  // لأن المسودات لا تستهلك الفجوة (ز2) فكان سيقترح الفجوات نفسها مرتين
+  const draftInvoice = asOf
+    ? null
+    : await db.invoice.findFirst({
+        where: { contractId, state: "مسودة", status: { not: "void" } },
+        select: { id: true, invoiceNumber: true, total: true },
+        orderBy: { id: "desc" },
+      });
+
+  return ok({
+    mode: asOf ? ("historical" as const) : ("live" as const),
+    contract: {
+      id: contract.id,
+      contractNumber: contract.contractNumber,
+      customerId: contract.customerId,
+      customerName: contract.customer.name,
+    },
+    ...result,
+    subMatch,
+    draftInvoice: draftInvoice
+      ? { id: draftInvoice.id, invoiceNumber: draftInvoice.invoiceNumber, total: Number(draftInvoice.total) }
+      : null,
+  });
 }

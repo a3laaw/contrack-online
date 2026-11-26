@@ -13,8 +13,12 @@
 // اللقطات تتضاعف عبر الفواتير) · الاعتماد الفوري بلا approveAt يُفك إلى تاريخ
 // الفاتورة · الأسعار الحالية للبند (حد ز3 §7) · المقارنات النصية الآمنة
 // YYYY-MM-DD · كل الدوال نقية قابلة للاختبار المباشر (نمط *-core.ts الموحد).
-// حدود v1 معلنة (§9.3): لا تحويل لمسودة (م2) · لا مواد/عمالة/نقد (م3) ·
-// لا مسار «مخطط» بمنحنى S (ج2) · لا تجميع محفظة — المصالحة على مستوى العقد حصرًا.
+// م2 (§10 — الجلسة 28): deriveDraftProposal (أسطر المسودة من الفجوات الموجبة —
+// مقترح قابل للتحرير لا فعل مالي) + deriveSubMatch (مطابقة الباطن بالميدان
+// لكل بند — المرآة الزوجية للمصالحة الرئيسية بأسعار باطن لا عقد) — صفر جداول
+// ولا أعمدة: المسودة كائن ز2 والمطابقة مشتق من SubContractItem.boqItemId القائم.
+// حدود v1 معلنة: لا مواد/عمالة/نقد (م3) · لا مسار «مخطط» بمنحنى S (ج2) ·
+// لا تجميع محفظة — المصالحة على مستوى العقد حصرًا.
 // ============================================================
 
 import { r3 } from "./contrack-core";
@@ -416,4 +420,144 @@ export function deriveForecastWarnings(
   // التوقف أولًا (الأخطر تشغيليًا) ثم الاستباق (الأخطر ماليًا) ثم الفوترة المتأخرة
   const order: Record<ForecastWarningKind, number> = { stalled: 0, overrun: 1, late_billing: 2 };
   return out.sort((a, b) => order[a.kind] - order[b.kind] || b.value - a.value);
+}
+
+// ==================== م2 — المحرك (§10): المسودة المقترحة + مطابقة الباطن ====================
+
+/** سطر مسودة مقترح — نموذج جاهز يحرَّره المالك ثم يقدّم ويعتمد (§4 الجسر حرفيًا) */
+export interface DraftProposalLine {
+  boqItemId: number;
+  itemNo: string;
+  description: string;
+  unit: string;
+  /** الكمية المقترحة = min(الفجوة الموجبة، المتاح = max(0, تعاقدي − رسمي)) — تمر على حارس المتاح القائم */
+  proposedQty: number;
+  /** سعر البند الحالي (حد ز3 §7) */
+  unitPrice: number;
+  /** القيمة بالكمية المقترحة × السعر */
+  amount: number;
+  /** هل قُصّت الكمية إلى المتاح؟ (فجوة تتجاوز التعاقدي — ميداني فاق التعاقدي) */
+  cappedToAvailable: boolean;
+}
+
+export interface DraftProposal {
+  lines: DraftProposalLine[];
+  /** إجمالي المسودة المقترحة = Σ قيم الأسطر */
+  total: number;
+}
+
+/**
+ * أسطر المسودة المقترحة من الفجوات الموجبة حصرًا (§10.1):
+ *  • الفجوة موجبة بالكمية والقيمة ⇒ سطر — الموجبة وحدها «منفذ غير مستخلص»؛
+ *    السالبة استباق لا يفوتر، والصفرية/بلا قيمة لا معنى لها.
+ *  • المتاح = max(0, تعاقدي − رسمي) — المقترح لا يتجاوزه فتُقبل المسودة على
+ *    حارس المتاح القائم دون أي تخفيف له (ز1)، والمستهلك بالكامل (المتاح ≤ 0)
+ *    مستبعد — استباق الرسمي فوق التعاقدي ليس مسودة.
+ *  • بلا فجوات مؤهلة ⇒ قائمة فارغة — والمسار يرفض التحويل برسالة صريحة.
+ */
+export function deriveDraftProposal(rows: ForecastRow[]): DraftProposal {
+  const lines: DraftProposalLine[] = [];
+  for (const r of rows) {
+    if (!(r.gapQty > 0) || !(r.gapValue > 0)) continue;
+    const available = r3(Math.max(0, r.contractQty - r.officialQty));
+    if (available <= 0) continue;
+    const proposedQty = r3(Math.min(r.gapQty, available));
+    if (!(proposedQty > 0)) continue;
+    lines.push({
+      boqItemId: r.boqItemId,
+      itemNo: r.itemNo,
+      description: r.description,
+      unit: r.unit,
+      proposedQty,
+      unitPrice: r.unitPrice,
+      amount: r3(proposedQty * r.unitPrice),
+      cappedToAvailable: proposedQty < r.gapQty,
+    });
+  }
+  return { lines, total: r3(lines.reduce((s, l) => s + l.amount, 0)) };
+}
+
+/** سطر شهادة باطن — بمدخلات مرآة ما يجلبهم المسار (الرابط عبر SubContractItem.boqItemId) */
+export interface SubMatchCertLineInput {
+  /** YYYY-MM-DD — تاريخ الشهادة الحاملة للسطر */
+  certDate: string;
+  /** مسودة|مقدم|معتمد|مدفوع|ملغي — المستهلك: معتمد|مدفوع حصرًا (مرآة ز2 للباطن) */
+  status: string;
+  /** بند العقد المرتبط — null = سطر حر خارج المطابقة */
+  boqItemId: number | null;
+  qty: number;
+  /** مبلغ السطر بأسعار الباطن — عرض مرجعي حصرًا */
+  amount: number;
+}
+
+export interface SubMatchRow {
+  boqItemId: number;
+  itemNo: string;
+  description: string;
+  unit: string;
+  /** Σ التنفيذ ≤ asOf — نفس اشتقاق م1 */
+  fieldQty: number;
+  /** Σ أسطر شهادات الباطن المعتمدة/المدفوعة بتاريخ شهادة ≤ asOf */
+  subBilledQty: number;
+  /** مبلغ الباطن المفوتر بأسعاره — مرجعي لا حاكم */
+  subBilledAmount: number;
+  /** الفجوة الباطنية = ميداني − فوتر الباطن — موجبة غير مفوتر بعد · سالبة استباق الباطن */
+  gapQty: number;
+  /** معنى الفجوة جاهزًا نصًا — فارغة عند التوازن */
+  meaning: string;
+}
+
+/**
+ * مطابقة الباطن بالميدان لكل بند (§10.1 — المرآة الزوجية للمصالحة الرئيسية):
+ *  • الحصر ببنود العقد **الموكلة للباطن** حصرًا (`SubContractItem.boqItemId`) —
+ *    بند بلا موكلة باطنية لا معنى لمطابقته (المقاول الرئيسي ينفذه بنفسه).
+ *  • المستهلك من الشهادات: معتمد|مدفوع حصرًا بتاريخ الشهادة ≤ asOf — المسودة
+ *    والمقدم لا يستهلكان (الاعتماد لحظة الحقيقة للباطن — مرآة ز2) والملغي خارج.
+ *  • المقارنة الحاكمة بالكمية — عملة التشغيل (حد التصور §1)؛ أسعار الباطن ليست
+ *    أسعار العقد فمبلغها مرجعي حصرًا.
+ */
+export function deriveSubMatch(input: {
+  rows: ForecastRow[];
+  /** بند العقد الموكلة للباطن — القائمة الفريدة لما يرد بالبنود المرتبطة */
+  subLinkedItemIds: number[];
+  certLines: SubMatchCertLineInput[];
+  asOf: string | null;
+}): SubMatchRow[] {
+  const linked = new Set(input.subLinkedItemIds);
+  if (linked.size === 0) return [];
+  const billedByItem = new Map<number, { qty: number; amount: number }>();
+  for (const cl of input.certLines) {
+    if (cl.boqItemId == null || cl.boqItemId <= 0) continue;
+    if (cl.status !== "معتمد" && cl.status !== "مدفوع") continue;
+    const d = datePart10(cl.certDate);
+    if (!d) continue;
+    if (input.asOf !== null && d > input.asOf) continue;
+    const cell = billedByItem.get(cl.boqItemId) || { qty: 0, amount: 0 };
+    cell.qty = r3(cell.qty + Number(cl.qty) || 0);
+    cell.amount = r3(cell.amount + Number(cl.amount) || 0);
+    billedByItem.set(cl.boqItemId, cell);
+  }
+  return input.rows
+    .filter((r) => linked.has(r.boqItemId))
+    .map((r) => {
+      const cell = billedByItem.get(r.boqItemId) || { qty: 0, amount: 0 };
+      const gap = r3(r.fieldQty - cell.qty);
+      const meaning =
+        gap > 0
+          ? "تنفيذ ميداني لم يفوتره الباطن بعد — مستحق في شهادة الباطن القادمة"
+          : gap < 0
+            ? "الباطن فوتر فوق الميدان — خطر اعتراض الاستشاري وخصم"
+            : "";
+      return {
+        boqItemId: r.boqItemId,
+        itemNo: r.itemNo,
+        description: r.description,
+        unit: r.unit,
+        fieldQty: r.fieldQty,
+        subBilledQty: cell.qty,
+        subBilledAmount: cell.amount,
+        gapQty: gap,
+        meaning,
+      };
+    });
 }

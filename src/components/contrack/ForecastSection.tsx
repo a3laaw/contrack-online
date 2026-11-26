@@ -5,18 +5,28 @@
  * الرؤيتان المتقابلتان فوق القائم حصرًا — مؤشرات عليا (المستخلص القادم المتوقع ·
  * الفجوة الكلية · تغطية الرسمي للميداني) + جدول البنود (تعاقدي/ميداني/موثق/رسمي/فجوة)
  * + منحنى S (ميداني × رسمي تراكميًا ماليًا) + بطاقات التحذيرات الثلاثة المشتقة لحظيًا.
- * قراءة حصرًا من GET /api/contracts/[id]/forecast — لا مسارات كتابة، والمال يعبر
- * حصرًا عبر اعتماد موقّع (مقترحات لا أفعال — حراسة forecast-engine-vision §3).
+ * م2 §10 — المحرك: زر «حوّل التنبؤ إلى مسودة مستخلص» (حوار النموذج الجاهز — الإنشاء
+ * فوق POST /api/invoices القائم بـstate=مسودة وعلامة fromForecast) + قسم «مطابقة
+ * الباطن بالميدان» المشتق لحظيًا من شهادات SubIPC المعتمدة/المدفوعة — صفر جداول
+ * ولا أعمدة، والمال يعبر حصرًا عبر اعتماد موقّع (مقترحات لا أفعال — حراسة التصور §3).
  */
 
 import * as React from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Banknote, Hourglass, RotateCcw, Sparkles, TrendingDown } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Banknote, Building2, FilePlus2, Hourglass, RotateCcw, Sparkles, TrendingDown } from "lucide-react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -28,9 +38,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { apiGet } from "./api";
+import { useToast } from "@/hooks/use-toast";
+import { apiGet, apiPost } from "./api";
 import { errMessage } from "./contrack-types";
 import type { ForecastResponse, ForecastWarningDTO } from "./contrack-types";
+import { deriveDraftProposal, type DraftProposalLine } from "@/lib/forecast-core";
 import { formatKWD } from "@/lib/format";
 
 /** منتقي as-of — نفس نمط ز3 (افتح كما كان في…) */
@@ -58,6 +70,13 @@ export function ForecastSection({ contractId }: { contractId: number }) {
   const [asOf, setAsOf] = React.useState<string | null>(null);
   const [asOfDraft, setAsOfDraft] = React.useState("");
   const historical = asOf !== null;
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  // م2 — حالة حوار التحويل (النموذج الجاهز: يقترح — والمالك يحرر ثم يقدّم ويعتمد)
+  const [convertOpen, setConvertOpen] = React.useState(false);
+  const [invoiceDate, setInvoiceDate] = React.useState("");
+  const [description, setDescription] = React.useState("");
 
   const q = useQuery<ForecastResponse>({
     queryKey: ["contract", contractId, "forecast", asOf ?? "live"],
@@ -68,6 +87,53 @@ export function ForecastSection({ contractId }: { contractId: number }) {
   const rows = q.data?.rows ?? [];
   const warnings = q.data?.warnings ?? [];
   const sCurve = q.data?.sCurve ?? [];
+  const subMatch = q.data?.subMatch ?? [];
+  const draftInvoice = q.data?.draftInvoice ?? null;
+  const contract = q.data?.contract;
+
+  // م2 §10.1 — أسطر المسودة المقترحة تُشتق لحظيًا من صفوف التنبؤ نفسها (النواة النقية نفسها)
+  const proposal = React.useMemo(() => deriveDraftProposal(rows), [rows]);
+  const canConvert = !historical && proposal.lines.length > 0 && !draftInvoice;
+  const convertBlockReason = draftInvoice
+    ? `لديك مسودة مستخلص قائمة (${draftInvoice.invoiceNumber}) — حرّرها أو ألغِها قبل التحويل من جديد`
+    : proposal.lines.length === 0
+      ? "لا فجوات موجبة للتحويل — التنفيذ المستخلص يغطي الميداني"
+      : "";
+
+  const openConvert = () => {
+    setInvoiceDate(q.data?.today || todayStr());
+    setDescription(`مستخلص مقترح من التنبؤ — فجوات موجبة${contract?.contractNumber ? ` — عقد ${contract.contractNumber}` : ""}`);
+    setConvertOpen(true);
+  };
+
+  const createDraft = useMutation({
+    mutationFn: () =>
+      apiPost<{ invoice: { invoiceNumber: string } }>("/api/invoices", {
+        customerId: contract?.customerId,
+        contractId,
+        invoiceDate,
+        description,
+        notes: "مقترح آلي من التنبؤ بالأعمال (م2) — الفجوات الموجبة لحظة التحويل",
+        state: "مسودة",
+        fromForecast: true,
+        items: proposal.lines.map((l) => ({
+          description: `${l.itemNo} — ${l.description}`,
+          quantity: l.proposedQty,
+          unitPrice: l.unitPrice,
+          boqItemId: l.boqItemId,
+        })),
+      }),
+    onSuccess: (r) => {
+      toast({
+        title: "أُنشئت المسودة",
+        description: `مسودة ${r.invoice.invoiceNumber} — حرّرها ثم قدّمها واعتمدها`,
+      });
+      setConvertOpen(false);
+      qc.invalidateQueries({ queryKey: ["contract", contractId] });
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+    },
+    onError: (e) => toast({ variant: "destructive", title: "تعذر إنشاء المسودة", description: errMessage(e) }),
+  });
 
   return (
     <Card>
@@ -311,13 +377,189 @@ export function ForecastSection({ contractId }: { contractId: number }) {
               ))}
             </div>
 
-            {/* حد م1 المعلن: مقترحات لا أفعال — التحويل إلى مسودة بند م2 بأمر المالك */}
-            <p className="text-[11px] text-muted-foreground">
-              مقترحات لا أفعال — تحويل الفجوات إلى مسودة مستخلص بند م2 (قرار المالك)، والمال يعبر حصرًا عبر اعتماد موقّع.
-            </p>
+            {/* ⑤ م2 §10.1/§10.3 — زر التحويل: النموذج الجاهز (مقترحات لا أفعال — بضغطة صريحة) */}
+            {!historical && (
+              <div className="flex flex-col gap-1.5 rounded-lg border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold">تحويل الفجوات الموجبة إلى مسودة مستخلص</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {canConvert
+                      ? `${proposal.lines.length} بندًا مقترحًا بإجمالي ${formatKWD(proposal.total)} — حوار جاهز يحرَّره ثم يقدّمه ويعتمده`
+                      : convertBlockReason}
+                  </p>
+                </div>
+                <Button size="sm" className="h-9 shrink-0" disabled={!canConvert} onClick={openConvert}>
+                  <FilePlus2 className="size-4" aria-hidden />
+                  حوّل التنبؤ إلى مسودة مستخلص
+                </Button>
+              </div>
+            )}
+            {historical && (
+              <p className="text-[11px] text-muted-foreground">
+                وضع تاريخي — قراءة فقط. التحويل إلى مسودة متاح من العرض الحي حصرًا.
+              </p>
+            )}
+
+            {/* ⑥ م2 §10.1/§10.3 — مطابقة الباطن بالميدان (شهادات SubIPC المعتمدة/المدفوعة) */}
+            {subMatch.length > 0 && (
+              <div className="rounded-lg border p-3">
+                <p className="flex items-center gap-1.5 text-xs font-bold">
+                  <Building2 className="size-4 text-muted-foreground" aria-hidden />
+                  مطابقة الباطن بالميدان — شهادات SubIPC المعتمدة/المدفوعة
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  المقارنة الحاكمة بالكمية — مبلغ الباطن بأسعاره عرض مرجعي حصرًا (أسعار الباطن ليست أسعار العقد).
+                </p>
+                {/* سطح المكتب */}
+                <div className="mt-2 hidden max-h-96 overflow-y-auto rounded-lg border md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="sticky top-0 bg-card">البند</TableHead>
+                        <TableHead className="sticky top-0 bg-card text-center">الميداني</TableHead>
+                        <TableHead className="sticky top-0 bg-card text-center">فوتره الباطن</TableHead>
+                        <TableHead className="sticky top-0 bg-card text-center">الفجوة الباطنية</TableHead>
+                        <TableHead className="sticky top-0 bg-card text-end">مبلغ الباطن (مرجعي)</TableHead>
+                        <TableHead className="sticky top-0 bg-card">المعنى</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {subMatch.map((m) => (
+                        <TableRow key={m.boqItemId}>
+                          <TableCell>
+                            <span className="block text-xs tabular-nums text-muted-foreground" dir="ltr">{m.itemNo}</span>
+                            <span className="line-clamp-1 text-xs">{m.description}</span>
+                          </TableCell>
+                          <TableCell className="text-center text-xs tabular-nums" dir="ltr">
+                            {m.fieldQty}
+                            <span className="ms-1 text-[10px] text-muted-foreground">{m.unit}</span>
+                          </TableCell>
+                          <TableCell className="text-center text-xs tabular-nums" dir="ltr">{m.subBilledQty}</TableCell>
+                          <TableCell className={`text-center text-xs font-bold tabular-nums ${m.gapQty < 0 ? "text-destructive" : m.gapQty > 0 ? "text-warn-ink" : ""}`} dir="ltr">
+                            {signed(m.gapQty)}
+                          </TableCell>
+                          <TableCell className="text-end text-xs tabular-nums text-muted-foreground" dir="ltr">
+                            {formatKWD(m.subBilledAmount)}
+                          </TableCell>
+                          <TableCell className="text-[11px] text-muted-foreground">{m.meaning || "متوافق"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {/* بطاقات الجوال */}
+                <div className="mt-2 space-y-2 md:hidden">
+                  {subMatch.map((m) => (
+                    <div key={m.boqItemId} className="rounded-lg border p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="min-w-0 text-sm font-bold">
+                          <span className="me-1.5 tabular-nums text-muted-foreground" dir="ltr">{m.itemNo}</span>
+                          {m.description}
+                        </span>
+                        <span className={`shrink-0 text-sm font-bold tabular-nums ${m.gapQty < 0 ? "text-destructive" : m.gapQty > 0 ? "text-warn-ink" : ""}`} dir="ltr">
+                          {signed(m.gapQty)} {m.unit}
+                        </span>
+                      </div>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs">
+                        <div>
+                          <div className="text-[10px] text-muted-foreground">ميداني</div>
+                          <div className="font-bold tabular-nums" dir="ltr">{m.fieldQty}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-muted-foreground">فوتره الباطن</div>
+                          <div className="font-bold tabular-nums" dir="ltr">{m.subBilledQty}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-muted-foreground">مبلغه (مرجعي)</div>
+                          <div className="tabular-nums" dir="ltr">{formatKWD(m.subBilledAmount)}</div>
+                        </div>
+                      </div>
+                      {m.meaning && <p className="mt-2 text-[11px] text-muted-foreground">{m.meaning}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
+
+      {/* حوار التحويل — النموذج الجاهز §10.3: جدول المقترح + التاريخ + الوصف ثم POST فوق القائم */}
+      <Dialog open={convertOpen} onOpenChange={setConvertOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>تحويل التنبؤ إلى مسودة مستخلص</DialogTitle>
+            <DialogDescription>
+              الأسطر المقترحة من الفجوات الموجبة حصرًا — الكمية لا تتجاوز متاح البند. المسودة تُنشأ بلا قيد مالي
+              ولا لقطات (ز2) — التقديم والاعتماد يبقيان قرارك الموقّع.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-64 overflow-y-auto rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>البند</TableHead>
+                  <TableHead className="text-center">الكمية المقترحة</TableHead>
+                  <TableHead className="text-end">السعر</TableHead>
+                  <TableHead className="text-end">القيمة</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {proposal.lines.map((l: DraftProposalLine) => (
+                  <TableRow key={l.boqItemId}>
+                    <TableCell>
+                      <span className="block text-xs tabular-nums text-muted-foreground" dir="ltr">{l.itemNo}</span>
+                      <span className="line-clamp-1 text-xs">{l.description}</span>
+                      {l.cappedToAvailable && (
+                        <Badge variant="warn" className="mt-1 text-[10px]">قُصّت إلى متاح البند</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center text-xs font-bold tabular-nums" dir="ltr">
+                      {l.proposedQty}
+                      <span className="ms-1 text-[10px] font-normal text-muted-foreground">{l.unit}</span>
+                    </TableCell>
+                    <TableCell className="text-end text-xs tabular-nums" dir="ltr">{l.unitPrice}</TableCell>
+                    <TableCell className="text-end text-xs font-bold tabular-nums" dir="ltr">{formatKWD(l.amount)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+            <span className="font-bold">إجمالي المسودة المقترحة</span>
+            <span className="font-bold tabular-nums text-primary-ink" dir="ltr">{formatKWD(proposal.total)}</span>
+          </div>
+          <div className="grid grid-cols-1 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-bold" htmlFor="forecast-draft-date">تاريخ المستخلص</label>
+              <Input
+                id="forecast-draft-date"
+                type="date"
+                value={invoiceDate}
+                max={todayStr()}
+                onChange={(e) => setInvoiceDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold" htmlFor="forecast-draft-desc">الوصف</label>
+              <Input
+                id="forecast-draft-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                maxLength={200}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setConvertOpen(false)} disabled={createDraft.isPending}>
+              إلغاء
+            </Button>
+            <Button onClick={() => createDraft.mutate()} disabled={createDraft.isPending || !invoiceDate}>
+              {createDraft.isPending ? "جارٍ الإنشاء…" : "إنشاء المسودة"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

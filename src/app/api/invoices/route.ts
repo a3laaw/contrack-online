@@ -182,6 +182,23 @@ export async function POST(req: NextRequest) {
     if (linked) return jsonError(`دفعة الخطة مرتبطة بفاتورة سارية (${linked.invoiceNumber})`);
   }
 
+  // م2 §10.2 — علامة التحويل من التنبؤ (opt-in — كل المسارات القائمة بلا علم بها):
+  // مسودة واحدة نشطة لكل عقد في مسار التحويل — المسودات لا تستهلك الفجوة (ز2)
+  // فتحويل ثانٍ كان سيقترح الفجوات نفسها مرتين
+  const fromForecast = body.fromForecast === true;
+  if (fromForecast && contractId) {
+    const existingDraft = await db.invoice.findFirst({
+      where: { contractId, state: INV_STATE_DRAFT, status: { not: "void" } },
+      select: { invoiceNumber: true },
+    });
+    if (existingDraft) {
+      return jsonError(
+        `لديك مسودة مستخلص قائمة (${existingDraft.invoiceNumber}) — حرّرها أو ألغِها قبل التحويل من جديد`,
+        409
+      );
+    }
+  }
+
   // سقف الفوترة: المفوتر **المعتمد** (ز2) + هذه الفاتورة ≤ القيمة الحالية
   // المسودة/المقدم لا تستهلكان القيمة — والمنافسة تُحسم لحظة الاعتماد (§3)
   let core: Awaited<ReturnType<typeof loadContractCore>> | null = null;
