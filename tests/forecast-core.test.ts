@@ -479,3 +479,355 @@ describe("deriveSubMatch — مطابقة الباطن بالميدان (م2 §1
     expect(m[0].meaning).toContain("لم يفوتره الباطن");
   });
 });
+
+// ==================== م3 — التشغيل الكامل (§11): المواد + العمالة + النقد ====================
+
+import {
+  deriveCashForecast,
+  deriveLaborNeed,
+  deriveMaterialsDemand,
+  type CashInvoiceInput,
+  type LaborAllocInput,
+  type MaterialsIssueLineInput,
+} from "../src/lib/forecast-core";
+
+const m3row = (over: Partial<ForecastRow>): ForecastRow => ({
+  boqItemId: 1,
+  itemNo: "03.30.01",
+  divisionCode: "03",
+  divisionName: "CONCRETE",
+  description: "خرسانة مسلحة",
+  unit: "م³",
+  contractQty: 100,
+  unitPrice: 50,
+  fieldQty: 40,
+  documentedQty: 40,
+  officialQty: 30,
+  gapQty: 10,
+  gapValue: 500,
+  remainingQty: 60,
+  fieldAmount: 2000,
+  officialAmount: 1500,
+  ratePerDay: 2,
+  expectedFinish: null,
+  ...over,
+});
+
+const issueLine = (over: Partial<MaterialsIssueLineInput>): MaterialsIssueLineInput => ({
+  docDate: "2026-03-10",
+  kind: "issue",
+  entrySource: "",
+  boqItemId: 1,
+  itemId: 5,
+  itemName: "أسمنت",
+  itemUnit: "كيس",
+  qty: 30,
+  amount: 1500,
+  ...over,
+});
+
+describe("deriveMaterialsDemand — المعدل المعياري من سجل الصرف الفعلي (م3 §11.1)", () => {
+  test("المعدل = الصافي ÷ الميداني والطلب = المتبقي × المعدل والقيمة بلقطة التكلفة", () => {
+    const r = deriveMaterialsDemand({
+      rows: [m3row({})], // ميداني 40 · متبقي 60
+      issueLines: [issueLine({})], // صرف 30 كيسًا بمبلغ 1500
+      asOf: null,
+    });
+    expect(r.lines).toHaveLength(1);
+    expect(r.lines[0].ratePerFieldUnit).toBe(0.75); // 30 ÷ 40
+    expect(r.lines[0].demandQty).toBe(45); // 60 × 0.75
+    expect(r.lines[0].unitCostAvg).toBe(50); // 1500 ÷ 30
+    expect(r.lines[0].demandValue).toBe(2250);
+    expect(r.byStockItem[0].demandQty).toBe(45);
+    expect(r.byStockItem[0].sources).toBe("03.30.01");
+  });
+
+  test("المرتجع (entry بـentrySource=return) يُخصم من الاستهلاك — الصافي هو الاستهلاك", () => {
+    const r = deriveMaterialsDemand({
+      rows: [m3row({})],
+      issueLines: [issueLine({}), issueLine({ kind: "entry", entrySource: "return", qty: 10, amount: 500 })],
+      asOf: null,
+    });
+    expect(r.lines[0].consumedQty).toBe(20); // 30 − 10
+    expect(r.lines[0].ratePerFieldUnit).toBe(0.5);
+    expect(r.lines[0].demandQty).toBe(30);
+    // متوسط التكلفة الصافي: (1500−500)÷20 = 50
+    expect(r.lines[0].unitCostAvg).toBe(50);
+  });
+
+  test("الإدخال العادي (cash/credit) لا يعدل الاستهلاك إطلاقًا", () => {
+    const r = deriveMaterialsDemand({
+      rows: [m3row({})],
+      issueLines: [issueLine({}), issueLine({ kind: "entry", entrySource: "cash", qty: 500, amount: 25000 })],
+      asOf: null,
+    });
+    expect(r.lines[0].consumedQty).toBe(30);
+    expect(r.lines[0].demandQty).toBe(45);
+  });
+
+  test("بلا سجل صرف ⇒ قائمتان فارغتان — بلا افتراض (حد §6.1 يتحقق ذاته)", () => {
+    const r = deriveMaterialsDemand({ rows: [m3row({})], issueLines: [], asOf: null });
+    expect(r.lines).toHaveLength(0);
+    expect(r.byStockItem).toHaveLength(0);
+  });
+
+  test("سطر حر بلا بند (boqItemId فارغ) خارج الاشتقاق حصرًا", () => {
+    const r = deriveMaterialsDemand({
+      rows: [m3row({})],
+      issueLines: [issueLine({ boqItemId: null, qty: 999, amount: 9999 })],
+      asOf: null,
+    });
+    expect(r.lines).toHaveLength(0);
+  });
+
+  test("إذن لاحق لـasOf لا يدخل في الوضع التاريخي", () => {
+    const r = deriveMaterialsDemand({
+      rows: [m3row({})],
+      issueLines: [issueLine({ docDate: "2026-04-01" })],
+      asOf: "2026-03-20",
+    });
+    expect(r.lines).toHaveLength(0);
+    const r2 = deriveMaterialsDemand({
+      rows: [m3row({})],
+      issueLines: [issueLine({ docDate: "2026-03-01" })],
+      asOf: "2026-03-20",
+    });
+    expect(r2.lines).toHaveLength(1);
+  });
+
+  test("بند مكتمل (متبقي صفر) أو بلا ميدان ⇒ لا صف طلب له", () => {
+    const r = deriveMaterialsDemand({
+      rows: [
+        m3row({ boqItemId: 1, remainingQty: 0 }),
+        m3row({ boqItemId: 2, itemNo: "B2", fieldQty: 0, remainingQty: 50 }),
+      ],
+      issueLines: [issueLine({ boqItemId: 1 }), issueLine({ boqItemId: 2 })],
+      asOf: null,
+    });
+    expect(r.lines).toHaveLength(0);
+  });
+
+  test("التجميع بالصنف: صنف واحد على بندَين يُجمع ومصادره برقما البنود", () => {
+    const r = deriveMaterialsDemand({
+      rows: [
+        m3row({ boqItemId: 1, itemNo: "03.30.01", fieldQty: 40, remainingQty: 60 }),
+        m3row({ boqItemId: 2, itemNo: "B1-2", description: "جدار", fieldQty: 20, remainingQty: 30 }),
+      ],
+      issueLines: [
+        issueLine({ boqItemId: 1, itemId: 5, qty: 30, amount: 1500 }),
+        issueLine({ boqItemId: 2, itemId: 5, qty: 10, amount: 500 }),
+      ],
+      asOf: null,
+    });
+    expect(r.lines).toHaveLength(2);
+    expect(r.byStockItem).toHaveLength(1);
+    expect(r.byStockItem[0].demandQty).toBe(60); // 45 + 15 (معدل البند الثاني 0.5 × 30)
+    expect(r.byStockItem[0].demandValue).toBe(3000);
+    expect(r.byStockItem[0].sources).toContain("03.30.01");
+    expect(r.byStockItem[0].sources).toContain("B1-2");
+  });
+});
+
+describe("deriveLaborNeed — احتياج العمالة والأطقم (م3 §11.1)", () => {
+  const alloc = (over: Partial<LaborAllocInput>): LaborAllocInput => ({
+    month: "2026-03",
+    batchStatus: "approved",
+    employeeId: 1,
+    employeeName: "أحمد",
+    amount: 600,
+    ...over,
+  });
+
+  test("الأفق = أقصى تاريخ إتمام متوقع والشهور ceil(الأيام÷30)", () => {
+    const r = deriveLaborNeed({
+      today: "2026-03-20",
+      rows: [m3row({ expectedFinish: "2026-04-01" }), m3row({ boqItemId: 2, expectedFinish: "2026-05-10" })],
+      allocations: [],
+      asOf: null,
+    });
+    expect(r.expectedFinishDate).toBe("2026-05-10");
+    expect(r.monthsRemaining).toBe(2); // 51 يومًا
+    expect(r.expectedLaborCost).toBeNull(); // بلا توزيعات ⇒ null
+  });
+
+  test("التكلفة الشهرية = متوسط آخر 3 شهور بها توزيع — شهر بلا توزيع لا يُخفف", () => {
+    const r = deriveLaborNeed({
+      today: "2026-03-20",
+      rows: [m3row({ expectedFinish: "2026-06-01" })],
+      allocations: [
+        alloc({ month: "2025-12", amount: 400 }), // خارج آخر 3
+        alloc({ month: "2026-01", amount: 500 }),
+        alloc({ month: "2026-02", amount: 700 }),
+        alloc({ month: "2026-03", amount: 600 }),
+      ],
+      asOf: null,
+    });
+    expect(r.monthsUsed).toBe(3);
+    expect(r.monthlyCostAvg).toBe(600); // (500+700+600)/3
+    expect(r.expectedLaborCost).toBe(1800); // 600 × ceil(73/30)=3
+  });
+
+  test("المسير المسودة/الملغي خارج الحساب — الاعتماد لحظة الحقيقة", () => {
+    const r = deriveLaborNeed({
+      today: "2026-03-20",
+      rows: [m3row({ expectedFinish: "2026-05-01" })],
+      allocations: [
+        alloc({ month: "2026-03", amount: 600 }),
+        alloc({ month: "2026-02", amount: 999, batchStatus: "draft" }),
+        alloc({ month: "2026-01", amount: 888, batchStatus: "cancelled" }),
+      ],
+      asOf: null,
+    });
+    expect(r.monthsUsed).toBe(1);
+    expect(r.monthlyCostAvg).toBe(600);
+  });
+
+  test("asOf يرشح بالشهر: شهر لاحق للتاريخ مستبعد", () => {
+    const r = deriveLaborNeed({
+      today: "2026-02-15",
+      rows: [m3row({ expectedFinish: "2026-05-01" })],
+      allocations: [alloc({ month: "2026-01", amount: 500 }), alloc({ month: "2026-02", amount: 700 }), alloc({ month: "2026-03", amount: 900 })],
+      asOf: "2026-02-15",
+    });
+    expect(r.monthsUsed).toBe(2);
+    expect(r.monthlyCostAvg).toBe(600); // (500+700)/2
+  });
+
+  test("بلا توزيعات ⇒ null «—» وبلا أفق ⇒ null — التقدير لا يختلق", () => {
+    const r = deriveLaborNeed({ today: "2026-03-20", rows: [m3row({ expectedFinish: null })], allocations: [alloc({})], asOf: null });
+    expect(r.expectedFinishDate).toBeNull();
+    expect(r.monthsRemaining).toBeNull();
+    expect(r.expectedLaborCost).toBeNull();
+    const r2 = deriveLaborNeed({
+      today: "2026-03-20",
+      rows: [m3row({ expectedFinish: "2026-04-10" })],
+      allocations: [],
+      asOf: null,
+    });
+    expect(r2.monthsRemaining).toBe(1);
+    expect(r2.expectedLaborCost).toBeNull();
+  });
+
+  test("الحد الأدنى شهر واحد لأفق قصير (5 أيام)", () => {
+    const r = deriveLaborNeed({
+      today: "2026-03-20",
+      rows: [m3row({ expectedFinish: "2026-03-25" })],
+      allocations: [alloc({ amount: 300 })],
+      asOf: null,
+    });
+    expect(r.monthsRemaining).toBe(1);
+    expect(r.expectedLaborCost).toBe(300);
+  });
+});
+
+describe("deriveCashForecast — النقد المتوقع بصيغة المالك (م3 §11.1)", () => {
+  const inv = (over: Partial<CashInvoiceInput>): CashInvoiceInput => ({
+    id: 10,
+    approveDate: "2026-03-05",
+    state: "معتمد",
+    retentionRate: 10,
+    retentionAmount: 400,
+    retentionReleased: false,
+    retentionReleasedAt: "",
+    total: 4000,
+    paidAmount: 1000,
+    advanceRecovered: 200,
+    ...over,
+  });
+
+  test("الصافي = الإجمالي − المحتجز (نسبة آخر معتمد) − استرداد الدفعة (نسبة العقد)", () => {
+    const r = deriveCashForecast({
+      grossExpected: 6000,
+      advanceAmount: 5000,
+      advanceRecoveryPct: 5,
+      invoices: [inv({})],
+      asOf: null,
+    });
+    expect(r.retentionRateUsedPct).toBe(10);
+    expect(r.retentionNext).toBe(600);
+    expect(r.advanceRecoveryNext).toBe(300);
+    expect(r.netExpected).toBe(5100);
+  });
+
+  test("نسبة الاحتجاز من آخر معتمد — التعادل بالتاريخ يرفع رقم الفاتورة الأعلى", () => {
+    const r = deriveCashForecast({
+      grossExpected: 1000,
+      advanceAmount: 0,
+      advanceRecoveryPct: 0,
+      invoices: [inv({ id: 11, retentionRate: 5 }), inv({ id: 12, retentionRate: 20 })],
+      asOf: null,
+    });
+    expect(r.retentionRateUsedPct).toBe(20);
+    const r2 = deriveCashForecast({
+      grossExpected: 1000,
+      advanceAmount: 0,
+      advanceRecoveryPct: 0,
+      invoices: [inv({ id: 11, approveDate: "2026-04-01", retentionRate: 50 }), inv({ id: 12, approveDate: "2026-03-01", retentionRate: 20 })],
+      asOf: null,
+    });
+    expect(r2.retentionRateUsedPct).toBe(50);
+  });
+
+  test("بلا معتمد ⇒ نسبة صفر والنقد = الإجمالي حرفيًا", () => {
+    const r = deriveCashForecast({
+      grossExpected: 2500,
+      advanceAmount: 0,
+      advanceRecoveryPct: 5,
+      invoices: [inv({ state: "مسودة" }), inv({ state: "مقدم" })],
+      asOf: null,
+    });
+    expect(r.retentionRateUsedPct).toBe(0);
+    expect(r.retentionNext).toBe(0);
+    expect(r.advanceRecoveryNext).toBe(125); // نسبة العقد تطبق بمعزل عن المعتمد
+    expect(r.netExpected).toBe(2375);
+  });
+
+  test("الأرصدة: المحتجزات المحتفظ بها والذمم المفتوحة والمتبقي من الدفعة — أرضيات صفر", () => {
+    const r = deriveCashForecast({
+      grossExpected: 6000,
+      advanceAmount: 5000,
+      advanceRecoveryPct: 0,
+      invoices: [
+        inv({}), // محتجز 400 · ذمم 3000 · مسترد 200
+        inv({ id: 11, retentionReleased: true, retentionReleasedAt: "2026-03-10", retentionAmount: 300, total: 1000, paidAmount: 1000, advanceRecovered: 1000 }),
+        inv({ id: 12, total: 500, paidAmount: 800, retentionAmount: 0, advanceRecovered: 0 }), // سداد فوق القيمة ⇒ أرضية صفر
+      ],
+      asOf: null,
+    });
+    expect(r.retentionHeld).toBe(400); // المفرج عنه خارج المحتفظ
+    expect(r.openReceivables).toBe(3000); // 3000 + 0 + 0
+    expect(r.advanceRecoveredToDate).toBe(1200);
+    expect(r.advanceRemaining).toBe(3800); // 5000 − 1200
+  });
+
+  test("الوضع التاريخي: اعتماد لاحق لـasOf خارج كل شيء وإفراج لاحق لـasOf يبقى محتفظًا", () => {
+    const r = deriveCashForecast({
+      grossExpected: 0,
+      advanceAmount: 3000,
+      advanceRecoveryPct: 0,
+      invoices: [
+        inv({}), // معتمد 2026-03-05 ≤ asOf — محتجز 400
+        inv({ id: 11, approveDate: "2026-04-01", retentionAmount: 999, total: 9999, advanceRecovered: 999 }), // لاحق — خارج
+        inv({ id: 12, retentionReleased: true, retentionReleasedAt: "2026-04-01", retentionAmount: 150, total: 1000, paidAmount: 1000, advanceRecovered: 0 }), // اعتماده قبل asOf وفرجه بعده — محتفظ عند asOf وسداده كامل
+      ],
+      asOf: "2026-03-20",
+    });
+    expect(r.retentionHeld).toBe(550); // 400 + 150
+    expect(r.openReceivables).toBe(3000);
+    expect(r.advanceRecoveredToDate).toBe(200);
+    expect(r.advanceRemaining).toBe(2800);
+  });
+
+  test("المستخلص المتوقع لا يُحتسب سالبًا والدفعات فوق الاسترداد لا تنقص الأرضية", () => {
+    const r = deriveCashForecast({
+      grossExpected: -500,
+      advanceAmount: 100,
+      advanceRecoveryPct: 50,
+      invoices: [inv({ advanceRecovered: 900 })],
+      asOf: null,
+    });
+    expect(r.gross).toBe(0);
+    expect(r.retentionNext).toBe(0);
+    expect(r.advanceRemaining).toBe(0); // 100 − 900 ⇒ أرضية صفر
+  });
+});

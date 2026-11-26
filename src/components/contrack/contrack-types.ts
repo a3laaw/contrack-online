@@ -1044,6 +1044,67 @@ export interface ForecastDraftInvoiceDTO {
   total: number;
 }
 
+// ==================== م3 — التشغيل الكامل (docs/daily-report-forecast-design.md §11) ====================
+
+export interface ForecastMaterialsLineDTO {
+  boqItemId: number;
+  itemNo: string;
+  description: string;
+  unit: string;
+  itemId: number;
+  itemName: string;
+  itemUnit: string;
+  consumedQty: number;
+  fieldQty: number;
+  ratePerFieldUnit: number;
+  remainingQty: number;
+  demandQty: number;
+  unitCostAvg: number;
+  demandValue: number;
+}
+
+export interface ForecastMaterialsByItemDTO {
+  itemId: number;
+  itemName: string;
+  itemUnit: string;
+  consumedQty: number;
+  demandQty: number;
+  demandValue: number;
+  sources: string;
+}
+
+export interface ForecastMaterialsDTO {
+  lines: ForecastMaterialsLineDTO[];
+  byStockItem: ForecastMaterialsByItemDTO[];
+}
+
+export interface ForecastLaborDTO {
+  expectedFinishDate: string | null;
+  monthsRemaining: number | null;
+  monthlyCostAvg: number | null;
+  expectedLaborCost: number | null;
+  monthsUsed: number;
+}
+
+export interface ForecastCashDTO {
+  gross: number;
+  retentionNext: number;
+  advanceRecoveryNext: number;
+  netExpected: number;
+  retentionRateUsedPct: number;
+  retentionHeld: number;
+  openReceivables: number;
+  advanceRecoveredToDate: number;
+  advanceRemaining: number;
+}
+
+export interface ForecastCrewMemberDTO {
+  employeeId: number;
+  name: string;
+  role: string;
+  allocationPct: number;
+}
+
 export interface ForecastResponse {
   mode: "live" | "historical";
   asOf: string | null;
@@ -1055,6 +1116,11 @@ export interface ForecastResponse {
   warnings: ForecastWarningDTO[];
   subMatch: ForecastSubMatchRowDTO[];
   draftInvoice: ForecastDraftInvoiceDTO | null;
+  // م3 §11 — التشغيل الكامل
+  materials: ForecastMaterialsDTO;
+  labor: ForecastLaborDTO;
+  cash: ForecastCashDTO;
+  assignedCrew: ForecastCrewMemberDTO[];
 }
 
 // ==================== ج3 — لوحة قيادة المشروع EVM (docs/project-dashboard-design.md §9) ====================

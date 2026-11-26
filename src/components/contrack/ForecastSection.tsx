@@ -9,11 +9,16 @@
  * فوق POST /api/invoices القائم بـstate=مسودة وعلامة fromForecast) + قسم «مطابقة
  * الباطن بالميدان» المشتق لحظيًا من شهادات SubIPC المعتمدة/المدفوعة — صفر جداول
  * ولا أعمدة، والمال يعبر حصرًا عبر اعتماد موقّع (مقترحات لا أفعال — حراسة التصور §3).
+ * م3 §11 — التشغيل الكامل: ثلاثة أقسام قراءة حصرًا بعد قسم الباطن — «الطلب على
+ * المواد» (المتبقي × الاستهلاك المعياري المشتق من سجل الصرف الفعلي — المرتجع
+ * يُخصم، وبلا سجل ⇒ بلا صف) + «العمالة والأطقم» (أفق من أقصى إتمام متوقع ×
+ * تكلفة توزيعات المسيرات المعتمدة) + «النقد المتوقع» (الإجمالي − محتجز − استرداد
+ * دفعة + الأرصدة الثلاثة) — لا حركة مخزنية ولا مالية تلقائية إطلاقًا.
  */
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Banknote, Building2, FilePlus2, Hourglass, RotateCcw, Sparkles, TrendingDown } from "lucide-react";
+import { Banknote, Building2, FilePlus2, Hourglass, Package, RotateCcw, Sparkles, TrendingDown, Users, Wallet } from "lucide-react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
 import { Badge } from "@/components/ui/badge";
@@ -90,6 +95,11 @@ export function ForecastSection({ contractId }: { contractId: number }) {
   const subMatch = q.data?.subMatch ?? [];
   const draftInvoice = q.data?.draftInvoice ?? null;
   const contract = q.data?.contract;
+  // م3 §11 — التشغيل الكامل: المواد/العمالة/النقد/الأطقم السارية
+  const materialsByItem = q.data?.materials?.byStockItem ?? [];
+  const labor = q.data?.labor;
+  const cash = q.data?.cash;
+  const assignedCrew = q.data?.assignedCrew ?? [];
 
   // م2 §10.1 — أسطر المسودة المقترحة تُشتق لحظيًا من صفوف التنبؤ نفسها (النواة النقية نفسها)
   const proposal = React.useMemo(() => deriveDraftProposal(rows), [rows]);
@@ -480,6 +490,176 @@ export function ForecastSection({ contractId }: { contractId: number }) {
                 </div>
               </div>
             )}
+
+            {/* ⑦ م3 §11.3 — الطلب على المواد: المتبقي × الاستهلاك المعياري من سجل الصرف الفعلي */}
+            <div className="rounded-lg border p-3">
+              <p className="flex items-center gap-1.5 text-xs font-bold">
+                <Package className="size-4 text-muted-foreground" aria-hidden />
+                الطلب على المواد — المتبقي × الاستهلاك المعياري
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                المعدل مشتق من إذون الصرف المرتبطة بالبنود (المرتجع يُخصم — صافي الاستهلاك هو الحقيقي) — بلا سجل صرف ⇒ بلا صف (مشتق لا خريطة مخزنة — G9).
+              </p>
+              {materialsByItem.length === 0 ? (
+                <p className="py-3 text-center text-xs text-muted-foreground">
+                  لا استهلاك مسجل بعد على بنود جارية — الخريطة تُشتق تلقائيًا من إذون الصرف المرتبطة بالبنود.
+                </p>
+              ) : (
+                <>
+                  {/* سطح المكتب */}
+                  <div className="mt-2 hidden max-h-96 overflow-y-auto rounded-lg border md:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="sticky top-0 bg-card">الصنف</TableHead>
+                          <TableHead className="sticky top-0 bg-card text-center">المصروف حتى الآن</TableHead>
+                          <TableHead className="sticky top-0 bg-card text-center">الطلب المتوقع</TableHead>
+                          <TableHead className="sticky top-0 bg-card text-end">قيمة الطلب</TableHead>
+                          <TableHead className="sticky top-0 bg-card">بنود المصدر</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {materialsByItem.map((m) => (
+                          <TableRow key={m.itemId}>
+                            <TableCell>
+                              <span className="text-xs font-bold">{m.itemName}</span>
+                              {m.itemUnit && <span className="ms-1 text-[10px] text-muted-foreground">({m.itemUnit})</span>}
+                            </TableCell>
+                            <TableCell className="text-center text-xs tabular-nums text-muted-foreground" dir="ltr">
+                              {m.consumedQty}
+                            </TableCell>
+                            <TableCell className="text-center text-xs font-bold tabular-nums text-primary-ink" dir="ltr">
+                              {m.demandQty}
+                            </TableCell>
+                            <TableCell className="text-end text-xs font-bold tabular-nums" dir="ltr">
+                              {formatKWD(m.demandValue)}
+                            </TableCell>
+                            <TableCell className="text-[11px] tabular-nums text-muted-foreground" dir="ltr">{m.sources}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {/* بطاقات الجوال */}
+                  <div className="mt-2 space-y-2 md:hidden">
+                    {materialsByItem.map((m) => (
+                      <div key={m.itemId} className="rounded-lg border p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="min-w-0 text-sm font-bold">
+                            {m.itemName}
+                            {m.itemUnit && <span className="ms-1 text-[10px] font-normal text-muted-foreground">({m.itemUnit})</span>}
+                          </span>
+                          <span className="shrink-0 text-sm font-bold tabular-nums text-primary-ink" dir="ltr">
+                            {m.demandQty}
+                          </span>
+                        </div>
+                        <p className="mt-1.5 text-[11px] text-muted-foreground">
+                          مصروف حتى الآن <span className="tabular-nums" dir="ltr">{m.consumedQty}</span>
+                          {" · "}قيمة الطلب <span className="font-bold tabular-nums" dir="ltr">{formatKWD(m.demandValue)}</span>
+                        </p>
+                        <p className="mt-1 text-[11px] tabular-nums text-muted-foreground" dir="ltr">{m.sources}</p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* ⑧ م3 §11.3 — العمالة والأطقم: الأفق والتكلفة المتوقعة للإتمام */}
+            <div className="rounded-lg border p-3">
+              <p className="flex items-center gap-1.5 text-xs font-bold">
+                <Users className="size-4 text-muted-foreground" aria-hidden />
+                العمالة والأطقم — الأفق والتكلفة المتوقعة
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                الأفق من أقصى إتمام متوقع بالبنود النشطة — التكلفة بمتوسط آخر 3 شهور بها توزيع من مسيرات معتمدة/مدفوعة (تقدير لا يختلق).
+              </p>
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <p className="text-[11px] text-muted-foreground">التكلفة الشهرية الحالية</p>
+                  <p className="mt-1 text-base font-bold tabular-nums" dir="ltr">
+                    {labor?.monthlyCostAvg != null ? formatKWD(labor.monthlyCostAvg) : "—"}
+                  </p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    {labor?.monthlyCostAvg != null ? `${labor.monthsUsed} شهر بها توزيع` : "لا توزيعات عمالة معتمدة للعقد"}
+                  </p>
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <p className="text-[11px] text-muted-foreground">الإتمام المتوقع للأطقم</p>
+                  <p className="mt-1 text-base font-bold tabular-nums" dir="ltr">
+                    {labor?.expectedFinishDate ?? "—"}
+                  </p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    {labor?.monthsRemaining != null ? `≈ ${labor.monthsRemaining} شهر عمل متبقٍ` : "لا بنود نشطة بأفق إتمام"}
+                  </p>
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <p className="text-[11px] text-muted-foreground">تكلفة العمالة المتوقعة للإتمام</p>
+                  <p className="mt-1 text-base font-bold tabular-nums text-primary-ink" dir="ltr">
+                    {labor?.expectedLaborCost != null ? formatKWD(labor.expectedLaborCost) : "—"}
+                  </p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">الشهرية × الشهور المتبقية — تقدير لحظي</p>
+                </div>
+              </div>
+              {assignedCrew.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-[11px] font-bold text-muted-foreground">الأطقم السارية على العقد (سياق عرض — لا توليد تكليفات)</p>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {assignedCrew.map((c) => (
+                      <Badge key={c.employeeId} variant="outline" className="text-[11px]">
+                        {c.name}
+                        {c.role ? ` — ${c.role}` : ""}
+                        <span className="ms-1 tabular-nums text-muted-foreground" dir="ltr">{c.allocationPct}٪</span>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ⑨ م3 §11.3 — النقد المتوقع: صيغة المالك — الإجمالي − محتجز − استرداد دفعة */}
+            <div className="rounded-lg border p-3">
+              <p className="flex items-center gap-1.5 text-xs font-bold">
+                <Wallet className="size-4 text-muted-foreground" aria-hidden />
+                النقد المتوقع — المستخلص القادم بعد المحتجزات واسترداد الدفعة
+              </p>
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-4">
+                <div className="rounded-lg border-2 border-primary/30 bg-primary/5 p-3">
+                  <p className="text-[11px] text-muted-foreground">النقد الصافي المتوقع</p>
+                  <p className="mt-1 text-lg font-bold tabular-nums text-primary-ink" dir="ltr">
+                    {formatKWD(cash?.netExpected ?? 0)}
+                  </p>
+                  <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
+                    إجمالي {formatKWD(cash?.gross ?? 0)} − محتجز{" "}
+                    <span className="tabular-nums" dir="ltr">{cash?.retentionRateUsedPct ?? 0}٪</span> ({formatKWD(cash?.retentionNext ?? 0)}) − استرداد دفعة{" "}
+                    {formatKWD(cash?.advanceRecoveryNext ?? 0)}
+                  </p>
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <p className="text-[11px] text-muted-foreground">المحتجزات المتراكمة المحتفظ بها</p>
+                  <p className="mt-1 text-base font-bold tabular-nums" dir="ltr">
+                    {formatKWD(cash?.retentionHeld ?? 0)}
+                  </p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">نقد مؤجل حتى الإفراج (معتمد حصرًا)</p>
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <p className="text-[11px] text-muted-foreground">الذمم المفتوحة غير المحصلة</p>
+                  <p className="mt-1 text-base font-bold tabular-nums" dir="ltr">
+                    {formatKWD(cash?.openReceivables ?? 0)}
+                  </p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">المعتمد ناقص ما حُصّل منه</p>
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <p className="text-[11px] text-muted-foreground">الدفعة المتبقية للسداد</p>
+                  <p className="mt-1 text-base font-bold tabular-nums" dir="ltr">
+                    {formatKWD(cash?.advanceRemaining ?? 0)}
+                  </p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                    مسترد منها حتى الآن {formatKWD(cash?.advanceRecoveredToDate ?? 0)}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </CardContent>

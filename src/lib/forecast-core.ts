@@ -17,8 +17,14 @@
 // مقترح قابل للتحرير لا فعل مالي) + deriveSubMatch (مطابقة الباطن بالميدان
 // لكل بند — المرآة الزوجية للمصالحة الرئيسية بأسعار باطن لا عقد) — صفر جداول
 // ولا أعمدة: المسودة كائن ز2 والمطابقة مشتق من SubContractItem.boqItemId القائم.
-// حدود v1 معلنة: لا مواد/عمالة/نقد (م3) · لا مسار «مخطط» بمنحنى S (ج2) ·
-// لا تجميع محفظة — المصالحة على مستوى العقد حصرًا.
+// م3 (§11 — الجلسة 31): التشغيل الكامل — deriveMaterialsDemand (الطلب على
+// المواد من المتبقي × الاستهلاك المعياري المشتق من سجل الصرف الفعلي:
+// StockDocLine.boqItemId وStockDoc.contractId إلزامي — G9 لا خريطة مخزنة) +
+// deriveLaborNeed (أفق الأطقم من أقصى إتمام متوقع × تكلفة توزيعات العمالة
+// المعتمدة) + deriveCashForecast (صيغة المالك: المستخلص المتوقع − محتجزات −
+// استرداد دفعة — والأرصدة الثلاثة من المعتمد حصرًا) — صفر تغييرات مخطط.
+// حدود معلنة: لا تجميع محفظة — المصالحة والتشغيل على مستوى العقد حصرًا ·
+// الخريطة من سجل الصرف الفعلي (بلا سجل ⇒ بلا صف) · مقترحات لا أفعال.
 // ============================================================
 
 import { r3 } from "./contrack-core";
@@ -560,4 +566,339 @@ export function deriveSubMatch(input: {
         meaning,
       };
     });
+}
+
+// ==================== م3 — التشغيل الكامل (§11): المواد + العمالة + النقد ====================
+
+/**
+ * سطر إذن مخزني مرتبط ببند — مرآة ما يجلبهم المسار من StockDocLine عبر رأسها:
+ * الصرف kind=issue والمرتجع entry بـentrySource="return" (د7 — G8: العقد إلزامي
+ * بهما) — والإدخال/التحويل/الجرد خارج الاستهلاك، والسطر الحر بلا بند خارج الاشتقاق.
+ */
+export interface MaterialsIssueLineInput {
+  /** YYYY-MM-DD — تاريخ الإذن الحامل للسطر */
+  docDate: string;
+  /** issue | entry — المرتجع entry بـentrySource="return" */
+  kind: string;
+  /** "return" لإذن الإدخال المرتجع — فارغ لغيره */
+  entrySource: string;
+  /** بند العقد المرتبط — null = سطر حر خارج الاشتقاق (حد §11.4) */
+  boqItemId: number | null;
+  itemId: number;
+  itemName: string;
+  itemUnit: string;
+  qty: number;
+  /** لقطة التكلفة المجمّدة على السطر (د2) — أساس القيمة المتوقعة */
+  amount: number;
+}
+
+/** سطر الطلب — بند جاري × صنف معدله المشتق من سجل الصرف الفعلي (G9 — لا خريطة مخزنة) */
+export interface MaterialsDemandLine {
+  boqItemId: number;
+  itemNo: string;
+  description: string;
+  unit: string;
+  itemId: number;
+  itemName: string;
+  itemUnit: string;
+  /** Σ الاستهلاك الصافي (صرف − مرتجع) ≤ asOf على هذا البند */
+  consumedQty: number;
+  /** الميداني المنفذ للبند ≤ asOf — قاسم المعدل */
+  fieldQty: number;
+  /** الاستهلاك المعياري المشتق = الصافي ÷ الميداني */
+  ratePerFieldUnit: number;
+  /** المتبقي على البند (مخرج م1) */
+  remainingQty: number;
+  /** الطلب المتوقع = المتبقي × المعدل */
+  demandQty: number;
+  /** متوسط تكلفة اللقطات المجمّدة = Σ amount ÷ Σ qty الصافية */
+  unitCostAvg: number;
+  /** قيمة الطلب = الطلب × متوسط التكلفة */
+  demandValue: number;
+}
+
+/** الطلب المجمّع بالصنف — ما يحتاجه المخزن فعليًا (Σ الأسطر حرفيًا — تناسق مضمون) */
+export interface MaterialsDemandByItem {
+  itemId: number;
+  itemName: string;
+  itemUnit: string;
+  consumedQty: number;
+  demandQty: number;
+  demandValue: number;
+  /** أرقام بنود العقد المشتركة في الطلب */
+  sources: string;
+}
+
+export interface MaterialsDemandResult {
+  lines: MaterialsDemandLine[];
+  byStockItem: MaterialsDemandByItem[];
+}
+
+/**
+ * الطلب على المواد (تصور §1: «المتبقي بالبنود القادمة × استهلاكها المعياري»):
+ *  • الاستهلاك الصافي لكل (بند × صنف) = Σ صرف − Σ مرتجع، بتاريخ الإذن ≤ asOf —
+ *    الصافي هو الاستهلاك الحقيقي؛ معدل سالب أو صفر ⇒ بلا صف (بلا افتراض).
+ *  • المعدل المعياري = الصافي ÷ الميداني للبند (بميداني > 0 حصرًا) — والطلب =
+ *    المتبقي × المعدل للبنود الجارية (متبقي > 0) — بلا سجل صرف ⇒ بلا صف
+ *    (حد §6.1 يتحقق ذاته: القاعدة العامة هي معدل السجل الفعلي).
+ *  • القيمة بالمتوسط الموزون لتكلفة اللقطات المجمّدة (Σ amount ÷ Σ qty) × الطلب.
+ *  • byStockItem = Σ الأسطر حرفيًا — التجميع لا يضيف مصدرًا ثانيًا للحقيقة.
+ */
+export function deriveMaterialsDemand(input: {
+  rows: ForecastRow[];
+  issueLines: MaterialsIssueLineInput[];
+  asOf: string | null;
+}): MaterialsDemandResult {
+  // الصافي لكل (بند × صنف): صرف موجب ومرتجع سالب — بإشارة واحدة
+  const netQty = new Map<string, number>();
+  const netAmount = new Map<string, number>();
+  for (const l of input.issueLines) {
+    if (l.boqItemId == null || l.boqItemId <= 0) continue; // سطر حر — خارج الاشتقاق
+    const isIssue = l.kind === "issue";
+    const isReturn = l.kind === "entry" && l.entrySource === "return";
+    if (!isIssue && !isReturn) continue; // الإدخال/التحويل/الجرد خارج الاستهلاك
+    const d = datePart10(l.docDate);
+    if (!d) continue;
+    if (input.asOf !== null && d > input.asOf) continue;
+    const sign = isIssue ? 1 : -1;
+    const key = `${l.boqItemId}:${l.itemId}`;
+    netQty.set(key, (netQty.get(key) || 0) + sign * (Number(l.qty) || 0));
+    netAmount.set(key, (netAmount.get(key) || 0) + sign * (Number(l.amount) || 0));
+  }
+
+  const meta = new Map<number, { name: string; unit: string }>();
+  const lines: MaterialsDemandLine[] = [];
+  for (const r of input.rows) {
+    if (!(r.remainingQty > 0) || !(r.fieldQty > 0)) continue; // الجاري بميدان فقط
+    for (const [key, qty] of netQty) {
+      if (!key.startsWith(`${r.boqItemId}:`)) continue;
+      if (!(qty > 0)) continue; // معدل سالب/صفر ⇒ بلا صف
+      const itemId = Number(key.slice(key.indexOf(":") + 1));
+      if (!Number.isFinite(itemId) || itemId <= 0) continue;
+      if (!meta.has(itemId)) {
+        const anyLine = input.issueLines.find(
+          (l) => l.itemId === itemId && l.itemName != null
+        );
+        meta.set(itemId, { name: anyLine?.itemName || `صنف #${itemId}`, unit: anyLine?.itemUnit || "" });
+      }
+      const rate = qty / r.fieldQty;
+      const demand = r3(r.remainingQty * rate);
+      if (!(demand > 0)) continue;
+      const costBasis = netAmount.get(key) || 0;
+      const unitCostAvg = costBasis > 0 ? r3(costBasis / qty) : 0;
+      lines.push({
+        boqItemId: r.boqItemId,
+        itemNo: r.itemNo,
+        description: r.description,
+        unit: r.unit,
+        itemId,
+        itemName: meta.get(itemId)!.name,
+        itemUnit: meta.get(itemId)!.unit,
+        consumedQty: r3(qty),
+        fieldQty: r.fieldQty,
+        ratePerFieldUnit: r3(rate),
+        remainingQty: r.remainingQty,
+        demandQty: demand,
+        unitCostAvg,
+        demandValue: r3(demand * unitCostAvg),
+      });
+    }
+  }
+
+  // التجميع بالصنف — Σ الأسطر حرفيًا + أرقام البنود المصدر
+  const byId = new Map<number, MaterialsDemandByItem>();
+  for (const l of lines) {
+    const cell = byId.get(l.itemId);
+    if (cell) {
+      cell.consumedQty = r3(cell.consumedQty + l.consumedQty);
+      cell.demandQty = r3(cell.demandQty + l.demandQty);
+      cell.demandValue = r3(cell.demandValue + l.demandValue);
+      if (!cell.sources.includes(l.itemNo)) cell.sources = cell.sources ? `${cell.sources}، ${l.itemNo}` : l.itemNo;
+    } else {
+      byId.set(l.itemId, {
+        itemId: l.itemId,
+        itemName: l.itemName,
+        itemUnit: l.itemUnit,
+        consumedQty: l.consumedQty,
+        demandQty: l.demandQty,
+        demandValue: l.demandValue,
+        sources: l.itemNo,
+      });
+    }
+  }
+  return { lines, byStockItem: Array.from(byId.values()) };
+}
+
+// ==================== م3 — احتياج العمالة والأطقم ====================
+
+/** سطر توزيع عمالة شهري — مرآة LaborAllocation عبر مسيرها (HR-3 القائم) */
+export interface LaborAllocInput {
+  /** YYYY-MM شهر المسير الحامل للسطر */
+  month: string;
+  /** draft|approved|paid|cancelled — المحتسب: approved|paid حصرًا (الاعتماد لحظة الحقيقة) */
+  batchStatus: string;
+  employeeId: number;
+  employeeName: string;
+  amount: number;
+}
+
+export interface LaborNeedResult {
+  /** أقصى تاريخ إتمام متوقع بين البنود النشطة (مخرج م1) — null بلا أفق */
+  expectedFinishDate: string | null;
+  /** ceil(الأيام ÷ 30) بحد أدنى 1 — null بلا أفق */
+  monthsRemaining: number | null;
+  /** متوسط Σ أسطر آخر 3 شهور بها توزيع — null بلا توزيعات معتمدة */
+  monthlyCostAvg: number | null;
+  /** التكلفة المتوقعة للإتمام = الشهرية × الشهور — null بلا أفق أو بلا توزيعات */
+  expectedLaborCost: number | null;
+  /** عدد الشهور المستخدمة في المتوسط (≤ 3) */
+  monthsUsed: number;
+}
+
+/**
+ * احتياج العمالة والأطقم (تصور §1: «سرعة مستهدفة × المتبقي»):
+ *  • الأفق = أقصى تاريخ إتمام متوقع بين البنود النشطة — deriveCompletion م1 لا يُعاد.
+ *  • الشهور المتبقية = ceil(الأيام ÷ 30) — بحد أدنى 1 (أفق قائم ⇒ شهر على الأقل).
+ *  • التكلفة الشهرية = متوسط Σ أسطر آخر 3 شهور **بها توزيع** (شهر بلا توزيع لا
+ *    يُخفف المتوسط) من مسيرات معتمد|مدفوع حصرًا وبتاريخ شهرها ≤ asOf.
+ *  • بلا توزيعات ⇒ null «—» — بلا بنود نشطة بأفق ⇒ null — التقدير لا يختلق.
+ */
+export function deriveLaborNeed(input: {
+  today: string;
+  rows: ForecastRow[];
+  allocations: LaborAllocInput[];
+  asOf: string | null;
+}): LaborNeedResult {
+  // الأفق: أقصى تاريخ إتمام متوقع (البنود النشطة حصرًا — expectedFinish من م1)
+  let maxFinish: string | null = null;
+  for (const r of input.rows) {
+    if (r.expectedFinish && (!maxFinish || r.expectedFinish > maxFinish)) maxFinish = r.expectedFinish;
+  }
+  let monthsRemaining: number | null = null;
+  if (maxFinish && input.today && maxFinish > input.today) {
+    const days = Math.ceil((Date.parse(maxFinish) - Date.parse(input.today)) / 86400000);
+    monthsRemaining = Math.max(1, Math.ceil(days / 30));
+  }
+
+  // التكلفة الشهرية: أسطر المسيرات المعتمدة/المدفوعة بتاريخ شهرها ≤ asOf
+  const byMonth = new Map<string, number>();
+  for (const a of input.allocations) {
+    if (a.batchStatus !== "approved" && a.batchStatus !== "paid") continue;
+    if (!/^\d{4}-\d{2}$/.test(a.month || "")) continue;
+    if (input.asOf !== null && a.month > input.asOf.slice(0, 7)) continue;
+    byMonth.set(a.month, r3((byMonth.get(a.month) || 0) + (Number(a.amount) || 0)));
+  }
+  const latest = Array.from(byMonth.keys()).sort().reverse().slice(0, 3);
+  const sumLatest = r3(latest.reduce((s, m) => s + (byMonth.get(m) || 0), 0));
+  const monthlyCostAvg = latest.length > 0 ? r3(sumLatest / latest.length) : null;
+
+  const expectedLaborCost =
+    monthlyCostAvg !== null && monthsRemaining !== null ? r3(monthlyCostAvg * monthsRemaining) : null;
+
+  return {
+    expectedFinishDate: maxFinish,
+    monthsRemaining,
+    monthlyCostAvg,
+    expectedLaborCost,
+    monthsUsed: latest.length,
+  };
+}
+
+// ==================== م3 — النقد المتوقع ====================
+
+/** فاتورة (المسار يجلبها غير الملغاة — النواة تحصر بالمعتمد بتاريخ اعتماده ≤ asOf) */
+export interface CashInvoiceInput {
+  id: number;
+  /** تاريخ الاعتماد المفكوك (approveAt أو invoiceDate — قرار ز3 الموثق) */
+  approveDate: string;
+  state: string;
+  retentionRate: number;
+  retentionAmount: number;
+  retentionReleased: boolean;
+  /** YYYY-MM-DD فارغ إن لم يُفرج — مرآة retentionReleasedAt */
+  retentionReleasedAt: string;
+  total: number;
+  paidAmount: number;
+  advanceRecovered: number;
+}
+
+export interface CashForecastResult {
+  /** الإجمالي = المستخلص القادم المتوقع (م1) */
+  gross: number;
+  /** المحتجز المتوقع = الإجمالي × نسبة آخر معتمد (مرآة الإدخال) */
+  retentionNext: number;
+  /** استرداد الدفعة المتوقع = الإجمالي × نسبة العقد (المرحلة أ) */
+  advanceRecoveryNext: number;
+  /** النقد الصافي المتوقع = الإجمالي − المحتجز − الاسترداد */
+  netExpected: number;
+  /** النسبة المستخدمة للعرض (مرآة آخر معتمد — 0 بلا معتمد) */
+  retentionRateUsedPct: number;
+  /** المحتجزات المتراكمة المحتفظ بها (معتمد غير مفرج عند asOf) */
+  retentionHeld: number;
+  /** الذمم المفتوحة = Σ max(0, total − paidAmount) للمعتمد */
+  openReceivables: number;
+  /** المسترد من الدفعة المقدمة حتى asOf */
+  advanceRecoveredToDate: number;
+  /** المتبقي من الدفعة المقدمة للسداد — أرضية صفر */
+  advanceRemaining: number;
+}
+
+/**
+ * النقد المتوقع (صيغة المالك حرفيًا — تصور §1: «المستخلص المتوقع − (محتجزات +
+ * استرداد دفعة + سداد سابق)»): المكوِّنان القائمان بConTrack هما المحتجزات
+ * (نسبة آخر معتمد — مرآة الإدخال) واسترداد الدفعة (نسبة العقد). «سداد سابق»
+ * قراؤه المباشر استردادُ الدفعة السابقة السداد ذاته فلا يُحسب مرتين (قراءة
+ * موثقة §11.1) — وأي خصم إضافي مستقبلي يدخل من حوار المسودة عند تحريره.
+ * الأرصدة الثلاثة من المعتمد حصرًا بتاريخ اعتماده ≤ asOf (الاعتماد لحظة
+ * الحقيقة — المسودة والمقدم لا يملكان مالًا)، والإفراج عن محتجز لاحق لـasOf
+ * يبقى محتفظًا به عند التاريخ (الوضع التاريخي يقرأ ما كان).
+ */
+export function deriveCashForecast(input: {
+  grossExpected: number;
+  advanceAmount: number;
+  advanceRecoveryPct: number;
+  invoices: CashInvoiceInput[];
+  asOf: string | null;
+}): CashForecastResult {
+  const gross = r3(Math.max(0, Number(input.grossExpected) || 0));
+
+  // المعتمد حصرًا بتاريخ اعتماده ≤ asOf — مرتب تصاعديًا (التعادل برقم الفاتورة الأعلى)
+  const approved = input.invoices
+    .filter(
+      (inv) =>
+        inv.state === INV_STATE_APPROVED &&
+        (input.asOf === null || (inv.approveDate && inv.approveDate <= input.asOf))
+    )
+    .sort((a, b) => (a.approveDate === b.approveDate ? a.id - b.id : a.approveDate < b.approveDate ? -1 : 1));
+  const last = approved.length ? approved[approved.length - 1] : null;
+  const retentionRateUsedPct = last ? Math.max(0, Number(last.retentionRate) || 0) : 0;
+
+  const retentionNext = r3((gross * retentionRateUsedPct) / 100);
+  const advanceRecoveryNext = r3((gross * Math.max(0, Number(input.advanceRecoveryPct) || 0)) / 100);
+  const netExpected = r3(gross - retentionNext - advanceRecoveryNext);
+
+  let retentionHeld = 0;
+  let openReceivables = 0;
+  let advanceRecoveredToDate = 0;
+  for (const inv of approved) {
+    const releasedAt = (inv.retentionReleasedAt || "").slice(0, 10);
+    const heldAtAsOf =
+      !inv.retentionReleased || (input.asOf !== null && !!releasedAt && releasedAt > input.asOf);
+    if (heldAtAsOf) retentionHeld = r3(retentionHeld + Math.max(0, Number(inv.retentionAmount) || 0));
+    openReceivables = r3(openReceivables + Math.max(0, (Number(inv.total) || 0) - (Number(inv.paidAmount) || 0)));
+    advanceRecoveredToDate = r3(advanceRecoveredToDate + Math.max(0, Number(inv.advanceRecovered) || 0));
+  }
+  const advanceRemaining = r3(Math.max(0, Math.max(0, Number(input.advanceAmount) || 0) - advanceRecoveredToDate));
+
+  return {
+    gross,
+    retentionNext,
+    advanceRecoveryNext,
+    netExpected,
+    retentionRateUsedPct,
+    retentionHeld,
+    openReceivables,
+    advanceRecoveredToDate,
+    advanceRemaining,
+  };
 }
