@@ -1191,10 +1191,19 @@ export interface EvmSCurvePointDTO {
   fieldCum: number;
 }
 
+/** ب2 §12.4 — دلاء المخطط الشهرية (بطاقة تقدم مخطط) */
+export interface PvPlanMonthDTO {
+  month: string;
+  planned: number;
+  plannedCum: number;
+}
+
 export interface EvmResultDTO {
   today: string;
   bac: number;
   pv: number;
+  /** ب2 §12 — الدلاء الشهرية للمخطط (الاستحقاق الخطي) */
+  pvPlan: { byMonth: PvPlanMonthDTO[] };
   evOfficial: number;
   evField: number;
   ac: number;

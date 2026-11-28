@@ -6,6 +6,7 @@ import { getSettingsRow } from "@/lib/contrack-server";
 import { parseEvmThresholds } from "@/lib/evm-core";
 import { deriveForecast, type ForecastExecutionInput, type ForecastInvoiceInput, type ForecastItemInput, type ForecastLineInput } from "@/lib/forecast-core";
 import { deriveEvm, type EvmInvoiceInput, type EvmLaborInput, type EvmMaterialInput, type EvmPlanInput, type EvmVoucherInput } from "@/lib/evm-core";
+import { deriveItemWindowFromActivities } from "@/lib/schedule-activities-core";
 
 type P = { params: Promise<{ id: string }> };
 
@@ -178,11 +179,32 @@ export async function GET(req: NextRequest, { params }: P) {
   });
 
   // ج2 — مدخلات النواة كلها أعمدة قائمة (§8.1)
-  const plans: EvmPlanInput[] = items.map((it) => ({
-    boqItemId: it.id,
-    plannedStart: it.plannedStart,
-    plannedFinish: it.plannedFinish,
-  }));
+  // ب3 §13.2 — البند المربوط بنشطاته المؤرخة ⇒ نافذته من الأنشطة لا التخزين
+  // (الربط المباشر يجري EVM بدقة الأنشطة — غير المربوط بنافذته المخزنة ب1/ج1)
+  const latestImport = await db.scheduleImport.findFirst({
+    where: { contractId },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  const linkedActs = latestImport
+    ? await db.scheduleActivity.findMany({
+        where: { importId: latestImport.id, contractId, isSummary: false, kind: "work", boqItemId: { not: null } },
+        select: { boqItemId: true, earlyStart: true, earlyFinish: true },
+      })
+    : [];
+  const actsByItem = new Map<number, { kind: string; isSummary: boolean; earlyStart: string; earlyFinish: string }[]>();
+  for (const a of linkedActs) {
+    if (a.boqItemId == null) continue;
+    const arr = actsByItem.get(a.boqItemId) || [];
+    arr.push({ kind: "work", isSummary: false, earlyStart: a.earlyStart, earlyFinish: a.earlyFinish });
+    actsByItem.set(a.boqItemId, arr);
+  }
+  const plans: EvmPlanInput[] = items.map((it) => {
+    const derived = deriveItemWindowFromActivities(actsByItem.get(it.id) || []);
+    return derived
+      ? { boqItemId: it.id, plannedStart: derived.start, plannedFinish: derived.finish }
+      : { boqItemId: it.id, plannedStart: it.plannedStart, plannedFinish: it.plannedFinish };
+  });
   const payments: EvmVoucherInput[] = paymentVouchers.map((v) => ({ vdate: v.vdate, amount: Number(v.amount) }));
   const receipts: EvmVoucherInput[] = receiptVouchers.map((v) => ({ vdate: v.vdate, amount: Number(v.amount) }));
   const labor: EvmLaborInput[] = laborAllocations.map((a) => ({

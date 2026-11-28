@@ -276,6 +276,85 @@ export function EvmDashboardSection({ contractId }: { contractId: number }) {
               </div>
             </div>
 
+            {/* ②-ب2 بطاقة «تقدم مخطط» — الاستحقاق الخطي الشهري (§12.4) */}
+            <div className="rounded-lg border p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-bold">تقدم مخطط — الاستحقاق الخطي بالأشهر</p>
+                <p className="text-[11px] text-muted-foreground">
+                  المخطط حتى اليوم <span className="font-bold tabular-nums text-primary-ink" dir="ltr">{pct(evm.pvPct)}</span>
+                  {" · "}{formatKWD(evm.pv)} من BAC
+                </p>
+              </div>
+              {evm.pvPlan?.byMonth?.length ? (
+                <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr]">
+                  {/* سطح المكتب: جدول شهري */}
+                  <div className="hidden overflow-hidden rounded-xl border md:block">
+                    <div className="max-h-96 overflow-y-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-24 text-center">الشهر</TableHead>
+                            <TableHead className="text-end">المخطط بالشهر</TableHead>
+                            <TableHead className="text-end">التراكمي</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {evm.pvPlan.byMonth.map((m) => (
+                            <TableRow key={m.month}>
+                              <TableCell className="text-center tabular-nums" dir="ltr">{m.month}</TableCell>
+                              <TableCell className="text-end font-bold tabular-nums" dir="ltr">{formatKWD(m.planned)}</TableCell>
+                              <TableCell className="text-end tabular-nums text-muted-foreground" dir="ltr">{formatKWD(m.plannedCum)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                  {/* الجوال: بطاقات شهرية مرآة */}
+                  <div className="space-y-2 md:hidden">
+                    {evm.pvPlan.byMonth.map((m) => (
+                      <div key={m.month} className="rounded-lg border p-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold tabular-nums" dir="ltr">{m.month}</span>
+                          <span className="text-sm font-bold tabular-nums" dir="ltr">{formatKWD(m.planned)}</span>
+                        </div>
+                        <p className="mt-0.5 text-[10px] text-muted-foreground">
+                          تراكمي <span className="tabular-nums" dir="ltr">{formatKWD(m.plannedCum)}</span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  {/* ملخص الأعمدة — مشترك */}
+                  <div className="space-y-1.5">
+                    <div className="rounded-lg border p-2.5">
+                      <p className="text-[10px] text-muted-foreground">أعلى شهر مخططًا</p>
+                      {(() => {
+                        const top = [...evm.pvPlan.byMonth].sort((a, b) => b.planned - a.planned)[0];
+                        return (
+                          <p className="text-sm font-bold tabular-nums" dir="ltr">
+                            {top.month} · {formatKWD(top.planned)}
+                          </p>
+                        );
+                      })()}
+                    </div>
+                    <div className="rounded-lg border p-2.5">
+                      <p className="text-[10px] text-muted-foreground">إجمالي المخطط (BAC المُجدول)</p>
+                      <p className="text-sm font-bold tabular-nums" dir="ltr">
+                        {formatKWD(evm.pvPlan.byMonth[evm.pvPlan.byMonth.length - 1]?.plannedCum ?? 0)}
+                      </p>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      الاستحقاق خطي داخل نافذة كل بند (أساس الاستشاري §4) — بلا نافذة خارج المخطط.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  لا بنود بنوافذ مخططة بعد — المخطط الشهري يُشتق لحظيًا من نوافذ البنود (استيراد البرنامج الزمني أو التعيين اليدوي).
+                </p>
+              )}
+            </div>
+
             {/* ③ منحنى S ثلاثي — مخطط + رسمي + ميداني تراكميًا (§5.3 — طبقة رابعة عن نموذجه) */}
             <div className="rounded-lg border p-3">
               <p className="text-xs font-bold">منحنى S — التراكمي الثلاثي (مخطط × رسمي × ميداني)</p>

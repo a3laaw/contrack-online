@@ -351,6 +351,8 @@ model BoqItem {
   fieldExecutions   FieldExecution[]
   invoiceItems      InvoiceItem[] // فواتير العميل — أسطر مستخلصات مرتبطة بهذا البند (ز1)
   stageLinks        BoqItemStage[] // سيناريو المالك 2026-11 — مراحل البند (واحدة أو أكثر)
+  // ب3 — أنشطة البرنامج الزمني المرتبطة بهذا البند مباشرة (docs/schedule-import-design.md §13)
+  scheduleActivities ScheduleActivity[]
   // ر1/1 (docs/qc-completion-design.md) — تتبع أصل البند: بند مُرحَّل من عرض سعر
   // يتحول إلى عقد يحمل بند العرض المصدر (نسخ لا مرجع — والمصدر للتقارير)
   sourceQuotationItemId Int?            @map("source_quotation_item_id")
@@ -1917,9 +1919,15 @@ model ScheduleActivity {
   groupName    String         @default("") @map("group_name") // أقرب band حاوي (تقريبي — الـPDF يفقد الإزاحة)
   divisionCode String         @default("") @map("division_code") // من مطابقة القسم (بند+رقم MasterFormat)
   sortOrder    Int            @default(0) @map("sort_order")
+  // ب3 — الربط المباشر نشطة→بند (docs/schedule-import-design.md §13): عمود المصمم منذ §2
+  // أنشطة كثيرة→بند واحد («البند الواحد عبر عدة مستويات») ونشطة→بند واحد حصرًا —
+  // نافذة البند المربوط تُشتق من أنشطته بدل نافذة قسمه (§13.2 dashboard)
+  boqItemId    Int?           @map("boq_item_id")
+  boqItem      BoqItem?       @relation(fields: [boqItemId], references: [id], onDelete: SetNull)
 
   @@index([importId])
   @@index([contractId, divisionCode])
+  @@index([boqItemId])
   @@map("schedule_activities")
 }
 

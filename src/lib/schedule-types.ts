@@ -63,4 +63,28 @@ export interface ScheduleStateDTO {
   } | null;
   divisions: ScheduleDivisionDTO[];
   kindCounts: Record<string, number>;
+  /** ب3 §13.2 — أنشطة أحدث دفعة غير الملخصة (الشجرة والتوزيع يشتقان بالعميل — G9) */
+  activities: ScheduleActivityDTO[];
+}
+
+/** صف النشطة للعرض — غير الملخصة حصرًا مع float المشتق والبند المربوط */
+export interface ScheduleActivityDTO {
+  id: number;
+  activityCode: string;
+  name: string;
+  kind: string;
+  family: string;
+  durationDays: number;
+  earlyStart: string;
+  earlyFinish: string;
+  lateStart: string;
+  lateFinish: string;
+  /** Total Float المشتق — null بلا تواريخ — الصفر مسار حرج */
+  float: number | null;
+  groupName: string;
+  divisionCode: string;
+  boqItemId: number | null;
+  linkedItemNo: string;
+  linkedItemDescription: string;
+  sortOrder: number;
 }

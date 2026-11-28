@@ -5,8 +5,8 @@
 //  • «إجابة احترافية على متأخرين فين متقدمين فين» — كل المؤشرات مشتقة لحظيًا
 //    (G9) فوق مخرجات م1 حصرًا: rows من deriveForecast هي الأرضية المشتركة
 //    (قرار §8.2.3 — EV برؤيتيهما من م1 فلا مصدر ثانٍ ولا لقطة مخزنة).
-//  • BAC أرضية BOQ لا contract.amount (§8.2.1) · PV من نوافذ ج1 (ب1/ج1) ·
-//    AC ثلاثة مكوّنات معلنة: سندات صرف (العقد + شهادات الباطن) + رواتب محملة
+//  • BAC أرضية BOQ لا contract.amount (§8.2.1) · PV استحقاق خطي داخل النافذة
+//    (ب2 §12 — ترقية موثقة عن خطوة ج2) · AC ثلاثة مكوّنات معلنة: سندات صرف (العقد + شهادات الباطن) + رواتب محملة
 //    (HR-3 معتمد|مدفوع بشهرها) + مواد صرف المخزن (قرار §7.2 — الخطر المعلن
 //    للاحتساب المزدوج مرئي بالمكوّنات المنفصلة).
 //  • القسمة على صفر = null لا صفر (§8.2.5): بلا PV ⇒ SPI null وبلا AC ⇒
@@ -21,6 +21,7 @@
 import { daysBetween, r3 } from "./contrack-core";
 import { datePart10, pctOf } from "./boq-state-core";
 import type { ForecastRow, SCurvePoint } from "./forecast-core";
+import { accrueLinear, derivePvPlan, type PvPlanMonth } from "./pv-plan-core";
 
 // ==================== مدخلات — مرآة ما يجلبهم المسار ====================
 
@@ -184,7 +185,10 @@ export interface DeriveEvmResult {
   /** اليوم المرجعي — الحائم يوم الخادم · التاريخي asOf (المسار يحدده) */
   today: string;
   bac: number;
+  /** الاستحقاق الخطي حتى اليوم (ب2 §12) — لا الخطوة */
   pv: number;
+  /** الدلاء الشهرية للمخطط (ب2 §12.4 — بطاقة تقدم مخطط) */
+  pvPlan: { byMonth: PvPlanMonth[] };
   evOfficial: number;
   evField: number;
   ac: number;
@@ -247,20 +251,18 @@ export function deriveEvm(input: {
   // خريطة النوافذ — للبنود الظاهرة حصرًا (بنود خارج الميدان لا نافذة لها هنا)
   const planByItem = new Map(input.plans.map((p) => [p.boqItemId, p]));
 
-  // ===== BAC وPV (§8.2.1/§8.2.2) — والمخطط التراكمي نقطة عند كل plannedFinish =====
+  // ===== BAC وPV (§8.2.1/§8.2.2 + ب2 §12) — الاستحقاق الخطي داخل النافذة
+  // ترقية موثقة بطاقة ب2: خطوة ج2 عند plannedFinish ← استحقاق خطي (أساس §4
+  // «قيمة القسم توزّع خطياً داخل نافذته»)، والقواعد المحفوظة: بلا نافذة خارج
+  // PV · قيمة ≤ 0 لا مساهمة · المنحنى المخطط خطوة شهرية عند نهاية الشهر.
   let bac = 0;
-  let pv = 0;
-  const plannedByDate = new Map<string, number>();
   for (const r of input.rows) {
     const value = r3(Math.max(0, r.contractQty) * Math.max(0, r.unitPrice));
     bac = r3(bac + value);
-    const plan = planByItem.get(r.boqItemId);
-    const finish = plan ? datePart10(plan.plannedFinish) : "";
-    if (finish && finish <= today && value > 0) {
-      pv = r3(pv + value);
-      plannedByDate.set(finish, r3((plannedByDate.get(finish) || 0) + value));
-    }
   }
+  const pvPlan = derivePvPlan(input.rows, input.plans, today);
+  const pv = pvPlan.pv;
+  const plannedByDate = pvPlan.plannedByMonthEnd;
 
   // ===== EV برؤيتين من م1 حصرًا (§8.2.3) =====
   let evOfficial = 0;
@@ -349,10 +351,12 @@ export function deriveEvm(input: {
     cell.fieldAmount = r3(cell.fieldAmount + r.fieldAmount);
     cell.officialAmount = r3(cell.officialAmount + r.officialAmount);
     const plan = planByItem.get(r.boqItemId);
-    const finish = plan ? datePart10(plan.plannedFinish) : "";
-    if (finish && finish <= today && Math.max(0, r.contractQty) * Math.max(0, r.unitPrice) > 0) {
-      cell.plannedValue = r3(cell.plannedValue + Math.max(0, r.contractQty) * Math.max(0, r.unitPrice));
-    }
+    const itemValue = r3(Math.max(0, r.contractQty) * Math.max(0, r.unitPrice));
+    // ب2 §12.3 — plannedPct بالاستحقاق الخطي حتى اليوم لا الخطوة
+    cell.plannedValue = r3(
+      cell.plannedValue +
+        accrueLinear(itemValue, plan ? datePart10(plan.plannedStart) : "", plan ? datePart10(plan.plannedFinish) : "", today)
+    );
     const delay = delayByItem.get(r.boqItemId);
     if (delay) {
       cell.delayedCount += 1;
@@ -439,7 +443,8 @@ export function deriveEvm(input: {
   const runwayDays = cashRemaining > 0 && burnPerDay > 0 ? Math.floor(cashRemaining / burnPerDay) : null;
   const money: EvmMoney = { billed, collected, retentionOutstanding, cashRemaining, burnPerDay, runwayDays };
 
-  // ===== المنحنى الثلاثي (§8.2.6) — اتحاد التواريخ وترحيل آخر قيمة =====
+  // ===== المنحنى الثلاثي (§8.2.6) — اتحاد التواريخ وترحيل آخر قيمة
+  // المخطط بخطوات شهرية عند نهاية الشهر (ب2 §12.1 — دقة شهرية = دقة الاستشاري)
   const sCurve = deriveEvmSCurve(input.sCurve, plannedByDate, today);
 
   // ===== تحذيرات EVM مشتقة لحظيًا (§8.2.12) — null لا تشعل =====
@@ -491,6 +496,7 @@ export function deriveEvm(input: {
     today,
     bac,
     pv,
+    pvPlan: { byMonth: pvPlan.byMonth },
     evOfficial,
     evField,
     ac,

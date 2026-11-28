@@ -127,9 +127,21 @@ describe("evm-core — السيناريو المرجعي (أ): المؤشرات"
     expect(r.bac).toBe(9000); // 5000 + 4000
   });
 
-  test("PV من نوافذ ج1 المكتملة ≤ المرجعي حصرًا (§8.2.2)", () => {
-    expect(r.pv).toBe(5000); // بند 1 فقط (نافذة 2 تنتهي 2026-12-01 بعد المرجعي)
-    expect(r.pvPct).toBe(55.6); // 5000/9000
+  test("PV بالاستحقاق الخطي داخل النافذة — ب2 §12 (§8.2.2 مُرقّى)", () => {
+    // بند 1: نافذته انتهت 11-10 ⇒ كامل 5000 · بند 2: نافذة 123 يومًا (08-01→12-01 شاملًا)
+    // والمنقضي حتى 11-20 = 112 يومًا شاملًا ⇒ 4000×112/123 = 3642.276
+    expect(r.pv).toBe(8642.276);
+    expect(r.pvPct).toBe(96.0); // 8642.276/9000
+  });
+
+  test("pvPlan — الدلاء الشهرية للمخطط (ب2 §12.4)", () => {
+    // بند1: 30/71 + 31/71 + 10/71 من 5000 بالأشهر 09/10/11 · بند2: 31/123+30/123+31/123+30/123+1/123 من 4000
+    expect(r.pvPlan.byMonth.map((m) => m.month)).toEqual(["2026-08", "2026-09", "2026-10", "2026-11", "2026-12"]);
+    expect(r.pvPlan.byMonth[0]).toEqual({ month: "2026-08", planned: 1008.13, plannedCum: 1008.13 });
+    expect(r.pvPlan.byMonth[1].planned).toBe(3088.286);
+    expect(r.pvPlan.byMonth[2].planned).toBe(3191.229);
+    expect(r.pvPlan.byMonth[3].planned).toBe(1679.835);
+    expect(r.pvPlan.byMonth[4]).toEqual({ month: "2026-12", planned: 32.52, plannedCum: 9000 });
   });
 
   test("EV برؤيتين من م1 حصرًا (§8.2.3)", () => {
@@ -147,8 +159,8 @@ describe("evm-core — السيناريو المرجعي (أ): المؤشرات"
   });
 
   test("SPI/CPI/EAC برؤيتين — بدقة الأرقام المحسوبة", () => {
-    expect(r.spiOfficial).toBe(1.2); // 6000/5000
-    expect(r.spiField).toBe(1.4); // 7000/5000
+    expect(r.spiOfficial).toBe(0.694); // 6000/8642.276 بالاستحقاق الخطي
+    expect(r.spiField).toBe(0.81); // 7000/8642.276
     expect(r.cpiOfficial).toBe(2.222); // 6000/2700
     expect(r.cpiField).toBe(2.593); // 7000/2700
     expect(r.eacOfficial).toBe(4050); // 9000×2700/6000 بالنسبة الخام جبريًا
@@ -178,7 +190,7 @@ describe("evm-core — السيناريو المرجعي (أ): المؤشرات"
     const steel = r.divisions[1];
     expect(steel.value).toBe(4000);
     expect(steel.weightPct).toBe(44.4);
-    expect(steel.plannedPct).toBe(0);
+    expect(steel.plannedPct).toBe(91.1); // الاستحقاق الخطي 3642.276/4000 — ب2 §12.3
     expect(steel.fieldPct).toBe(100);
     expect(steel.delayedCount).toBe(0);
   });
@@ -201,25 +213,34 @@ describe("evm-core — السيناريو المرجعي (أ): المؤشرات"
     expect(r.money.runwayDays).toBe(24); // floor(1300/52.941)
   });
 
-  test("التحذيرات: null لا تشعل والمتأخرة فوق العتبة تشعل مجمّعة (§8.2.12)", () => {
-    expect(r.warnings).toHaveLength(1); // المؤشرات كلها فوق العتبة — والمتأخر 10 > 7
-    expect(r.warnings[0].kind).toBe("delayed_items");
-    expect(r.warnings[0].message).toContain("بندًا متأخرًا");
-    expect(r.warnings[0].message).toContain("03.30.01");
+  test("التحذيرات: بالاستحقاق الخطي SPI دون العتبة يشتعل مع المتأخرة (§8.2.12)", () => {
+    // SPI الرسمي 0.694 والميداني 0.81 كلاهما دون 0.95 بالخطي — والمتأخر 10 > 7
+    expect(r.warnings).toHaveLength(3);
+    expect(r.warnings.map((w) => w.kind)).toEqual(["spi_official", "spi_field", "delayed_items"]);
+    const delayed = r.warnings[2];
+    expect(delayed.message).toContain("بندًا متأخرًا");
+    expect(delayed.message).toContain("03.30.01");
   });
 
-  test("المنحنى الثلاثي: اتحاد التواريخ وترحيل آخر قيمة ونقطة ختامية عند اليوم (§8.2.6)", () => {
-    expect(r.sCurve).toHaveLength(3); // 11-05 (م1) · 11-10 (مخطط) · 11-20 (الختام)
-    expect(r.sCurve[0]).toEqual({ date: "2026-11-05", plannedCum: 0, officialCum: 2000, fieldCum: 3000 });
-    expect(r.sCurve[1]).toEqual({ date: "2026-11-10", plannedCum: 5000, officialCum: 2000, fieldCum: 3000 });
-    expect(r.sCurve[2]).toEqual({ date: "2026-11-20", plannedCum: 5000, officialCum: 2000, fieldCum: 3000 });
+  test("المنحنى الثلاثي: المخطط بخطوات شهرية عند نهاية الشهر — ب2 §12.1 (§8.2.6)", () => {
+    // اتحاد: نهايات الأشهر الخمسة + م1 (11-05) + الختام (11-20)
+    expect(r.sCurve).toHaveLength(7);
+    expect(r.sCurve[0]).toEqual({ date: "2026-08-31", plannedCum: 1008.13, officialCum: 0, fieldCum: 0 });
+    expect(r.sCurve[1]).toEqual({ date: "2026-09-30", plannedCum: 4096.416, officialCum: 0, fieldCum: 0 });
+    expect(r.sCurve[2]).toEqual({ date: "2026-10-31", plannedCum: 7287.645, officialCum: 0, fieldCum: 0 });
+    expect(r.sCurve[3]).toEqual({ date: "2026-11-05", plannedCum: 7287.645, officialCum: 2000, fieldCum: 3000 });
+    expect(r.sCurve[4]).toEqual({ date: "2026-11-20", plannedCum: 7287.645, officialCum: 2000, fieldCum: 3000 });
+    expect(r.sCurve[5]).toEqual({ date: "2026-11-30", plannedCum: 8967.48, officialCum: 2000, fieldCum: 3000 });
+    expect(r.sCurve[6]).toEqual({ date: "2026-12-31", plannedCum: 9000, officialCum: 2000, fieldCum: 3000 });
   });
 });
 
 describe("evm-core — العتبات بالباراميتر والتحذيرات بالرؤيتين (§8.1)", () => {
-  test("عتبة تأخر أعلى تُطفئ التحذير", () => {
+  test("عتبة تأخر أعلى تُطفئ تحذير التأخر — وSPI الخطي يبقى مشتعلًا", () => {
     const r = deriveEvm({ ...scenarioA(), thresholds: { ...EVM_DEFAULT_THRESHOLDS, maxDelayDays: 14 } });
-    expect(r.warnings).toHaveLength(0);
+    // التأخر 10 ≤ 14 لا يشعل — لكن SPI الرسمي 0.694 والميداني 0.81 كلاهما دون العتبة
+    expect(r.warnings.map((w) => w.kind)).toEqual(["spi_official", "spi_field"]);
+    expect(r.warnings).not.toContainEqual(expect.objectContaining({ kind: "delayed_items" }));
   });
 
   test("SPI ميداني متأخر بالعتبة المرفوعة — يشتعل بمؤشره لا غيره", () => {
@@ -307,9 +328,11 @@ describe("evm-core — الوضع التاريخي: المرجعي asOf يفلت
   const base = scenarioA();
   const r = deriveEvm({ ...base, today: "2026-10-15" });
 
-  test("المؤشرات عند التاريخ: PV صفر (نافذة البند بعده) وSPI null", () => {
-    expect(r.pv).toBe(0);
-    expect(r.spiOfficial).toBe(null);
+  test("المؤشرات عند التاريخ: PV بالاستحقاق الخطي حتى 10-15 وSPI فوق الواحد", () => {
+    // بند1: 45/71 من 5000 = 3169.014 · بند2: 76/123 من 4000 = 2471.545 ⇒ pv = 5640.559
+    expect(r.pv).toBe(5640.559);
+    expect(r.spiOfficial).toBe(1.064); // 6000/5640.559 — الرواية ساكنة بالمصدر في هذه الحافظة
+    expect(r.spiField).toBe(1.241); // 7000/5640.559
     expect(r.delayedItems).toHaveLength(0); // نافذة البند 11-10 بعد التاريخ
   });
 
